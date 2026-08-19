@@ -1,0 +1,16 @@
+server:
+  port: 18080
+
+spring:
+  application:
+    name: history-ontology2
+
+neo4j:
+  uri: bolt://localhost:17687
+  authentication:
+    username: neo4j
+    password: guobo2026
+
+graph:
+  batch-limit: 10000
+  schema-file: data/graph-schema.json

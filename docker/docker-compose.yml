@@ -1,0 +1,19 @@
+name: Neo4j
+
+services:
+  neo4j:
+    image: neo4j:5-community
+    container_name: Neo4j
+    ports:
+      - "17474:7474"
+      - "17687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/guobo2026
+    volumes:
+      - neo4j2_data:/data
+      - neo4j2_logs:/logs
+    restart: unless-stopped
+
+volumes:
+  neo4j2_data:
+  neo4j2_logs:

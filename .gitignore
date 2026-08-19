@@ -1,0 +1,29 @@
+# 构建产物
+target/
+
+# 项目内本地 Maven 仓库（.mvn/maven.config 指定，勿提交）
+.m2/
+
+# 运行时状态（graph-schema.json 首次启动从 classpath 模板自动生成）
+data/
+
+# 临时测试文件
+tmp/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+*.launch
+
+# 日志与崩溃转储
+*.log
+hs_err_pid*
+replay_pid*
+
+# 系统文件
+Thumbs.db
+.DS_Store

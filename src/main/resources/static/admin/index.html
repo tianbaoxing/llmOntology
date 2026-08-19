@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图谱管理控制台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
+.header { background: #1f2937; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.tabs { display: flex; gap: 4px; }
+.tab { padding: 8px 18px; border-radius: 6px 6px 0 0; cursor: pointer; color: #9ca3af; user-select: none; }
+.tab.active { background: #f0f2f5; color: #1f2937; font-weight: 600; }
+.tab:hover:not(.active) { color: #fff; }
+.container { max-width: 1200px; margin: 20px auto; padding: 0 24px; }
+.panel { display: none; }
+.panel.active { display: block; }
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.card h2 { font-size: 15px; margin-bottom: 14px; color: #1f2937; border-left: 3px solid #2563eb; padding-left: 10px; }
+.stats-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.stat-card { flex: 1; min-width: 160px; background: #fff; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.stat-card .num { font-size: 28px; font-weight: 700; color: #2563eb; }
+.stat-card .label { color: #6b7280; margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+th { background: #f9fafb; color: #6b7280; font-weight: 600; font-size: 13px; }
+tr:hover td { background: #f9fafb; }
+.btn { display: inline-block; padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; }
+.btn:hover { background: #1d4ed8; }
+.btn.sm { padding: 3px 10px; font-size: 12px; }
+.btn.danger { background: #dc2626; }
+.btn.danger:hover { background: #b91c1c; }
+.btn.ghost { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+.btn.ghost:hover { background: #f9fafb; }
+.btn + .btn { margin-left: 6px; }
+.toolbar { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+select, input[type=text] { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px; background: #fff; }
+textarea { width: 100%; min-height: 90px; padding: 8px; border: 1px solid #d1d5db; border-radius: 5px; font-family: Consolas, monospace; font-size: 12px; resize: vertical; }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; }
+.badge.concept { background: #dbeafe; color: #1d4ed8; }
+.badge.instance { background: #dcfce7; color: #15803d; }
+.msg { padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; display: none; }
+.msg.ok { background: #dcfce7; color: #166534; display: block; }
+.msg.err { background: #fee2e2; color: #991b1b; display: block; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.detail-item { margin-bottom: 10px; }
+.detail-item b { color: #6b7280; font-weight: 600; display: inline-block; width: 90px; }
+.muted { color: #9ca3af; font-size: 12px; }
+code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>国博藏品图谱 · 管理控制台</h1>
+  <div class="tabs">
+    <div class="tab active" data-panel="overview">概览</div>
+    <div class="tab" data-panel="schema">概念层管理</div>
+    <div class="tab" data-panel="data">图数据管理</div>
+  </div>
+</div>
+<div class="container">
+  <div id="msg" class="msg"></div>
+
+  <!-- 概览 -->
+  <div id="panel-overview" class="panel active">
+    <div class="stats-row" id="ov-stats"></div>
+    <div class="card"><h2>节点类型分布</h2><div id="ov-nodes"></div></div>
+    <div class="card"><h2>关系类型分布</h2><div id="ov-rels"></div></div>
+  </div>
+
+  <!-- 概念层管理 -->
+  <div id="panel-schema" class="panel">
+    <div class="card">
+      <h2>类列表</h2>
+      <div class="toolbar">
+        <button class="btn" onclick="editClass()">+ 新增类</button>
+        <span class="muted">新增/修改立即生效（热更新白名单），删除受引用与实例保护（409）</span>
+      </div>
+      <div id="sc-classes"></div>
+    </div>
+    <div class="card" id="sc-detail-card" style="display:none">
+      <h2>类详情：<span id="sc-detail-name"></span></h2>
+      <div id="sc-detail"></div>
+    </div>
+    <div class="card" id="sc-form-card" style="display:none">
+      <h2 id="sc-form-title">新增类</h2>
+      <div class="grid2">
+        <div>
+          <div class="detail-item"><b>name</b><input type="text" id="f-name" placeholder="如 Person"></div>
+          <div class="detail-item"><b>cnName</b><input type="text" id="f-cnName" placeholder="如 人物"></div>
+          <div class="detail-item"><b>layer</b>
+            <select id="f-layer"><option value="concept">concept</option><option value="instance">instance</option></select></div>
+          <div class="detail-item"><b>keyProp</b><input type="text" id="f-keyProp" placeholder="如 name"></div>
+          <div class="detail-item"><b>description</b><input type="text" id="f-desc" placeholder="描述"></div>
+        </div>
+        <div>
+          <div class="detail-item"><b>properties</b>
+            <textarea id="f-props" placeholder='[{"name":"name","cnName":"姓名","dataType":"STRING","required":true}]'></textarea></div>
+          <div class="detail-item"><b>relations</b>
+            <textarea id="f-rels" placeholder='[{"name":"LIVED_IN_ERA","cnName":"生活于","toClass":"Era"}] 或 []'></textarea></div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn" onclick="saveClass()">保存</button>
+        <button class="btn ghost" onclick="hideClassForm()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 图数据管理 -->
+  <div id="panel-data" class="panel">
+    <div class="grid2">
+      <div class="card">
+        <h2>节点操作</h2>
+        <div class="toolbar">
+          <select id="n-label"></select>
+          <input type="text" id="n-key" placeholder="键值（如 宋）">
+          <button class="btn" onclick="queryNode()">查询</button>
+        </div>
+        <div class="detail-item"><b>新建/覆盖</b>
+          <textarea id="n-create" placeholder='{"name":"测试节点"}（含 keyProp，MERGE 幂等）'></textarea></div>
+        <div class="toolbar">
+          <button class="btn" onclick="createNode()">创建节点</button>
+          <button class="btn" onclick="updateNode()">更新属性</button>
+          <button class="btn danger" onclick="deleteNode()">删除节点</button>
+        </div>
+        <div class="muted">更新/删除按上方 label+键值 定位；删除默认 detach（连带关系）</div>
+        <div id="n-detail" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h2>关系操作</h2>
+        <div class="toolbar">
+          <select id="r-type"></select>
+        </div>
+        <div class="detail-item"><b>from 键值</b><input type="text" id="r-from" placeholder="起点键值"></div>
+        <div class="detail-item"><b>to 键值</b><input type="text" id="r-to" placeholder="终点键值"></div>
+        <div class="detail-item"><b>props</b>
+          <textarea id="r-props" placeholder='{} 或 {"note":"备注"}（创建/更新时写入）'></textarea></div>
+        <div class="toolbar">
+          <button class="btn" onclick="createRel()">创建关系</button>
+          <button class="btn" onclick="updateRel()">更新属性</button>
+          <button class="btn danger" onclick="deleteRel()">删除关系</button>
+        </div>
+        <div class="muted">关系的两端 label 由所选类型的 schema 声明决定（签名校验）</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+// ---------------- 基础 ----------------
+const $ = id => document.getElementById(id);
+let schemaCache = null;   // { classes:[...], relations:[...] }
+let classSummaries = [];
+
+function showMsg(text, ok) {
+  const m = $('msg');
+  m.textContent = text;
+  m.className = 'msg ' + (ok ? 'ok' : 'err');
+  clearTimeout(m._t);
+  m._t = setTimeout(() => m.className = 'msg', 4000);
+}
+
+async function api(method, url, body) {
+  const opt = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opt.body = JSON.stringify(body);
+  const res = await fetch(url, opt);
+  const json = await res.json();
+  if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
+  return json.data;
+}
+
+function doAction(fn) {
+  fn().then(d => showMsg(JSON.stringify(d), true)).catch(e => showMsg('失败：' + e.message, false));
+}
+
+// 事件委托：点击任何 .tab（或其子节点）切换面板（不受绑定时机影响）
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tab');
+  if (!t || !t.dataset.panel) return;
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  $('panel-' + t.dataset.panel).classList.add('active');
+});
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// ---------------- 概览 ----------------
+async function loadOverview() {
+  const stats = await api('GET', '/api/graph/stats');
+  const schema = await api('GET', '/api/schema');
+  const nodeTotal = stats.nodes.reduce((s, n) => s + n.count, 0);
+  const relTotal = stats.relationships.reduce((s, r) => s + r.count, 0);
+  $('ov-stats').innerHTML =
+    statCard(nodeTotal, '节点总数') + statCard(relTotal, '关系总数') +
+    statCard(schema.classes.length, '类（概念层定义）') + statCard(schema.relations.length, '关系类型定义');
+  $('ov-nodes').innerHTML = table(
+    ['类型', '中文名', '层', '实例数'],
+    stats.nodes.map(n => {
+      const c = schema.classes.find(c => c.name === n.label);
+      return [code(n.label), c ? c.cnName : '-', c ? badge(c.layer) : '-', n.count];
+    }));
+  const relRows = stats.relationships.map(r => {
+    const d = schema.relations.find(x => x.name === r.type);
+    return [code(r.type), d ? d.cnName : '-',
+      d ? code(d.fromClass) + ' → ' + code(d.toClass) : '-', r.count];
+  });
+  $('ov-rels').innerHTML = table(['关系类型', '中文名', '方向', '实例数'], relRows);
+}
+
+function statCard(num, label) {
+  return `<div class="stat-card"><div class="num">${num}</div><div class="label">${label}</div></div>`;
+}
+function code(s) { return `<code>${esc(s)}</code>`; }
+function badge(layer) { return `<span class="badge ${layer}">${layer}</span>`; }
+function table(heads, rows) {
+  return `<table><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr>` +
+    rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('') + '</table>';
+}
+
+// ---------------- 概念层 ----------------
+async function loadSchemaPanel() {
+  classSummaries = await api('GET', '/api/schema/classes');
+  schemaCache = await api('GET', '/api/schema');
+  $('sc-classes').innerHTML = table(
+    ['类名', '中文名', '层', 'keyProp', '实例数', '属性', '出边关系', '操作'],
+    classSummaries.map(c => [
+      code(c.name), esc(c.cnName), badge(c.layer), code(c.keyProp), c.count,
+      c.propertyCount, c.relationCount,
+      `<button class="btn sm" onclick="showClassDetail('${esc(c.name)}')">详情</button>` +
+      `<button class="btn sm ghost" onclick="editClass('${esc(c.name)}')">编辑</button>` +
+      `<button class="btn sm danger" onclick="removeClass('${esc(c.name)}')">删除</button>`
+    ]));
+  refreshDataSelectors();
+}
+
+async function showClassDetail(name) {
+  const d = await api('GET', '/api/schema/classes/' + encodeURIComponent(name));
+  $('sc-detail-card').style.display = 'block';
+  $('sc-detail-name').textContent = name;
+  const props = d.properties.map(p =>
+    `<tr><td>${code(p.name)}</td><td>${esc(p.cnName)}</td><td>${p.dataType}</td>` +
+    `<td>${p.required ? '是' : '否'}</td><td>${esc(p.description || '')}</td></tr>`).join('');
+  const rels = d.relations.map(r =>
+    `<tr><td>${code(r.name)}</td><td>${esc(r.cnName)}</td><td>${code(d.name)} → ${code(r.toClass)}</td>` +
+    `<td>${r.count}</td><td>${esc(r.example || '')}</td></tr>`).join('');
+  const incoming = d.incomingRelations.map(r =>
+    `<tr><td>${code(r.name)}</td><td>${esc(r.cnName)}</td><td>${code(r.fromClass)} → ${code(d.name)}</td>` +
+    `<td>${r.count}</td></tr>`).join('');
+  $('sc-detail').innerHTML =
+    `<div class="detail-item"><b>描述</b>${esc(d.description || '')}</div>` +
+    `<h2 style="margin:10px 0 8px">属性（${d.properties.length}）</h2>` +
+    `<table><tr><th>属性</th><th>中文名</th><th>类型</th><th>必填</th><th>说明</th></tr>${props}</table>` +
+    (rels ? `<h2 style="margin:14px 0 8px">出边关系（声明，${d.relations.length}）</h2>` +
+      `<table><tr><th>关系</th><th>中文名</th><th>方向</th><th>实例数</th><th>示例</th></tr>${rels}</table>` : '') +
+    (incoming ? `<h2 style="margin:14px 0 8px">入边关系（推导，${d.incomingRelations.length}）</h2>` +
+      `<table><tr><th>关系</th><th>中文名</th><th>方向</th><th>实例数</th></tr>${incoming}</table>` : '');
+}
+
+function editClass(name) {
+  $('sc-form-card').style.display = 'block';
+  if (name) {
+    const c = schemaCache.classes.find(c => c.name === name);
+    $('sc-form-title').textContent = '编辑类：' + name;
+    $('f-name').value = c.name; $('f-name').disabled = true;
+    $('f-cnName').value = c.cnName; $('f-layer').value = c.layer;
+    $('f-keyProp').value = c.keyProp; $('f-keyProp').disabled = true;
+    $('f-desc').value = c.description || '';
+    $('f-props').value = JSON.stringify(c.properties, null, 1);
+    $('f-rels').value = JSON.stringify(c.relations.map(({name, cnName, toClass, description, example, props}) =>
+      ({name, cnName, toClass, description, example, props})), null, 1);
+  } else {
+    $('sc-form-title').textContent = '新增类';
+    ['f-name', 'f-cnName', 'f-keyProp', 'f-desc', 'f-props', 'f-rels'].forEach(i => $(i).value = '');
+    $('f-name').disabled = false; $('f-keyProp').disabled = false;
+    $('f-layer').value = 'concept';
+    $('f-props').value = '[{"name":"name","cnName":"名称","dataType":"STRING","required":true}]';
+    $('f-rels').value = '[]';
+  }
+  $('sc-form-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+function hideClassForm() { $('sc-form-card').style.display = 'none'; }
+
+function saveClass() {
+  doAction(async () => {
+    const body = {
+      name: $('f-name').value.trim(), cnName: $('f-cnName').value.trim(),
+      layer: $('f-layer').value, keyProp: $('f-keyProp').value.trim(),
+      description: $('f-desc').value.trim(),
+      properties: JSON.parse($('f-props').value || '[]'),
+      relations: JSON.parse($('f-rels').value || '[]')
+    };
+    const editing = !$('f-name').disabled;
+    const r = editing
+      ? await api('PUT', '/api/schema/classes/' + encodeURIComponent(body.name), body)
+      : await api('POST', '/api/schema/classes', body);
+    hideClassForm();
+    await loadSchemaPanel();
+    return r;
+  });
+}
+
+function removeClass(name) {
+  if (!confirm('确认删除类 ' + name + '？\n（被引用或仍有实例会被拒绝 409）')) return;
+  doAction(async () => {
+    const r = await api('DELETE', '/api/schema/classes/' + encodeURIComponent(name));
+    await loadSchemaPanel();
+    $('sc-detail-card').style.display = 'none';
+    return r;
+  });
+}
+// ---------------- 图数据 ----------------
+function refreshDataSelectors() {
+  if (!schemaCache) return;
+  const labelSel = $('n-label');
+  labelSel.innerHTML = schemaCache.classes
+    .map(c => `<option value="${esc(c.name)}">${esc(c.name)}（${esc(c.cnName)}，key=${esc(c.keyProp)}）</option>`).join('');
+  const typeSel = $('r-type');
+  typeSel.innerHTML = schemaCache.relations
+    .map(r => `<option value="${esc(r.name)}">${esc(r.name)}（${esc(r.fromClass)} → ${esc(r.toClass)}，${esc(r.cnName)}）</option>`).join('');
+}
+
+function nodeLoc() {
+  return { label: $('n-label').value, key: $('n-key').value.trim() };
+}
+
+function queryNode() {
+  const { label, key } = nodeLoc();
+  if (!key) return showMsg('请输入键值', false);
+  api('GET', `/api/graph/node/${encodeURIComponent(label)}/${encodeURIComponent(key)}`)
+    .then(d => {
+      const rows = d.rows || [];
+      if (!rows.length) return showMsg('节点不存在', false);
+      const node = rows[0].node;
+      const edgeSummary = {};
+      rows.forEach(r => { edgeSummary[r.relType] = (edgeSummary[r.relType] || 0) + 1; });
+      const edges = Object.entries(edgeSummary).map(([t, c]) => `${t}: ${c}`).join('、');
+      $('n-detail').innerHTML =
+        `<h2 style="margin-bottom:8px">节点属性</h2>` +
+        table(['属性', '值'], Object.entries(node).map(([k, v]) => [code(k), esc(v)])) +
+        (edges ? `<div class="muted" style="margin-top:8px">关联边（LIMIT 200）：${esc(edges)}</div>` : '');
+      showMsg('查询成功', true);
+    }).catch(e => showMsg('失败：' + e.message, false));
+}
+
+function createNode() {
+  doAction(async () => {
+    const props = JSON.parse($('n-create').value || '{}');
+    const label = $('n-label').value;
+    const r = await api('POST', '/api/graph/nodes', { label, props });
+    if ($('n-key').value.trim() === '') {
+      const c = schemaCache.classes.find(c => c.name === label);
+      $('n-key').value = props[c.keyProp] ?? '';
+    }
+    return r;
+  });
+}
+
+function updateNode() {
+  doAction(async () => {
+    const { label, key } = nodeLoc();
+    const props = JSON.parse($('n-create').value || '{}');
+    return api('PUT', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}`, { props });
+  });
+}
+
+function deleteNode() {
+  const { label, key } = nodeLoc();
+  if (!key) return showMsg('请输入键值', false);
+  if (!confirm(`确认删除节点 ${label}/${key}？（默认 detach：连带删除其关系）`)) return;
+  doAction(async () =>
+    api('DELETE', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}?detach=true`));
+}
+
+function relBody() {
+  const type = $('r-type').value;
+  const d = schemaCache.relations.find(r => r.name === type);
+  const props = JSON.parse($('r-props').value || '{}');
+  return { type, fromLabel: d.fromClass, fromKey: $('r-from').value.trim(),
+           toLabel: d.toClass, toKey: $('r-to').value.trim(), props };
+}
+
+function createRel() {
+  doAction(async () => api('POST', '/api/graph/rels', relBody()));
+}
+function updateRel() {
+  doAction(async () => api('PUT', '/api/graph/rels', relBody()));
+}
+function deleteRel() {
+  if (!confirm('确认删除该关系？')) return;
+  const b = relBody();
+  doAction(async () => api('DELETE', '/api/graph/rels', b));
+}
+
+// ---------------- init ----------------
+loadOverview().catch(e => showMsg('加载失败：' + e.message, false));
+loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
+</script>
+</body>
+</html>
