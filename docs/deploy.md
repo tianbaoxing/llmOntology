@@ -37,6 +37,7 @@ docker exec -i Neo4j cypher-shell -u neo4j -p guobo2026 "RETURN 1 AS ok;"
 | 服务端口 | `18080` |
 | Neo4j 连接 | `bolt://localhost:17687` |
 | 配置文件 | `src/main/resources/application.yml` |
+| 页面标题 | `app.title`（默认「国博藏品图谱 · 管理控制台」，启动可用 `--app.title=xxx` 或环境变量 `APP_TITLE` 覆盖） |
 | JDK | 17 |
 | 构建 | Maven Wrapper（`mvnw.cmd`，Maven 3.9.6，仓库在项目内 `.m2\repo`） |
 
@@ -49,7 +50,7 @@ cd c:\me\kaiyuan\history\historyOntology2
 .\mvnw.cmd clean package "-DskipTests" -q
 
 # 启动（后台运行，启动时自动创建 8 个唯一约束）
-java -jar target\history-ontology2-0.1.0-SNAPSHOT.jar
+java -jar target\ontology-0.1.0-SNAPSHOT.jar
 
 # 健康检查
 curl http://localhost:18080/api/graph/stats
@@ -61,41 +62,63 @@ curl http://localhost:18080/api/graph/stats
 
 | 项 | 值 |
 |---|---|
-| 唯一事实源 | `data/graph-schema.json`（首次启动从 classpath 模板复制，可写） |
-| 模板 | `src/main/resources/graph-schema.json` |
+| 唯一事实源 | `data/graph-schema.json`（首次启动初始化为空 schema，可写） |
+| 初始状态 | 概念层为空，无预置类；由用户（或 ontology-build skill）按场景构建 |
 | 结构 | classes[]（含 properties + relations 内嵌声明）+ version（每次变更 +1） |
 | 白名单联动 | Schema CRUD 落盘后热更新 GraphSchema 白名单，Graph API 即时生效 |
 
 ## 4. 接口一览
 
-### 概念层 `/api/schema`
+接口按调用方分两个入口（同源同 service，双入口隔离）：
+
+- `/api/**` — admin 管理页调用（页面仅依赖此入口）
+- `/api/llm/**` — LLM / ontology-build skill 调用（构建期问询、概念抽取、批量灌数、对账校验）
+
+### 应用信息 `/api/app`（admin）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/schema` | 全量 schema（类型+关系+属性+实时 count，可注入 LLM 上下文） |
-| GET | `/api/schema/classes` | 类型列表（摘要+count） |
-| GET | `/api/schema/classes/{name}` | 单类详情（属性+出边声明+入边推导+count） |
-| POST | `/api/schema/classes` | 新增类（自动建唯一约束+热更新白名单） |
-| PUT | `/api/schema/classes/{name}` | 更新类（name/keyProp 不可变；被删关系仍有实例 → 409） |
-| DELETE | `/api/schema/classes/{name}` | 删除类（被引用或有实例 → 409） |
-| GET | `/api/schema/relations` | 关系扁平视图（全量只读） |
+| GET | `/api/app` | 应用信息（管理页标题 `app.title` 等） |
 
-### 图数据 `/api/graph`
+### 概念层 `/api/schema`（admin）与 `/api/llm/schema`（LLM）
+
+两个入口均提供以下接口（LLM 侧多一个 relations 全量视图）：
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/graph/query` | 通用只读 Cypher（写语句被拒绝） |
-| GET | `/api/graph/stats` | 各 label 节点数 / 各 type 关系数 |
-| GET | `/api/graph/node/{label}/{key}` | 节点详情 + 出入边 |
-| GET | `/api/graph/neighbors?label=&key=&depth=1..3` | 邻域子图 |
-| POST | `/api/graph/nodes` | 创建单个节点（MERGE 幂等） |
-| PUT | `/api/graph/nodes/{label}/{key}` | 更新节点属性（keyProp 不可改） |
-| DELETE | `/api/graph/nodes/{label}/{key}?detach=true` | 删除节点（detach 默认 true 连带删关系） |
-| POST | `/api/graph/rels` | 创建关系（签名须匹配 schema 声明，两端须存在） |
-| PUT | `/api/graph/rels` | 更新关系属性（type+两端键定位） |
-| DELETE | `/api/graph/rels` | 删除关系（type+两端键定位） |
-| POST | `/api/graph/nodes/batch` | 批量幂等写节点 |
-| POST | `/api/graph/rels/batch` | 批量幂等写关系 |
+| GET | `/schema` | 全量 schema（类型+关系+属性+实时 count，可注入 LLM 上下文） |
+| GET | `/schema/classes` | 类型列表（摘要+count） |
+| GET | `/schema/classes/{name}` | 单类详情（属性+出边声明+入边推导+count） |
+| POST | `/schema/classes` | 新增类（自动建唯一约束+热更新白名单） |
+| PUT | `/schema/classes/{name}` | 更新类（name/keyProp 不可变；被删关系仍有实例 → 409） |
+| DELETE | `/schema/classes/{name}` | 删除类（被引用或有实例 → 409） |
+| GET | `/api/llm/schema/relations` | 关系扁平视图（全量只读，仅 LLM 入口） |
+
+### 图数据 `/api/graph`（admin）与 `/api/llm/graph`（LLM）
+
+单条 CRUD / stats / node 两入口均提供；query、neighbors、batch 仅 LLM 入口：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/llm/graph/query` | 通用只读 Cypher（写语句被拒绝；对账校验用） |
+| GET | `/graph/stats` | 各 label 节点数 / 各 type 关系数 |
+| GET | `/graph/node/{label}/{key}` | 节点详情 + 出入边 |
+| GET | `/api/llm/graph/neighbors?label=&key=&depth=1..3` | 邻域子图（仅 LLM 入口） |
+| POST | `/graph/nodes` | 创建单个节点（MERGE 幂等） |
+| PUT | `/graph/nodes/{label}/{key}` | 更新节点属性（keyProp 不可改） |
+| DELETE | `/graph/nodes/{label}/{key}?detach=true` | 删除节点（detach 默认 true 连带删关系） |
+| POST | `/graph/rels` | 创建关系（签名须匹配 schema 声明，两端须存在） |
+| PUT | `/graph/rels` | 更新关系属性（type+两端键定位） |
+| DELETE | `/graph/rels` | 删除关系（type+两端键定位） |
+| POST | `/api/llm/graph/nodes/batch` | 批量幂等写节点（仅 LLM 入口） |
+| POST | `/api/llm/graph/rels/batch` | 批量幂等写关系（仅 LLM 入口） |
+
+### 构建期问询记录 `/api/llm/profile`（LLM）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/llm/profile` | 全量问询记录（LLM 构建各阶段回看上下文） |
+| POST | `/api/llm/profile` | 批量保存问答（按 key upsert，`data/ontology-profile.json`） |
 
 ### 管理员页面 `/admin`
 
@@ -106,4 +129,4 @@ curl http://localhost:18080/api/graph/stats
 | 功能 | 概览统计 / 概念层管理（类 CRUD）/ 图数据管理（节点与关系 CRUD） |
 | 数据通道 | 页面仅调用 `/api/**` 接口，无独立后端逻辑 |
 
-> controller 分两个入口包：`controller/api/`（REST 接口）与 `controller/admin/`（页面入口，后续认证在此拦截）。
+> controller 分三个入口包：`controller/api/`（admin REST）、`controller/llmapi/`（LLM/skill REST）、`controller/admin/`（页面入口，后续认证在此拦截）。

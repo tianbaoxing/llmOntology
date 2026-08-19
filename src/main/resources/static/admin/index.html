@@ -9,6 +9,8 @@
 body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
 .header { background: #1f2937; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
 .header h1 { font-size: 18px; font-weight: 600; }
+.logo-group { display: flex; align-items: center; gap: 10px; }
+.logo { width: 36px; height: 36px; }
 .tabs { display: flex; gap: 4px; }
 .tab { padding: 8px 18px; border-radius: 6px 6px 0 0; cursor: pointer; color: #9ca3af; user-select: none; }
 .tab.active { background: #f0f2f5; color: #1f2937; font-weight: 600; }
@@ -49,13 +51,34 @@ textarea { width: 100%; min-height: 90px; padding: 8px; border: 1px solid #d1d5d
 .detail-item b { color: #6b7280; font-weight: 600; display: inline-block; width: 90px; }
 .muted { color: #9ca3af; font-size: 12px; }
 code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.cg-wrap { position: relative; }
+#cg-svg { display: block; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; }
+#cg-legend { position: absolute; top: 10px; right: 14px; font-size: 12px; color: #6b7280; background: rgba(255,255,255,.88); padding: 8px 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+#cg-legend span { display: block; margin: 2px 0; }
+#cg-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.cg-elabel { font-size: 11px; fill: #64748b; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>国博藏品图谱 · 管理控制台</h1>
+  <div class="logo-group">
+    <svg class="logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="logo">
+      <rect x="9" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <rect x="34" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <path d="M5 11 h38 l-4.5 21 h-29 Z" fill="#e3b04b"/>
+      <path d="M14 19 L24 15.5 L34 19 L24 27.5 Z" stroke="#8a5a18" stroke-width="1.8" fill="none" opacity=".7"/>
+      <circle cx="14" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="34" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="24" cy="15.5" r="3" fill="#f8fafc"/>
+      <circle cx="24" cy="27.5" r="3" fill="#38bdf8"/>
+      <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
+      <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
+    </svg>
+    <h1 id="app-title">国博藏品图谱 · 管理控制台</h1>
+  </div>
   <div class="tabs">
     <div class="tab active" data-panel="overview">概览</div>
+    <div class="tab" data-panel="cgraph">概念图</div>
     <div class="tab" data-panel="schema">概念层管理</div>
     <div class="tab" data-panel="data">图数据管理</div>
   </div>
@@ -68,6 +91,21 @@ code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12p
     <div class="stats-row" id="ov-stats"></div>
     <div class="card"><h2>节点类型分布</h2><div id="ov-nodes"></div></div>
     <div class="card"><h2>关系类型分布</h2><div id="ov-rels"></div></div>
+  </div>
+
+  <!-- 概念图 -->
+  <div id="panel-cgraph" class="panel">
+    <div class="card">
+      <h2>概念关系图</h2>
+      <div class="muted" style="margin-bottom:10px">节点 = 类（大小按实例数缩放，颜色区分层），箭头连线 = 关系声明（方向 from → to）；同类间多条关系以弧线区分；节点可拖拽，悬停查看详情</div>
+      <div class="cg-wrap">
+        <svg id="cg-svg" viewBox="0 0 1100 560" width="100%" height="560"></svg>
+        <div id="cg-legend">
+          <span><i style="background:#3b82f6"></i>concept 概念层</span>
+          <span><i style="background:#22c55e"></i>instance 实例层</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 概念层管理 -->
@@ -301,6 +339,7 @@ function saveClass() {
       : await api('POST', '/api/schema/classes', body);
     hideClassForm();
     await loadSchemaPanel();
+    loadConceptGraph().catch(() => {});
     return r;
   });
 }
@@ -310,10 +349,137 @@ function removeClass(name) {
   doAction(async () => {
     const r = await api('DELETE', '/api/schema/classes/' + encodeURIComponent(name));
     await loadSchemaPanel();
+    loadConceptGraph().catch(() => {});
     $('sc-detail-card').style.display = 'none';
     return r;
   });
 }
+// ---------------- 概念图 ----------------
+const CG_W = 1100, CG_H = 560;
+const CG = { nodes: [], edges: [], sim: 0, dragging: null };
+
+async function loadConceptGraph() {
+  if (!classSummaries.length) classSummaries = await api('GET', '/api/schema/classes');
+  if (!schemaCache) schemaCache = await api('GET', '/api/schema');
+  CG.nodes = classSummaries.map((c, i) => {
+    const a = 2 * Math.PI * i / classSummaries.length;
+    return { id: c.name, cn: c.cnName, layer: c.layer, count: c.count,
+             x: CG_W / 2 + 330 * Math.cos(a), y: CG_H / 2 + 200 * Math.sin(a),
+             vx: 0, vy: 0, r: Math.min(18 + Math.sqrt(c.count || 0) * 0.55, 46) };
+  });
+  const byId = Object.fromEntries(CG.nodes.map(n => [n.id, n]));
+  CG.edges = schemaCache.relations
+    .filter(r => byId[r.fromClass] && byId[r.toClass])
+    .map(r => ({ s: r.fromClass, t: r.toClass, label: r.cnName || r.name, curve: 0 }));
+  const groups = {};
+  CG.edges.forEach(e => (groups[e.s + '\u2192' + e.t] = groups[e.s + '\u2192' + e.t] || []).push(e));
+  Object.values(groups).forEach(arr =>
+    arr.forEach((e, i) => e.curve = (i - (arr.length - 1) / 2) * 0.25));
+  renderConceptGraph();
+  runConceptSim();
+}
+
+function conceptStep() {
+  const nodes = CG.nodes;
+  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+    const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
+    const d2 = dx * dx + dy * dy || 1, d = Math.sqrt(d2), f = 12000 / d2;
+    const fx = dx / d * f, fy = dy / d * f;
+    nodes[i].vx -= fx; nodes[i].vy -= fy;
+    nodes[j].vx += fx; nodes[j].vy += fy;
+  }
+  CG.edges.forEach(e => {
+    const a = byId[e.s], b = byId[e.t];
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const f = (d - 200) * 0.02, fx = dx / d * f, fy = dy / d * f;
+    a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+  });
+  nodes.forEach(n => {
+    if (n === CG.dragging) { n.vx = n.vy = 0; return; }
+    n.vx += (CG_W / 2 - n.x) * 0.004; n.vy += (CG_H / 2 - n.y) * 0.004;
+    n.vx *= 0.8; n.vy *= 0.8;
+    n.x = Math.max(n.r + 10, Math.min(CG_W - n.r - 10, n.x + n.vx));
+    n.y = Math.max(n.r + 10, Math.min(CG_H - n.r - 10, n.y + n.vy));
+  });
+}
+
+function runConceptSim() {
+  cancelAnimationFrame(CG.sim);
+  let t = 0;
+  const tick = () => {
+    conceptStep();
+    renderConceptGraph();
+    if (++t < 260) CG.sim = requestAnimationFrame(tick);
+  };
+  CG.sim = requestAnimationFrame(tick);
+}
+
+function renderConceptGraph() {
+  const byId = Object.fromEntries(CG.nodes.map(n => [n.id, n]));
+  let s = '<defs><marker id="cg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker></defs>';
+  CG.edges.forEach(e => {
+    const a = byId[e.s], b = byId[e.t];
+    if (a === b) { // 自环（如 Era SUB_ERA_OF Era）：右侧环形弧线
+      const off = (a.r + 6) * 0.707;
+      const x1 = a.x + off, y1 = a.y - off, x2 = a.x + off, y2 = a.y + off;
+      const cx = a.x + a.r + 95 + Math.abs(e.curve) * 260;
+      s += '<path d="M' + x1.toFixed(1) + ',' + y1.toFixed(1) + ' Q' + cx.toFixed(1) + ',' + a.y.toFixed(1) +
+           ' ' + x2.toFixed(1) + ',' + y2.toFixed(1) + '" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#cg-arrow)"/>' +
+           '<text class="cg-elabel" x="' + (a.x + a.r + 12).toFixed(1) + '" y="' + (a.y - a.r - 18).toFixed(1) + '" text-anchor="middle">' + esc(e.label) + '</text>';
+      return;
+    }
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / d, uy = dy / d;
+    const x1 = a.x + ux * (a.r + 5), y1 = a.y + uy * (a.r + 5);
+    const x2 = b.x - ux * (b.r + 11), y2 = b.y - uy * (b.r + 11);
+    let mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    let dPath = 'M' + x1.toFixed(1) + ',' + y1.toFixed(1) + ' L' + x2.toFixed(1) + ',' + y2.toFixed(1);
+    if (e.curve) {
+      const cx = mx - uy * d * e.curve, cy = my + ux * d * e.curve;
+      dPath = 'M' + x1.toFixed(1) + ',' + y1.toFixed(1) + ' Q' + cx.toFixed(1) + ',' + cy.toFixed(1) +
+              ' ' + x2.toFixed(1) + ',' + y2.toFixed(1);
+      mx = (x1 + 2 * cx + x2) / 4; my = (y1 + 2 * cy + y2) / 4;
+    }
+    s += '<path d="' + dPath + '" fill="none" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#cg-arrow)"/>' +
+         '<text class="cg-elabel" x="' + mx.toFixed(1) + '" y="' + (my - 5).toFixed(1) + '" text-anchor="middle">' + esc(e.label) + '</text>';
+  });
+  CG.nodes.forEach(n => {
+    const color = n.layer === 'concept' ? '#3b82f6' : '#22c55e';
+    const key = (schemaCache.classes.find(c => c.name === n.id) || {}).keyProp || '';
+    const cn = (n.cn || n.id).length > 5 ? (n.cn || n.id).slice(0, 4) + '…' : (n.cn || n.id);
+    s += '<g class="cg-node" data-id="' + esc(n.id) + '" style="cursor:move">' +
+      '<title>' + esc(n.id) + '（' + esc(n.cn || '') + '）｜' + n.layer + ' 层｜key=' + esc(key) + '｜实例 ' + n.count + '</title>' +
+      '<circle cx="' + n.x.toFixed(1) + '" cy="' + n.y.toFixed(1) + '" r="' + n.r.toFixed(1) + '" fill="' + color + '" fill-opacity="0.9" stroke="#fff" stroke-width="2"/>' +
+      '<text x="' + n.x.toFixed(1) + '" y="' + (n.y + 4).toFixed(1) + '" text-anchor="middle" fill="#fff" font-size="13" font-weight="600" pointer-events="none">' + esc(cn) + '</text>' +
+      '<text x="' + n.x.toFixed(1) + '" y="' + (n.y + n.r + 15).toFixed(1) + '" text-anchor="middle" fill="#475569" font-size="11" pointer-events="none">' + esc(n.id) + ' · ' + n.count + '</text>' +
+      '</g>';
+  });
+  $('cg-svg').innerHTML = s;
+}
+
+function cgPoint(ev) {
+  const rect = $('cg-svg').getBoundingClientRect();
+  return { x: (ev.clientX - rect.left) * CG_W / rect.width,
+           y: (ev.clientY - rect.top) * CG_H / rect.height };
+}
+$('cg-svg').addEventListener('mousedown', ev => {
+  const g = ev.target.closest('.cg-node');
+  if (!g) return;
+  CG.dragging = CG.nodes.find(n => n.id === g.dataset.id);
+  cancelAnimationFrame(CG.sim);
+  ev.preventDefault();
+});
+document.addEventListener('mousemove', ev => {
+  if (!CG.dragging) return;
+  const p = cgPoint(ev);
+  CG.dragging.x = p.x; CG.dragging.y = p.y; CG.dragging.vx = CG.dragging.vy = 0;
+  renderConceptGraph();
+});
+document.addEventListener('mouseup', () => {
+  if (CG.dragging) { CG.dragging = null; runConceptSim(); }
+});
+
 // ---------------- 图数据 ----------------
 function refreshDataSelectors() {
   if (!schemaCache) return;
@@ -398,8 +564,11 @@ function deleteRel() {
 }
 
 // ---------------- init ----------------
+// 标题来自启动配置（app.title），获取失败时保留页面默认文案
+api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent = d.title; }).catch(() => {});
 loadOverview().catch(e => showMsg('加载失败：' + e.message, false));
 loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
+loadConceptGraph().catch(e => showMsg('概念图加载失败：' + e.message, false));
 </script>
 </body>
 </html>

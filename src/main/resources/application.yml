@@ -1,16 +1,21 @@
 server:
-  port: 18080
+  port: 9876
 
 spring:
   application:
-    name: history-ontology2
+    name: ontology
+
+app:
+  # 管理页标题，启动可覆盖：--app.title=xxx 或环境变量 APP_TITLE
+  title: 国博藏品图谱 · 管理控制台
 
 neo4j:
-  uri: bolt://localhost:17687
+  uri: bolt://localhost:7687
   authentication:
     username: neo4j
-    password: guobo2026
+    password: neo4j2026
 
 graph:
   batch-limit: 10000
   schema-file: data/graph-schema.json
+  profile-file: data/ontology-profile.json
