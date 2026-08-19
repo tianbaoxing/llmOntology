@@ -1,4 +1,4 @@
-# historyOntology2 部署与账号说明
+# llmOntology 部署与账号说明
 
 ## 1. Neo4j 安装（Docker）
 
@@ -16,7 +16,7 @@
 ### 启动 / 停止
 
 ```powershell
-cd c:\me\kaiyuan\history\historyOntology2
+cd c:\me\kaiyuan\history\llmOntology
 
 # 启动 Neo4j
 docker compose -f docker\docker-compose.yml up -d
@@ -44,7 +44,7 @@ docker exec -i Neo4j cypher-shell -u neo4j -p guobo2026 "RETURN 1 AS ok;"
 ### 构建 / 启动 / 停止
 
 ```powershell
-cd c:\me\kaiyuan\history\historyOntology2
+cd c:\me\kaiyuan\history\llmOntology
 
 # 构建（首次较慢，依赖在项目内 .m2\repo）
 .\mvnw.cmd clean package "-DskipTests" -q
