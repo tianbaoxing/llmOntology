@@ -27,7 +27,8 @@ public class AgentScopeConfig {
             @Value("${app.agent.api-key:}") String apiKey,
             @Value("${app.agent.model}") String model,
             @Value("${app.agent.workspace-dir}") String workspaceDir,
-            @Value("${app.agent.state-dir}") String stateDir) throws Exception {
+            @Value("${app.agent.state-dir}") String stateDir,
+            @Value("${app.agent.skills-dir:}") String skillsDir) throws Exception {
 
         // key 未配置时返回 null（注册为 NullBean），问答接口返回明确错误，不影响其余功能
         if (apiKey == null || apiKey.isBlank()) {
@@ -43,27 +44,41 @@ public class AgentScopeConfig {
 
         Files.createDirectories(Path.of(workspaceDir));
         Files.createDirectories(Path.of(stateDir));
+        // 框架固定约定：工作区技能目录 = <workspace>/skills（SKILLS_DIR 常量，目录名不可改）；
+        // 加载前有 isDirectory 检查，必须预先创建才会被识别
+        Files.createDirectories(Path.of(workspaceDir, "skills"));
+
+        // 可选：额外挂载自定义全局技能目录（projectGlobalSkillsDir，与工作区 skills 并存）
+        Path globalSkillsDir = null;
+        if (skillsDir != null && !skillsDir.isBlank()) {
+            globalSkillsDir = Path.of(skillsDir);
+            Files.createDirectories(globalSkillsDir);
+        }
 
         // 系统提示词中的图谱名来自 app.title 配置，避免硬编码
         String sysPrompt = "你是「" + title + "」的智能问答助手。"
                 + "请用中文回答用户问题，回答需简洁、准确、有条理。"
                 + "当问题涉及事实信息而不确定时，如实说明，不要编造。";
 
-        return HarnessAgent.builder()
+        HarnessAgent.Builder builder = HarnessAgent.builder()
                 .name("ontology-assistant")
                 .description(title + "问答助手")
                 .sysPrompt(sysPrompt)
                 .model(chatModel)
                 .workspace(Path.of(workspaceDir))
                 .stateStore(new JsonFileAgentStateStore(Path.of(stateDir)))
-                .maxIters(8)
+                .maxIters(8);
                 // 最小化开放面：禁用 harness 内置高危/无关能力
-                .disableShellTool()
-                .disableFilesystemTools()
-                .disableSubagents()
-                .disableDynamicSubagents()
-                .disableDynamicSkills()
-                .disableToolsConfig()
-                .build();
+                // .disableShellTool()
+                // .disableFilesystemTools()
+                // .disableSubagents()
+                // .disableDynamicSubagents()
+                // .disableToolsConfig();
+        // 注意：不能调用 disableDynamicSkills()——它会跳过 HarnessSkillMiddleware 装配，
+        // 导致技能既不注册 skill 工具也不注入技能清单 prompt，模型完全无法感知技能
+        if (globalSkillsDir != null) {
+            builder.projectGlobalSkillsDir(globalSkillsDir);
+        }
+        return builder.build();
     }
 }

@@ -31,6 +31,8 @@ app:
     api-key: ${OPENROUTER_API_KEY:}
     workspace-dir: data/agent-workspace
     state-dir: data/agent-state
+    # 自定义全局技能目录（projectGlobalSkillsDir）：ontology-builder / ontology-query 等技能放这里
+    skills-dir: skills
 
 neo4j:
   uri: bolt://localhost:7687
