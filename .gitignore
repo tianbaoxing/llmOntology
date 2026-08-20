@@ -7,6 +7,9 @@ target/
 # 运行时状态（graph-schema.json 首次启动从 classpath 模板自动生成）
 data/
 
+# 备份产物（运行时生成于 app.backup-dir）
+backups/
+
 # 环境变量（含 API key，勿提交；模板见 .env.example）
 .env
 

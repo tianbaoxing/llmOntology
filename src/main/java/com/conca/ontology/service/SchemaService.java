@@ -70,6 +70,11 @@ public class SchemaService {
         }
     }
 
+    /** 当前 schema 文件版本号（备份文件名 v 段数据源） */
+    public int version() {
+        return version;
+    }
+
     // ---------------- views ----------------
 
     public Map<String, Object> schemaView() {
