@@ -102,7 +102,7 @@ function renderTitle(cls, data) {
   const cn = cls ? cls.cnName : LABEL;
   $('page-title').innerHTML =
     `${esc(LABEL)} · ${esc(cn)} ${cls ? badge(cls.layer) : ''}
-     <span class="muted" style="margin-left:12px">共 ${data.total} 条实例（key：<code>${esc(data.keyProp)}</code>，每页 ${data.size} 条）</span>`;
+     <span class="muted" style="margin-left:12px">共 ${data.total} 条实例（key：<code>${esc(data.keyProp)}</code>，每页 ${data.size} 条）· 点击行查看图谱，▾ 展开属性</span>`;
 }
 
 function renderList(data) {
@@ -120,11 +120,12 @@ function renderList(data) {
       const isLong = typeof v === 'string' && v.length > 80;
       return `<div class="detail-item${isLong ? ' long' : ''}"><b>${esc(cn)}</b>${esc(v)}</div>`;
     }).join('');
-    return `<tr class="data-row" onclick="toggleDetail(${i})">
+    const keyEnc = encodeURIComponent(String(r.key)).replace(/'/g, '%27');
+    return `<tr class="data-row" onclick="gotoGraph('${keyEnc}')" title="点击查看实例图谱">
         <td class="muted">${start + i + 1}</td>
         <td><code>${esc(r.key)}</code></td>
         <td>${esc(fmt(name))}</td>
-        <td class="muted">▾</td>
+        <td class="muted" style="cursor:pointer;width:40px" title="展开/收起属性" onclick="event.stopPropagation();toggleDetail(${i})">▾</td>
       </tr>
       <tr class="detail-row" id="detail-${i}" style="display:none">
         <td colspan="4"><div class="detail-grid">${detail}</div></td>
@@ -153,6 +154,9 @@ function renderPager(data) {
 function toggleDetail(i) {
   const el = $('detail-' + i);
   el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+function gotoGraph(keyEnc) {
+  location.href = '/admin/graph.html?label=' + encodeURIComponent(LABEL) + '&key=' + keyEnc;
 }
 function jumpPage(pages) {
   const p = Math.min(Math.max(1, parseInt($('jump').value) || 1), pages);

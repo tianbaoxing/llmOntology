@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实例图谱</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
+.header { background: #1f2937; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.logo-group { display: flex; align-items: center; gap: 10px; }
+.logo { width: 36px; height: 36px; }
+.back-link { color: #9ca3af; text-decoration: none; padding: 6px 14px; border: 1px solid #4b5563; border-radius: 5px; font-size: 13px; }
+.back-link:hover { color: #fff; border-color: #9ca3af; }
+.container { max-width: 1440px; margin: 20px auto; padding: 0 24px; }
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.card h2 { font-size: 15px; margin-bottom: 14px; color: #1f2937; border-left: 3px solid #2563eb; padding-left: 10px; }
+.layout { display: flex; gap: 16px; align-items: flex-start; }
+.graph-card { flex: 1 1 640px; min-width: 0; margin-bottom: 0; }
+.side { flex: 0 0 400px; max-width: 100%; }
+@media (max-width: 1100px) { .layout { flex-direction: column; } .side { flex: auto; width: 100%; } }
+.g-wrap { position: relative; }
+#g-svg { display: block; width: 100%; height: auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; }
+#g-legend { position: absolute; top: 10px; right: 14px; font-size: 12px; color: #6b7280; background: rgba(255,255,255,.9); padding: 8px 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.08); max-height: 200px; overflow: auto; }
+#g-legend span { display: block; margin: 2px 0; }
+#g-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.g-elabel { font-size: 11px; fill: #64748b; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+.crumb { margin-bottom: 8px; line-height: 1.9; }
+.crumb a { color: #2563eb; text-decoration: none; cursor: pointer; }
+.crumb a:hover { text-decoration: underline; }
+.crumb .sep { color: #9ca3af; margin: 0 8px; }
+.crumb .cur { font-weight: 600; color: #1f2937; }
+.muted { color: #9ca3af; font-size: 12px; }
+code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; margin-left: 4px; }
+.badge.concept { background: #dbeafe; color: #1d4ed8; }
+.badge.instance { background: #dcfce7; color: #15803d; }
+h3 { font-size: 13px; color: #6b7280; margin: 12px 0 8px; }
+.detail-item { font-size: 13px; word-break: break-all; margin-bottom: 6px; }
+.detail-item b { color: #6b7280; font-weight: 600; margin-right: 6px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+th { background: #f9fafb; color: #6b7280; font-weight: 600; font-size: 13px; }
+tr.grp { cursor: pointer; }
+tr.grp:hover td { background: #f9fafb; }
+tr.grp.hl td { background: #fef3c7; }
+.empty { padding: 30px; text-align: center; color: #9ca3af; }
+.warn { color: #b45309; margin-left: 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-group">
+    <svg class="logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="logo">
+      <rect x="9" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <rect x="34" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <path d="M5 11 h38 l-4.5 21 h-29 Z" fill="#e3b04b"/>
+      <path d="M14 19 L24 15.5 L34 19 L24 27.5 Z" stroke="#8a5a18" stroke-width="1.8" fill="none" opacity=".7"/>
+      <circle cx="14" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="34" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="24" cy="15.5" r="3" fill="#f8fafc"/>
+      <circle cx="24" cy="27.5" r="3" fill="#38bdf8"/>
+      <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
+      <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
+    </svg>
+    <h1 id="app-title">图谱管理控制台</h1>
+  </div>
+  <a class="back-link" href="/admin">← 返回控制台</a>
+  <a class="back-link" id="back-list" href="#">← 返回实例列表</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h2 id="page-title">实例图谱</h2>
+    <div class="crumb" id="crumb"></div>
+    <div class="muted">点击图中任意节点切换中心并加载其邻居（页面动态刷新）；节点可拖拽，悬停查看详情；邻居分组点击可在图中高亮</div>
+  </div>
+  <div class="layout">
+    <div class="card graph-card">
+      <div class="g-wrap">
+        <svg id="g-svg" viewBox="0 0 1000 620"></svg>
+        <div id="g-legend"></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="card"><h2>当前节点</h2><div id="info"></div></div>
+      <div class="card"><h2>邻居分组</h2><div id="groups"></div></div>
+    </div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const W = 1000, H = 620;
+const PALETTE = ['#3b82f6','#22c55e','#a855f7','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#14b8a6','#e11d48'];
+const CENTER_COLOR = '#d97706';
+
+let schema = null, classByName = {}, relCn = {}, labelColor = {};
+let path = [];                 // 访问路径（面包屑）
+const nodeCache = new Map();   // "label|key" -> neighbors 响应
+let loading = false;
+const G = { nodes: [], edges: [], center: null, sim: 0, dragging: null, down: null, moved: false, hl: null };
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+async function api(method, url) {
+  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' } });
+  const json = await res.json();
+  if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
+  return json.data;
+}
+function keyPropOf(label) { return (classByName[label] || {}).keyProp || 'name'; }
+function cnOf(label) { return (classByName[label] || {}).cnName || label; }
+function colorOf(label) { return labelColor[label] || '#94a3b8'; }
+function nodeName(label, props) {
+  const v = props.title ?? props.name ?? props.cnName ?? props[keyPropOf(label)];
+  return v === null || v === undefined || v === '' ? '(未命名)' : String(v);
+}
+function clean(v) {  // 展示用：去掉 HTML 标签（description 等字段）
+  const s = String(v ?? '');
+  return s.includes('<') ? s.replace(/<[^>]*>/g, '') : s;
+}
+function trunc(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+function badge(layer) { return `<span class="badge ${layer}">${layer}</span>`; }
+
+// ---------------- 数据加载与路径维护 ----------------
+async function loadNode(label, key, push) {
+  if (loading || !label || !key) return;
+  loading = true;
+  try {
+    const ck = label + '|' + key;
+    let data = nodeCache.get(ck);
+    if (!data) {
+      data = await api('GET', `/api/graph/neighbors?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}&depth=1`);
+      nodeCache.set(ck, data);
+    }
+    const entry = { label, key, name: nodeName(label, data.start.props) };
+    // 已访问过的节点：路径回退到该处；新节点：追加
+    let at = -1;
+    for (let i = path.length - 1; i >= 0; i--) {
+      if (path[i].label === label && path[i].key === key) { at = i; break; }
+    }
+    if (at >= 0) path = path.slice(0, at + 1); else path.push(entry);
+    if (push) history.pushState({}, '', `/admin/graph.html?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}`);
+    buildGraph(data);
+    renderAll();
+    runSim();
+  } catch (e) {
+    G.nodes = []; G.edges = []; G.center = null; G.hl = null;
+    renderGraph();
+    $('crumb').innerHTML = '';
+    $('g-legend').innerHTML = '';
+    $('groups').innerHTML = '';
+    $('info').innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`;
+  }
+  loading = false;
+}
+
+window.addEventListener('popstate', () => {
+  const p = new URLSearchParams(location.search);
+  loadNode(p.get('label'), p.get('key'), false);
+});
+
+// ---------------- 图构建 ----------------
+function buildGraph(data) {
+  const map = new Map();
+  const add = (eid, labels, props) => {
+    if (map.has(eid)) return map.get(eid);
+    const label = (labels || [])[0] || 'Unknown';
+    const n = { eid, label, props: props || {}, key: '', name: '', x: W / 2, y: H / 2, vx: 0, vy: 0, r: 12, deg: 0 };
+    n.key = n.props[keyPropOf(label)] ?? '';
+    n.name = nodeName(label, n.props);
+    map.set(eid, n);
+    return n;
+  };
+  const center = add(data.start.eid, data.start.labels, data.start.props);
+  G.edges = (data.edges || []).map(e => {
+    const a = add(e.fromEid, e.fromLabels, e.fromProps);
+    const b = add(e.toEid, e.toLabels, e.toProps);
+    a.deg++; b.deg++;
+    return { s: a, t: b, type: e.relType, props: e.relProps || {} };
+  });
+  G.nodes = [...map.values()];
+  G.center = center;
+  G.hl = null;
+  // 邻居越多节点越小，避免大图拥挤
+  const n = G.nodes.length;
+  const nr = n <= 40 ? 16 : n <= 120 ? 12 : n <= 300 ? 9 : 7;
+  G.nodes.forEach(x => { x.r = x === center ? Math.min(30, nr + 12) : nr; });
+  // 初始位置：中心 + 黄金角螺旋展开
+  center.x = W / 2; center.y = H / 2;
+  let i = 0;
+  G.nodes.forEach(x => {
+    if (x === center) return;
+    const ang = i * 2.399963;
+    const rad = Math.min(46 + 13 * Math.sqrt(i), 250);
+    x.x = W / 2 + rad * Math.cos(ang) + (Math.random() - .5) * 8;
+    x.y = H / 2 + rad * Math.sin(ang) + (Math.random() - .5) * 8;
+    i++;
+  });
+}
+
+// ---------------- 渲染 ----------------
+function edgeActive(e) {
+  if (!G.hl) return true;
+  const dir = e.s.eid === G.center.eid ? 'out' : 'in';
+  const other = dir === 'out' ? e.t : e.s;
+  return G.hl.dir === dir && G.hl.type === e.type && G.hl.label === other.label;
+}
+function nodeActive(n) {
+  if (!G.hl || n === G.center) return true;
+  return G.edges.some(e => edgeActive(e) && (e.s === n || e.t === n));
+}
+
+function renderGraph() {
+  if (!G.center) { $('g-svg').innerHTML = ''; return; }
+  const n = G.nodes.length;
+  const showInText = n <= 40;                 // 少量节点：名字画进圆内
+  const showBelowText = n > 40 && n <= 150;   // 中等：名字画在节点下方
+  const hlCount = G.hl ? G.edges.filter(edgeActive).length : 0;
+  const showEdgeLabel = G.edges.length <= 60 || (G.hl && hlCount <= 60);
+  let s = '<defs><marker id="g-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker></defs>';
+  G.edges.forEach(e => {
+    const a = e.s, b = e.t;
+    const act = edgeActive(e);
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / d, uy = dy / d;
+    const x1 = a.x + ux * (a.r + 4), y1 = a.y + uy * (a.r + 4);
+    const x2 = b.x - ux * (b.r + 9), y2 = b.y - uy * (b.r + 9);
+    const lab = relCn[e.type] || e.type;
+    const extra = Object.keys(e.props).length ? ' ' + JSON.stringify(e.props) : '';
+    s += `<g opacity="${act ? 0.85 : 0.1}"><title>${esc(a.name)} —${esc(lab + extra)}→ ${esc(b.name)}</title>` +
+      `<path d="M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)}" fill="none" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#g-arrow)"/>`;
+    if (showEdgeLabel && (act || !G.hl)) {
+      s += `<text class="g-elabel" x="${((x1 + x2) / 2).toFixed(1)}" y="${((y1 + y2) / 2 - 4).toFixed(1)}" text-anchor="middle">${esc(lab)}</text>`;
+    }
+    s += '</g>';
+  });
+  G.nodes.forEach(x => {
+    const isC = x === G.center;
+    const act = nodeActive(x);
+    const fill = isC ? CENTER_COLOR : colorOf(x.label);
+    const title = `${x.name}\n${x.label}（${cnOf(x.label)}）\nkey: ${x.key}${isC ? '（当前中心）' : ''}`;
+    s += `<g class="gn" data-eid="${esc(x.eid)}" opacity="${act ? 1 : 0.15}" style="cursor:pointer"><title>${esc(title)}</title>` +
+      `<circle cx="${x.x.toFixed(1)}" cy="${x.y.toFixed(1)}" r="${x.r.toFixed(1)}" fill="${fill}" fill-opacity="0.92" stroke="#fff" stroke-width="${isC ? 3 : 1.5}"/>`;
+    if (showInText) {
+      s += `<text x="${x.x.toFixed(1)}" y="${(x.y + 4).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="11" font-weight="600" pointer-events="none">${esc(trunc(x.name, 3))}</text>`;
+    } else if (showBelowText) {
+      s += `<text x="${x.x.toFixed(1)}" y="${(x.y + x.r + 12).toFixed(1)}" text-anchor="middle" fill="#475569" font-size="10" pointer-events="none">${esc(trunc(x.name, 9))}</text>`;
+    }
+    if (isC) {
+      s += `<text x="${x.x.toFixed(1)}" y="${(x.y - x.r - 8).toFixed(1)}" text-anchor="middle" fill="#b45309" font-size="12" font-weight="700" pointer-events="none">中心 · ${esc(trunc(x.name, 8))}</text>`;
+    }
+    s += '</g>';
+  });
+  $('g-svg').innerHTML = s;
+}
+
+function renderInfo() {
+  const n = G.center;
+  const cls = classByName[n.label];
+  const propDefs = (cls && cls.properties) || [];
+  const items = Object.entries(n.props).map(([k, v]) => {
+    const def = propDefs.find(p => p.name === k);
+    const cn = def ? def.cnName : k;
+    const disp = typeof v === 'string' ? trunc(clean(v), 140) : (v ?? '-');
+    return `<div class="detail-item" title="${esc(String(v ?? ''))}"><b>${esc(cn)}</b>${esc(disp)}</div>`;
+  }).join('');
+  $('info').innerHTML =
+    `<div class="detail-item"><b>类型</b>${esc(n.label)}（${esc(cnOf(n.label))}）${cls ? badge(cls.layer) : ''}</div>` +
+    `<div class="detail-item"><b>键值</b><code>${esc(n.key)}</code></div>` +
+    `<div class="detail-item"><b>邻居</b>${G.nodes.length - 1} 个节点 / ${G.edges.length} 条关系` +
+    (G.edges.length >= 500 ? '<span class="warn">已达查询上限，仅展示前 500 条</span>' : '') + '</div>' +
+    (items ? `<h3>属性</h3>${items}` : '');
+}
+
+function renderGroups() {
+  const centerEid = G.center.eid;
+  const groups = new Map();
+  G.edges.forEach(e => {
+    const dir = e.s.eid === centerEid ? 'out' : 'in';
+    const other = dir === 'out' ? e.t : e.s;
+    const k = dir + '|' + e.type + '|' + other.label;
+    if (!groups.has(k)) groups.set(k, { dir, type: e.type, label: other.label, count: 0 });
+    groups.get(k).count++;
+  });
+  const rows = [...groups.values()].sort((a, b) => b.count - a.count).map(g =>
+    `<tr class="grp" data-dir="${g.dir}" data-type="${esc(g.type)}" data-label="${esc(g.label)}" onclick="toggleHl(this)">` +
+    `<td>${g.dir === 'out' ? '出' : '入'}</td>` +
+    `<td>${esc(relCn[g.type] || g.type)}<div class="muted"><code>${esc(g.type)}</code></div></td>` +
+    `<td>${esc(cnOf(g.label))}<div class="muted"><code>${esc(g.label)}</code></div></td>` +
+    `<td><b>${g.count}</b></td></tr>`).join('');
+  $('groups').innerHTML = rows
+    ? `<table><tr><th>向</th><th>关系</th><th>对端类型</th><th>数量</th></tr>${rows}</table>` +
+      `<div class="muted" style="margin-top:8px">点击分组在图中高亮对应节点/关系，再次点击取消</div>`
+    : '<div class="empty">该节点暂无关联关系</div>';
+}
+
+function toggleHl(tr) {
+  const d = tr.dataset;
+  if (G.hl && G.hl.dir === d.dir && G.hl.type === d.type && G.hl.label === d.label) G.hl = null;
+  else G.hl = { dir: d.dir, type: d.type, label: d.label };
+  document.querySelectorAll('tr.grp').forEach(r => r.classList.toggle('hl', r === tr && !!G.hl));
+  renderGraph();
+}
+
+function renderLegend() {
+  const cnt = {};
+  G.nodes.forEach(n => { if (n !== G.center) cnt[n.label] = (cnt[n.label] || 0) + 1; });
+  $('g-legend').innerHTML = `<span><i style="background:${CENTER_COLOR}"></i>当前中心</span>` +
+    Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([l, c]) =>
+      `<span><i style="background:${colorOf(l)}"></i>${esc(cnOf(l))} ${c}</span>`).join('');
+}
+
+function renderCrumb() {
+  $('crumb').innerHTML = path.map((p, i) => {
+    const last = i === path.length - 1;
+    const txt = `${esc(trunc(p.name, 14))} <span class="muted">(${esc(p.label)})</span>`;
+    return last ? `<span class="cur">${txt}</span>`
+      : `<a onclick="crumbGo(${i})" title="${esc(p.label)} / ${esc(p.key)}">${txt}</a>`;
+  }).join('<span class="sep">→</span>');
+  const bl = $('back-list');
+  bl.href = '/admin/instances.html?label=' + encodeURIComponent(G.center.label);
+  bl.textContent = `← 返回${cnOf(G.center.label)}列表`;
+}
+
+function renderAll() {
+  $('page-title').textContent = `实例图谱 · ${G.center.label} / ${trunc(G.center.name, 20)}`;
+  renderInfo();
+  renderGroups();
+  renderLegend();
+  renderCrumb();
+  renderGraph();
+}
+
+function crumbGo(i) {
+  const p = path[i];
+  if (p) loadNode(p.label, p.key, true);
+}
+
+// ---------------- 力导向模拟 ----------------
+function step() {
+  const nodes = G.nodes, cut = 440 * 440;
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+    const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > cut || d2 === 0) continue;
+    const d = Math.sqrt(d2), f = 9000 / d2;
+    const fx = dx / d * f, fy = dy / d * f;
+    nodes[i].vx -= fx; nodes[i].vy -= fy;
+    nodes[j].vx += fx; nodes[j].vy += fy;
+  }
+  const rest = G.nodes.length > 200 ? 130 : 170;
+  G.edges.forEach(e => {
+    const a = e.s, b = e.t;
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const f = (d - rest) * 0.018, fx = dx / d * f, fy = dy / d * f;
+    a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+  });
+  nodes.forEach(n => {
+    if (n === G.dragging) { n.vx = n.vy = 0; return; }
+    n.vx += (W / 2 - n.x) * 0.0016; n.vy += (H / 2 - n.y) * 0.0016;
+    n.vx *= 0.85; n.vy *= 0.85;
+    const vm = Math.max(Math.abs(n.vx), Math.abs(n.vy));
+    if (vm > 10) { n.vx *= 10 / vm; n.vy *= 10 / vm; }
+    n.x = Math.max(n.r + 6, Math.min(W - n.r - 6, n.x + n.vx));
+    n.y = Math.max(n.r + 6, Math.min(H - n.r - 6, n.y + n.vy));
+  });
+}
+
+function runSim() {
+  cancelAnimationFrame(G.sim);
+  const many = G.nodes.length > 120;
+  let t = 0;
+  const tick = () => {
+    step();
+    if (!many || t % 2 === 0) renderGraph();
+    if (++t < 180) G.sim = requestAnimationFrame(tick);
+  };
+  G.sim = requestAnimationFrame(tick);
+}
+
+// ---------------- 交互：拖拽 + 点击切换中心 ----------------
+function svgPoint(ev) {
+  const rect = $('g-svg').getBoundingClientRect();
+  return { x: (ev.clientX - rect.left) * W / rect.width, y: (ev.clientY - rect.top) * H / rect.height };
+}
+$('g-svg').addEventListener('mousedown', ev => {
+  const g = ev.target.closest('.gn');
+  if (!g) return;
+  const node = G.nodes.find(x => x.eid === g.dataset.eid);
+  if (!node) return;
+  G.dragging = node;
+  G.moved = false;
+  G.down = svgPoint(ev);
+  cancelAnimationFrame(G.sim);
+  ev.preventDefault();
+});
+document.addEventListener('mousemove', ev => {
+  if (!G.dragging) return;
+  const p = svgPoint(ev);
+  if (Math.abs(p.x - G.down.x) + Math.abs(p.y - G.down.y) > 6) G.moved = true;
+  G.dragging.x = p.x; G.dragging.y = p.y; G.dragging.vx = G.dragging.vy = 0;
+  renderGraph();
+});
+document.addEventListener('mouseup', () => {
+  if (!G.dragging) return;
+  const clicked = !G.moved;
+  const node = G.dragging;
+  G.dragging = null;
+  if (clicked && node !== G.center) loadNode(node.label, node.key, true);
+  else runSim();
+});
+
+// ---------------- init ----------------
+async function init() {
+  api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent = d.title + ' · 实例图谱'; }).catch(() => {});
+  try {
+    schema = await api('GET', '/api/schema');
+    schema.classes.forEach((c, i) => { classByName[c.name] = c; labelColor[c.name] = PALETTE[i % PALETTE.length]; });
+    (schema.relations || []).forEach(r => { relCn[r.name] = r.cnName || r.name; });
+  } catch (e) { /* schema 缺失时仅中文名/配色退化，不影响主流程 */ }
+  const p = new URLSearchParams(location.search);
+  const label = p.get('label'), key = p.get('key');
+  if (!label || !key) {
+    $('info').innerHTML = '<div class="empty">缺少 label / key 参数（请从实例列表进入）</div>';
+    return;
+  }
+  history.replaceState({}, '', location.href);
+  await loadNode(label, key, false);
+}
+init();
+</script>
+</body>
+</html>

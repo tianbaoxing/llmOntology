@@ -42,4 +42,13 @@ public class GraphQueryController {
     public ApiResponse<Map<String, Object>> node(@PathVariable String label, @PathVariable String key) {
         return ApiResponse.ok(queryService.nodeDetail(label, key));
     }
+
+    /** 邻域查询（depth 1..3，graph.html 实例图谱浏览数据源） */
+    @GetMapping("/neighbors")
+    public ApiResponse<Map<String, Object>> neighbors(
+            @RequestParam String label,
+            @RequestParam String key,
+            @RequestParam(defaultValue = "1") int depth) {
+        return ApiResponse.ok(queryService.neighbors(label, key, depth));
+    }
 }
