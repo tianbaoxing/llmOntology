@@ -55,6 +55,9 @@ a.tab { text-decoration: none; }
 .tool-box .inner .tool-line { padding: 2px 0; }
 .tool-box .inner .tool-line .tname { color: #1d4ed8; font-family: Consolas, monospace; }
 .tool-box .inner .tool-line.end .tname { color: #15803d; }
+.tool-box .inner .tool-line .targs { margin: 2px 0 2px 16px; font-family: Consolas, monospace; font-size: 12px; color: #6b7280; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow-y: auto; }
+.tool-box .inner .tool-line .toutput { margin: 2px 0 2px 16px; font-family: Consolas, monospace; font-size: 12px; color: #374151; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; background: #f3f4f6; border-radius: 4px; padding: 4px 6px; }
+.tool-box .inner .tool-line .toutput.err { color: #b91c1c; background: #fef2f2; }
 .err-text { color: #b91c1c; white-space: pre-wrap; }
 .usage { color: #9ca3af; font-size: 12px; margin-top: 8px; }
 .caret { display: inline-block; width: 7px; height: 15px; background: #2563eb; vertical-align: -2px; animation: blink .9s infinite; margin-left: 2px; }
@@ -251,10 +254,66 @@ function handleSseBlock(block, ui) {
   } else if (eventName === 'tool') {
     ui.toolBox.style.display = '';
     ui.toolBox.open = true;
-    const line = document.createElement('div');
-    line.className = 'tool-line' + (payload.phase === 'end' ? ' end' : '');
-    line.innerHTML = (payload.phase === 'end' ? '✓ ' : '▶ 调用 ') + '<span class="tname">' + esc(payload.name) + '</span>';
-    ui.toolInner.appendChild(line);
+    const entry = (payload.id && ui.toolLines && ui.toolLines[payload.id]) || null;
+    if (payload.phase === 'start') {
+      const line = document.createElement('div');
+      line.className = 'tool-line';
+      line.innerHTML = '▶ 调用 <span class="tname">' + esc(payload.name) + '</span>';
+      const args = document.createElement('div');
+      args.className = 'targs';
+      args.style.display = 'none';
+      line.appendChild(args);
+      ui.toolInner.appendChild(line);
+      if (payload.id) {
+        ui.toolLines = ui.toolLines || {};
+        ui.toolLines[payload.id] = { line, args };
+      }
+      ui.lastToolEntry = { line, args };
+    } else if (payload.phase === 'args') {
+      const e = entry || ui.lastToolEntry;
+      if (e && payload.delta) {
+        e.args.style.display = '';
+        e.args.textContent += payload.delta;
+      }
+    } else if (payload.phase === 'end') {
+      const e = entry || ui.lastToolEntry;
+      if (e) {
+        e.line.classList.add('end');
+        e.line.innerHTML = '✓ <span class="tname">' + esc(payload.name || '') + '</span>';
+        e.line.appendChild(e.args);
+      } else {
+        const line = document.createElement('div');
+        line.className = 'tool-line end';
+        line.innerHTML = '✓ <span class="tname">' + esc(payload.name) + '</span>';
+        ui.toolInner.appendChild(line);
+      }
+    } else if (payload.phase === 'result-start') {
+      const e = entry || ui.lastToolEntry;
+      if (e && !e.out) {
+        const out = document.createElement('div');
+        out.className = 'toutput';
+        out.style.display = 'none';
+        e.line.appendChild(out);
+        e.out = out;
+      }
+    } else if (payload.phase === 'result-delta') {
+      const e = entry || ui.lastToolEntry;
+      if (e && payload.delta) {
+        if (!e.out) {
+          const out = document.createElement('div');
+          out.className = 'toutput';
+          e.line.appendChild(out);
+          e.out = out;
+        }
+        e.out.style.display = '';
+        e.out.textContent += payload.delta;
+      }
+    } else if (payload.phase === 'result-end') {
+      const e = entry || ui.lastToolEntry;
+      if (e && payload.state === 'ERROR' && e.out) {
+        e.out.classList.add('err');
+      }
+    }
     scrollBottom();
   } else if (eventName === 'answer') {
     ui.answer.textContent += (payload.delta || '');
@@ -410,15 +469,17 @@ async function loadMessages() {
   scrollBottom();
 }
 
-/** 历史回看：静态渲染 assistant 消息（折叠区收起、无光标） */
+/** 历史回看：静态渲染 assistant 消息（折叠区默认展开、无光标） */
 function addStaticAgentMsg(m) {
   const ui = addAgentMsg();
   if (m.thinking) {
     ui.thinkBox.style.display = '';
+    ui.thinkBox.open = true;
     ui.thinkInner.textContent = m.thinking;
   }
   if (m.tools && m.tools.length) {
     ui.toolBox.style.display = '';
+    ui.toolBox.open = true;
     for (const t of m.tools) {
       const line = document.createElement('div');
       line.className = 'tool-line end';
@@ -427,6 +488,18 @@ function addStaticAgentMsg(m) {
       name.textContent = t.name || '';
       line.textContent = '✓ ';
       line.appendChild(name);
+      if (t.input) {
+        const args = document.createElement('div');
+        args.className = 'targs';
+        args.textContent = t.input;
+        line.appendChild(args);
+      }
+      if (t.output) {
+        const out = document.createElement('div');
+        out.className = 'toutput';
+        out.textContent = t.output;
+        line.appendChild(out);
+      }
       ui.toolInner.appendChild(line);
     }
   }

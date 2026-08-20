@@ -22,17 +22,29 @@ import io.agentscope.core.event.AgentEvent;
 import io.agentscope.core.event.AgentResultEvent;
 import io.agentscope.core.event.TextBlockDeltaEvent;
 import io.agentscope.core.event.ThinkingBlockDeltaEvent;
+import io.agentscope.core.event.ToolCallDeltaEvent;
 import io.agentscope.core.event.ToolCallEndEvent;
 import io.agentscope.core.event.ToolCallStartEvent;
+import io.agentscope.core.event.ToolResultDataDeltaEvent;
+import io.agentscope.core.event.ToolResultEndEvent;
+import io.agentscope.core.event.ToolResultStartEvent;
+import io.agentscope.core.event.ToolResultTextDeltaEvent;
+import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
+import io.agentscope.core.message.TextBlock;
+import io.agentscope.core.message.ToolResultState;
 import io.agentscope.harness.agent.HarnessAgent;
 import reactor.core.Disposable;
 
 /**
  * AI 问答服务：把 HarnessAgent 的 AgentEvent 流映射为 SSE 事件推给页面。
  * 事件契约（前端 chat.html 同步实现）：
- * session → 会话号；thinking → 思考增量；tool → 工具执行；
+ * session → 会话号；thinking → 思考增量；tool → 工具调用与执行
+ * （phase=start/args/end 为调用阶段，args 为参数增量；
+ * phase=result-start/result-delta/result-end 为执行结果阶段，
+ * result-delta 为结果文本增量，result-end 携带 state（success/error 等），
+ * id 全程用于配对同一次调用）；
  * answer → 正文增量；done → 结束；error → 错误。
  */
 @Service
@@ -133,9 +145,27 @@ public class AgentChatService {
             case TEXT_BLOCK_DELTA -> send(emitter, "answer",
                     Map.of("delta", ((TextBlockDeltaEvent) event).getDelta()));
             case TOOL_CALL_START -> send(emitter, "tool", Map.of(
-                    "phase", "start", "name", ((ToolCallStartEvent) event).getToolCallName()));
+                    "phase", "start", "id", ((ToolCallStartEvent) event).getToolCallId(),
+                    "name", ((ToolCallStartEvent) event).getToolCallName()));
+            case TOOL_CALL_DELTA -> send(emitter, "tool", Map.of(
+                    "phase", "args", "id", ((ToolCallDeltaEvent) event).getToolCallId(),
+                    "delta", safeDelta(((ToolCallDeltaEvent) event).getDelta())));
             case TOOL_CALL_END -> send(emitter, "tool", Map.of(
-                    "phase", "end", "name", ((ToolCallEndEvent) event).getToolCallName()));
+                    "phase", "end", "id", ((ToolCallEndEvent) event).getToolCallId(),
+                    "name", ((ToolCallEndEvent) event).getToolCallName()));
+            case TOOL_RESULT_START -> send(emitter, "tool", Map.of(
+                    "phase", "result-start", "id", ((ToolResultStartEvent) event).getToolCallId(),
+                    "name", ((ToolResultStartEvent) event).getToolCallName()));
+            case TOOL_RESULT_TEXT_DELTA -> send(emitter, "tool", Map.of(
+                    "phase", "result-delta", "id", ((ToolResultTextDeltaEvent) event).getToolCallId(),
+                    "delta", safeDelta(((ToolResultTextDeltaEvent) event).getDelta())));
+            case TOOL_RESULT_DATA_DELTA -> send(emitter, "tool", Map.of(
+                    "phase", "result-delta", "id", ((ToolResultDataDeltaEvent) event).getToolCallId(),
+                    "delta", safeDelta(dataDeltaText(((ToolResultDataDeltaEvent) event).getData()))));
+            case TOOL_RESULT_END -> send(emitter, "tool", Map.of(
+                    "phase", "result-end", "id", ((ToolResultEndEvent) event).getToolCallId(),
+                    "name", ((ToolResultEndEvent) event).getToolCallName(),
+                    "state", safeState(((ToolResultEndEvent) event).getState())));
             case AGENT_RESULT -> send(emitter, "done", resultPayload((AgentResultEvent) event));
             default -> { /* 其余事件不透出，保持前端契约精简 */ }
         }
@@ -164,5 +194,22 @@ public class AgentChatService {
     private String safeMessage(Throwable error) {
         String msg = error.getMessage();
         return (msg == null || msg.isBlank()) ? error.getClass().getSimpleName() : msg;
+    }
+
+    /** Map.of 不接受 null 值，delta 可能为 null 时兜底空串 */
+    private static String safeDelta(String delta) {
+        return delta == null ? "" : delta;
+    }
+
+    /** DataDelta 事件携带结构化 block：文本直接透出，其余以类型名占位 */
+    private static String dataDeltaText(ContentBlock data) {
+        if (data instanceof TextBlock tb) {
+            return tb.getText() == null ? "" : tb.getText();
+        }
+        return data == null ? "" : "[" + data.getClass().getSimpleName() + "]";
+    }
+
+    private static String safeState(ToolResultState state) {
+        return state == null ? "" : state.name();
     }
 }
