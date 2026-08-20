@@ -4,10 +4,18 @@ server:
 spring:
   application:
     name: ontology
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
 
 app:
   # 管理页标题，启动可覆盖：--app.title=xxx 或环境变量 APP_TITLE
   title: 国博藏品图谱 · 管理控制台
+  # 上传文件：实体目录 + 元数据文件 + 允许的扩展名白名单（文本类，排除视频/音频/图片）
+  upload-dir: files
+  upload-allowed-ext: pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx
+  metadata-file: data/file-metadata.json
 
 neo4j:
   uri: bolt://localhost:7687

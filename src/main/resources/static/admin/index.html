@@ -60,6 +60,8 @@ code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12p
 #cg-legend span { display: block; margin: 2px 0; }
 #cg-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
 .cg-elabel { font-size: 11px; fill: #64748b; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+input[type=file] { padding: 5px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px; background: #fff; max-width: 320px; }
+.fm-desc-input { width: 260px; }
 </style>
 </head>
 <body>
@@ -84,6 +86,7 @@ code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12p
     <div class="tab" data-panel="cgraph">概念图</div>
     <div class="tab" data-panel="schema">概念层管理</div>
     <div class="tab" data-panel="data">图数据管理</div>
+    <div class="tab" data-panel="files">文件管理</div>
   </div>
 </div>
 <div class="container">
@@ -186,6 +189,24 @@ code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12p
         </div>
         <div class="muted">关系的两端 label 由所选类型的 schema 声明决定（签名校验）</div>
       </div>
+    </div>
+  </div>
+
+  <!-- 文件管理 -->
+  <div id="panel-files" class="panel">
+    <div class="card">
+      <h2>上传文件</h2>
+      <div class="toolbar">
+        <input type="file" id="fm-file">
+        <input type="text" id="fm-desc" placeholder="文件说明（选填）">
+        <button class="btn" onclick="uploadFile()">上传</button>
+      </div>
+      <div class="muted">支持 pdf / txt / csv / md / json / xml / doc / docx / xls / xlsx（≤50MB），不支持视频、音频、图片；同名文件覆盖</div>
+    </div>
+    <div class="card">
+      <h2>文件列表</h2>
+      <div class="muted" style="margin-bottom:10px">列表与 files/ 目录自动对账；说明可编辑；删除连带元数据记录</div>
+      <div id="fm-list"></div>
     </div>
   </div>
 </div>
@@ -567,11 +588,71 @@ function deleteRel() {
   doAction(async () => api('DELETE', '/api/graph/rels', b));
 }
 
+// ---------------- 文件管理 ----------------
+// 路径逐段编码：name 可能含 '/'（子目录文件）与中文，'/' 不能编码（Tomcat 拒绝 %2F）
+function fmPath(name) { return name.split('/').map(encodeURIComponent).join('/'); }
+
+function fmtSize(n) {
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+
+async function loadFiles() {
+  const d = await api('GET', '/api/files');
+  $('fm-list').innerHTML = table(
+    ['文件名', '类型', '大小', '说明', '上传时间', '操作'],
+    d.files.map(f => [
+      esc(f.name), code(f.ext), fmtSize(f.size),
+      `<input type="text" class="fm-desc-input" id="fm-desc-${esc(f.name).replace(/[^a-zA-Z0-9_-]/g, '_')}" value="${esc(f.description)}">`,
+      esc(f.uploadedAt),
+      `<button class="btn sm" onclick="saveFileDesc('${encodeURIComponent(f.name)}')">保存说明</button>` +
+      `<button class="btn sm danger" onclick="deleteFile('${encodeURIComponent(f.name)}')">删除</button>`
+    ]));
+}
+
+async function uploadFile() {
+  const input = $('fm-file');
+  if (!input.files.length) { showMsg('请先选择文件', false); return; }
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  fd.append('description', $('fm-desc').value);
+  const res = await fetch('/api/files', { method: 'POST', body: fd });
+  const json = await res.json();
+  if (json.code !== 0) { showMsg('上传失败：' + json.msg, false); return; }
+  showMsg('上传成功：' + json.data.file.name, true);
+  input.value = '';
+  $('fm-desc').value = '';
+  loadFiles().catch(e => showMsg('列表刷新失败：' + e.message, false));
+}
+
+async function saveFileDesc(encName) {
+  const name = decodeURIComponent(encName);
+  const inputId = 'fm-desc-' + name.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const description = $(inputId) ? $(inputId).value : '';
+  doAction(async () => {
+    const d = await api('PUT', '/api/files/' + fmPath(name), { description });
+    loadFiles().catch(() => {});
+    return d;
+  });
+}
+
+async function deleteFile(encName) {
+  const name = decodeURIComponent(encName);
+  if (!confirm('确认删除文件「' + name + '」？')) return;
+  doAction(async () => {
+    const d = await api('DELETE', '/api/files/' + fmPath(name));
+    loadFiles().catch(() => {});
+    return d;
+  });
+}
+
 // ---------------- init ----------------
 // 标题来自启动配置（app.title），获取失败时保留页面默认文案
 api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent = d.title; }).catch(() => {});
 loadOverview().catch(e => showMsg('加载失败：' + e.message, false));
 loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
+loadFiles().catch(e => showMsg('文件列表加载失败：' + e.message, false));
 loadConceptGraph().catch(e => showMsg('概念图加载失败：' + e.message, false));
 </script>
 </body>
