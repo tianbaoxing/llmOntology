@@ -16,7 +16,7 @@ public class AppController {
 
     private final String title;
 
-    public AppController(@Value("${app.title:国博藏品图谱 · 管理控制台}") String title) {
+    public AppController(@Value("${app.title}") String title) {
         this.title = title;
     }
 

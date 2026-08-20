@@ -68,7 +68,7 @@ textarea:focus { outline: none; border-color: #2563eb; }
       <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
       <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
     </svg>
-    <h1 id="app-title">国博藏品图谱 · 管理控制台</h1>
+    <h1 id="app-title">管理控制台</h1>
   </div>
   <div class="tabs">
     <a class="tab" href="/admin#overview">概览</a>
@@ -85,7 +85,7 @@ textarea:focus { outline: none; border-color: #2563eb; }
 <div class="chat-wrap">
   <div class="messages" id="messages">
     <div class="empty-tip" id="empty-tip">
-      <div class="big">向 AI 助手提问<span id="tip-title"></span>国博藏品图谱</span>相关问题</div>
+      <div class="big">向 AI 助手提问<span id="tip-title"></span>相关问题</div>
       <div>回答过程会实时展示思考与执行过程</div>
     </div>
   </div>
@@ -112,7 +112,7 @@ let streaming = false;
 let aborter = null;
 
 // 标题与提示语中的图谱名均取自 app.title（/api/app），失败保留默认文案
-let appTitle = '国博藏品图谱';
+let appTitle = '';
 fetch('/api/app').then(r => r.json()).then(j => {
   if (j && j.data && j.data.title) {
     appTitle = j.data.title;

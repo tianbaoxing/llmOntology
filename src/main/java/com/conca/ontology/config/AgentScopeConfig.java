@@ -20,12 +20,9 @@ import io.agentscope.harness.agent.HarnessAgent;
 @Configuration
 public class AgentScopeConfig {
 
-    static final String SYS_PROMPT = "你是「国博藏品图谱」的智能问答助手。"
-            + "请用中文回答用户问题，回答需简洁、准确、有条理。"
-            + "当问题涉及藏品、朝代、材质等事实信息而不确定时，如实说明，不要编造。";
-
     @Bean(destroyMethod = "close")
     public HarnessAgent harnessAgent(
+            @Value("${app.title:图谱}") String title,
             @Value("${app.agent.base-url}") String baseUrl,
             @Value("${app.agent.api-key:}") String apiKey,
             @Value("${app.agent.model}") String model,
@@ -47,10 +44,15 @@ public class AgentScopeConfig {
         Files.createDirectories(Path.of(workspaceDir));
         Files.createDirectories(Path.of(stateDir));
 
+        // 系统提示词中的图谱名来自 app.title 配置，避免硬编码
+        String sysPrompt = "你是「" + title + "」的智能问答助手。"
+                + "请用中文回答用户问题，回答需简洁、准确、有条理。"
+                + "当问题涉及事实信息而不确定时，如实说明，不要编造。";
+
         return HarnessAgent.builder()
                 .name("ontology-assistant")
-                .description("国博藏品图谱问答助手")
-                .sysPrompt(SYS_PROMPT)
+                .description(title + "问答助手")
+                .sysPrompt(sysPrompt)
                 .model(chatModel)
                 .workspace(Path.of(workspaceDir))
                 .stateStore(new JsonFileAgentStateStore(Path.of(stateDir)))
