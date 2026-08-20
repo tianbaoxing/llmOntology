@@ -117,7 +117,7 @@ textarea:focus { outline: none; border-color: #2563eb; }
         <button class="btn" id="btn-send">发送</button>
         <button class="btn stop" id="btn-stop" style="display:none;">停止</button>
       </div>
-      <div class="hint">内容由 AI 生成（OpenRouter · deepseek/deepseek-v4-flash），仅供参考</div>
+      <div class="hint" id="ai-hint"></div>
     </div>
     </div>
   </div>
@@ -144,6 +144,17 @@ fetch('/api/app').then(r => r.json()).then(j => {
     if (el) el.textContent = appTitle;
     const h = $('app-title');
     if (h) h.textContent = appTitle;
+  }
+  // 模型提示文案取自 app.agent.base-url / model 配置（无硬编码默认值），无配置时仅显示通用声明
+  const hint = $('ai-hint');
+  if (hint) {
+    if (j && j.data && j.data.model) {
+      let provider = '';
+      try { provider = new URL(j.data.baseUrl).hostname.replace(/^www\./, ''); } catch (e) {}
+      hint.textContent = '内容由 AI 生成（' + (provider ? provider + ' · ' : '') + j.data.model + '），仅供参考';
+    } else {
+      hint.textContent = '内容由 AI 生成，仅供参考';
+    }
   }
 }).catch(() => {});
 
