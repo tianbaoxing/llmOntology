@@ -27,7 +27,7 @@ body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #
 #g-legend span { display: block; margin: 2px 0; }
 #g-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
 .g-elabel { font-size: 11px; fill: #64748b; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
-.loadbar { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; font-size: 13px; color: #6b7280; flex-wrap: wrap; }
+.loadbar { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 13px; color: #6b7280; flex-wrap: wrap; }
 .loadbar .btn { padding: 5px 16px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; }
 .loadbar .btn:hover { background: #1d4ed8; }
 .loadbar .btn:disabled { background: #d1d5db; cursor: not-allowed; }
@@ -81,14 +81,13 @@ tr.grp.hl td { background: #fef3c7; }
   </div>
   <div class="layout">
     <div class="card graph-card">
-      <div id="loadbar" class="loadbar"></div>
       <div class="g-wrap">
         <svg id="g-svg" viewBox="0 0 1000 620"></svg>
         <div id="g-legend"></div>
       </div>
     </div>
     <div class="side">
-      <div class="card"><h2>当前节点</h2><div id="info"></div></div>
+      <div class="card"><h2>当前节点</h2><div id="info"></div><div id="loadbar" class="loadbar"></div></div>
       <div class="card"><h2>邻居分组</h2><div id="groups"></div></div>
     </div>
   </div>
