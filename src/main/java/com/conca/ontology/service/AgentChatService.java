@@ -54,6 +54,11 @@ public class AgentChatService {
         return agentProvider.getIfAvailable() != null;
     }
 
+    /** 会话是否有流式请求进行中（供历史会话删除前互斥检查） */
+    public boolean isRunning(String sessionId) {
+        return sessionId != null && runningSessions.contains(sessionId);
+    }
+
     /** 对外提示未配置 key 时的错误文案 */
     public static String missingKeyMessage() {
         return "未配置 OPENROUTER_API_KEY：请在项目根目录 .env 中填写后重启服务（模板见 .env.example）。";

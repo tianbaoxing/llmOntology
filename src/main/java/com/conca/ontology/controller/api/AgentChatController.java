@@ -1,7 +1,12 @@
 package com.conca.ontology.controller.api;
 
+import java.util.Map;
+
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,14 +14,19 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.conca.ontology.dto.AgentChatRequest;
+import com.conca.ontology.dto.ApiResponse;
 import com.conca.ontology.service.AgentChatService;
+import com.conca.ontology.service.AgentSessionService;
 
 import jakarta.validation.Valid;
 
 /**
- * AI 问答入口（SSE 流式）：
+ * AI 问答入口（SSE 流式）+ 历史会话管理：
  * POST /api/agent/chat {sessionId?, message} → text/event-stream。
  * 事件序列：session → thinking / tool → answer → done 或 error。
+ * GET  /api/agent/sessions                 → 会话列表（updateTime 倒序）
+ * GET  /api/agent/sessions/{id}/messages   → 单会话消息
+ * DELETE /api/agent/sessions/{id}          → 删除会话（含 AI 记忆）
  */
 @RestController
 @RequestMapping("/api/agent")
@@ -24,13 +34,31 @@ import jakarta.validation.Valid;
 public class AgentChatController {
 
     private final AgentChatService agentChatService;
+    private final AgentSessionService agentSessionService;
 
-    public AgentChatController(AgentChatService agentChatService) {
+    public AgentChatController(AgentChatService agentChatService,
+            AgentSessionService agentSessionService) {
         this.agentChatService = agentChatService;
+        this.agentSessionService = agentSessionService;
     }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@Valid @RequestBody AgentChatRequest request) {
         return agentChatService.chat(request.sessionId(), request.message());
+    }
+
+    @GetMapping("/sessions")
+    public ApiResponse<Map<String, Object>> sessions() {
+        return ApiResponse.ok(agentSessionService.list());
+    }
+
+    @GetMapping("/sessions/{id}/messages")
+    public ApiResponse<Map<String, Object>> messages(@PathVariable String id) {
+        return ApiResponse.ok(agentSessionService.messages(id));
+    }
+
+    @DeleteMapping("/sessions/{id}")
+    public ApiResponse<Map<String, Object>> delete(@PathVariable String id) {
+        return ApiResponse.ok(agentSessionService.delete(id));
     }
 }
