@@ -34,8 +34,8 @@ docker exec -i Neo4j cypher-shell -u neo4j -p guobo2026 "RETURN 1 AS ok;"
 
 | 项 | 值 |
 |---|---|
-| 服务端口 | `18080` |
-| Neo4j 连接 | `bolt://localhost:17687` |
+| 服务端口 | `9876` |
+| Neo4j 连接 | `bolt://localhost:7687` |
 | 配置文件 | `src/main/resources/application.yml` |
 | 页面标题 | `app.title`（默认「国博藏品图谱 · 管理控制台」，启动可用 `--app.title=xxx` 或环境变量 `APP_TITLE` 覆盖） |
 | JDK | 17 |
@@ -53,7 +53,7 @@ cd c:\me\kaiyuan\history\llmOntology
 java -jar target\ontology-0.1.0-SNAPSHOT.jar
 
 # 健康检查
-curl http://localhost:18080/api/graph/stats
+curl http://localhost:9876/api/graph/stats
 ```
 
 停止服务：在运行窗口 Ctrl+C，或 `Get-Process java | Stop-Process`（会杀掉所有 java 进程，注意甄别）。
@@ -124,9 +124,16 @@ curl http://localhost:18080/api/graph/stats
 
 | 项 | 值 |
 |---|---|
-| 入口 | `http://localhost:18080/admin`（AdminPageController forward 到静态页） |
+| 入口 | `http://localhost:9876/admin`（AdminPageController forward 到静态页） |
 | 页面文件 | `src/main/resources/static/admin/index.html`（单文件，无外部依赖） |
 | 功能 | 概览统计 / 概念层管理（类 CRUD）/ 图数据管理（节点与关系 CRUD） |
 | 数据通道 | 页面仅调用 `/api/**` 接口，无独立后端逻辑 |
 
 > controller 分三个入口包：`controller/api/`（admin REST）、`controller/llmapi/`（LLM/skill REST）、`controller/admin/`（页面入口，后续认证在此拦截）。
+
+### 本体查询 `/api/llm/ontology-query`（LLM / skill）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/llm/ontology-query/query` | 本体查询专用只读 Cypher 执行入口（拒绝多语句和写操作） |
+| POST | `/api/llm/ontology-query/ask` | 自然语言问答入口（固定流程：schema -> graph -> profile） |
