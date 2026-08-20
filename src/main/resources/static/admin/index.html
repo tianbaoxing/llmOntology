@@ -52,6 +52,8 @@ textarea { width: 100%; min-height: 90px; padding: 8px; border: 1px solid #d1d5d
 .detail-item b { color: #6b7280; font-weight: 600; display: inline-block; width: 90px; }
 .muted { color: #9ca3af; font-size: 12px; }
 code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.cnt-link { color: #2563eb; font-weight: 600; text-decoration: none; }
+.cnt-link:hover { text-decoration: underline; }
 .cg-wrap { position: relative; }
 #cg-svg { display: block; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; }
 #cg-legend { position: absolute; top: 10px; right: 14px; font-size: 12px; color: #6b7280; background: rgba(255,255,255,.88); padding: 8px 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
@@ -241,7 +243,8 @@ async function loadOverview() {
     ['类型', '中文名', '层', '实例数'],
     stats.nodes.map(n => {
       const c = schema.classes.find(c => c.name === n.label);
-      return [code(n.label), c ? c.cnName : '-', c ? badge(c.layer) : '-', n.count];
+      return [code(n.label), c ? c.cnName : '-', c ? badge(c.layer) : '-',
+        `<a class="cnt-link" href="/admin/instances.html?label=${encodeURIComponent(n.label)}">${n.count}</a>`];
     }));
   const relRows = stats.relationships.map(r => {
     const d = schema.relations.find(x => x.name === r.type);

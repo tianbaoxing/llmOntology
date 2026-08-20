@@ -6,8 +6,8 @@
 |---|---|
 | 容器名 | `Neo4j`（大写 N，与旧容器 `neo4j` 区分） |
 | 镜像 | `neo4j:5-community` |
-| HTTP 端口 | `17474`（浏览器访问 http://localhost:17474） |
-| Bolt 端口 | `17687` |
+| HTTP 端口 | `7474`（浏览器访问 http://localhost:7474） |
+| Bolt 端口 | `7687` |
 | 用户名 | `neo4j` |
 | 密码 | `guobo2026` |
 | 数据卷 | `neo4j_neo4j2_data` / `neo4j_neo4j2_logs`（持久化） |
@@ -102,6 +102,7 @@ curl http://localhost:9876/api/graph/stats
 |---|---|---|
 | POST | `/api/llm/graph/query` | 通用只读 Cypher（写语句被拒绝；对账校验用） |
 | GET | `/graph/stats` | 各 label 节点数 / 各 type 关系数 |
+| GET | `/graph/nodes?label=&page=&size=` | 分页实例列表（每页 50 条，管理页"实例数"跳转页数据源） |
 | GET | `/graph/node/{label}/{key}` | 节点详情 + 出入边 |
 | GET | `/api/llm/graph/neighbors?label=&key=&depth=1..3` | 邻域子图（仅 LLM 入口） |
 | POST | `/graph/nodes` | 创建单个节点（MERGE 幂等） |

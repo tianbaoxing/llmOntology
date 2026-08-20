@@ -5,6 +5,7 @@ import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.dto.ApiResponse;
@@ -25,6 +26,15 @@ public class GraphQueryController {
     @GetMapping("/stats")
     public ApiResponse<Map<String, Object>> stats() {
         return ApiResponse.ok(queryService.stats());
+    }
+
+    /** 分页实例列表（概览"实例数"跳转页数据源） */
+    @GetMapping("/nodes")
+    public ApiResponse<Map<String, Object>> nodes(
+            @RequestParam String label,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.ok(queryService.nodesPage(label, page, size));
     }
 
     /** 节点详情 + 出入边 */

@@ -57,6 +57,25 @@ public class GraphQueryService {
         return Map.of("nodes", nodes.get("rows"), "relationships", rels.get("rows"));
     }
 
+    /** 分页列出某 label 的实例（key + 全属性，供管理页实例列表） */
+    public Map<String, Object> nodesPage(String label, int page, int size) {
+        schema.checkLabel(label);
+        String keyProp = schema.keyPropOf(label);
+        int p = Math.max(1, page);
+        int s = Math.max(1, Math.min(size, 200));
+        Map<String, Object> result = query(
+                "MATCH (n:`" + label + "`) WITH count(n) AS total "
+                        + "MATCH (n:`" + label + "`) "
+                        + "RETURN total AS total, n.`" + keyProp + "` AS key, properties(n) AS props "
+                        + "ORDER BY key SKIP $skip LIMIT $limit",
+                Map.of("skip", (p - 1) * s, "limit", s));
+        List<?> rows = (List<?>) result.get("rows");
+        long total = rows.isEmpty() ? 0L
+                : ((Number) ((Map<?, ?>) rows.get(0)).get("total")).longValue();
+        return Map.of("label", label, "keyProp", keyProp, "total", total,
+                "page", p, "size", s, "pages", (total + s - 1) / s, "rows", rows);
+    }
+
     public Map<String, Object> nodeDetail(String label, String key) {
         String keyProp = schema.keyPropOf(label);
         return query(

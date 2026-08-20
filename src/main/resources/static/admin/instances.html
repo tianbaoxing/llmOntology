@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>实例列表</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
+.header { background: #1f2937; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.logo-group { display: flex; align-items: center; gap: 10px; }
+.logo { width: 36px; height: 36px; }
+.back-link { color: #9ca3af; text-decoration: none; padding: 6px 14px; border: 1px solid #4b5563; border-radius: 5px; font-size: 13px; }
+.back-link:hover { color: #fff; border-color: #9ca3af; }
+.container { max-width: 1200px; margin: 20px auto; padding: 0 24px; }
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.card h2 { font-size: 15px; margin-bottom: 14px; color: #1f2937; border-left: 3px solid #2563eb; padding-left: 10px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+th { background: #f9fafb; color: #6b7280; font-weight: 600; font-size: 13px; }
+tr.data-row { cursor: pointer; }
+tr.data-row:hover td { background: #f9fafb; }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; }
+.badge.concept { background: #dbeafe; color: #1d4ed8; }
+.badge.instance { background: #dcfce7; color: #15803d; }
+.muted { color: #9ca3af; font-size: 12px; }
+code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.pager { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.btn { display: inline-block; padding: 5px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; text-decoration: none; }
+.btn:hover { background: #1d4ed8; }
+.btn:disabled, .btn.disabled { background: #d1d5db; cursor: not-allowed; }
+.btn.ghost { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+.btn.ghost:hover { background: #f9fafb; }
+input[type=number] { padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px; width: 80px; }
+.detail-row td { background: #f9fafb; padding: 12px 18px; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 4px 24px; }
+.detail-item { font-size: 13px; word-break: break-all; }
+.detail-item b { color: #6b7280; font-weight: 600; margin-right: 6px; }
+.detail-item.long { grid-column: 1 / -1; }
+.empty { padding: 40px; text-align: center; color: #9ca3af; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-group">
+    <svg class="logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="logo">
+      <rect x="9" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <rect x="34" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <path d="M5 11 h38 l-4.5 21 h-29 Z" fill="#e3b04b"/>
+      <path d="M14 19 L24 15.5 L34 19 L24 27.5 Z" stroke="#8a5a18" stroke-width="1.8" fill="none" opacity=".7"/>
+      <circle cx="14" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="34" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="24" cy="15.5" r="3" fill="#f8fafc"/>
+      <circle cx="24" cy="27.5" r="3" fill="#38bdf8"/>
+      <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
+      <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
+    </svg>
+    <h1 id="app-title">图谱管理控制台</h1>
+  </div>
+  <a class="back-link" href="/admin">← 返回控制台</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h2 id="page-title">实例列表</h2>
+    <div id="list"></div>
+    <div id="pager" class="pager"></div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const LABEL = qs.get('label') || '';
+const SIZE = 50;
+let page = Math.max(1, parseInt(qs.get('page')) || 1);
+let propDefs = [];   // schema 属性定义（含中文名），用于详情展示
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function badge(layer) { return `<span class="badge ${layer}">${layer}</span>`; }
+
+async function api(method, url) {
+  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' } });
+  const json = await res.json();
+  if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
+  return json.data;
+}
+
+function href(p) {
+  return `/admin/instances.html?label=${encodeURIComponent(LABEL)}&page=${p}`;
+}
+
+function fmt(v) {
+  if (v === null || v === undefined || v === '') return '-';
+  if (typeof v === 'string' && v.length > 80) return v.slice(0, 80) + '…';
+  return v;
+}
+
+function renderTitle(cls, data) {
+  const cn = cls ? cls.cnName : LABEL;
+  $('page-title').innerHTML =
+    `${esc(LABEL)} · ${esc(cn)} ${cls ? badge(cls.layer) : ''}
+     <span class="muted" style="margin-left:12px">共 ${data.total} 条实例（key：<code>${esc(data.keyProp)}</code>，每页 ${data.size} 条）</span>`;
+}
+
+function renderList(data) {
+  if (!data.rows.length) {
+    $('list').innerHTML = '<div class="empty">该类型暂无实例</div>';
+    $('pager').innerHTML = '';
+    return;
+  }
+  const start = (data.page - 1) * data.size;
+  const rows = data.rows.map((r, i) => {
+    const name = r.props.title ?? r.props.name ?? r.props.cnName ?? '-';
+    const detail = Object.entries(r.props).map(([k, v]) => {
+      const def = propDefs.find(p => p.name === k);
+      const cn = def ? def.cnName : k;
+      const isLong = typeof v === 'string' && v.length > 80;
+      return `<div class="detail-item${isLong ? ' long' : ''}"><b>${esc(cn)}</b>${esc(v)}</div>`;
+    }).join('');
+    return `<tr class="data-row" onclick="toggleDetail(${i})">
+        <td class="muted">${start + i + 1}</td>
+        <td><code>${esc(r.key)}</code></td>
+        <td>${esc(fmt(name))}</td>
+        <td class="muted">▾</td>
+      </tr>
+      <tr class="detail-row" id="detail-${i}" style="display:none">
+        <td colspan="4"><div class="detail-grid">${detail}</div></td>
+      </tr>`;
+  }).join('');
+  $('list').innerHTML =
+    `<table><tr><th style="width:60px">#</th><th style="width:180px">${esc(data.keyProp)}</th><th>名称</th><th style="width:40px"></th></tr>${rows}</table>`;
+}
+
+function renderPager(data) {
+  const pages = data.pages, cur = data.page;
+  if (pages <= 1) { $('pager').innerHTML = `<span class="muted">共 ${data.total} 条</span>`; return; }
+  const prev = cur > 1 ? `<a class="btn ghost" href="${href(cur - 1)}">上一页</a>` : `<span class="btn ghost disabled">上一页</span>`;
+  const next = cur < pages ? `<a class="btn ghost" href="${href(cur + 1)}">下一页</a>` : `<span class="btn ghost disabled">下一页</span>`;
+  const first = cur > 1 ? `<a class="btn ghost" href="${href(1)}">首页</a>` : '';
+  const last = cur < pages ? `<a class="btn ghost" href="${href(pages)}">末页</a>` : '';
+  $('pager').innerHTML = `${first}${prev}
+    <span>第 <b>${cur}</b> / ${pages} 页（共 ${data.total} 条）</span>
+    ${next}${last}
+    <span style="margin-left:12px">跳至
+      <input type="number" id="jump" min="1" max="${pages}" value="${cur}">
+      <button class="btn" onclick="jumpPage(${pages})">GO</button>
+    </span>`;
+}
+
+function toggleDetail(i) {
+  const el = $('detail-' + i);
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+function jumpPage(pages) {
+  const p = Math.min(Math.max(1, parseInt($('jump').value) || 1), pages);
+  location.href = href(p);
+}
+
+async function init() {
+  try {
+    const app = await api('GET', '/api/app').catch(() => null);
+    if (app) $('app-title').textContent = app.title + ' · 实例列表';
+    const schema = await api('GET', '/api/schema');
+    const cls = schema.classes.find(c => c.name === LABEL);
+    if (cls) propDefs = cls.properties || [];
+    const data = await api('GET', `/api/graph/nodes?label=${encodeURIComponent(LABEL)}&page=${page}&size=${SIZE}`);
+    page = data.page;
+    renderTitle(cls, data);
+    renderList(data);
+    renderPager(data);
+  } catch (e) {
+    $('list').innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`;
+  }
+}
+init();
+</script>
+</body>
+</html>
