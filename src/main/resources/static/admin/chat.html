@@ -359,22 +359,16 @@ function renderSessions() {
   }
 }
 
-/** "yyyy-MM-dd HH:mm:ss(.sss)" → 相对时间 */
+/** "yyyy-MM-dd HH:mm:ss(.sss)" → 当天显示时分，非当天显示年月日时分 */
 function relTime(ts) {
   if (!ts) return '';
   const t = new Date(ts.replace(/(\.\d+)?$/, '').replace(' ', 'T'));
   if (isNaN(t)) return ts;
-  const diff = Date.now() - t.getTime();
-  if (diff < 60e3) return '刚刚';
-  if (diff < 3600e3) return Math.floor(diff / 60e3) + ' 分钟前';
-  if (diff < 86400e3) return Math.floor(diff / 3600e3) + ' 小时前';
-  if (diff < 172800e3) return '昨天';
+  const p = n => String(n).padStart(2, '0');
+  const hm = p(t.getHours()) + ':' + p(t.getMinutes());
   const now = new Date();
-  if (t.getFullYear() === now.getFullYear()) {
-    const p = n => String(n).padStart(2, '0');
-    return p(t.getMonth() + 1) + '-' + p(t.getDate());
-  }
-  return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+  const sameDay = t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth() && t.getDate() === now.getDate();
+  return sameDay ? hm : t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate()) + ' ' + hm;
 }
 
 async function switchSession(id) {
