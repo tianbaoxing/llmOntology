@@ -60,6 +60,7 @@ a.tab { text-decoration: none; }
 .tool-box .inner .tool-line .toutput.err { color: #b91c1c; background: #fef2f2; }
 .err-text { color: #b91c1c; white-space: pre-wrap; }
 .usage { color: #9ca3af; font-size: 12px; margin-top: 8px; }
+.usage-total { color: #6b7280; }
 .caret { display: inline-block; width: 7px; height: 15px; background: #2563eb; vertical-align: -2px; animation: blink .9s infinite; margin-left: 2px; }
 @keyframes blink { 50% { opacity: 0; } }
 .input-area { background: #fff; border-top: 1px solid #e5e7eb; padding: 14px 24px; }
@@ -134,6 +135,8 @@ const btnSend = $('btn-send');
 const btnStop = $('btn-stop');
 
 const SS_KEY = 'agent-chat-session';
+// 会话级 token 累计：最后一条 assistant 记录额外展示总计
+let sessionTotals = { in: 0, out: 0, lastUi: null };
 let sessionId = localStorage.getItem(SS_KEY) || newSessionId();
 let streaming = false;
 let aborter = null;
@@ -169,6 +172,7 @@ function emptyTipHtml(firstLine) {
 function newSessionId() {
   const id = crypto.randomUUID ? crypto.randomUUID() : ('s-' + Date.now() + '-' + Math.random().toString(36).slice(2));
   localStorage.setItem(SS_KEY, id);
+  sessionTotals = { in: 0, out: 0, lastUi: null };
   return id;
 }
 
@@ -212,14 +216,24 @@ function addAgentMsg() {
     answer: node.querySelector('.answer'),
     caret: node.querySelector('.caret'),
     usage: null,
-    setDone(usage) {
+    startTime: new Date(),
+    isDone: false,
+    setDone(usage, ts) {
+      if (this.isDone) return; // done 事件与流结束兜底可能先后触发，只追加一次
+      this.isDone = true;
       this.caret.style.display = 'none';
-      if (usage && (usage.promptTokens != null || usage.completionTokens != null)) {
-        const u = document.createElement('div');
-        u.className = 'usage';
-        u.textContent = 'tokens: 输入 ' + (usage.promptTokens || 0) + ' / 输出 ' + (usage.completionTokens || 0);
-        this.root.appendChild(u);
+      const timeStr = fmtTime(ts || this.startTime);
+      const hasUsage = usage && (usage.promptTokens != null || usage.completionTokens != null);
+      if (!timeStr && !hasUsage) return;
+      const u = document.createElement('div');
+      u.className = 'usage';
+      let text = timeStr;
+      if (hasUsage) {
+        const tok = 'tokens: 输入 ' + (usage.promptTokens || 0) + ' / 输出 ' + (usage.completionTokens || 0);
+        text = text ? text + ' · ' + tok : tok;
       }
+      u.textContent = text;
+      this.root.appendChild(u);
     },
     setError(msg) {
       this.caret.style.display = 'none';
@@ -321,6 +335,9 @@ function handleSseBlock(block, ui) {
     scrollBottom();
   } else if (eventName === 'done') {
     ui.setDone(payload);
+    sessionTotals.in += (payload && payload.promptTokens) || 0;
+    sessionTotals.out += (payload && payload.completionTokens) || 0;
+    appendTotalUsage();
   } else if (eventName === 'error') {
     ui.setError(payload.message || '未知错误');
   }
@@ -337,6 +354,7 @@ async function send() {
 
   addUserMsg(text);
   const ui = addAgentMsg();
+  sessionTotals.lastUi = ui;
   aborter = new AbortController();
 
   try {
@@ -441,6 +459,30 @@ function relTime(ts) {
   return sameDay ? hm : t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate()) + ' ' + hm;
 }
 
+/** 消息时间：当天显示时分秒，非当天显示年月日时分秒；ts 为空返回 '' */
+function fmtTime(ts) {
+  if (!ts) return '';
+  const t = ts instanceof Date ? ts : new Date(String(ts).replace(/(\.\d+)?$/, '').replace(' ', 'T'));
+  if (isNaN(t)) return '';
+  const p = n => String(n).padStart(2, '0');
+  const hms = p(t.getHours()) + ':' + p(t.getMinutes()) + ':' + p(t.getSeconds());
+  const now = new Date();
+  const sameDay = t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth() && t.getDate() === now.getDate();
+  return sameDay ? hms : t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate()) + ' ' + hms;
+}
+
+/** 在最后一条 assistant 记录下追加会话累计 token 行（重复调用先移除旧行） */
+function appendTotalUsage() {
+  document.querySelectorAll('.usage-total').forEach(el => el.remove());
+  const st = sessionTotals;
+  if (!st.lastUi || !st.lastUi.root.isConnected) return;
+  if (st.in === 0 && st.out === 0) return;
+  const tot = document.createElement('div');
+  tot.className = 'usage usage-total';
+  tot.textContent = '总计 tokens: 输入 ' + st.in + ' / 输出 ' + st.out;
+  st.lastUi.root.appendChild(tot);
+}
+
 async function switchSession(id) {
   if (id === sessionId) return;
   if (streaming && aborter) aborter.abort(); // 切换前终止进行中的回答
@@ -462,10 +504,17 @@ async function loadMessages() {
     messagesEl.innerHTML = emptyTipHtml('当前会话暂无记录');
     return;
   }
+  sessionTotals = { in: 0, out: 0, lastUi: null };
   for (const m of msgs) {
     if (m.role === 'user') addUserMsg(m.content);
-    else addStaticAgentMsg(m);
+    else {
+      const ui = addStaticAgentMsg(m);
+      sessionTotals.lastUi = ui;
+      sessionTotals.in += m.promptTokens || 0;
+      sessionTotals.out += m.completionTokens || 0;
+    }
   }
+  appendTotalUsage();
   scrollBottom();
 }
 
@@ -504,7 +553,8 @@ function addStaticAgentMsg(m) {
     }
   }
   ui.answer.textContent = m.answer || '';
-  ui.setDone(m);
+  ui.setDone(m, m.ts);
+  return ui;
 }
 
 async function deleteSession(id) {
