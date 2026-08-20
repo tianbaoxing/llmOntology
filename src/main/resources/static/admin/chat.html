@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 问答 · 国博藏品图谱</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; display: flex; flex-direction: column; }
+.header { background: #1f2937; color: #fff; padding: 12px 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.header h1 { font-size: 17px; font-weight: 600; }
+.logo-group { display: flex; align-items: center; gap: 10px; }
+.logo { width: 32px; height: 32px; }
+.header .spacer { flex: 1; }
+.header a.back { color: #9ca3af; text-decoration: none; font-size: 13px; }
+.header a.back:hover { color: #fff; }
+.btn { display: inline-block; padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; }
+.btn:hover { background: #1d4ed8; }
+.btn:disabled { background: #93c5fd; cursor: not-allowed; }
+.btn.ghost { background: #374151; color: #fff; }
+.btn.ghost:hover { background: #4b5563; }
+.btn.stop { background: #dc2626; }
+.btn.stop:hover { background: #b91c1c; }
+.chat-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; max-width: 900px; width: 100%; margin: 0 auto; }
+.messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+.msg-user { align-self: flex-end; max-width: 78%; background: #2563eb; color: #fff; padding: 10px 14px; border-radius: 12px 12px 2px 12px; white-space: pre-wrap; word-break: break-word; }
+.msg-agent { align-self: flex-start; max-width: 92%; background: #fff; border-radius: 12px 12px 12px 2px; padding: 12px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); word-break: break-word; }
+.msg-agent .answer { white-space: pre-wrap; line-height: 1.7; }
+.msg-agent .answer:empty::after { content: "…"; color: #9ca3af; }
+.think-box, .tool-box { border: 1px dashed #d1d5db; border-radius: 8px; margin-bottom: 10px; font-size: 13px; background: #f9fafb; }
+.think-box summary, .tool-box summary { cursor: pointer; padding: 6px 12px; color: #6b7280; user-select: none; }
+.think-box summary::before { content: "🧠 "; }
+.tool-box summary::before { content: "🔧 "; }
+.think-box .inner, .tool-box .inner { padding: 4px 12px 10px; color: #6b7280; white-space: pre-wrap; max-height: 260px; overflow-y: auto; line-height: 1.6; }
+.tool-box .inner .tool-line { padding: 2px 0; }
+.tool-box .inner .tool-line .tname { color: #1d4ed8; font-family: Consolas, monospace; }
+.tool-box .inner .tool-line.end .tname { color: #15803d; }
+.err-text { color: #b91c1c; white-space: pre-wrap; }
+.usage { color: #9ca3af; font-size: 12px; margin-top: 8px; }
+.caret { display: inline-block; width: 7px; height: 15px; background: #2563eb; vertical-align: -2px; animation: blink .9s infinite; margin-left: 2px; }
+@keyframes blink { 50% { opacity: 0; } }
+.input-area { background: #fff; border-top: 1px solid #e5e7eb; padding: 14px 24px; }
+.input-row { display: flex; gap: 10px; align-items: flex-end; max-width: 900px; margin: 0 auto; }
+textarea { flex: 1; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5; }
+textarea:focus { outline: none; border-color: #2563eb; }
+.hint { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 8px; }
+.empty-tip { margin: auto; text-align: center; color: #9ca3af; }
+.empty-tip .big { font-size: 15px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-group">
+    <svg class="logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="logo">
+      <rect x="9" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <rect x="34" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <path d="M5 11 h38 l-4.5 21 h-29 Z" fill="#e3b04b"/>
+      <path d="M14 19 L24 15.5 L34 19 L24 27.5 Z" stroke="#8a5a18" stroke-width="1.8" fill="none" opacity=".7"/>
+      <circle cx="14" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="34" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="24" cy="15.5" r="3" fill="#f8fafc"/>
+      <circle cx="24" cy="27.5" r="3" fill="#38bdf8"/>
+      <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
+      <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
+    </svg>
+    <h1>AI 问答</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="back" href="/admin">← 返回控制台</a>
+  <button class="btn ghost" id="btn-new">新会话</button>
+</div>
+
+<div class="chat-wrap">
+  <div class="messages" id="messages">
+    <div class="empty-tip" id="empty-tip">
+      <div class="big">向 AI 助手提问国博藏品图谱相关问题</div>
+      <div>回答过程会实时展示思考与执行过程</div>
+    </div>
+  </div>
+  <div class="input-area">
+    <div class="input-row">
+      <textarea id="input" placeholder="输入问题，Enter 发送，Shift+Enter 换行" rows="1"></textarea>
+      <button class="btn" id="btn-send">发送</button>
+      <button class="btn stop" id="btn-stop" style="display:none;">停止</button>
+    </div>
+    <div class="hint">内容由 AI 生成（OpenRouter · deepseek/deepseek-v4-flash），仅供参考</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const messagesEl = $('messages');
+const inputEl = $('input');
+const btnSend = $('btn-send');
+const btnStop = $('btn-stop');
+
+const SS_KEY = 'agent-chat-session';
+let sessionId = localStorage.getItem(SS_KEY) || newSessionId();
+let streaming = false;
+let aborter = null;
+
+function newSessionId() {
+  const id = crypto.randomUUID ? crypto.randomUUID() : ('s-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+  localStorage.setItem(SS_KEY, id);
+  return id;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function scrollBottom() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addNode(html) {
+  const tip = $('empty-tip');
+  if (tip) tip.remove();
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const node = div.firstChild;
+  messagesEl.appendChild(node);
+  scrollBottom();
+  return node;
+}
+
+function addUserMsg(text) {
+  addNode('<div class="msg-user"></div>').textContent = text;
+}
+
+function addAgentMsg() {
+  const node = addNode(
+    '<div class="msg-agent">' +
+      '<details class="think-box" style="display:none;"><summary>思考过程</summary><div class="inner"></div></details>' +
+      '<details class="tool-box" style="display:none;"><summary>执行过程</summary><div class="inner"></div></details>' +
+      '<div class="answer"></div>' +
+      '<span class="caret" style="display:none;"></span>' +
+    '</div>');
+  return {
+    root: node,
+    thinkBox: node.querySelector('.think-box'),
+    thinkInner: node.querySelector('.think-box .inner'),
+    toolBox: node.querySelector('.tool-box'),
+    toolInner: node.querySelector('.tool-box .inner'),
+    answer: node.querySelector('.answer'),
+    caret: node.querySelector('.caret'),
+    usage: null,
+    setDone(usage) {
+      this.caret.style.display = 'none';
+      if (usage && (usage.promptTokens != null || usage.completionTokens != null)) {
+        const u = document.createElement('div');
+        u.className = 'usage';
+        u.textContent = 'tokens: 输入 ' + (usage.promptTokens || 0) + ' / 输出 ' + (usage.completionTokens || 0);
+        this.root.appendChild(u);
+      }
+    },
+    setError(msg) {
+      this.caret.style.display = 'none';
+      const e = document.createElement('div');
+      e.className = 'err-text';
+      e.textContent = '出错了：' + msg;
+      this.root.appendChild(e);
+    }
+  };
+}
+
+// ---------- SSE 解析 ----------
+function handleSseBlock(block, ui) {
+  let eventName = 'message';
+  const dataLines = [];
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+  }
+  if (!dataLines.length) return; // 心跳注释或空块
+  let payload = {};
+  try { payload = JSON.parse(dataLines.join('\n')); } catch (e) { payload = { delta: dataLines.join('\n') }; }
+
+  if (eventName === 'session') {
+    sessionId = payload.sessionId || sessionId;
+    localStorage.setItem(SS_KEY, sessionId);
+  } else if (eventName === 'thinking') {
+    ui.thinkBox.style.display = '';
+    ui.thinkInner.textContent += (payload.delta || '');
+    ui.thinkBox.open = true;
+    scrollBottom();
+  } else if (eventName === 'tool') {
+    ui.toolBox.style.display = '';
+    ui.toolBox.open = true;
+    const line = document.createElement('div');
+    line.className = 'tool-line' + (payload.phase === 'end' ? ' end' : '');
+    line.innerHTML = (payload.phase === 'end' ? '✓ ' : '▶ 调用 ') + '<span class="tname">' + esc(payload.name) + '</span>';
+    ui.toolInner.appendChild(line);
+    scrollBottom();
+  } else if (eventName === 'answer') {
+    ui.answer.textContent += (payload.delta || '');
+    ui.caret.style.display = '';
+    scrollBottom();
+  } else if (eventName === 'done') {
+    ui.setDone(payload);
+  } else if (eventName === 'error') {
+    ui.setError(payload.message || '未知错误');
+  }
+}
+
+async function send() {
+  const text = inputEl.value.trim();
+  if (!text || streaming) return;
+  streaming = true;
+  btnSend.disabled = true;
+  btnStop.style.display = '';
+  inputEl.value = '';
+  autoGrow();
+
+  addUserMsg(text);
+  const ui = addAgentMsg();
+  aborter = new AbortController();
+
+  try {
+    const res = await fetch('/api/agent/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: sessionId, message: text }),
+      signal: aborter.signal
+    });
+    if (!res.ok || !res.body) {
+      let msg = 'HTTP ' + res.status;
+      try { const j = await res.json(); msg = j.message || msg; } catch (e) {}
+      ui.setError(msg);
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        if (block.trim()) handleSseBlock(block, ui);
+      }
+    }
+    if (buf.trim()) handleSseBlock(buf, ui);
+    ui.setDone(null);
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      ui.answer.textContent += '\n\n（已停止）';
+      ui.setDone(null);
+    } else {
+      ui.setError(e.message || '网络异常');
+    }
+  } finally {
+    streaming = false;
+    aborter = null;
+    btnSend.disabled = false;
+    btnStop.style.display = 'none';
+    inputEl.focus();
+  }
+}
+
+function autoGrow() {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + 'px';
+}
+
+btnSend.addEventListener('click', send);
+btnStop.addEventListener('click', () => { if (aborter) aborter.abort(); });
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+inputEl.addEventListener('input', autoGrow);
+$('btn-new').addEventListener('click', () => {
+  if (streaming) { alert('当前回答尚未结束，请先停止'); return; }
+  newSessionId();
+  messagesEl.innerHTML = '<div class="empty-tip" id="empty-tip"><div class="big">已开启新会话</div><div>向 AI 助手提问国博藏品图谱相关问题</div></div>';
+});
+
+inputEl.focus();
+</script>
+</body>
+</html>

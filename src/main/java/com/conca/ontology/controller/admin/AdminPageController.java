@@ -14,4 +14,9 @@ public class AdminPageController {
     public String admin() {
         return "forward:/admin/index.html";
     }
+
+    @GetMapping("/admin/chat")
+    public String chat() {
+        return "forward:/admin/chat.html";
+    }
 }

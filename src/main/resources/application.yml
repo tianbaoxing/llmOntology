@@ -4,6 +4,12 @@ server:
 spring:
   application:
     name: ontology
+  # 导入项目根目录 .env（含 OPENROUTER_API_KEY 等，已被 .gitignore 忽略）；文件缺失不报错
+  config:
+    import: optional:file:.env[.properties]
+  mvc:
+    async:
+      request-timeout: 180000
   servlet:
     multipart:
       max-file-size: 50MB
@@ -16,6 +22,13 @@ app:
   upload-dir: files
   upload-allowed-ext: pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx
   metadata-file: data/file-metadata.json
+  # AI 问答（AgentScope 2.0 Harness，OpenRouter OpenAI 兼容协议）
+  agent:
+    base-url: https://openrouter.ai/api/v1
+    model: deepseek/deepseek-v4-flash
+    api-key: ${OPENROUTER_API_KEY:}
+    workspace-dir: data/agent-workspace
+    state-dir: data/agent-state
 
 neo4j:
   uri: bolt://localhost:7687
