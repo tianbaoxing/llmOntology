@@ -651,6 +651,16 @@ async function deleteFile(encName) {
 // ---------------- init ----------------
 // 标题来自启动配置（app.title），获取失败时保留页面默认文案
 api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent = d.title; }).catch(() => {});
+// 支持 hash 直达 tab（如 /admin#schema），供其他页面菜单跳转
+(function () {
+  const h = location.hash.slice(1);
+  if (h && $('panel-' + h)) {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    document.querySelector('.tab[data-panel="' + h + '"]').classList.add('active');
+    $('panel-' + h).classList.add('active');
+  }
+})();
 loadOverview().catch(e => showMsg('加载失败：' + e.message, false));
 loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
 loadFiles().catch(e => showMsg('文件列表加载失败：' + e.message, false));

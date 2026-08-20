@@ -3,19 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 问答 · 国博藏品图谱</title>
+<title>AI 问答</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; }
 body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; display: flex; flex-direction: column; }
-.header { background: #1f2937; color: #fff; padding: 12px 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-.header h1 { font-size: 17px; font-weight: 600; }
+.header { background: #1f2937; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
+.header h1 { font-size: 18px; font-weight: 600; }
 .logo-group { display: flex; align-items: center; gap: 10px; }
-.logo { width: 32px; height: 32px; }
+.logo { width: 36px; height: 36px; }
 .header .spacer { flex: 1; }
-.header a.back { color: #9ca3af; text-decoration: none; font-size: 13px; }
-.header a.back:hover { color: #fff; }
+.tabs { display: flex; gap: 4px; }
+.tab { padding: 8px 18px; border-radius: 6px 6px 0 0; cursor: pointer; color: #9ca3af; user-select: none; }
+.tab.active { background: #f0f2f5; color: #1f2937; font-weight: 600; }
+.tab:hover:not(.active) { color: #fff; }
+a.tab { text-decoration: none; }
 .btn { display: inline-block; padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; }
 .btn:hover { background: #1d4ed8; }
 .btn:disabled { background: #93c5fd; cursor: not-allowed; }
@@ -65,17 +68,24 @@ textarea:focus { outline: none; border-color: #2563eb; }
       <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
       <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
     </svg>
-    <h1>AI 问答</h1>
+    <h1 id="app-title">国博藏品图谱 · 管理控制台</h1>
+  </div>
+  <div class="tabs">
+    <a class="tab" href="/admin#overview">概览</a>
+    <a class="tab" href="/admin#cgraph">概念图</a>
+    <a class="tab" href="/admin#schema">概念层管理</a>
+    <a class="tab" href="/admin#data">图数据管理</a>
+    <a class="tab" href="/admin#files">文件管理</a>
+    <a class="tab active" href="/admin/chat">AI 问答</a>
   </div>
   <div class="spacer"></div>
-  <a class="back" href="/admin">← 返回控制台</a>
   <button class="btn ghost" id="btn-new">新会话</button>
 </div>
 
 <div class="chat-wrap">
   <div class="messages" id="messages">
     <div class="empty-tip" id="empty-tip">
-      <div class="big">向 AI 助手提问国博藏品图谱相关问题</div>
+      <div class="big">向 AI 助手提问<span id="tip-title"></span>国博藏品图谱</span>相关问题</div>
       <div>回答过程会实时展示思考与执行过程</div>
     </div>
   </div>
@@ -100,6 +110,23 @@ const SS_KEY = 'agent-chat-session';
 let sessionId = localStorage.getItem(SS_KEY) || newSessionId();
 let streaming = false;
 let aborter = null;
+
+// 标题与提示语中的图谱名均取自 app.title（/api/app），失败保留默认文案
+let appTitle = '国博藏品图谱';
+fetch('/api/app').then(r => r.json()).then(j => {
+  if (j && j.data && j.data.title) {
+    appTitle = j.data.title;
+    const el = $('tip-title');
+    if (el) el.textContent = appTitle;
+    const h = $('app-title');
+    if (h) h.textContent = appTitle;
+  }
+}).catch(() => {});
+
+function emptyTipHtml(firstLine) {
+  return '<div class="empty-tip" id="empty-tip"><div class="big">' + firstLine +
+      '</div><div>向 AI 助手提问' + esc(appTitle) + '相关问题</div></div>';
+}
 
 function newSessionId() {
   const id = crypto.randomUUID ? crypto.randomUUID() : ('s-' + Date.now() + '-' + Math.random().toString(36).slice(2));
@@ -277,7 +304,7 @@ inputEl.addEventListener('input', autoGrow);
 $('btn-new').addEventListener('click', () => {
   if (streaming) { alert('当前回答尚未结束，请先停止'); return; }
   newSessionId();
-  messagesEl.innerHTML = '<div class="empty-tip" id="empty-tip"><div class="big">已开启新会话</div><div>向 AI 助手提问国博藏品图谱相关问题</div></div>';
+  messagesEl.innerHTML = emptyTipHtml('已开启新会话');
 });
 
 inputEl.focus();
