@@ -89,8 +89,15 @@ public class GraphQueryService {
     }
 
     public Map<String, Object> neighbors(String label, String key, int depth) {
+        return neighbors(label, key, depth, 0, 500);
+    }
+
+    /** 分页邻域：skip/limit 作用于按 eid 排序去重后的边，total 为边总数（图浏览页增量加载防卡顿） */
+    public Map<String, Object> neighbors(String label, String key, int depth, int skip, int limit) {
         String keyProp = schema.keyPropOf(label);
         int d = Math.max(1, Math.min(depth, 3));
+        int sk = Math.max(0, skip);
+        int lm = Math.max(1, Math.min(limit, 500));
         Map<String, Object> start = query(
                 "MATCH (n:`" + label + "` {`" + keyProp + "`: $key}) "
                         + "RETURN elementId(n) AS eid, labels(n) AS labels, properties(n) AS props",
@@ -98,17 +105,19 @@ public class GraphQueryService {
         if (((List<?>) start.get("rows")).isEmpty()) {
             throw new ApiException(404, "node not found: " + label + "/" + key);
         }
+        String match = "MATCH (n:`" + label + "` {`" + keyProp + "`: $key})-[r*1.." + d + "]-(m) "
+                + "UNWIND r AS e ";
+        Map<String, Object> total = query(match + "RETURN count(DISTINCT e) AS total", Map.of("key", key));
+        long totalCount = ((Number) ((Map<?, ?>) ((List<?>) total.get("rows")).get(0)).get("total")).longValue();
         Map<String, Object> edges = query(
-                "MATCH (n:`" + label + "` {`" + keyProp + "`: $key})-[r*1.." + d + "]-(m) "
-                        + "UNWIND r AS e "
-                        + "RETURN DISTINCT elementId(startNode(e)) AS fromEid, "
+                match + "RETURN DISTINCT elementId(startNode(e)) AS fromEid, "
                         + "labels(startNode(e)) AS fromLabels, properties(startNode(e)) AS fromProps, "
                         + "elementId(endNode(e)) AS toEid, "
                         + "labels(endNode(e)) AS toLabels, properties(endNode(e)) AS toProps, "
                         + "type(e) AS relType, properties(e) AS relProps "
-                        + "LIMIT 500",
-                Map.of("key", key));
+                        + "ORDER BY fromEid, relType, toEid SKIP $skip LIMIT $limit",
+                Map.of("key", key, "skip", sk, "limit", lm));
         return Map.of("start", ((List<?>) start.get("rows")).get(0),
-                "edges", edges.get("rows"));
+                "edges", edges.get("rows"), "total", totalCount, "skip", sk, "limit", lm);
     }
 }

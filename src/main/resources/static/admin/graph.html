@@ -27,6 +27,10 @@ body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #
 #g-legend span { display: block; margin: 2px 0; }
 #g-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
 .g-elabel { font-size: 11px; fill: #64748b; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+.loadbar { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; font-size: 13px; color: #6b7280; flex-wrap: wrap; }
+.loadbar .btn { padding: 5px 16px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; }
+.loadbar .btn:hover { background: #1d4ed8; }
+.loadbar .btn:disabled { background: #d1d5db; cursor: not-allowed; }
 .crumb { margin-bottom: 8px; line-height: 1.9; }
 .crumb a { color: #2563eb; text-decoration: none; cursor: pointer; }
 .crumb a:hover { text-decoration: underline; }
@@ -47,7 +51,6 @@ tr.grp { cursor: pointer; }
 tr.grp:hover td { background: #f9fafb; }
 tr.grp.hl td { background: #fef3c7; }
 .empty { padding: 30px; text-align: center; color: #9ca3af; }
-.warn { color: #b45309; margin-left: 6px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -74,10 +77,11 @@ tr.grp.hl td { background: #fef3c7; }
   <div class="card">
     <h2 id="page-title">实例图谱</h2>
     <div class="crumb" id="crumb"></div>
-    <div class="muted">点击图中任意节点切换中心并加载其邻居（页面动态刷新）；节点可拖拽，悬停查看详情；邻居分组点击可在图中高亮</div>
+    <div class="muted">点击图中任意节点切换中心并加载其邻居（页面动态刷新）；大邻居按页展示（每页 100 条，翻页整图替换）；节点可拖拽，悬停查看详情；邻居分组点击可在图中高亮</div>
   </div>
   <div class="layout">
     <div class="card graph-card">
+      <div id="loadbar" class="loadbar"></div>
       <div class="g-wrap">
         <svg id="g-svg" viewBox="0 0 1000 620"></svg>
         <div id="g-legend"></div>
@@ -97,7 +101,9 @@ const CENTER_COLOR = '#d97706';
 
 let schema = null, classByName = {}, relCn = {}, labelColor = {};
 let path = [];                 // 访问路径（面包屑）
-const nodeCache = new Map();   // "label|key" -> neighbors 响应
+const PAGE = 100;              // 每页展示的关系边数（翻页整图替换，防大图卡顿）
+const nodeCache = new Map();   // "label|key" -> { label, key, start, edges(当前页), total, page }
+let cur = null;                // 当前中心的状态对象（nodeCache 内对象的引用）
 let loading = false;
 const G = { nodes: [], edges: [], center: null, sim: 0, dragging: null, down: null, moved: false, hl: null };
 
@@ -130,12 +136,14 @@ async function loadNode(label, key, push) {
   loading = true;
   try {
     const ck = label + '|' + key;
-    let data = nodeCache.get(ck);
-    if (!data) {
-      data = await api('GET', `/api/graph/neighbors?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}&depth=1`);
-      nodeCache.set(ck, data);
+    let st = nodeCache.get(ck);
+    if (!st) {
+      const data = await api('GET', `/api/graph/neighbors?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}&depth=1&skip=0&limit=${PAGE}`);
+      st = { label, key, start: data.start, edges: data.edges || [], total: data.total ?? (data.edges || []).length, page: 1 };
+      nodeCache.set(ck, st);
     }
-    const entry = { label, key, name: nodeName(label, data.start.props) };
+    cur = st;
+    const entry = { label, key, name: nodeName(label, cur.start.props) };
     // 已访问过的节点：路径回退到该处；新节点：追加
     let at = -1;
     for (let i = path.length - 1; i >= 0; i--) {
@@ -143,16 +151,42 @@ async function loadNode(label, key, push) {
     }
     if (at >= 0) path = path.slice(0, at + 1); else path.push(entry);
     if (push) history.pushState({}, '', `/admin/graph.html?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}`);
-    buildGraph(data);
+    buildGraph();
     renderAll();
     runSim();
   } catch (e) {
+    cur = null;
     G.nodes = []; G.edges = []; G.center = null; G.hl = null;
     renderGraph();
     $('crumb').innerHTML = '';
     $('g-legend').innerHTML = '';
     $('groups').innerHTML = '';
+    $('loadbar').innerHTML = '';
     $('info').innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`;
+  }
+  loading = false;
+}
+
+// 翻页：整图替换为该页数据（只保留当前页，避免大图累积卡顿）
+async function loadPage(p) {
+  if (!cur || loading) return;
+  const maxPage = Math.max(1, Math.ceil(cur.total / PAGE));
+  const target = Math.min(Math.max(1, p), maxPage);
+  if (target === cur.page) return;
+  loading = true;
+  const btns = document.querySelectorAll('#loadbar .btn');
+  btns.forEach(b => { b.disabled = true; });
+  try {
+    const data = await api('GET', `/api/graph/neighbors?label=${encodeURIComponent(cur.label)}&key=${encodeURIComponent(cur.key)}&depth=1&skip=${(target - 1) * PAGE}&limit=${PAGE}`);
+    cur.edges = data.edges || [];
+    if (data.total !== undefined) cur.total = data.total;
+    cur.page = target;
+    buildGraph();
+    renderAll();
+    runSim();
+  } catch (e) {
+    renderLoadbar();
+    $('loadbar').insertAdjacentHTML('beforeend', `<span style="color:#b91c1c">加载失败：${esc(e.message)}</span>`);
   }
   loading = false;
 }
@@ -163,8 +197,9 @@ window.addEventListener('popstate', () => {
 });
 
 // ---------------- 图构建 ----------------
-function buildGraph(data) {
+function buildGraph() {
   const map = new Map();
+  const prev = new Map(G.nodes.map(n => [n.eid, { x: n.x, y: n.y }]));  // 旧节点位置（增量加载/切中心时保留）
   const add = (eid, labels, props) => {
     if (map.has(eid)) return map.get(eid);
     const label = (labels || [])[0] || 'Unknown';
@@ -174,8 +209,8 @@ function buildGraph(data) {
     map.set(eid, n);
     return n;
   };
-  const center = add(data.start.eid, data.start.labels, data.start.props);
-  G.edges = (data.edges || []).map(e => {
+  const center = add(cur.start.eid, cur.start.labels, cur.start.props);
+  G.edges = (cur.edges || []).map(e => {
     const a = add(e.fromEid, e.fromLabels, e.fromProps);
     const b = add(e.toEid, e.toLabels, e.toProps);
     a.deg++; b.deg++;
@@ -188,11 +223,12 @@ function buildGraph(data) {
   const n = G.nodes.length;
   const nr = n <= 40 ? 16 : n <= 120 ? 12 : n <= 300 ? 9 : 7;
   G.nodes.forEach(x => { x.r = x === center ? Math.min(30, nr + 12) : nr; });
-  // 初始位置：中心 + 黄金角螺旋展开
-  center.x = W / 2; center.y = H / 2;
+  // 位置：旧节点原位保留；新节点（含全新中心）从画布中心黄金角螺旋展开
   let i = 0;
   G.nodes.forEach(x => {
-    if (x === center) return;
+    const p = prev.get(x.eid);
+    if (p) { x.x = p.x; x.y = p.y; return; }
+    if (x === center) { x.x = W / 2; x.y = H / 2; return; }
     const ang = i * 2.399963;
     const rad = Math.min(46 + 13 * Math.sqrt(i), 250);
     x.x = W / 2 + rad * Math.cos(ang) + (Math.random() - .5) * 8;
@@ -270,8 +306,7 @@ function renderInfo() {
   $('info').innerHTML =
     `<div class="detail-item"><b>类型</b>${esc(n.label)}（${esc(cnOf(n.label))}）${cls ? badge(cls.layer) : ''}</div>` +
     `<div class="detail-item"><b>键值</b><code>${esc(n.key)}</code></div>` +
-    `<div class="detail-item"><b>邻居</b>${G.nodes.length - 1} 个节点 / ${G.edges.length} 条关系` +
-    (G.edges.length >= 500 ? '<span class="warn">已达查询上限，仅展示前 500 条</span>' : '') + '</div>' +
+    `<div class="detail-item"><b>邻居</b>本页 ${G.nodes.length - 1} 个节点 / ${cur.edges.length} 条关系（第 ${cur.page} 页，共 ${cur.total} 条）</div>` +
     (items ? `<h3>属性</h3>${items}` : '');
 }
 
@@ -325,9 +360,25 @@ function renderCrumb() {
   bl.textContent = `← 返回${cnOf(G.center.label)}列表`;
 }
 
+function renderLoadbar() {
+  const el = $('loadbar');
+  if (!cur || !cur.total) { el.innerHTML = ''; return; }
+  const maxPage = Math.max(1, Math.ceil(cur.total / PAGE));
+  if (maxPage <= 1) {
+    el.innerHTML = `<span class="muted">邻居 ${cur.total} 条关系已全部展示（当前 ${G.nodes.length} 个节点）</span>`;
+    return;
+  }
+  const p = cur.page;
+  el.innerHTML =
+    `<button class="btn" ${p > 1 ? '' : 'disabled'} onclick="loadPage(${p - 1})">← 上一页</button>` +
+    `<span>第 <b>${p}</b> / ${maxPage} 页 · 本页 ${cur.edges.length} 条（共 ${cur.total} 条，当前 ${G.nodes.length} 个节点）</span>` +
+    `<button class="btn" ${p < maxPage ? '' : 'disabled'} onclick="loadPage(${p + 1})">下一页 →</button>`;
+}
+
 function renderAll() {
   $('page-title').textContent = `实例图谱 · ${G.center.label} / ${trunc(G.center.name, 20)}`;
   renderInfo();
+  renderLoadbar();
   renderGroups();
   renderLegend();
   renderCrumb();
@@ -371,11 +422,11 @@ function step() {
 
 function runSim() {
   cancelAnimationFrame(G.sim);
-  const many = G.nodes.length > 120;
+  const skip = G.nodes.length > 250 ? 3 : G.nodes.length > 120 ? 2 : 1;  // 大图隔帧渲染降负载
   let t = 0;
   const tick = () => {
     step();
-    if (!many || t % 2 === 0) renderGraph();
+    if (t % skip === 0) renderGraph();
     if (++t < 180) G.sim = requestAnimationFrame(tick);
   };
   G.sim = requestAnimationFrame(tick);
