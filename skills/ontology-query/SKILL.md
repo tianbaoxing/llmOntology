@@ -13,9 +13,21 @@ description: "Queries ontology concepts and graph evidence, then answers with ex
 
 默认服务地址：`http://localhost:9876`。如用户提供了别的地址，优先使用用户给定地址；也可用环境变量 `ONTOLOGY_BASE_URL` 覆盖。
 
-## 环境与工具约定（Windows）
+## 环境与工具约定
 
-运行环境是 Windows 10，shell 为 cmd.exe。本文所有 HTTP 接口都通过 `execute` 工具执行 curl 命令访问。
+**规则 0（必须最先执行）：先探测操作系统，再拼接命令。**
+
+在执行任何业务命令（curl、目录切换、文件操作等）之前，必须先用 `execute` 运行一次环境探测，确认当前是 Windows 还是 Linux/macOS，避免按错误的 shell 语法拼命令：
+
+```cmd
+echo %OS%
+```
+
+- 输出 `Windows_NT` → Windows + cmd.exe，按下方 Windows 规则拼接命令。
+- 原样输出 `%OS%` 或命令报错 → Linux/macOS，可用 `uname -s` 进一步确认，后续改用 Unix 语法（路径分隔符 `/`，可用 `cat`/`ls`/`grep`/`head`、单引号）。
+- 探测结论在整个会话内保持一致，后续所有命令都按同一环境的语法拼接，禁止两套语法混用。
+
+当前预期部署环境是 Windows 10，shell 为 cmd.exe（以规则 0 的实际探测结果为准）。本文所有 HTTP 接口都通过 `execute` 工具执行 curl 命令访问。
 
 `execute` 使用规则：
 
