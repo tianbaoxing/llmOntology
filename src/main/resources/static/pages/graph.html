@@ -35,6 +35,23 @@ th, td { padding: 8px 10px; }
 tr.grp { cursor: pointer; }
 tr.grp:hover td { background: #f9fafb; }
 tr.grp.hl td { background: #fef3c7; }
+/* 邻居分组过滤 */
+.funnel { border: 1px solid #d1d5db; background: #fff; border-radius: 4px; cursor: pointer; padding: 1px 7px; font-size: 12px; color: #6b7280; margin-left: 6px; vertical-align: 1px; }
+.funnel:hover { border-color: #2563eb; color: #2563eb; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; margin-bottom: 8px; font-size: 13px; }
+.panel-close { border: none; background: none; font-size: 18px; line-height: 1; cursor: pointer; color: #6b7280; padding: 0 2px; }
+.panel-close:hover { color: #b91c1c; }
+.panel-btns { margin-top: 10px; display: flex; gap: 8px; }
+.panel-btns .btn { padding: 5px 16px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; }
+.panel-btns .btn:hover { background: #1d4ed8; }
+.panel-btns .btn-plain { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+.panel-btns .btn-plain:hover { background: #f9fafb; }
+#groups select, #groups input { padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; }
+#groups select { width: 92px; }
+#groups input { width: 100px; }
+#groups table td, #groups table th { padding: 5px 6px; font-size: 12px; }
+.fsum { font-size: 13px; }
+.fsum .conds { margin: 6px 0; color: #475569; }
 .empty { padding: 30px; text-align: center; color: #9ca3af; }
 .title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .title-row h2 { margin-bottom: 0; }
@@ -50,7 +67,7 @@ tr.grp.hl td { background: #fef3c7; }
       <a class="back-link" id="back-list" href="#">← 返回列表</a>
     </div>
     <div class="crumb" id="crumb"></div>
-    <div class="muted">点击图中任意节点切换中心并加载其邻居（页面动态刷新）；大邻居按页展示（每页 100 条，翻页整图替换）；节点可拖拽，悬停查看详情；邻居分组点击可在图中高亮</div>
+    <div class="muted">点击图中任意节点切换中心并加载其邻居（页面动态刷新）；大邻居按页展示（每页 100 条，翻页整图替换）；节点可拖拽，悬停查看详情；邻居分组点击高亮，⊘ 可按分组属性过滤后重新查询</div>
   </div>
   <div class="layout">
     <div class="card graph-card">
@@ -74,9 +91,10 @@ const CENTER_COLOR = '#d97706';
 let schema = null, classByName = {}, relCn = {}, labelColor = {};
 let path = [];                 // 访问路径（面包屑）
 const PAGE = 100;              // 每页展示的关系边数（翻页整图替换，防大图卡顿）
-const nodeCache = new Map();   // "label|key" -> { label, key, start, edges(当前页), total, page }
+const nodeCache = new Map();   // "label|key[|filterKey]" -> { label, key, filter, start, edges, total, page, groups }
 let cur = null;                // 当前中心的状态对象（nodeCache 内对象的引用）
 let loading = false;
+let panel = null;              // 过滤面板：{ dir, relType, otherLabel }（null=不在面板态）
 const G = { nodes: [], edges: [], center: null, sim: 0, dragging: null, down: null, moved: false, hl: null };
 
 function keyPropOf(label) { return (classByName[label] || {}).keyProp || 'name'; }
@@ -93,19 +111,52 @@ function clean(v) {  // 展示用：去掉 HTML 标签（description 等字段�
 function trunc(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
 function badge(layer) { return `<span class="badge ${layer}">${layer}</span>`; }
 
+// ---------------- 分组过滤：URL 参数 <-> 过滤对象 ----------------
+// 过滤对象：{ dir:'in', relType:'OF_ERA', otherLabel:'CulturalRelic', conds:[{prop,op,value}] }
+function parseFilterFromUrl(p) {
+  const dir = p.get('dir'), relType = p.get('relType'), otherLabel = p.get('otherLabel');
+  if (!dir || !relType || !otherLabel) return null;
+  const conds = [];
+  p.getAll('f').forEach(s => {
+    const i1 = s.indexOf(':'), i2 = s.indexOf(':', i1 + 1);
+    if (i1 > 0 && i2 > i1) {
+      const c = { prop: s.slice(0, i1), op: s.slice(i1 + 1, i2), value: s.slice(i2 + 1) };
+      if (c.op && c.value !== '') conds.push(c);
+    }
+  });
+  return conds.length ? { dir, relType, otherLabel, conds } : null;
+}
+function filterQuery(f) {
+  if (!f) return '';
+  let q = `&dir=${encodeURIComponent(f.dir)}&relType=${encodeURIComponent(f.relType)}&otherLabel=${encodeURIComponent(f.otherLabel)}`;
+  f.conds.forEach(c => { q += `&f=${encodeURIComponent(c.prop + ':' + c.op + ':' + c.value)}`; });
+  return q;
+}
+function filterKey(f) {
+  return f ? [f.dir, f.relType, f.otherLabel, ...f.conds.map(c => c.prop + ':' + c.op + ':' + c.value)].join('|') : '';
+}
+
 // ---------------- 数据加载与路径维护 ----------------
-async function loadNode(label, key, push) {
+async function loadNode(label, key, filter, push) {
   if (loading || !label || !key) return;
   loading = true;
   try {
-    const ck = label + '|' + key;
+    const ck = label + '|' + key + (filterKey(filter) ? '|' + filterKey(filter) : '');
     let st = nodeCache.get(ck);
     if (!st) {
-      const data = await api('GET', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}/neighbors?depth=1&skip=0&limit=${PAGE}`);
-      st = { label, key, start: data.start, edges: data.edges || [], total: data.total ?? (data.edges || []).length, page: 1 };
+      const data = await api('GET', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}/neighbors?depth=1&skip=0&limit=${PAGE}${filterQuery(filter)}`);
+      st = { label, key, filter: filter || null, start: data.start, edges: data.edges || [], total: data.total ?? (data.edges || []).length, page: 1, groups: null };
       nodeCache.set(ck, st);
     }
+    // 邻居分组全局统计（与过滤无关，按节点缓存；失败不阻塞主流程）
+    if (!st.groups) {
+      try {
+        const gd = await api('GET', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}/neighbor-groups`);
+        st.groups = gd.groups || [];
+      } catch (e) { st.groups = []; }
+    }
     cur = st;
+    panel = null;
     const entry = { label, key, name: nodeName(label, cur.start.props) };
     // 已访问过的节点：路径回退到该处；新节点：追加
     let at = -1;
@@ -113,7 +164,7 @@ async function loadNode(label, key, push) {
       if (path[i].label === label && path[i].key === key) { at = i; break; }
     }
     if (at >= 0) path = path.slice(0, at + 1); else path.push(entry);
-    if (push) history.pushState({}, '', `/graph?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}`);
+    if (push) history.pushState({}, '', `/graph?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}${filterQuery(filter)}`);
     buildGraph();
     renderAll();
     runSim();
@@ -130,7 +181,7 @@ async function loadNode(label, key, push) {
   loading = false;
 }
 
-// 翻页：整图替换为该页数据（只保留当前页，避免大图累积卡顿）
+// 翻页：整图替换为该页数据（只保留当前页，避免大图累积卡顿；过滤态在过滤集内翻页）
 async function loadPage(p) {
   if (!cur || loading) return;
   const maxPage = Math.max(1, Math.ceil(cur.total / PAGE));
@@ -140,7 +191,7 @@ async function loadPage(p) {
   const btns = document.querySelectorAll('#loadbar .btn');
   btns.forEach(b => { b.disabled = true; });
   try {
-    const data = await api('GET', `/api/graph/nodes/${encodeURIComponent(cur.label)}/${encodeURIComponent(cur.key)}/neighbors?depth=1&skip=${(target - 1) * PAGE}&limit=${PAGE}`);
+    const data = await api('GET', `/api/graph/nodes/${encodeURIComponent(cur.label)}/${encodeURIComponent(cur.key)}/neighbors?depth=1&skip=${(target - 1) * PAGE}&limit=${PAGE}${filterQuery(cur.filter)}`);
     cur.edges = data.edges || [];
     if (data.total !== undefined) cur.total = data.total;
     cur.page = target;
@@ -156,7 +207,7 @@ async function loadPage(p) {
 
 window.addEventListener('popstate', () => {
   const p = new URLSearchParams(location.search);
-  loadNode(p.get('label'), p.get('key'), false);
+  loadNode(p.get('label'), p.get('key'), parseFilterFromUrl(p), false);
 });
 
 // ---------------- 图构建 ----------------
@@ -269,29 +320,25 @@ function renderInfo() {
   $('info').innerHTML =
     `<div class="detail-item"><b>类型</b>${esc(n.label)}（${esc(cnOf(n.label))}）${cls ? badge(cls.layer) : ''}</div>` +
     `<div class="detail-item"><b>键值</b><code>${esc(n.key)}</code></div>` +
-    `<div class="detail-item"><b>邻居</b>本页 ${G.nodes.length - 1} 个节点 / ${cur.edges.length} 条关系（第 ${cur.page} 页，共 ${cur.total} 条）</div>` +
+    `<div class="detail-item"><b>邻居</b>本页 ${G.nodes.length - 1} 个节点 / ${cur.edges.length} 条关系（第 ${cur.page} 页，共 ${cur.total} 条${cur.filter ? '，已过滤' : ''}）</div>` +
     (items ? `<h3>属性</h3>${items}` : '');
 }
 
+// ---------------- 邻居分组：分组表 / 过滤面板 / 过滤摘要 三态 ----------------
 function renderGroups() {
-  const centerEid = G.center.eid;
-  const groups = new Map();
-  G.edges.forEach(e => {
-    const dir = e.s.eid === centerEid ? 'out' : 'in';
-    const other = dir === 'out' ? e.t : e.s;
-    const k = dir + '|' + e.type + '|' + other.label;
-    if (!groups.has(k)) groups.set(k, { dir, type: e.type, label: other.label, count: 0 });
-    groups.get(k).count++;
-  });
-  const rows = [...groups.values()].sort((a, b) => b.count - a.count).map(g =>
-    `<tr class="grp" data-dir="${g.dir}" data-type="${esc(g.type)}" data-label="${esc(g.label)}" onclick="toggleHl(this)">` +
+  if (!cur) { $('groups').innerHTML = ''; return; }
+  if (panel) { renderPanel(); return; }
+  if (cur.filter) { renderFilterSummary(); return; }
+  const groups = (cur.groups || []);
+  const rows = groups.map((g, i) =>
+    `<tr class="grp" data-dir="${g.dir}" data-type="${esc(g.relType)}" data-label="${esc(g.otherLabel)}" onclick="toggleHl(this)">` +
     `<td>${g.dir === 'out' ? '出' : '入'}</td>` +
-    `<td>${esc(relCn[g.type] || g.type)}<div class="muted"><code>${esc(g.type)}</code></div></td>` +
-    `<td>${esc(cnOf(g.label))}<div class="muted"><code>${esc(g.label)}</code></div></td>` +
-    `<td><b>${g.count}</b></td></tr>`).join('');
+    `<td>${esc(relCn[g.relType] || g.relType)}<div class="muted"><code>${esc(g.relType)}</code></div></td>` +
+    `<td>${esc(cnOf(g.otherLabel))}<div class="muted"><code>${esc(g.otherLabel)}</code></div></td>` +
+    `<td><b>${g.count}</b><button class="funnel" title="按此分组过滤" onclick="openPanel(event, ${i})">⊘</button></td></tr>`).join('');
   $('groups').innerHTML = rows
     ? `<table><tr><th>向</th><th>关系</th><th>对端类型</th><th>数量</th></tr>${rows}</table>` +
-      `<div class="muted" style="margin-top:8px">点击分组在图中高亮对应节点/关系，再次点击取消</div>`
+      `<div class="muted" style="margin-top:8px">点击分组高亮，⊘ 打开属性过滤（数量为全局统计）</div>`
     : '<div class="empty">该节点暂无关联关系</div>';
 }
 
@@ -301,6 +348,98 @@ function toggleHl(tr) {
   else G.hl = { dir: d.dir, type: d.type, label: d.label };
   document.querySelectorAll('tr.grp').forEach(r => r.classList.toggle('hl', r === tr && !!G.hl));
   renderGraph();
+}
+
+// 打开某分组的过滤面板（属性列表来自 schema 缓存，无额外请求）
+function openPanel(ev, i) {
+  if (ev) ev.stopPropagation();
+  const g = (cur.groups || [])[i];
+  if (!g) return;
+  G.hl = null;
+  document.querySelectorAll('tr.grp').forEach(r => r.classList.remove('hl'));
+  panel = { dir: g.dir, relType: g.relType, otherLabel: g.otherLabel };
+  renderGroups();
+  renderGraph();
+}
+
+function closePanel() { panel = null; renderGroups(); }
+
+function propCn(label, prop) {
+  const def = ((classByName[label] || {}).properties || []).find(p => p.name === prop);
+  return def ? (def.cnName || prop) : prop;
+}
+
+// 态2：过滤面板（编辑态预填当前过滤条件）
+function renderPanel() {
+  const cls = classByName[panel.otherLabel] || {};
+  const props = cls.properties || [];
+  const curF = cur.filter && cur.filter.dir === panel.dir && cur.filter.relType === panel.relType
+    && cur.filter.otherLabel === panel.otherLabel ? cur.filter.conds : [];
+  const rows = props.map(p => {
+    const c = curF.find(x => x.prop === p.name);
+    const isNum = p.dataType === 'number';
+    const sel = o => (c && c.op === o) || (!c && o === '') ? 'selected' : '';
+    const ops = isNum
+      ? `<option value="" ${sel('')}>不筛选</option><option value="eq" ${sel('eq')}>等于 eq</option>`
+      : `<option value="" ${sel('')}>不筛选</option><option value="eq" ${sel('eq')}>等于 eq</option><option value="like" ${sel('like')}>包含 like</option>`;
+    return `<tr><td>${esc(p.cnName || p.name)}<div class="muted"><code>${esc(p.name)}</code>${isNum ? ' · number' : ''}</div></td>` +
+      `<td><select class="f-op" data-prop="${esc(p.name)}">${ops}</select></td>` +
+      `<td><input class="f-val" data-prop="${esc(p.name)}" value="${esc(c ? c.value : '')}" placeholder="${isNum ? '数值' : '文本'}"></td></tr>`;
+  }).join('');
+  $('groups').innerHTML =
+    `<div class="panel-head"><span>过滤：${esc(cnOf(panel.otherLabel))} · ${esc(relCn[panel.relType] || panel.relType)}（${panel.dir === 'out' ? '出' : '入'}向）</span>` +
+    `<button class="panel-close" onclick="closePanel()" title="关闭">×</button></div>` +
+    (rows ? `<table><tr><th>属性</th><th>规则</th><th>值</th></tr>${rows}</table>`
+          : '<div class="empty">该类型在 schema 中未声明属性</div>') +
+    `<div class="panel-btns"><button class="btn" onclick="applyPanel()">查询</button><button class="btn btn-plain" onclick="resetPanel()">重置</button></div>` +
+    `<div class="muted" style="margin-top:8px">条件间为 AND；值为空不参与；eq=等于，like=包含</div>`;
+}
+
+function resetPanel() {
+  document.querySelectorAll('#groups .f-op').forEach(s => { s.value = ''; });
+  document.querySelectorAll('#groups .f-val').forEach(i => { i.value = ''; });
+}
+
+async function applyPanel() {
+  const vals = new Map();
+  document.querySelectorAll('#groups .f-val').forEach(i => vals.set(i.dataset.prop, i.value.trim()));
+  const conds = [];
+  document.querySelectorAll('#groups .f-op').forEach(s => {
+    if (!s.value) return;
+    const v = vals.get(s.dataset.prop) || '';
+    if (v === '') return;
+    conds.push({ prop: s.dataset.prop, op: s.value, value: v });
+  });
+  if (!conds.length) { alert('请至少填写一个过滤条件（规则 + 值）'); return; }
+  const f = { dir: panel.dir, relType: panel.relType, otherLabel: panel.otherLabel, conds };
+  const label = cur.label, key = cur.key;
+  panel = null;
+  await loadNode(label, key, f, true);
+}
+
+// 态3：过滤生效摘要
+function renderFilterSummary() {
+  const f = cur.filter;
+  const g = (cur.groups || []).find(x => x.dir === f.dir && x.relType === f.relType && x.otherLabel === f.otherLabel);
+  const conds = f.conds.map(c => `${esc(propCn(f.otherLabel, c.prop))} ${c.op === 'like' ? '包含' : '='} <code>${esc(c.value)}</code>`).join(' 且 ');
+  $('groups').innerHTML = `<div class="fsum">` +
+    `<div class="panel-head"><span>已过滤：${esc(cnOf(f.otherLabel))} · ${esc(relCn[f.relType] || f.relType)}（${f.dir === 'out' ? '出' : '入'}向）</span>` +
+    `<button class="panel-close" onclick="clearFilter()" title="清除过滤">×</button></div>` +
+    `<div class="conds">${conds}</div>` +
+    `<div><b>${cur.total}</b> / ${g ? g.count : '-'} 条<span class="muted">（过滤后 / 组内总数）</span></div>` +
+    `<div class="panel-btns"><button class="btn" onclick="editFilter()">编辑条件</button><button class="btn btn-plain" onclick="clearFilter()">清除过滤</button></div></div>`;
+}
+
+function editFilter() {
+  const f = cur.filter;
+  panel = { dir: f.dir, relType: f.relType, otherLabel: f.otherLabel };
+  renderGroups();
+}
+
+async function clearFilter() {
+  const label = cur.label, key = cur.key;
+  panel = null;
+  await loadNode(label, key, null, true);
 }
 
 function renderLegend() {
@@ -350,7 +489,7 @@ function renderAll() {
 
 function crumbGo(i) {
   const p = path[i];
-  if (p) loadNode(p.label, p.key, true);
+  if (p) loadNode(p.label, p.key, null, true);
 }
 
 // ---------------- 力导向模拟 ----------------
@@ -423,7 +562,7 @@ document.addEventListener('mouseup', () => {
   const clicked = !G.moved;
   const node = G.dragging;
   G.dragging = null;
-  if (clicked && node !== G.center) loadNode(node.label, node.key, true);
+  if (clicked && node !== G.center) loadNode(node.label, node.key, null, true);
   else runSim();
 });
 
@@ -444,7 +583,7 @@ async function init() {
     return;
   }
   history.replaceState({}, '', location.href);
-  await loadNode(label, key, false);
+  await loadNode(label, key, parseFilterFromUrl(p), false);
 }
 init();
 </script>

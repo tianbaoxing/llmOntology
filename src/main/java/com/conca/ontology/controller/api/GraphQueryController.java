@@ -1,5 +1,6 @@
 package com.conca.ontology.controller.api;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,12 +44,22 @@ public class GraphQueryController {
         return ApiResponse.ok(queryService.nodeDetail(label, key));
     }
 
-    /** 邻域查询（depth 1..3，graph.html 数据源；skip/limit 按边分页增量加载） */
+    /** 邻域查询（depth 1..3，graph.html 数据源；skip/limit 按边分页增量加载；过滤参数用于分组过滤查询） */
     @GetMapping("/nodes/{label}/{key}/neighbors")
     public ApiResponse<Map<String, Object>> neighbors(@PathVariable String label, @PathVariable String key,
                                                       @RequestParam(defaultValue = "1") int depth,
                                                       @RequestParam(defaultValue = "0") int skip,
-                                                      @RequestParam(defaultValue = "100") int limit) {
-        return ApiResponse.ok(queryService.neighbors(label, key, depth, skip, limit));
+                                                      @RequestParam(defaultValue = "100") int limit,
+                                                      @RequestParam(required = false) String dir,
+                                                      @RequestParam(required = false) String relType,
+                                                      @RequestParam(required = false) String otherLabel,
+                                                      @RequestParam(required = false) List<String> f) {
+        return ApiResponse.ok(queryService.neighbors(label, key, depth, skip, limit, dir, relType, otherLabel, f));
+    }
+
+    /** 邻居分组全局统计（方向×关系×对端标签 的边数，graph.html 分组表数据源） */
+    @GetMapping("/nodes/{label}/{key}/neighbor-groups")
+    public ApiResponse<Map<String, Object>> neighborGroups(@PathVariable String label, @PathVariable String key) {
+        return ApiResponse.ok(queryService.neighborGroups(label, key));
     }
 }
