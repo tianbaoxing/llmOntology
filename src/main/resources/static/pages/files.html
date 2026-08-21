@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知识库</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/pages/common.css">
+<style>
+.fm-desc-input { width: 260px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="msg" class="msg"></div>
+
+  <div class="card admin-only" style="display:none">
+    <h2>上传文件</h2>
+    <div class="toolbar">
+      <input type="file" id="fm-file">
+      <input type="text" id="fm-desc" placeholder="文件说明（选填）">
+      <button class="btn" onclick="uploadFile()">上传</button>
+    </div>
+    <div class="muted">支持 pdf / txt / csv / md / json / xml / doc / docx / xls / xlsx（≤50MB），不支持视频、音频、图片；同名文件覆盖</div>
+  </div>
+  <div class="card">
+    <h2>文件列表</h2>
+    <div class="muted" style="margin-bottom:10px">列表与 files/ 目录自动对账；说明可编辑；删除连带元数据记录</div>
+    <div id="fm-list"></div>
+  </div>
+</div>
+<script src="/pages/common.js"></script>
+<script>
+// ---------------- 文件管理 ----------------
+// 路径逐段编码：name 可能含 '/'（子目录文件）与中文，'/' 不能编码（Tomcat 拒绝 %2F）
+function fmPath(name) { return name.split('/').map(encodeURIComponent).join('/'); }
+
+async function loadFiles() {
+  const d = await api('GET', '/api/files');
+  $('fm-list').innerHTML = table(
+    ['文件名', '类型', '大小', '说明', '上传时间', '操作'],
+    d.files.map(f => [
+      esc(f.name), code(f.ext), fmtSize(f.size),
+      `<input type="text" class="fm-desc-input" id="fm-desc-${esc(f.name).replace(/[^a-zA-Z0-9_-]/g, '_')}" value="${esc(f.description)}">`,
+      esc(f.uploadedAt),
+      `<button class="btn sm" onclick="saveFileDesc('${encodeURIComponent(f.name)}')">保存说明</button>` +
+      `<button class="btn sm danger" onclick="deleteFile('${encodeURIComponent(f.name)}')">删除</button>`
+    ]));
+}
+
+async function uploadFile() {
+  const input = $('fm-file');
+  if (!input.files.length) { showMsg('请先选择文件', false); return; }
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  fd.append('description', $('fm-desc').value);
+  const res = await fetch('/api/files', { method: 'POST', body: fd });
+  const json = await res.json();
+  if (json.code !== 0) { showMsg('上传失败：' + json.msg, false); return; }
+  showMsg('上传成功：' + json.data.file.name, true);
+  input.value = '';
+  $('fm-desc').value = '';
+  loadFiles().catch(e => showMsg('列表刷新失败：' + e.message, false));
+}
+
+async function saveFileDesc(encName) {
+  const name = decodeURIComponent(encName);
+  const inputId = 'fm-desc-' + name.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const description = $(inputId) ? $(inputId).value : '';
+  doAction(async () => {
+    const d = await api('PUT', '/api/files/' + fmPath(name), { description });
+    loadFiles().catch(() => {});
+    return d;
+  });
+}
+
+async function deleteFile(encName) {
+  const name = decodeURIComponent(encName);
+  if (!confirm('确认删除文件「' + name + '」？')) return;
+  doAction(async () => {
+    const d = await api('DELETE', '/api/files/' + fmPath(name));
+    loadFiles().catch(() => {});
+    return d;
+  });
+}
+
+// ---------------- init ----------------
+CF.renderHeader();
+CF.initUser();
+loadFiles().catch(e => showMsg('文件列表加载失败：' + e.message, false));
+</script>
+</body>
+</html>

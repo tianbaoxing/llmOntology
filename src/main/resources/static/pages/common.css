@@ -1,0 +1,55 @@
+/* 公共样式：header/菜单/卡片/表格/按钮等（各页面可按需覆盖） */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
+.header { background: #1f2937; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.logo-group { display: flex; align-items: center; gap: 10px; }
+.logo { width: 36px; height: 36px; }
+.header .spacer { flex: 1; }
+.tabs { display: flex; gap: 4px; }
+.tab { padding: 8px 18px; border-radius: 6px 6px 0 0; cursor: pointer; color: #9ca3af; user-select: none; }
+.tab.active { background: #f0f2f5; color: #1f2937; font-weight: 600; }
+.tab:hover:not(.active) { color: #fff; }
+a.tab { text-decoration: none; }
+.user-box { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #d1d5db; }
+.user-box .logout { color: #9ca3af; cursor: pointer; text-decoration: none; border: 1px solid #4b5563; padding: 5px 12px; border-radius: 5px; }
+.user-box .logout:hover { color: #fff; border-color: #9ca3af; }
+.back-link { color: #9ca3af; text-decoration: none; padding: 6px 14px; border: 1px solid #4b5563; border-radius: 5px; font-size: 13px; }
+.back-link:hover { color: #fff; border-color: #9ca3af; }
+.container { max-width: 1200px; margin: 20px auto; padding: 0 24px; }
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.card h2 { font-size: 15px; margin-bottom: 14px; color: #1f2937; border-left: 3px solid #2563eb; padding-left: 10px; }
+.stats-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.stat-card { flex: 1; min-width: 160px; background: #fff; border-radius: 8px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.stat-card .num { font-size: 28px; font-weight: 700; color: #2563eb; }
+.stat-card .label { color: #6b7280; margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+th { background: #f9fafb; color: #6b7280; font-weight: 600; font-size: 13px; }
+tr:hover td { background: #f9fafb; }
+.btn { display: inline-block; padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; }
+.btn:hover { background: #1d4ed8; }
+.btn.sm { padding: 3px 10px; font-size: 12px; }
+.btn.danger { background: #dc2626; }
+.btn.danger:hover { background: #b91c1c; }
+.btn.ghost { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+.btn.ghost:hover { background: #f9fafb; }
+.btn + .btn { margin-left: 6px; }
+.toolbar { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+select, input[type=text] { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px; background: #fff; }
+textarea { width: 100%; min-height: 90px; padding: 8px; border: 1px solid #d1d5db; border-radius: 5px; font-family: Consolas, monospace; font-size: 12px; resize: vertical; }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; }
+.badge.concept { background: #dbeafe; color: #1d4ed8; }
+.badge.instance { background: #dcfce7; color: #15803d; }
+.msg { padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; display: none; }
+.msg.ok { background: #dcfce7; color: #166534; display: block; }
+.msg.err { background: #fee2e2; color: #991b1b; display: block; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.detail-item { margin-bottom: 10px; }
+.detail-item b { color: #6b7280; font-weight: 600; display: inline-block; width: 90px; }
+.muted { color: #9ca3af; font-size: 12px; }
+code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.cnt-link { color: #2563eb; font-weight: 600; text-decoration: none; }
+.cnt-link:hover { text-decoration: underline; }
+input[type=file] { padding: 5px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px; background: #fff; max-width: 320px; }

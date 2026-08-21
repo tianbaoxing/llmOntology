@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class PageController {
 
-    /** 控制台首页（概览/概念层/图数据/知识库/备份按 hash 切换 tab） */
+    /** 控制台首页（概览） */
     @GetMapping("/")
     public String index() {
         return "forward:/pages/index.html";
@@ -20,6 +20,30 @@ public class PageController {
     @GetMapping("/login")
     public String login() {
         return "forward:/pages/login.html";
+    }
+
+    /** 概念层管理页（管理员功能，页面级权限由前端控制，接口层 403 兜底） */
+    @GetMapping("/schema")
+    public String schema() {
+        return "forward:/pages/schema.html";
+    }
+
+    /** 图数据管理页（管理员功能，页面级权限由前端控制，接口层 403 兜底） */
+    @GetMapping("/data")
+    public String data() {
+        return "forward:/pages/data.html";
+    }
+
+    /** 知识库页（文件管理） */
+    @GetMapping("/files")
+    public String files() {
+        return "forward:/pages/files.html";
+    }
+
+    /** 备份恢复页（管理员功能，页面级权限由前端控制，接口层 403 兜底） */
+    @GetMapping("/backup")
+    public String backup() {
+        return "forward:/pages/backup.html";
     }
 
     /** AI 问答页（SSE 流式） */

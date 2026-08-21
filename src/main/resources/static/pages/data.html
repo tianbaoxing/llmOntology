@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图数据管理</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/pages/common.css">
+</head>
+<body>
+<div class="container">
+  <div id="msg" class="msg"></div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>节点操作</h2>
+      <div class="toolbar">
+        <select id="n-label"></select>
+        <input type="text" id="n-key" placeholder="键值（如 宋）">
+        <button class="btn" onclick="queryNode()">查询</button>
+      </div>
+      <div class="detail-item"><b>新建/覆盖</b>
+        <textarea id="n-create" placeholder='{"name":"测试节点"}（含 keyProp，MERGE 幂等）'></textarea></div>
+      <div class="toolbar">
+        <button class="btn" onclick="createNode()">创建节点</button>
+        <button class="btn" onclick="updateNode()">更新属性</button>
+        <button class="btn danger" onclick="deleteNode()">删除节点</button>
+      </div>
+      <div class="muted">更新/删除按上方 label+键值 定位；删除默认 detach（连带关系）</div>
+      <div id="n-detail" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <h2>关系操作</h2>
+      <div class="toolbar">
+        <select id="r-type"></select>
+      </div>
+      <div class="detail-item"><b>from 键值</b><input type="text" id="r-from" placeholder="起点键值"></div>
+      <div class="detail-item"><b>to 键值</b><input type="text" id="r-to" placeholder="终点键值"></div>
+      <div class="detail-item"><b>props</b>
+        <textarea id="r-props" placeholder='{} 或 {"note":"备注"}（创建/更新时写入）'></textarea></div>
+      <div class="toolbar">
+        <button class="btn" onclick="createRel()">创建关系</button>
+        <button class="btn" onclick="updateRel()">更新属性</button>
+        <button class="btn danger" onclick="deleteRel()">删除关系</button>
+      </div>
+      <div class="muted">关系的两端 label 由所选类型的 schema 声明决定（签名校验）</div>
+    </div>
+  </div>
+</div>
+<script src="/pages/common.js"></script>
+<script>
+let schemaCache = null;   // { classes:[...], relations:[...] }
+
+// ---------------- 图数据 ----------------
+function refreshDataSelectors() {
+  if (!schemaCache) return;
+  const labelSel = $('n-label');
+  labelSel.innerHTML = schemaCache.classes
+    .map(c => `<option value="${esc(c.name)}">${esc(c.name)}（${esc(c.cnName)}，key=${esc(c.keyProp)}）</option>`).join('');
+  const typeSel = $('r-type');
+  typeSel.innerHTML = schemaCache.relations
+    .map(r => `<option value="${esc(r.name)}">${esc(r.name)}（${esc(r.fromClass)} → ${esc(r.toClass)}，${esc(r.cnName)}）</option>`).join('');
+}
+
+function nodeLoc() {
+  return { label: $('n-label').value, key: $('n-key').value.trim() };
+}
+
+function queryNode() {
+  const { label, key } = nodeLoc();
+  if (!key) return showMsg('请输入键值', false);
+  api('GET', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}`)
+    .then(d => {
+      const rows = d.rows || [];
+      if (!rows.length) return showMsg('节点不存在', false);
+      const node = rows[0].node;
+      const edgeSummary = {};
+      rows.forEach(r => { edgeSummary[r.relType] = (edgeSummary[r.relType] || 0) + 1; });
+      const edges = Object.entries(edgeSummary).map(([t, c]) => `${t}: ${c}`).join('、');
+      $('n-detail').innerHTML =
+        `<h2 style="margin-bottom:8px">节点属性</h2>` +
+        table(['属性', '值'], Object.entries(node).map(([k, v]) => [code(k), esc(v)])) +
+        (edges ? `<div class="muted" style="margin-top:8px">关联边（LIMIT 200）：${esc(edges)}</div>` : '');
+      showMsg('查询成功', true);
+    }).catch(e => showMsg('失败：' + e.message, false));
+}
+
+function createNode() {
+  doAction(async () => {
+    const props = JSON.parse($('n-create').value || '{}');
+    const label = $('n-label').value;
+    const r = await api('POST', '/api/graph/nodes', { label, props });
+    if ($('n-key').value.trim() === '') {
+      const c = schemaCache.classes.find(c => c.name === label);
+      $('n-key').value = props[c.keyProp] ?? '';
+    }
+    return r;
+  });
+}
+
+function updateNode() {
+  doAction(async () => {
+    const { label, key } = nodeLoc();
+    const props = JSON.parse($('n-create').value || '{}');
+    return api('PUT', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}`, { props });
+  });
+}
+
+function deleteNode() {
+  const { label, key } = nodeLoc();
+  if (!key) return showMsg('请输入键值', false);
+  if (!confirm(`确认删除节点 ${label}/${key}？（默认 detach：连带删除其关系）`)) return;
+  doAction(async () =>
+    api('DELETE', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}?detach=true`));
+}
+
+function relBody() {
+  const type = $('r-type').value;
+  const d = schemaCache.relations.find(r => r.name === type);
+  const props = JSON.parse($('r-props').value || '{}');
+  return { type, fromLabel: d.fromClass, fromKey: $('r-from').value.trim(),
+           toLabel: d.toClass, toKey: $('r-to').value.trim(), props };
+}
+
+function createRel() {
+  doAction(async () => api('POST', '/api/graph/relations', relBody()));
+}
+function updateRel() {
+  doAction(async () => api('PUT', '/api/graph/relations', relBody()));
+}
+function deleteRel() {
+  if (!confirm('确认删除该关系？')) return;
+  const b = relBody();
+  doAction(async () => api('DELETE', '/api/graph/relations', b));
+}
+
+// ---------------- init ----------------
+CF.renderHeader();
+CF.initUser();
+api('GET', '/api/schema').then(d => { schemaCache = d; refreshDataSelectors(); })
+  .catch(e => showMsg('加载失败：' + e.message, false));
+</script>
+</body>
+</html>

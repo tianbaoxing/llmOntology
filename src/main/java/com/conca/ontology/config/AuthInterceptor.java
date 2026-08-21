@@ -16,13 +16,15 @@ import jakarta.servlet.http.HttpServletResponse;
  * - 公开接口：/api/session（登录登出/当前用户，敏感操作在 Controller 内校验）、/api/setup（初始化向导）、
  *   /api/app、/api/llm/**（LLM 专属，后续做 token 验证）、POST /api/users（自助注册）、
  *   PUT /api/users/me/password（自助改密，Controller 内校验会话）
- * - 页面（/、/chat、/users、/instances、/graph、/pages/**）：未登录 302 跳登录页；/users 仅 ADMIN
+ * - 页面（/、/schema、/data、/files、/backup、/chat、/users、/instances、/graph、/pages/**）：
+ *   未登录 302 跳登录页；/users 仅 ADMIN（/schema、/data、/backup 页面级权限由前端控制，接口层 403 兜底）
  * - /api/** 其余：未登录 401 JSON；/api/users 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
  */
 public class AuthInterceptor implements HandlerInterceptor {
 
     /** 需登录的页面路由（静态资源 /pages/** 单独按前缀判断） */
-    private static final Set<String> PAGE_PATHS = Set.of("/", "/chat", "/users", "/instances", "/graph");
+    private static final Set<String> PAGE_PATHS = Set.of("/", "/schema", "/data", "/files", "/backup",
+            "/chat", "/users", "/instances", "/graph");
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)

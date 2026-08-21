@@ -5,25 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI 问答</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/pages/common.css">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; }
-body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; display: flex; flex-direction: column; }
-.header { background: #1f2937; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
-.header h1 { font-size: 18px; font-weight: 600; }
-.logo-group { display: flex; align-items: center; gap: 10px; }
-.logo { width: 36px; height: 36px; }
-.header .spacer { flex: 1; }
-.tabs { display: flex; gap: 4px; }
-.tab { padding: 8px 18px; border-radius: 6px 6px 0 0; cursor: pointer; color: #9ca3af; user-select: none; }
-.tab.active { background: #f0f2f5; color: #1f2937; font-weight: 600; }
-.tab:hover:not(.active) { color: #fff; }
-a.tab { text-decoration: none; }
-.user-box { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #d1d5db; }
-.user-box .logout { color: #9ca3af; cursor: pointer; text-decoration: none; border: 1px solid #4b5563; padding: 5px 12px; border-radius: 5px; }
-.user-box .logout:hover { color: #fff; border-color: #9ca3af; }
-.btn { display: inline-block; padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; }
-.btn:hover { background: #1d4ed8; }
+body { display: flex; flex-direction: column; }
 .btn:disabled { background: #93c5fd; cursor: not-allowed; }
 .btn.ghost { background: #374151; color: #fff; }
 .btn.ghost:hover { background: #4b5563; }
@@ -76,38 +61,6 @@ textarea:focus { outline: none; border-color: #2563eb; }
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="logo-group">
-    <svg class="logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="logo">
-      <rect x="9" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
-      <rect x="34" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
-      <path d="M5 11 h38 l-4.5 21 h-29 Z" fill="#e3b04b"/>
-      <path d="M14 19 L24 15.5 L34 19 L24 27.5 Z" stroke="#8a5a18" stroke-width="1.8" fill="none" opacity=".7"/>
-      <circle cx="14" cy="19" r="3" fill="#38bdf8"/>
-      <circle cx="34" cy="19" r="3" fill="#38bdf8"/>
-      <circle cx="24" cy="15.5" r="3" fill="#f8fafc"/>
-      <circle cx="24" cy="27.5" r="3" fill="#38bdf8"/>
-      <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
-      <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
-    </svg>
-    <h1 id="app-title">管理控制台</h1>
-  </div>
-  <div class="tabs">
-    <a class="tab" href="/#overview">概览</a>
-    <a class="tab admin-tab" href="/#schema" style="display:none">概念层管理</a>
-    <a class="tab admin-tab" href="/#data" style="display:none">图数据管理</a>
-    <a class="tab" href="/#files">知识库</a>
-    <a class="tab admin-tab" href="/#backup" style="display:none">备份恢复</a>
-    <a class="tab active" href="/chat">AI 问答</a>
-    <a class="tab admin-tab" href="/users" style="display:none">用户管理</a>
-  </div>
-  <div class="spacer"></div>
-  <div class="user-box" id="user-box" style="display:none">
-    <span id="user-name"></span>
-    <a class="logout" id="btn-logout">退出登录</a>
-  </div>
-</div>
-
 <div class="layout">
   <div class="sidebar">
     <div class="side-head"><button class="btn" id="btn-new">+ 新会话</button></div>
@@ -134,8 +87,8 @@ textarea:focus { outline: none; border-color: #2563eb; }
   </div>
 </div>
 
+<script src="/pages/common.js"></script>
 <script>
-const $ = id => document.getElementById(id);
 const messagesEl = $('messages');
 const inputEl = $('input');
 const btnSend = $('btn-send');
@@ -155,8 +108,6 @@ fetch('/api/app').then(r => r.json()).then(j => {
     appTitle = j.data.title;
     const el = $('tip-title');
     if (el) el.textContent = appTitle;
-    const h = $('app-title');
-    if (h) h.textContent = appTitle;
   }
   // 模型提示文案取自 app.agent.base-url / model 配置（无硬编码默认值），无配置时仅显示通用声明
   const hint = $('ai-hint');
@@ -171,23 +122,9 @@ fetch('/api/app').then(r => r.json()).then(j => {
   }
 }).catch(() => {});
 
-// 当前用户：普通用户隐藏管理菜单；未登录跳登录页
-(async function initUser() {
-  let me = null;
-  try { me = await fetch('/api/session').then(r => r.json()).then(j => j.data); } catch (e) {}
-  if (!me) { location.href = '/login'; return; }
-  if (me.role === 'ADMIN') {
-    document.querySelectorAll('.admin-tab').forEach(el => el.style.display = '');
-  } else {
-    document.querySelectorAll('.admin-tab').forEach(el => el.remove());
-  }
-  $('user-name').textContent = me.username + (me.role === 'ADMIN' ? ' · 管理员' : '');
-  $('user-box').style.display = '';
-})();
-$('btn-logout').onclick = async () => {
-  try { await fetch('/api/session', { method: 'DELETE' }); } catch (e) {}
-  location.href = '/login';
-};
+// 会话控制（header 渲染 + 登录校验 + 管理菜单显隐）由 common.js 提供
+CF.renderHeader();
+CF.initUser();
 
 function emptyTipHtml(firstLine) {
   return '<div class="empty-tip" id="empty-tip"><div class="big">' + firstLine +
