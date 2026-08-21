@@ -14,31 +14,14 @@ description: "Queries ontology schema first, then generates read-only Cypher and
 
 默认服务地址：`http://localhost:9876`。如用户提供了别的地址，优先使用用户给定地址；也可用环境变量 `ONTOLOGY_BASE_URL` 覆盖。
 
-## 工具优先级
-
-本 skill 优先使用当前 AgentScope 2.0 Java Harness 在本项目中实际可用的工具名。
-
-### 第一优先（主流程必用）
-
-- `load_skill_through_path`
-- `execute`
+## 工具优先
+### 优先工具
 - `read_file`
 - `grep_files`
 - `glob_files`
 - `list_files`
 
-### 第二优先（仅辅助排障或回看上下文）
-
-- `memory_search`
-- `memory_get`
-- `session_search`
-- `session_list`
-- `session_history`
-
-### 禁止使用的错误工具名
-
-不要调用下列名字：
-
+### 禁止使用的错误不存在的工具名
 - `glob`
 - `Read`
 - `cat_file`
