@@ -72,6 +72,11 @@ tr.grp.hl td { background: #fef3c7; }
   </div>
   <a class="back-link" href="/admin">← 返回控制台</a>
   <a class="back-link" id="back-list" href="#">← 返回实例列表</a>
+  <div class="spacer"></div>
+  <div class="user-box" id="user-box" style="display:none">
+    <span id="user-name"></span>
+    <a class="logout" id="btn-logout">退出登录</a>
+  </div>
 </div>
 <div class="container">
   <div class="card">
@@ -481,6 +486,19 @@ async function init() {
   await loadNode(label, key, false);
 }
 init();
+
+// 当前用户：显示用户名与退出登录；未登录跳登录页（401 由 api() 统一处理）
+(async function initUser() {
+  let me = null;
+  try { me = await fetch('/api/auth/me').then(r => r.json()).then(j => j.data); } catch (e) {}
+  if (!me) { location.href = '/admin/login'; return; }
+  $('user-name').textContent = me.username + (me.role === 'ADMIN' ? ' · 管理员' : '');
+  $('user-box').style.display = '';
+})();
+$('btn-logout').onclick = async () => {
+  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+  location.href = '/admin/login';
+};
 </script>
 </body>
 </html>

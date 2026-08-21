@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-card { background: #fff; border-radius: 10px; padding: 36px 40px; width: 400px; max-width: calc(100vw - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.logo-group { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
+.logo { width: 40px; height: 40px; }
+h1 { font-size: 18px; text-align: center; color: #1f2937; }
+.sub { text-align: center; color: #9ca3af; font-size: 12px; margin-bottom: 24px; }
+h2 { font-size: 15px; color: #1f2937; margin-bottom: 14px; border-left: 3px solid #2563eb; padding-left: 10px; }
+input { width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 12px; font-family: inherit; }
+input:focus { outline: none; border-color: #2563eb; }
+.btn { display: block; width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; background: #2563eb; color: #fff; margin-top: 4px; }
+.btn:hover { background: #1d4ed8; }
+.btn:disabled { background: #93c5fd; cursor: not-allowed; }
+.links { text-align: center; margin-top: 16px; }
+.links a { color: #2563eb; text-decoration: none; cursor: pointer; font-size: 13px; }
+.links a:hover { text-decoration: underline; }
+.muted { color: #9ca3af; font-size: 12px; margin-top: 10px; text-align: center; }
+.msg { padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; display: none; font-size: 13px; }
+.msg.ok { background: #dcfce7; color: #166534; display: block; }
+.msg.err { background: #fee2e2; color: #991b1b; display: block; }
+.mode { display: none; }
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="logo-group">
+    <svg class="logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="logo">
+      <rect x="9" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <rect x="34" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <path d="M5 11 h38 l-4.5 21 h-29 Z" fill="#e3b04b"/>
+      <path d="M14 19 L24 15.5 L34 19 L24 27.5 Z" stroke="#8a5a18" stroke-width="1.8" fill="none" opacity=".7"/>
+      <circle cx="14" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="34" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="24" cy="15.5" r="3" fill="#f8fafc"/>
+      <circle cx="24" cy="27.5" r="3" fill="#38bdf8"/>
+      <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
+      <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
+    </svg>
+    <h1 id="app-title">国博藏品图谱</h1>
+  </div>
+  <div class="sub" id="sub-title">账号登录</div>
+
+  <!-- 模式一：系统初始化（首次启动，设置 admin 密码） -->
+  <div class="mode" id="mode-init">
+    <h2>系统初始化</h2>
+    <p class="muted" style="text-align:left;margin:0 0 14px">首次使用，请设置管理员（admin）登录密码</p>
+    <input id="init-pwd" type="password" placeholder="设置密码（至少 6 位）" autocomplete="new-password">
+    <input id="init-pwd2" type="password" placeholder="确认密码" autocomplete="new-password">
+    <button class="btn" id="btn-init">初始化并进入系统</button>
+  </div>
+
+  <!-- 模式二：登录 -->
+  <div class="mode" id="mode-login">
+    <h2>登录</h2>
+    <input id="login-user" placeholder="用户名" autocomplete="username">
+    <input id="login-pwd" type="password" placeholder="密码" autocomplete="current-password">
+    <button class="btn" id="btn-login">登 录</button>
+    <div class="links"><a id="to-register">没有账号？注册新用户</a></div>
+  </div>
+
+  <!-- 模式三：注册 -->
+  <div class="mode" id="mode-register">
+    <h2>注册新用户</h2>
+    <input id="reg-user" placeholder="用户名（2-32 位字母/数字/下划线/中文）" autocomplete="off">
+    <input id="reg-pwd" type="password" placeholder="密码（至少 6 位）" autocomplete="new-password">
+    <input id="reg-pwd2" type="password" placeholder="确认密码" autocomplete="new-password">
+    <button class="btn" id="btn-register">提交注册</button>
+    <div class="links"><a id="to-login">已有账号？返回登录</a></div>
+    <div class="muted">注册后需管理员审核通过方可登录</div>
+  </div>
+
+  <div id="msg" class="msg"></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+
+function showMsg(text, ok) {
+  const m = $('msg');
+  m.textContent = text;
+  m.className = 'msg ' + (ok ? 'ok' : 'err');
+  clearTimeout(m._t);
+  if (ok) m._t = setTimeout(() => m.className = 'msg', 4000);
+}
+
+async function api(method, url, body) {
+  const opt = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opt.body = JSON.stringify(body);
+  const res = await fetch(url, opt);
+  const json = await res.json();
+  if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
+  return json.data;
+}
+
+function showMode(mode) {
+  ['mode-init', 'mode-login', 'mode-register'].forEach(id => $(id).style.display = 'none');
+  $('mode-' + mode).style.display = 'block';
+  $('msg').className = 'msg';
+  $('sub-title').textContent = mode === 'init' ? '系统初始化' : (mode === 'register' ? '注册新用户' : '账号登录');
+}
+
+// Enter 快捷提交
+[['init-pwd2', 'btn-init'], ['login-pwd', 'btn-login'], ['reg-pwd2', 'btn-register']].forEach(([id, btn]) =>
+  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $(btn).click(); }));
+
+// 初始化：设置 admin 密码
+$('btn-init').onclick = async () => {
+  const p1 = $('init-pwd').value, p2 = $('init-pwd2').value;
+  if (p1.length < 6) return showMsg('密码至少 6 位', false);
+  if (p1 !== p2) return showMsg('两次输入的密码不一致', false);
+  try {
+    await api('POST', '/api/auth/init', { password: p1 });
+    location.href = '/admin';
+  } catch (e) { showMsg(e.message, false); }
+};
+
+// 登录
+$('btn-login').onclick = async () => {
+  try {
+    await api('POST', '/api/auth/login', { username: $('login-user').value.trim(), password: $('login-pwd').value });
+    location.href = '/admin';
+  } catch (e) { showMsg(e.message, false); }
+};
+
+// 注册（PENDING，等待审核）
+$('btn-register').onclick = async () => {
+  const p1 = $('reg-pwd').value, p2 = $('reg-pwd2').value;
+  if (p1 !== p2) return showMsg('两次输入的密码不一致', false);
+  try {
+    const d = await api('POST', '/api/auth/register', { username: $('reg-user').value.trim(), password: p1 });
+    showMode('login');
+    showMsg('注册成功（' + d.username + '），请等待管理员审核后登录', true);
+  } catch (e) { showMsg(e.message, false); }
+};
+
+$('to-register').onclick = () => showMode('register');
+$('to-login').onclick = () => showMode('login');
+
+// 标题来自启动配置；已登录用户直接进入系统；未初始化切换到初始化向导
+(async function init() {
+  try { const d = await api('GET', '/api/app'); if (d && d.title) $('app-title').textContent = d.title; } catch (e) {}
+  try {
+    const me = await api('GET', '/api/auth/me');
+    if (me) { location.replace('/admin'); return; }
+  } catch (e) {}
+  try {
+    const st = await api('GET', '/api/auth/status');
+    showMode(st.initialized ? 'login' : 'init');
+  } catch (e) {
+    showMode('login');
+  }
+})();
+</script>
+</body>
+</html>

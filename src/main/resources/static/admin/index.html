@@ -16,6 +16,10 @@ body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #
 .tab { padding: 8px 18px; border-radius: 6px 6px 0 0; cursor: pointer; color: #9ca3af; user-select: none; }
 .tab.active { background: #f0f2f5; color: #1f2937; font-weight: 600; }
 .tab:hover:not(.active) { color: #fff; }
+.header .spacer { flex: 1; }
+.user-box { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #d1d5db; }
+.user-box .logout { color: #9ca3af; cursor: pointer; text-decoration: none; border: 1px solid #4b5563; padding: 5px 12px; border-radius: 5px; }
+.user-box .logout:hover { color: #fff; border-color: #9ca3af; }
 .container { max-width: 1200px; margin: 20px auto; padding: 0 24px; }
 .panel { display: none; }
 .panel.active { display: block; }
@@ -83,11 +87,17 @@ input[type=file] { padding: 5px; border: 1px solid #d1d5db; border-radius: 5px; 
   </div>
   <div class="tabs">
     <div class="tab active" data-panel="overview">概览</div>
-    <div class="tab" data-panel="schema">概念层管理</div>
-    <div class="tab" data-panel="data">图数据管理</div>
+    <div class="tab admin-tab" data-panel="schema" style="display:none">概念层管理</div>
+    <div class="tab admin-tab" data-panel="data" style="display:none">图数据管理</div>
     <div class="tab" data-panel="files">知识库</div>
-    <div class="tab" data-panel="backup">备份恢复</div>
+    <div class="tab admin-tab" data-panel="backup" style="display:none">备份恢复</div>
     <a class="tab" href="/admin/chat" style="text-decoration:none;">AI 问答</a>
+    <a class="tab admin-tab" href="/admin/users" style="display:none;text-decoration:none;">用户管理</a>
+  </div>
+  <div class="spacer"></div>
+  <div class="user-box" id="user-box" style="display:none">
+    <span id="user-name"></span>
+    <a class="logout" id="btn-logout">退出登录</a>
   </div>
 </div>
 <div class="container">
@@ -191,7 +201,7 @@ input[type=file] { padding: 5px; border: 1px solid #d1d5db; border-radius: 5px; 
 
   <!-- 文件管理 -->
   <div id="panel-files" class="panel">
-    <div class="card">
+    <div class="card admin-only" style="display:none">
       <h2>上传文件</h2>
       <div class="toolbar">
         <input type="file" id="fm-file">
@@ -247,6 +257,7 @@ async function api(method, url, body) {
   const opt = { method, headers: { 'Content-Type': 'application/json' } };
   if (body !== undefined) opt.body = JSON.stringify(body);
   const res = await fetch(url, opt);
+  if (res.status === 401) { location.href = '/admin/login'; throw new Error('未登录或会话已过期'); }
   const json = await res.json();
   if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
   return json.data;
@@ -734,6 +745,32 @@ api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent 
     $('panel-' + h).classList.add('active');
   }
 })();
+// 当前用户：普通用户隐藏管理菜单与上传入口，管理员显示全部；未登录跳登录页
+(async function initUser() {
+  let me = null;
+  try { me = await fetch('/api/auth/me').then(r => r.json()).then(j => j.data); } catch (e) {}
+  if (!me) { location.href = '/admin/login'; return; }
+  if (me.role === 'ADMIN') {
+    document.querySelectorAll('.admin-tab').forEach(el => el.style.display = '');
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+  } else {
+    document.querySelectorAll('.admin-tab').forEach(el => el.remove());
+    // 若 hash 直达了管理面板（如 /admin#schema），普通用户回到概览
+    const cur = document.querySelector('.panel.active');
+    if (cur && !['panel-overview', 'panel-files'].includes(cur.id)) {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+      document.querySelector('.tab[data-panel="overview"]').classList.add('active');
+      $('panel-overview').classList.add('active');
+    }
+  }
+  $('user-name').textContent = me.username + (me.role === 'ADMIN' ? ' · 管理员' : '');
+  $('user-box').style.display = '';
+})();
+$('btn-logout').onclick = async () => {
+  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+  location.href = '/admin/login';
+};
 loadOverview().catch(e => showMsg('加载失败：' + e.message, false));
 loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
 loadFiles().catch(e => showMsg('文件列表加载失败：' + e.message, false));

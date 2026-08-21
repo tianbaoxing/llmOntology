@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户管理</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
+.header { background: #1f2937; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
+.header h1 { font-size: 18px; font-weight: 600; }
+.logo-group { display: flex; align-items: center; gap: 10px; }
+.logo { width: 36px; height: 36px; }
+.header .spacer { flex: 1; }
+.tabs { display: flex; gap: 4px; }
+.tab { padding: 8px 18px; border-radius: 6px 6px 0 0; cursor: pointer; color: #9ca3af; user-select: none; }
+.tab.active { background: #f0f2f5; color: #1f2937; font-weight: 600; }
+.tab:hover:not(.active) { color: #fff; }
+a.tab { text-decoration: none; }
+.user-box { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #d1d5db; }
+.user-box .logout { color: #9ca3af; cursor: pointer; text-decoration: none; border: 1px solid #4b5563; padding: 5px 12px; border-radius: 5px; }
+.user-box .logout:hover { color: #fff; border-color: #9ca3af; }
+.container { max-width: 1200px; margin: 20px auto; padding: 0 24px; }
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.card h2 { font-size: 15px; margin-bottom: 14px; color: #1f2937; border-left: 3px solid #2563eb; padding-left: 10px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+th { background: #f9fafb; color: #6b7280; font-weight: 600; font-size: 13px; }
+tr:hover td { background: #f9fafb; }
+.btn { display: inline-block; padding: 6px 14px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; background: #2563eb; color: #fff; }
+.btn:hover { background: #1d4ed8; }
+.btn.sm { padding: 3px 10px; font-size: 12px; }
+.btn.danger { background: #dc2626; }
+.btn.danger:hover { background: #b91c1c; }
+.btn.ghost { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+.btn.ghost:hover { background: #f9fafb; }
+.btn + .btn { margin-left: 6px; }
+select { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px; background: #fff; }
+.badge { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; }
+.badge.role-admin { background: #fef3c7; color: #b45309; }
+.badge.role-user { background: #e5e7eb; color: #4b5563; }
+.badge.st-active { background: #dcfce7; color: #15803d; }
+.badge.st-pending { background: #dbeafe; color: #1d4ed8; }
+.badge.st-disabled { background: #fee2e2; color: #b91c1c; }
+.muted { color: #9ca3af; font-size: 12px; }
+.self-mark { color: #2563eb; font-size: 12px; margin-left: 6px; }
+.msg { padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; display: none; }
+.msg.ok { background: #dcfce7; color: #166534; display: block; }
+.msg.err { background: #fee2e2; color: #991b1b; display: block; }
+.toolbar { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo-group">
+    <svg class="logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="logo">
+      <rect x="9" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <rect x="34" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
+      <path d="M5 11 h38 l-4.5 21 h-29 Z" fill="#e3b04b"/>
+      <path d="M14 19 L24 15.5 L34 19 L24 27.5 Z" stroke="#8a5a18" stroke-width="1.8" fill="none" opacity=".7"/>
+      <circle cx="14" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="34" cy="19" r="3" fill="#38bdf8"/>
+      <circle cx="24" cy="15.5" r="3" fill="#f8fafc"/>
+      <circle cx="24" cy="27.5" r="3" fill="#38bdf8"/>
+      <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
+      <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
+    </svg>
+    <h1 id="app-title">管理控制台</h1>
+  </div>
+  <div class="tabs">
+    <a class="tab" href="/admin">概览</a>
+    <a class="tab" href="/admin#schema">概念层管理</a>
+    <a class="tab" href="/admin#data">图数据管理</a>
+    <a class="tab" href="/admin#files">知识库</a>
+    <a class="tab" href="/admin#backup">备份恢复</a>
+    <a class="tab" href="/admin/chat">AI 问答</a>
+    <a class="tab active" href="/admin/users">用户管理</a>
+  </div>
+  <div class="spacer"></div>
+  <div class="user-box" id="user-box" style="display:none">
+    <span id="user-name"></span>
+    <a class="logout" id="btn-logout">退出登录</a>
+  </div>
+</div>
+<div class="container">
+  <div id="msg" class="msg"></div>
+  <div class="card">
+    <h2>用户列表</h2>
+    <div class="toolbar">
+      <select id="filter-status">
+        <option value="">全部状态</option>
+        <option value="PENDING">待审核</option>
+        <option value="ACTIVE">已启用</option>
+        <option value="DISABLED">已禁用</option>
+      </select>
+      <span class="muted">注册用户需审核通过后才能登录；密码以 PBKDF2 加密存储于 data/users.json</span>
+    </div>
+    <div id="user-list"></div>
+  </div>
+  <div class="card">
+    <h2>修改我的密码</h2>
+    <div class="toolbar">
+      <input type="password" id="pwd-old" placeholder="原密码" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:5px;font-size:13px;">
+      <input type="password" id="pwd-new" placeholder="新密码（至少 6 位）" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:5px;font-size:13px;">
+      <button class="btn" onclick="changeMyPassword()">修改密码</button>
+      <span class="muted">修改成功后下次登录使用新密码，当前会话不受影响</span>
+    </div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+let me = null;
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function showMsg(text, ok) {
+  const m = $('msg');
+  m.textContent = text;
+  m.className = 'msg ' + (ok ? 'ok' : 'err');
+  clearTimeout(m._t);
+  m._t = setTimeout(() => m.className = 'msg', 4000);
+}
+
+async function api(method, url, body) {
+  const opt = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opt.body = JSON.stringify(body);
+  const res = await fetch(url, opt);
+  if (res.status === 401) { location.href = '/admin/login'; throw new Error('未登录'); }
+  const json = await res.json();
+  if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
+  return json.data;
+}
+
+function roleBadge(role) {
+  return `<span class="badge ${role === 'ADMIN' ? 'role-admin' : 'role-user'}">${role === 'ADMIN' ? '管理员' : '普通用户'}</span>`;
+}
+
+function statusBadge(status) {
+  const map = { ACTIVE: ['st-active', '已启用'], PENDING: ['st-pending', '待审核'], DISABLED: ['st-disabled', '已禁用'] };
+  const [cls, text] = map[status] || ['role-user', status];
+  return `<span class="badge ${cls}">${text}</span>`;
+}
+
+function actionsHtml(u) {
+  if (!me || u.userId === me.userId) return '<span class="muted">当前登录账号</span>';
+  let html = '';
+  if (u.status === 'PENDING') {
+    html += `<button class="btn sm" onclick="approveUser('${esc(u.userId)}')">通过审核</button>`;
+  }
+  if (u.status === 'ACTIVE') {
+    html += `<button class="btn sm ghost" onclick="toggleUser('${esc(u.userId)}', false)">禁用</button>`;
+  }
+  if (u.status === 'DISABLED' || u.status === 'PENDING') {
+    html += `<button class="btn sm" onclick="toggleUser('${esc(u.userId)}', true)">启用</button>`;
+  }
+  html += `<button class="btn sm ghost" onclick="resetPassword('${esc(u.userId)}')">重置密码</button>`;
+  html += `<button class="btn sm danger" onclick="deleteUser('${esc(u.userId)}')">删除</button>`;
+  return html;
+}
+
+async function loadUsers() {
+  const status = $('filter-status').value;
+  const d = await api('GET', '/api/users' + (status ? '?status=' + status : ''));
+  $('user-list').innerHTML = d.users.length ? '<table>' +
+    '<tr><th>用户ID</th><th>用户名</th><th>角色</th><th>状态</th><th>创建时间</th><th>最后登录</th><th>操作</th></tr>' +
+    d.users.map(u => `<tr>
+      <td><code>${esc(u.userId)}</code>${u.userId === (me && me.userId) ? '<span class="self-mark">（我）</span>' : ''}</td>
+      <td>${esc(u.username)}</td>
+      <td>${roleBadge(u.role)}</td>
+      <td>${statusBadge(u.status)}</td>
+      <td class="muted">${esc(u.createdAt || '-')}</td>
+      <td class="muted">${esc(u.lastLoginAt || '从未登录')}</td>
+      <td>${actionsHtml(u)}</td>
+    </tr>`).join('') + '</table>'
+    : '<div class="muted" style="padding:20px 0">暂无用户</div>';
+}
+
+function doAction(fn) {
+  fn().then(d => { showMsg('操作成功', true); loadUsers(); }).catch(e => showMsg('失败：' + e.message, false));
+}
+
+function approveUser(userId) {
+  if (!confirm('确认通过用户「' + userId + '」的审核？通过后即可登录')) return;
+  doAction(() => api('POST', '/api/users/' + encodeURIComponent(userId) + '/approve'));
+}
+
+function toggleUser(userId, enabled) {
+  const tip = enabled ? '启用' : '禁用';
+  if (!confirm('确认' + tip + '用户「' + userId + '」？' + (enabled ? '' : '禁用后该用户将无法登录'))) return;
+  doAction(() => api('POST', '/api/users/' + encodeURIComponent(userId) + '/status', { enabled }));
+}
+
+function resetPassword(userId) {
+  const pwd = prompt('为用户「' + userId + '」设置新密码（至少 6 位）：');
+  if (pwd === null) return;
+  if (pwd.length < 6) return showMsg('密码至少 6 位', false);
+  doAction(() => api('POST', '/api/users/' + encodeURIComponent(userId) + '/reset-password', { newPassword: pwd }));
+}
+
+function deleteUser(userId) {
+  if (!confirm('确认删除用户「' + userId + '」？删除后不可恢复')) return;
+  doAction(() => api('DELETE', '/api/users/' + encodeURIComponent(userId)));
+}
+
+function changeMyPassword() {
+  const oldPwd = $('pwd-old').value, newPwd = $('pwd-new').value;
+  if (newPwd.length < 6) return showMsg('新密码至少 6 位', false);
+  api('POST', '/api/auth/password', { oldPassword: oldPwd, newPassword: newPwd })
+    .then(() => { showMsg('密码修改成功', true); $('pwd-old').value = ''; $('pwd-new').value = ''; })
+    .catch(e => showMsg('失败：' + e.message, false));
+}
+
+$('filter-status').onchange = () => loadUsers().catch(e => showMsg('加载失败：' + e.message, false));
+$('btn-logout').onclick = async () => {
+  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+  location.href = '/admin/login';
+};
+
+// init：标题 + 当前用户（拦截器已保证仅 ADMIN 可达此页）
+api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent = d.title; }).catch(() => {});
+(async function initUser() {
+  try {
+    me = await api('GET', '/api/auth/me');
+    if (me) {
+      $('user-name').textContent = me.username + ' · 管理员';
+      $('user-box').style.display = '';
+    }
+  } catch (e) {}
+  loadUsers().catch(e => showMsg('用户列表加载失败：' + e.message, false));
+})();
+</script>
+</body>
+</html>

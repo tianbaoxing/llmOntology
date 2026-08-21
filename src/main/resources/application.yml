@@ -14,10 +14,16 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
+    # 登录会话有效期（内存会话，重启需重新登录）
+    session:
+      timeout: 24h
 
 app:
   # 管理页标题，启动可覆盖：--app.title=xxx 或环境变量 APP_TITLE
   title: 国博藏品图谱
+  # 用户认证：用户文件（不存在时首个 ADMIN 由登录页"系统初始化"向导创建）
+  auth:
+    users-file: data/users.json
   # 上传文件：实体目录 + 元数据文件 + 允许的扩展名白名单（文本类，排除视频/音频/图片）
   upload-dir: files
   upload-allowed-ext: pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx

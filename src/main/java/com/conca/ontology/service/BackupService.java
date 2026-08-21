@@ -79,6 +79,9 @@ public class BackupService {
     @Value("${app.metadata-file:data/file-metadata.json}")
     private String metadataFile;
 
+    @Value("${app.auth.users-file:data/users.json}")
+    private String usersFile;
+
     @Value("${app.upload-dir:files}")
     private String uploadDir;
 
@@ -223,11 +226,11 @@ public class BackupService {
         return count;
     }
 
-    /** 复制 data 三个 JSON（存在才复制）+ 上传文件目录到临时目录，返回复制的文件数 */
+    /** 复制 data 四个 JSON（schema/profile/文件元数据/用户，存在才复制）+ 上传文件目录到临时目录，返回复制的文件数 */
     private long copyDataAndFiles(Task task, Path tmpDir) throws IOException {
         task.phase = "files";
         List<Path> sources = new ArrayList<>();
-        for (String cfg : List.of(schemaFile, profileFile, metadataFile)) {
+        for (String cfg : List.of(schemaFile, profileFile, metadataFile, usersFile)) {
             Path p = Path.of(cfg).toAbsolutePath().normalize();
             if (Files.exists(p)) {
                 sources.add(p);
