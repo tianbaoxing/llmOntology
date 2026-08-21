@@ -132,6 +132,14 @@ curl http://localhost:9876/api/graph/stats
 
 > controller 分三个入口包：`controller/api/`（admin REST）、`controller/llmapi/`（LLM/skill REST）、`controller/admin/`（页面入口，后续认证在此拦截）。
 
+### Swagger API 文档
+
+| 项      | 值                                                    |
+| ------ | ---------------------------------------------------- |
+| 入口     | `http://localhost:9876/swagger-ui/index.html`          |
+| 鉴权     | 免登录（AuthInterceptor 放行 Swagger UI 与 `/v3/api-docs/**`） |
+| 分组     | `llm`（/api/llm/**，15 端点）/ `admin`（controller.api 包，24 端点） |
+
 ### 本体查询 `/api/llm/ontology-query`（LLM / skill）
 
 | 方法   | 路径                              | 说明                                        |
