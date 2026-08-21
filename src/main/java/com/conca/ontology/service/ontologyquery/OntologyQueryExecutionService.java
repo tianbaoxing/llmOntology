@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.dto.QueryResult;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.service.GraphQueryService;
 
@@ -29,15 +30,15 @@ public class OntologyQueryExecutionService {
 
     public Map<String, Object> execute(String question, String cypher, Map<String, Object> params) {
         String normalized = normalize(cypher);
-        Map<String, Object> graph = graphQueryService.query(normalized, params);
-        List<?> rows = (List<?>) graph.get("rows");
+        QueryResult graph = graphQueryService.query(normalized, params);
+        List<?> rows = graph.rows();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("question", question);
         result.put("cypher", normalized);
         result.put("params", params == null ? Map.of() : params);
-        result.put("keys", graph.get("keys"));
+        result.put("keys", graph.keys());
         result.put("rows", rows);
-        result.put("count", graph.get("count"));
+        result.put("count", graph.count());
         result.put("found", rows != null && !rows.isEmpty());
         result.put("message", rows != null && !rows.isEmpty() ? "ok" : "当前本体中未查询到相关结果");
         return result;

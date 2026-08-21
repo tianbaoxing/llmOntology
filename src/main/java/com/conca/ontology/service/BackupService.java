@@ -357,10 +357,8 @@ public class BackupService {
 
     // ---------------- 内部 ----------------
 
-    @SuppressWarnings("unchecked")
     private List<Map<String, Object>> queryRows(String cypher, Map<String, Object> params) {
-        Map<String, Object> result = queryService.query(cypher, params);
-        return (List<Map<String, Object>>) result.get("rows");
+        return queryService.query(cypher, params).rows();
     }
 
     private long scalar(String cypher) {

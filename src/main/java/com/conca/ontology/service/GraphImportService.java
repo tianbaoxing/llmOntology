@@ -10,6 +10,8 @@ import org.neo4j.driver.Session;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.dto.BatchNodesResult;
+import com.conca.ontology.dto.BatchRelsResult;
 import com.conca.ontology.dto.NodeBatchRequest;
 import com.conca.ontology.dto.RelBatchRequest;
 import com.conca.ontology.exception.ApiException;
@@ -74,7 +76,7 @@ public class GraphImportService {
         }
     }
 
-    public Map<String, Object> batchNodes(NodeBatchRequest req) {
+    public BatchNodesResult batchNodes(NodeBatchRequest req) {
         String label = req.label();
         String keyProp = schema.keyPropOf(label);   // 服务端决定，忽略客户端 keyProp
         if (req.items().size() > batchLimit) {
@@ -96,10 +98,10 @@ public class GraphImportService {
                 return null;
             });
         }
-        return Map.of("label", label, "written", rows.size());
+        return new BatchNodesResult(label, rows.size());
     }
 
-    public Map<String, Object> batchRels(RelBatchRequest req) {
+    public BatchRelsResult batchRels(RelBatchRequest req) {
         String type = req.type();
         String fromLabel = req.fromLabel();
         String toLabel = req.toLabel();
@@ -131,7 +133,7 @@ public class GraphImportService {
                 return null;
             });
         }
-        return Map.of("type", type, "written", rows.size());
+        return new BatchRelsResult(type, rows.size());
     }
 
     private boolean blank(String s) {

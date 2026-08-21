@@ -1,7 +1,5 @@
 package com.conca.ontology.controller.llmapi;
 
-import java.util.Map;
-
 import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,9 +10,18 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.dto.ApiResponse;
 import com.conca.ontology.dto.ProfileSaveRequest;
+import com.conca.ontology.dto.ProfileSaveResult;
+import com.conca.ontology.dto.ProfileView;
 import com.conca.ontology.service.ProfileService;
 
-/** LLM 专属入口：构建期问询记录（用户画像 / ontology 画像）的读写。 */
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+/**
+ * LLM 专属入口：构建期问询记录（用户画像 / ontology 画像）的读写。
+ */
+@Tag(name = "LLM-Profile", description = "构建期问询记录（用户画像 / ontology 画像）：LLM 在构建各阶段回看历史问答、追加新问答。"
+        + "按 key upsert，同 key 重复问答覆盖，画像始终最新。")
 @RestController
 @RequestMapping("/api/llm")
 public class ProfileController {
@@ -25,15 +32,19 @@ public class ProfileController {
         this.profileService = profileService;
     }
 
-    /** 全量问询记录（LLM 构建各阶段回看上下文用） */
+    @Operation(summary = "全量问询记录",
+            description = "读取全部问答条目（phase/key/question/answer/updatedAt）。LLM 构建各阶段回看上下文用。"
+                    + "文件不存在时返回 version=0 + 空列表。")
     @GetMapping("/profile")
-    public ApiResponse<Map<String, Object>> profile() {
+    public ApiResponse<ProfileView> profile() {
         return ApiResponse.ok(profileService.load());
     }
 
-    /** 批量保存问答（按 key upsert：同 key 覆盖，画像始终最新） */
+    @Operation(summary = "批量保存问答",
+            description = "按 key upsert：同 key 覆盖已有条目（phase 缺省为 intake），全部条目原子落盘。"
+                    + "返回保存后的版本号与全量条目总数。")
     @PostMapping("/profile")
-    public ApiResponse<Map<String, Object>> save(@Valid @RequestBody ProfileSaveRequest req) {
+    public ApiResponse<ProfileSaveResult> save(@Valid @RequestBody ProfileSaveRequest req) {
         return ApiResponse.ok(profileService.save(req));
     }
 }

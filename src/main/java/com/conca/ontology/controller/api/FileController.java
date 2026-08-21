@@ -1,7 +1,5 @@
 package com.conca.ontology.controller.api;
 
-import java.util.Map;
-
 import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,13 +14,23 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.conca.ontology.dto.ApiResponse;
+import com.conca.ontology.dto.FileDeleteResult;
 import com.conca.ontology.dto.FileDescRequest;
+import com.conca.ontology.dto.FileListView;
+import com.conca.ontology.dto.FileUpdateResult;
+import com.conca.ontology.dto.FileUploadResult;
 import com.conca.ontology.service.FileStorageService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 管理端入口：上传文件管理（文件实体在 files/，元数据在 data/file-metadata.json）。
  * 上传仅放行文本类格式（pdf/txt/csv 等，白名单可配），同名覆盖；删除连带元数据记录。
  */
+@Tag(name = "Admin-File", description = "知识库文件管理（files.html 数据源）：上传（白名单校验、同名覆盖）、"
+        + "列表、编辑说明、删除（实体 + 元数据一并移除）。")
 @RestController
 @RequestMapping("/api/files")
 public class FileController {
@@ -33,29 +41,33 @@ public class FileController {
         this.storageService = storageService;
     }
 
-    /** 上传文件（multipart：file + description），同名覆盖 */
+    @Operation(summary = "上传文件", description = "multipart：file + description（可选）。扩展名白名单校验，"
+            + "同名覆盖，原子落盘（tmp + rename）。")
     @PostMapping
-    public ApiResponse<Map<String, Object>> upload(@RequestParam("file") MultipartFile file,
-                                                   @RequestParam(value = "description", required = false) String description) {
+    public ApiResponse<FileUploadResult> upload(
+            @Parameter(description = "文件本体（multipart）") @RequestParam("file") MultipartFile file,
+            @Parameter(description = "文件说明（可选）") @RequestParam(value = "description", required = false) String description) {
         return ApiResponse.ok(storageService.upload(file, description));
     }
 
-    /** 文件列表（与目录对账后返回） */
+    @Operation(summary = "文件列表", description = "与磁盘对账后返回（新文件补录、消失文件剔除）。")
     @GetMapping
-    public ApiResponse<Map<String, Object>> list() {
+    public ApiResponse<FileListView> list() {
         return ApiResponse.ok(storageService.list());
     }
 
-    /** 编辑文件说明（{*name} 支持子目录路径，入参带前导斜杠需截去） */
+    @Operation(summary = "编辑文件说明", description = "{*name} 支持子目录路径，入参带前导斜杠需截去。")
     @PutMapping("/{*name}")
-    public ApiResponse<Map<String, Object>> updateDescription(@PathVariable String name,
-                                                              @Valid @RequestBody FileDescRequest req) {
+    public ApiResponse<FileUpdateResult> updateDescription(
+            @Parameter(description = "文件名（可含子目录路径）", example = "artifact.csv") @PathVariable String name,
+            @Valid @RequestBody FileDescRequest req) {
         return ApiResponse.ok(storageService.updateDescription(stripSlash(name), req.description()));
     }
 
-    /** 删除文件（实体 + 元数据） */
+    @Operation(summary = "删除文件", description = "文件实体 + 元数据记录一并移除。")
     @DeleteMapping("/{*name}")
-    public ApiResponse<Map<String, Object>> delete(@PathVariable String name) {
+    public ApiResponse<FileDeleteResult> delete(
+            @Parameter(description = "文件名（可含子目录路径）", example = "artifact.csv") @PathVariable String name) {
         return ApiResponse.ok(storageService.delete(stripSlash(name)));
     }
 

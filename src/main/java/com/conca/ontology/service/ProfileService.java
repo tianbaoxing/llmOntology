@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.conca.ontology.dto.ProfileSaveRequest;
+import com.conca.ontology.dto.ProfileSaveResult;
+import com.conca.ontology.dto.ProfileView;
 import com.conca.ontology.model.ProfileEntry;
 import com.conca.ontology.model.ProfileFile;
 
@@ -38,17 +40,17 @@ public class ProfileService {
     }
 
     /** 全量读取（文件不存在返回空结构，供 LLM 回看构建上下文） */
-    public Map<String, Object> load() {
+    public ProfileView load() {
         Path file = profilePath();
         if (Files.notExists(file)) {
-            return Map.of("version", 0, "items", List.of());
+            return new ProfileView(0, List.of());
         }
         ProfileFile pf = read(file);
-        return Map.of("version", pf.version(), "items", pf.items());
+        return new ProfileView(pf.version(), pf.items());
     }
 
     /** 批量 upsert：按 key 覆盖已有条目，原子落盘 */
-    public synchronized Map<String, Object> save(ProfileSaveRequest req) {
+    public synchronized ProfileSaveResult save(ProfileSaveRequest req) {
         Path file = profilePath();
         ProfileFile pf = Files.exists(file) ? read(file) : new ProfileFile(0, List.of());
         Map<String, ProfileEntry> byKey = new LinkedHashMap<>();
@@ -71,7 +73,7 @@ public class ProfileService {
             throw new IllegalStateException("failed to save profile file: " + file.toAbsolutePath(), e);
         }
         log.info("profile saved: {} entries (version {})", items.size(), next.version());
-        return Map.of("version", next.version(), "count", items.size());
+        return new ProfileSaveResult(next.version(), items.size());
     }
 
     private ProfileFile read(Path file) {

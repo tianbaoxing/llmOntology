@@ -18,6 +18,8 @@ import com.conca.ontology.model.ProfileEntry;
 import com.conca.ontology.model.PropertyDef;
 import com.conca.ontology.service.ProfileService;
 import com.conca.ontology.service.SchemaService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * 面向自然语言的本体问答服务：
@@ -36,17 +38,19 @@ public class OntologyAskService {
     private final SchemaService schemaService;
     private final ProfileService profileService;
     private final OntologyQueryExecutionService queryExecutionService;
+    private final ObjectMapper mapper;
 
     public OntologyAskService(SchemaService schemaService, ProfileService profileService,
-                              OntologyQueryExecutionService queryExecutionService) {
+                              OntologyQueryExecutionService queryExecutionService, ObjectMapper mapper) {
         this.schemaService = schemaService;
         this.profileService = profileService;
         this.queryExecutionService = queryExecutionService;
+        this.mapper = mapper;
     }
 
     public Map<String, Object> ask(String question, Integer limit) {
         int safeLimit = limit == null ? 20 : Math.max(1, Math.min(limit, 100));
-        Map<String, Object> schemaView = schemaService.schemaView();
+        Map<String, Object> schemaView = toMap(schemaService.schemaView());
         SchemaMatch match = matchSchema(question, schemaView);
 
         if (isProfileQuestion(question)) {
@@ -83,7 +87,7 @@ public class OntologyAskService {
         String answer;
 
         if (match.classView != null) {
-            Map<String, Object> classDetail = schemaService.classView(stringValue(match.classView.get("name")));
+            Map<String, Object> classDetail = toMap(schemaService.classView(stringValue(match.classView.get("name"))));
             evidence.add(classDetail);
             if (match.property != null) {
                 answer = classDetail.get("cnName") + "（" + classDetail.get("name") + "）包含属性 "
@@ -501,7 +505,7 @@ public class OntologyAskService {
     }
 
     private List<Map<String, Object>> profileItems() {
-        List<?> raw = (List<?>) profileService.load().getOrDefault("items", List.of());
+        List<?> raw = profileService.load().items();
         List<Map<String, Object>> items = new ArrayList<>();
         for (Object item : raw) {
             if (item instanceof Map<?, ?> map) {
@@ -530,6 +534,12 @@ public class OntologyAskService {
     private Object valueFromSingleRow(Map<String, Object> result, String key) {
         Map<String, Object> row = firstRow(result);
         return row.get(key);
+    }
+
+    /** DTO record → Map：内部逻辑沿用 Map 风格，服务边界一次性转换（字段名与 JSON 一致） */
+    private Map<String, Object> toMap(Object value) {
+        return mapper.convertValue(value, new TypeReference<Map<String, Object>>() {
+        });
     }
 
     private void addKeyword(List<String> list, String keyword) {

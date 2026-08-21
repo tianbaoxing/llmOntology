@@ -16,6 +16,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.conca.ontology.dto.ClassDeleteResult;
+import com.conca.ontology.dto.ClassDetailView;
+import com.conca.ontology.dto.ClassSummary;
+import com.conca.ontology.dto.ClassView;
+import com.conca.ontology.dto.IncomingRelation;
+import com.conca.ontology.dto.QueryResult;
+import com.conca.ontology.dto.RelationDetail;
+import com.conca.ontology.dto.RelationView;
+import com.conca.ontology.dto.SchemaView;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.ClassDef;
 import com.conca.ontology.model.GraphSchema;
@@ -77,41 +86,34 @@ public class SchemaService {
 
     // ---------------- views ----------------
 
-    public Map<String, Object> schemaView() {
+    public SchemaView schemaView() {
         Map<String, Long> nodeCounts = nodeCounts();
         Map<String, Long> relCounts = relCounts();
-        List<Map<String, Object>> classes = new ArrayList<>();
+        List<ClassView> classes = new ArrayList<>();
         for (ClassDef c : schema.allClasses()) {
             classes.add(classMap(c, nodeCounts, relCounts));
         }
-        List<Map<String, Object>> rels = new ArrayList<>();
+        List<RelationView> rels = new ArrayList<>();
         for (GraphSchema.RelSignature sig : schema.allRelations()) {
             rels.add(relMap(sig, relCounts));
         }
-        return Map.of("version", version, "classes", classes, "relations", rels);
+        return new SchemaView(version, classes, rels);
     }
 
-    public List<Map<String, Object>> classSummaries() {
+    public List<ClassSummary> classSummaries() {
         Map<String, Long> nodeCounts = nodeCounts();
-        List<Map<String, Object>> list = new ArrayList<>();
+        List<ClassSummary> list = new ArrayList<>();
         for (ClassDef c : schema.allClasses()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("name", c.name());
-            m.put("cnName", c.cnName());
-            m.put("layer", c.layer());
-            m.put("keyProp", c.keyProp());
-            m.put("description", c.description());
-            m.put("count", nodeCounts.getOrDefault(c.name(), 0L));
-            m.put("propertyCount", c.properties().size());
-            m.put("relationCount", c.relations().size());
-            list.add(m);
+            list.add(new ClassSummary(c.name(), c.cnName(), c.layer(), c.keyProp(), c.description(),
+                    nodeCounts.getOrDefault(c.name(), 0L),
+                    c.properties().size(), c.relations().size()));
         }
         return list;
     }
 
-    public List<Map<String, Object>> relationViews() {
+    public List<RelationView> relationViews() {
         Map<String, Long> relCounts = relCounts();
-        List<Map<String, Object>> list = new ArrayList<>();
+        List<RelationView> list = new ArrayList<>();
         for (GraphSchema.RelSignature sig : schema.allRelations()) {
             list.add(relMap(sig, relCounts));
         }
@@ -119,74 +121,48 @@ public class SchemaService {
     }
 
     /** 单类详情：定义 + 实时 count + 出边（声明）+ 入边（推导） */
-    public Map<String, Object> classView(String name) {
+    public ClassDetailView classView(String name) {
         ClassDef def = schema.classOf(name);
         if (def == null) {
             throw new ApiException(404, "class not found: " + name);
         }
         Map<String, Long> nodeCounts = nodeCounts();
         Map<String, Long> relCounts = relCounts();
-        Map<String, Object> view = classMap(def, nodeCounts, relCounts);
-        List<Map<String, Object>> incoming = new ArrayList<>();
+        ClassView view = classMap(def, nodeCounts, relCounts);
+        List<IncomingRelation> incoming = new ArrayList<>();
         for (GraphSchema.RelSignature sig : schema.allRelations()) {
             if (sig.toClass().equals(name)) {
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("name", sig.def().name());
-                m.put("cnName", sig.def().cnName());
-                m.put("fromClass", sig.fromClass());
-                m.put("count", relCounts.getOrDefault(sig.def().name(), 0L));
-                incoming.add(m);
+                incoming.add(new IncomingRelation(sig.def().name(), sig.def().cnName(),
+                        sig.fromClass(), relCounts.getOrDefault(sig.def().name(), 0L)));
             }
         }
-        view.put("incomingRelations", incoming);
-        return view;
+        return new ClassDetailView(view.name(), view.cnName(), view.layer(), view.keyProp(),
+                view.description(), view.count(), view.properties(), view.relations(), incoming);
     }
 
-    private Map<String, Object> classMap(ClassDef c, Map<String, Long> nodeCounts, Map<String, Long> relCounts) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("name", c.name());
-        m.put("cnName", c.cnName());
-        m.put("layer", c.layer());
-        m.put("keyProp", c.keyProp());
-        m.put("description", c.description());
-        m.put("count", nodeCounts.getOrDefault(c.name(), 0L));
-        m.put("properties", c.properties());
-        List<Map<String, Object>> rels = new ArrayList<>();
+    private ClassView classMap(ClassDef c, Map<String, Long> nodeCounts, Map<String, Long> relCounts) {
+        List<RelationDetail> rels = new ArrayList<>();
         for (RelationDef r : c.relations()) {
             rels.add(relDetail(r, relCounts));
         }
-        m.put("relations", rels);
-        return m;
+        return new ClassView(c.name(), c.cnName(), c.layer(), c.keyProp(), c.description(),
+                nodeCounts.getOrDefault(c.name(), 0L), c.properties(), rels);
     }
 
-    private Map<String, Object> relDetail(RelationDef r, Map<String, Long> relCounts) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("name", r.name());
-        m.put("cnName", r.cnName());
-        m.put("toClass", r.toClass());
-        m.put("description", r.description());
-        m.put("example", r.example());
-        m.put("props", r.props());
-        m.put("count", relCounts.getOrDefault(r.name(), 0L));
-        return m;
+    private RelationDetail relDetail(RelationDef r, Map<String, Long> relCounts) {
+        return new RelationDetail(r.name(), r.cnName(), r.toClass(), r.description(), r.example(),
+                r.props(), relCounts.getOrDefault(r.name(), 0L));
     }
 
-    private Map<String, Object> relMap(GraphSchema.RelSignature sig, Map<String, Long> relCounts) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("name", sig.def().name());
-        m.put("cnName", sig.def().cnName());
-        m.put("fromClass", sig.fromClass());
-        m.put("toClass", sig.toClass());
-        m.put("description", sig.def().description());
-        m.put("example", sig.def().example());
-        m.put("props", sig.def().props());
-        m.put("count", relCounts.getOrDefault(sig.def().name(), 0L));
-        return m;
+    private RelationView relMap(GraphSchema.RelSignature sig, Map<String, Long> relCounts) {
+        return new RelationView(sig.def().name(), sig.def().cnName(), sig.fromClass(), sig.toClass(),
+                sig.def().description(), sig.def().example(), sig.def().props(),
+                relCounts.getOrDefault(sig.def().name(), 0L));
     }
 
     // ---------------- CRUD ----------------
 
-    public Map<String, Object> createClass(ClassDef def) {
+    public ClassDetailView createClass(ClassDef def) {
         if (def == null) {
             throw new ApiException(400, "class def must not be null");
         }
@@ -202,7 +178,7 @@ public class SchemaService {
         return classView(def.name());
     }
 
-    public Map<String, Object> updateClass(String name, ClassDef def) {
+    public ClassDetailView updateClass(String name, ClassDef def) {
         ClassDef existing = schema.classOf(name);
         if (existing == null) {
             throw new ApiException(404, "class not found: " + name);
@@ -222,7 +198,7 @@ public class SchemaService {
         return classView(def.name());
     }
 
-    public Map<String, Object> deleteClass(String name) {
+    public ClassDeleteResult deleteClass(String name) {
         ClassDef def = schema.classOf(name);
         if (def == null) {
             throw new ApiException(404, "class not found: " + name);
@@ -247,7 +223,7 @@ public class SchemaService {
         save(classes);
         importService.dropConstraint(name, def.keyProp());
         log.info("schema class deleted: {}", name);
-        return Map.of("deleted", name);
+        return new ClassDeleteResult(name);
     }
 
     // ---------------- validation ----------------
@@ -369,12 +345,10 @@ public class SchemaService {
         return countMap("MATCH ()-[r]->() RETURN type(r) AS k, count(*) AS c");
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Long> countMap(String cypher) {
-        Map<String, Object> result = queryService.query(cypher, null);
+        QueryResult result = queryService.query(cypher, null);
         Map<String, Long> counts = new LinkedHashMap<>();
-        for (Object row : (List<Object>) result.get("rows")) {
-            Map<String, Object> m = (Map<String, Object>) row;
+        for (Map<String, Object> m : result.rows()) {
             counts.put((String) m.get("k"), ((Number) m.get("c")).longValue());
         }
         return counts;
@@ -389,8 +363,7 @@ public class SchemaService {
     }
 
     private long scalar(String cypher) {
-        Map<String, Object> result = queryService.query(cypher, null);
-        List<?> rows = (List<?>) result.get("rows");
-        return ((Number) ((Map<?, ?>) rows.get(0)).get("c")).longValue();
+        QueryResult result = queryService.query(cypher, null);
+        return ((Number) result.rows().get(0).get("c")).longValue();
     }
 }

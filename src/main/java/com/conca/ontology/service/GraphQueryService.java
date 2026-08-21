@@ -12,6 +12,11 @@ import org.neo4j.driver.EagerResult;
 import org.neo4j.driver.Record;
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.dto.GraphStatsView;
+import com.conca.ontology.dto.NeighborGroupsView;
+import com.conca.ontology.dto.NeighborsView;
+import com.conca.ontology.dto.NodesPageView;
+import com.conca.ontology.dto.QueryResult;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.ClassDef;
 import com.conca.ontology.model.GraphSchema;
@@ -36,7 +41,7 @@ public class GraphQueryService {
         this.schema = schema;
     }
 
-    public Map<String, Object> query(String cypher, Map<String, Object> params) {
+    public QueryResult query(String cypher, Map<String, Object> params) {
         if (WRITE_RE.matcher(cypher).matches()) {
             throw new ApiException(400, "read-only endpoint: write statement rejected");
         }
@@ -49,37 +54,50 @@ public class GraphQueryService {
             rec.fields().forEach(f -> row.put(f.key(), f.value().asObject()));
             rows.add(row);
         }
-        return Map.of("keys", result.keys(), "rows", rows, "count", rows.size());
+        return new QueryResult(result.keys(), rows, rows.size());
     }
 
-    public Map<String, Object> stats() {
-        Map<String, Object> nodes = query(
+    public GraphStatsView stats() {
+        QueryResult nodes = query(
                 "MATCH (n) RETURN labels(n)[0] AS label, count(*) AS count ORDER BY label", null);
-        Map<String, Object> rels = query(
+        QueryResult rels = query(
                 "MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS count ORDER BY type", null);
-        return Map.of("nodes", nodes.get("rows"), "relationships", rels.get("rows"));
+        List<GraphStatsView.LabelCount> nodeCounts = nodes.rows().stream()
+                .map(r -> new GraphStatsView.LabelCount(
+                        (String) r.get("label"), ((Number) r.get("count")).longValue()))
+                .toList();
+        List<GraphStatsView.TypeCount> relCounts = rels.rows().stream()
+                .map(r -> new GraphStatsView.TypeCount(
+                        (String) r.get("type"), ((Number) r.get("count")).longValue()))
+                .toList();
+        return new GraphStatsView(nodeCounts, relCounts);
     }
 
     /** 分页列出某 label 的实例（key + 全属性，供管理页实例列表） */
-    public Map<String, Object> nodesPage(String label, int page, int size) {
+    @SuppressWarnings("unchecked")
+    public NodesPageView nodesPage(String label, int page, int size) {
         schema.checkLabel(label);
         String keyProp = schema.keyPropOf(label);
         int p = Math.max(1, page);
         int s = Math.max(1, Math.min(size, 200));
-        Map<String, Object> result = query(
+        QueryResult result = query(
                 "MATCH (n:`" + label + "`) WITH count(n) AS total "
                         + "MATCH (n:`" + label + "`) "
                         + "RETURN total AS total, n.`" + keyProp + "` AS key, properties(n) AS props "
                         + "ORDER BY key SKIP $skip LIMIT $limit",
                 Map.of("skip", (p - 1) * s, "limit", s));
-        List<?> rows = (List<?>) result.get("rows");
-        long total = rows.isEmpty() ? 0L
-                : ((Number) ((Map<?, ?>) rows.get(0)).get("total")).longValue();
-        return Map.of("label", label, "keyProp", keyProp, "total", total,
-                "page", p, "size", s, "pages", (total + s - 1) / s, "rows", rows);
+        List<Map<String, Object>> rawRows = result.rows();
+        long total = rawRows.isEmpty() ? 0L
+                : ((Number) rawRows.get(0).get("total")).longValue();
+        List<NodesPageView.NodeRow> rows = new ArrayList<>(rawRows.size());
+        for (Map<String, Object> r : rawRows) {
+            rows.add(new NodesPageView.NodeRow(((Number) r.get("total")).longValue(),
+                    r.get("key"), (Map<String, Object>) r.get("props")));
+        }
+        return new NodesPageView(label, keyProp, total, p, s, (total + s - 1) / s, rows);
     }
 
-    public Map<String, Object> nodeDetail(String label, String key) {
+    public QueryResult nodeDetail(String label, String key) {
         String keyProp = schema.keyPropOf(label);
         return query(
                 "MATCH (n:`" + label + "` {`" + keyProp + "`: $key}) "
@@ -91,7 +109,7 @@ public class GraphQueryService {
                 Map.of("key", key));
     }
 
-    public Map<String, Object> neighbors(String label, String key, int depth) {
+    public NeighborsView neighbors(String label, String key, int depth) {
         return neighbors(label, key, depth, 0, 500, null, null, null, null);
     }
 
@@ -99,8 +117,8 @@ public class GraphQueryService {
      * 分页邻域：skip/limit 作用于按 eid 排序去重后的边，total 为边总数（图浏览页增量加载防卡顿）。
      * 过滤参数（dir/relType/otherLabel/f）任一存在即进入过滤分支：固定单跳 + 按分组方向/类型/对端属性筛选。
      */
-    public Map<String, Object> neighbors(String label, String key, int depth, int skip, int limit,
-                                         String dir, String relType, String otherLabel, List<String> filters) {
+    public NeighborsView neighbors(String label, String key, int depth, int skip, int limit,
+                                    String dir, String relType, String otherLabel, List<String> filters) {
         boolean hasFilter = dir != null || relType != null || otherLabel
                 != null || (filters != null && !filters.isEmpty());
         if (hasFilter) {
@@ -113,18 +131,18 @@ public class GraphQueryService {
         int d = Math.max(1, Math.min(depth, 3));
         int sk = Math.max(0, skip);
         int lm = Math.max(1, Math.min(limit, 500));
-        Map<String, Object> start = query(
+        QueryResult start = query(
                 "MATCH (n:`" + label + "` {`" + keyProp + "`: $key}) "
                         + "RETURN elementId(n) AS eid, labels(n) AS labels, properties(n) AS props",
                 Map.of("key", key));
-        if (((List<?>) start.get("rows")).isEmpty()) {
+        if (start.rows().isEmpty()) {
             throw new ApiException(404, "node not found: " + label + "/" + key);
         }
         String match = "MATCH (n:`" + label + "` {`" + keyProp + "`: $key})-[r*1.." + d + "]-(m) "
                 + "UNWIND r AS e ";
-        Map<String, Object> total = query(match + "RETURN count(DISTINCT e) AS total", Map.of("key", key));
-        long totalCount = ((Number) ((Map<?, ?>) ((List<?>) total.get("rows")).get(0)).get("total")).longValue();
-        Map<String, Object> edges = query(
+        QueryResult total = query(match + "RETURN count(DISTINCT e) AS total", Map.of("key", key));
+        long totalCount = ((Number) total.rows().get(0).get("total")).longValue();
+        QueryResult edges = query(
                 match + "RETURN DISTINCT elementId(startNode(e)) AS fromEid, "
                         + "labels(startNode(e)) AS fromLabels, properties(startNode(e)) AS fromProps, "
                         + "elementId(endNode(e)) AS toEid, "
@@ -132,8 +150,7 @@ public class GraphQueryService {
                         + "type(e) AS relType, properties(e) AS relProps "
                         + "ORDER BY fromEid, relType, toEid SKIP $skip LIMIT $limit",
                 Map.of("key", key, "skip", sk, "limit", lm));
-        return Map.of("start", ((List<?>) start.get("rows")).get(0),
-                "edges", edges.get("rows"), "total", totalCount, "skip", sk, "limit", lm);
+        return new NeighborsView(toNodeRef(start.rows().get(0)), toEdges(edges.rows()), totalCount, sk, lm);
     }
 
     /** 过滤条件（解析并类型化后） */
@@ -144,29 +161,34 @@ public class GraphQueryService {
      * 邻居分组全局统计（不分页）：按 方向×关系类型×对端标签 聚合边数。
      * graph.html 分组表数据源，修正"仅当前页 100 条边统计"的数量失真问题。
      */
-    public Map<String, Object> neighborGroups(String label, String key) {
+    public NeighborGroupsView neighborGroups(String label, String key) {
         String keyProp = schema.keyPropOf(label);
-        Map<String, Object> start = query(
+        QueryResult start = query(
                 "MATCH (n:`" + label + "` {`" + keyProp + "`: $key}) RETURN elementId(n) AS eid",
                 Map.of("key", key));
-        if (((List<?>) start.get("rows")).isEmpty()) {
+        if (start.rows().isEmpty()) {
             throw new ApiException(404, "node not found: " + label + "/" + key);
         }
-        Map<String, Object> groups = query(
+        QueryResult groups = query(
                 "MATCH (n:`" + label + "` {`" + keyProp + "`: $key})-[r]-(m) "
                         + "RETURN CASE WHEN elementId(startNode(r)) = elementId(n) THEN 'out' ELSE 'in' END AS dir, "
                         + "type(r) AS relType, labels(m)[0] AS otherLabel, count(*) AS count "
                         + "ORDER BY count DESC",
                 Map.of("key", key));
-        return Map.of("groups", groups.get("rows"));
+        List<NeighborGroupsView.NeighborGroup> list = groups.rows().stream()
+                .map(r -> new NeighborGroupsView.NeighborGroup(
+                        (String) r.get("dir"), (String) r.get("relType"),
+                        (String) r.get("otherLabel"), ((Number) r.get("count")).longValue()))
+                .toList();
+        return new NeighborGroupsView(list);
     }
 
     /**
      * 过滤版邻域（固定单跳）：按分组（方向+关系类型+对端标签）缩小范围，再按对端节点属性筛选。
      * 安全：label/relType/属性名均过 GraphSchema 白名单，值全参数绑定。
      */
-    private Map<String, Object> neighborsFiltered(String label, String key, String dir, String relType,
-                                                  String otherLabel, List<String> filters, int skip, int limit) {
+    private NeighborsView neighborsFiltered(String label, String key, String dir, String relType,
+                                             String otherLabel, List<String> filters, int skip, int limit) {
         if (!"in".equals(dir) && !"out".equals(dir)) {
             throw new ApiException(400, "dir must be in|out: " + dir);
         }
@@ -180,11 +202,11 @@ public class GraphQueryService {
         List<FilterCond> conds = parseFilters(otherLabel, filters);
 
         String keyProp = schema.keyPropOf(label);
-        Map<String, Object> start = query(
+        QueryResult start = query(
                 "MATCH (n:`" + label + "` {`" + keyProp + "`: $key}) "
                         + "RETURN elementId(n) AS eid, labels(n) AS labels, properties(n) AS props",
                 Map.of("key", key));
-        if (((List<?>) start.get("rows")).isEmpty()) {
+        if (start.rows().isEmpty()) {
             throw new ApiException(404, "node not found: " + label + "/" + key);
         }
         int sk = Math.max(0, skip);
@@ -208,9 +230,9 @@ public class GraphQueryService {
             params.put(v, c.typedValue());
         }
 
-        Map<String, Object> total = query(match + " RETURN count(r) AS total", params);
-        long totalCount = ((Number) ((Map<?, ?>) ((List<?>) total.get("rows")).get(0)).get("total")).longValue();
-        Map<String, Object> edges = query(
+        QueryResult total = query(match + " RETURN count(r) AS total", params);
+        long totalCount = ((Number) total.rows().get(0).get("total")).longValue();
+        QueryResult edges = query(
                 match + " RETURN elementId(startNode(r)) AS fromEid, "
                         + "labels(startNode(r)) AS fromLabels, properties(startNode(r)) AS fromProps, "
                         + "elementId(endNode(r)) AS toEid, "
@@ -218,8 +240,29 @@ public class GraphQueryService {
                         + "type(r) AS relType, properties(r) AS relProps "
                         + "ORDER BY fromEid, relType, toEid SKIP $skip LIMIT $limit",
                 concat(params, Map.of("skip", sk, "limit", lm)));
-        return Map.of("start", ((List<?>) start.get("rows")).get(0),
-                "edges", edges.get("rows"), "total", totalCount, "skip", sk, "limit", lm);
+        return new NeighborsView(toNodeRef(start.rows().get(0)), toEdges(edges.rows()), totalCount, sk, lm);
+    }
+
+    /** 查询行 → 节点引用（eid/labels/props） */
+    @SuppressWarnings("unchecked")
+    private static NeighborsView.NodeRef toNodeRef(Map<String, Object> row) {
+        return new NeighborsView.NodeRef((String) row.get("eid"),
+                (List<String>) row.get("labels"), (Map<String, Object>) row.get("props"));
+    }
+
+    /** 查询行列表 → 边列表（两端节点 + 关系类型与属性） */
+    @SuppressWarnings("unchecked")
+    private static List<NeighborsView.Edge> toEdges(List<Map<String, Object>> rows) {
+        List<NeighborsView.Edge> list = new ArrayList<>(rows.size());
+        for (Map<String, Object> r : rows) {
+            list.add(new NeighborsView.Edge(
+                    (String) r.get("fromEid"), (List<String>) r.get("fromLabels"),
+                    (Map<String, Object>) r.get("fromProps"),
+                    (String) r.get("toEid"), (List<String>) r.get("toLabels"),
+                    (Map<String, Object>) r.get("toProps"),
+                    (String) r.get("relType"), (Map<String, Object>) r.get("relProps")));
+        }
+        return list;
     }
 
     /** 解析 f=prop:op:value（value 可含冒号）；属性必须声明于 otherLabel 的 schema，op 白名单 eq/like */

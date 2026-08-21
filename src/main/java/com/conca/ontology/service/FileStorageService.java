@@ -21,6 +21,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.conca.ontology.dto.FileDeleteResult;
+import com.conca.ontology.dto.FileListView;
+import com.conca.ontology.dto.FileUpdateResult;
+import com.conca.ontology.dto.FileUploadResult;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.FileEntry;
 import com.conca.ontology.model.FileMetadataFile;
@@ -54,13 +58,13 @@ public class FileStorageService {
     }
 
     /** 全量列表（先与目录对账再返回；供 admin 页与 LLM 共用） */
-    public synchronized Map<String, Object> list() {
+    public synchronized FileListView list() {
         FileMetadataFile mf = reconcile();
-        return Map.of("version", mf.version(), "files", mf.files());
+        return new FileListView(mf.version(), mf.files());
     }
 
     /** 上传：白名单校验 → 原子落盘（同名覆盖）→ 元数据 upsert */
-    public synchronized Map<String, Object> upload(MultipartFile file, String description) {
+    public synchronized FileUploadResult upload(MultipartFile file, String description) {
         String original = file.getOriginalFilename();
         if (original == null || original.isBlank()) {
             throw new ApiException(400, "文件名为空");
@@ -94,7 +98,7 @@ public class FileStorageService {
             FileMetadataFile next = upsert(reconcile(), entry);
             persist(next);
             log.info("file uploaded: {} ({} bytes)", name, entry.size());
-            return Map.of("version", next.version(), "file", entry);
+            return new FileUploadResult(next.version(), entry);
         } catch (ApiException e) {
             throw e;
         } catch (IOException e) {
@@ -103,7 +107,7 @@ public class FileStorageService {
     }
 
     /** 编辑文件说明 */
-    public synchronized Map<String, Object> updateDescription(String name, String description) {
+    public synchronized FileUpdateResult updateDescription(String name, String description) {
         FileMetadataFile mf = reconcile();
         FileEntry found = find(mf, name);
         List<FileEntry> files = new ArrayList<>();
@@ -115,11 +119,11 @@ public class FileStorageService {
         }
         FileMetadataFile next = new FileMetadataFile(mf.version() + 1, files);
         persist(next);
-        return Map.of("version", next.version(), "file", find(next, name));
+        return new FileUpdateResult(next.version(), find(next, name));
     }
 
     /** 删除：文件实体 + 元数据记录一并移除 */
-    public synchronized Map<String, Object> delete(String name) {
+    public synchronized FileDeleteResult delete(String name) {
         FileMetadataFile mf = reconcile();
         FileEntry found = find(mf, name);
         try {
@@ -137,7 +141,7 @@ public class FileStorageService {
         FileMetadataFile next = new FileMetadataFile(mf.version() + 1, files);
         persist(next);
         log.info("file deleted: {}", name);
-        return Map.of("version", next.version(), "deleted", found.name());
+        return new FileDeleteResult(next.version(), found.name());
     }
 
     // ---------------- 内部 ----------------
