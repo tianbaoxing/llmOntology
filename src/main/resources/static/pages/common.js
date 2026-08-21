@@ -62,11 +62,11 @@ const CF = (() => {
   /** 顶部菜单（admin 项对普通用户隐藏，由 initUser 控制） */
   const MENU = [
     { path: '/', label: '概览' },
+    { path: '/files', label: '知识库' },
+    { path: '/chat', label: 'AI 问答' },
     { path: '/schema', label: '概念层管理', admin: true },
     { path: '/data', label: '图数据管理', admin: true },
-    { path: '/files', label: '知识库' },
     { path: '/backup', label: '备份恢复', admin: true },
-    { path: '/chat', label: 'AI 问答' },
     { path: '/users', label: '用户管理', admin: true }
   ];
   /** ADMIN 专属页面：普通用户直访时前端跳回概览（接口层另有 403 兜底；/users 由后端 403） */
