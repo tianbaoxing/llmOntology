@@ -36,12 +36,19 @@ tr.grp { cursor: pointer; }
 tr.grp:hover td { background: #f9fafb; }
 tr.grp.hl td { background: #fef3c7; }
 .empty { padding: 30px; text-align: center; color: #9ca3af; }
+.title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.title-row h2 { margin-bottom: 0; }
+.back-link { color: #2563eb; border-color: #bfdbfe; }
+.back-link:hover { color: #1d4ed8; border-color: #93c5fd; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="card">
-    <h2 id="page-title">实例图谱</h2>
+    <div class="title-row">
+      <h2 id="page-title">实例图谱</h2>
+      <a class="back-link" id="back-list" href="#">← 返回列表</a>
+    </div>
     <div class="crumb" id="crumb"></div>
     <div class="muted">点击图中任意节点切换中心并加载其邻居（页面动态刷新）；大邻居按页展示（每页 100 条，翻页整图替换）；节点可拖拽，悬停查看详情；邻居分组点击可在图中高亮</div>
   </div>
@@ -421,11 +428,8 @@ document.addEventListener('mouseup', () => {
 });
 
 // ---------------- init ----------------
-// header 渲染（含动态「返回实例列表」链接，标题带「 · 实例图谱」后缀）+ 登录校验由 common.js 提供
-CF.renderHeader({
-  extra: '<a class="back-link" id="back-list" href="#">← 返回实例列表</a>',
-  titleSuffix: ' · 实例图谱'
-});
+// header 渲染 + 登录校验由 common.js 提供；「返回列表」链接在标题行右侧，href/文案由 renderCrumb 按当前中心类型更新
+CF.renderHeader({ titleSuffix: ' · 实例图谱' });
 CF.initUser();
 async function init() {
   try {
