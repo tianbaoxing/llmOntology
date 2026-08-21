@@ -59,7 +59,7 @@ input[type=number] { padding: 5px 8px; border: 1px solid #d1d5db; border-radius:
     </svg>
     <h1 id="app-title">图谱管理控制台</h1>
   </div>
-  <a class="back-link" href="/admin">← 返回控制台</a>
+  <a class="back-link" href="/">← 返回控制台</a>
   <div class="spacer"></div>
   <div class="user-box" id="user-box" style="display:none">
     <span id="user-name"></span>
@@ -88,14 +88,14 @@ function badge(layer) { return `<span class="badge ${layer}">${layer}</span>`; }
 
 async function api(method, url) {
   const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' } });
-  if (res.status === 401) { location.href = '/admin/login'; throw new Error('未登录或会话已过期'); }
+  if (res.status === 401) { location.href = '/login'; throw new Error('未登录或会话已过期'); }
   const json = await res.json();
   if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
   return json.data;
 }
 
 function href(p) {
-  return `/admin/instances.html?label=${encodeURIComponent(LABEL)}&page=${p}`;
+  return `/instances?label=${encodeURIComponent(LABEL)}&page=${p}`;
 }
 
 function fmt(v) {
@@ -162,7 +162,7 @@ function toggleDetail(i) {
   el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 function gotoGraph(keyEnc) {
-  location.href = '/admin/graph.html?label=' + encodeURIComponent(LABEL) + '&key=' + keyEnc;
+  location.href = '/graph?label=' + encodeURIComponent(LABEL) + '&key=' + keyEnc;
 }
 function jumpPage(pages) {
   const p = Math.min(Math.max(1, parseInt($('jump').value) || 1), pages);
@@ -190,14 +190,14 @@ init();
 // 当前用户：显示用户名与退出登录；未登录跳登录页（401 由 api() 统一处理）
 (async function initUser() {
   let me = null;
-  try { me = await fetch('/api/auth/me').then(r => r.json()).then(j => j.data); } catch (e) {}
-  if (!me) { location.href = '/admin/login'; return; }
+  try { me = await fetch('/api/session').then(r => r.json()).then(j => j.data); } catch (e) {}
+  if (!me) { location.href = '/login'; return; }
   $('user-name').textContent = me.username + (me.role === 'ADMIN' ? ' · 管理员' : '');
   $('user-box').style.display = '';
 })();
 $('btn-logout').onclick = async () => {
-  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-  location.href = '/admin/login';
+  try { await fetch('/api/session', { method: 'DELETE' }); } catch (e) {}
+  location.href = '/login';
 };
 </script>
 </body>

@@ -91,8 +91,8 @@ input[type=file] { padding: 5px; border: 1px solid #d1d5db; border-radius: 5px; 
     <div class="tab admin-tab" data-panel="data" style="display:none">图数据管理</div>
     <div class="tab" data-panel="files">知识库</div>
     <div class="tab admin-tab" data-panel="backup" style="display:none">备份恢复</div>
-    <a class="tab" href="/admin/chat" style="text-decoration:none;">AI 问答</a>
-    <a class="tab admin-tab" href="/admin/users" style="display:none;text-decoration:none;">用户管理</a>
+    <a class="tab" href="/chat" style="text-decoration:none;">AI 问答</a>
+    <a class="tab admin-tab" href="/users" style="display:none;text-decoration:none;">用户管理</a>
   </div>
   <div class="spacer"></div>
   <div class="user-box" id="user-box" style="display:none">
@@ -257,7 +257,7 @@ async function api(method, url, body) {
   const opt = { method, headers: { 'Content-Type': 'application/json' } };
   if (body !== undefined) opt.body = JSON.stringify(body);
   const res = await fetch(url, opt);
-  if (res.status === 401) { location.href = '/admin/login'; throw new Error('未登录或会话已过期'); }
+  if (res.status === 401) { location.href = '/login'; throw new Error('未登录或会话已过期'); }
   const json = await res.json();
   if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
   return json.data;
@@ -295,7 +295,7 @@ async function loadOverview() {
     stats.nodes.map(n => {
       const c = schema.classes.find(c => c.name === n.label);
       return [code(n.label), c ? c.cnName : '-', c ? badge(c.layer) : '-',
-        `<a class="cnt-link" href="/admin/instances.html?label=${encodeURIComponent(n.label)}">${n.count}</a>`];
+        `<a class="cnt-link" href="/instances?label=${encodeURIComponent(n.label)}">${n.count}</a>`];
     }));
   const relRows = stats.relationships.map(r => {
     const d = schema.relations.find(x => x.name === r.type);
@@ -553,7 +553,7 @@ function nodeLoc() {
 function queryNode() {
   const { label, key } = nodeLoc();
   if (!key) return showMsg('请输入键值', false);
-  api('GET', `/api/graph/node/${encodeURIComponent(label)}/${encodeURIComponent(key)}`)
+  api('GET', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}`)
     .then(d => {
       const rows = d.rows || [];
       if (!rows.length) return showMsg('节点不存在', false);
@@ -607,15 +607,15 @@ function relBody() {
 }
 
 function createRel() {
-  doAction(async () => api('POST', '/api/graph/rels', relBody()));
+  doAction(async () => api('POST', '/api/graph/relations', relBody()));
 }
 function updateRel() {
-  doAction(async () => api('PUT', '/api/graph/rels', relBody()));
+  doAction(async () => api('PUT', '/api/graph/relations', relBody()));
 }
 function deleteRel() {
   if (!confirm('确认删除该关系？')) return;
   const b = relBody();
-  doAction(async () => api('DELETE', '/api/graph/rels', b));
+  doAction(async () => api('DELETE', '/api/graph/relations', b));
 }
 
 // ---------------- 文件管理 ----------------
@@ -682,7 +682,7 @@ let bkTaskId = null;
 
 async function startBackup() {
   try {
-    const d = await api('POST', '/api/backup');
+    const d = await api('POST', '/api/backups');
     bkTaskId = d.taskId;
   } catch (e) { return showMsg('启动失败：' + e.message, false); }
   $('bk-btn').disabled = true;
@@ -693,7 +693,7 @@ async function startBackup() {
 }
 
 function pollBackup() {
-  api('GET', '/api/backup/progress/' + encodeURIComponent(bkTaskId)).then(p => {
+  api('GET', '/api/backups/tasks/' + encodeURIComponent(bkTaskId)).then(p => {
     $('bk-bar').style.width = p.percent + '%';
     $('bk-detail').textContent = p.detail + '（' + p.percent + '%）';
     if (p.status === 'running') { setTimeout(pollBackup, 800); return; }
@@ -712,12 +712,12 @@ function pollBackup() {
 }
 
 async function loadBackups() {
-  const d = await api('GET', '/api/backup');
+  const d = await api('GET', '/api/backups');
   $('bk-list').innerHTML = d.backups.length ? table(
     ['备份文件', '时间', '大小', '节点', '关系', '文件数', 'schema版本', '操作'],
     d.backups.map(b => [
       code(b.name), esc(b.time), fmtSize(b.size), b.nodeCount, b.relCount, b.fileCount, 'v' + b.schemaVersion,
-      `<a class="btn sm" href="/api/backup/${encodeURIComponent(b.name)}/download">下载</a>` +
+      `<a class="btn sm" href="/api/backups/${encodeURIComponent(b.name)}/file">下载</a>` +
       `<button class="btn sm danger" onclick="deleteBackup('${encodeURIComponent(b.name)}')">删除</button>`
     ])) : '<div class="muted">暂无备份</div>';
 }
@@ -726,7 +726,7 @@ async function deleteBackup(encName) {
   const name = decodeURIComponent(encName);
   if (!confirm('确认删除备份「' + name + '」？删除后不可恢复')) return;
   doAction(async () => {
-    const d = await api('DELETE', '/api/backup/' + encodeURIComponent(name));
+    const d = await api('DELETE', '/api/backups/' + encodeURIComponent(name));
     loadBackups().catch(() => {});
     return d;
   });
@@ -735,7 +735,7 @@ async function deleteBackup(encName) {
 // ---------------- init ----------------
 // 标题来自启动配置（app.title），获取失败时保留页面默认文案
 api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent = d.title; }).catch(() => {});
-// 支持 hash 直达 tab（如 /admin#schema），供其他页面菜单跳转
+// 支持 hash 直达 tab（如 /#schema），供其他页面菜单跳转
 (function () {
   const h = location.hash.slice(1);
   if (h && $('panel-' + h)) {
@@ -748,14 +748,14 @@ api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent 
 // 当前用户：普通用户隐藏管理菜单与上传入口，管理员显示全部；未登录跳登录页
 (async function initUser() {
   let me = null;
-  try { me = await fetch('/api/auth/me').then(r => r.json()).then(j => j.data); } catch (e) {}
-  if (!me) { location.href = '/admin/login'; return; }
+  try { me = await fetch('/api/session').then(r => r.json()).then(j => j.data); } catch (e) {}
+  if (!me) { location.href = '/login'; return; }
   if (me.role === 'ADMIN') {
     document.querySelectorAll('.admin-tab').forEach(el => el.style.display = '');
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
   } else {
     document.querySelectorAll('.admin-tab').forEach(el => el.remove());
-    // 若 hash 直达了管理面板（如 /admin#schema），普通用户回到概览
+    // 若 hash 直达了管理面板（如 /#schema），普通用户回到概览
     const cur = document.querySelector('.panel.active');
     if (cur && !['panel-overview', 'panel-files'].includes(cur.id)) {
       document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
@@ -768,8 +768,8 @@ api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent 
   $('user-box').style.display = '';
 })();
 $('btn-logout').onclick = async () => {
-  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-  location.href = '/admin/login';
+  try { await fetch('/api/session', { method: 'DELETE' }); } catch (e) {}
+  location.href = '/login';
 };
 loadOverview().catch(e => showMsg('加载失败：' + e.message, false));
 loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));

@@ -70,13 +70,13 @@ code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12p
     <h1 id="app-title">管理控制台</h1>
   </div>
   <div class="tabs">
-    <a class="tab" href="/admin">概览</a>
-    <a class="tab" href="/admin#schema">概念层管理</a>
-    <a class="tab" href="/admin#data">图数据管理</a>
-    <a class="tab" href="/admin#files">知识库</a>
-    <a class="tab" href="/admin#backup">备份恢复</a>
-    <a class="tab" href="/admin/chat">AI 问答</a>
-    <a class="tab active" href="/admin/users">用户管理</a>
+    <a class="tab" href="/">概览</a>
+    <a class="tab" href="/#schema">概念层管理</a>
+    <a class="tab" href="/#data">图数据管理</a>
+    <a class="tab" href="/#files">知识库</a>
+    <a class="tab" href="/#backup">备份恢复</a>
+    <a class="tab" href="/chat">AI 问答</a>
+    <a class="tab active" href="/users">用户管理</a>
   </div>
   <div class="spacer"></div>
   <div class="user-box" id="user-box" style="display:none">
@@ -129,7 +129,7 @@ async function api(method, url, body) {
   const opt = { method, headers: { 'Content-Type': 'application/json' } };
   if (body !== undefined) opt.body = JSON.stringify(body);
   const res = await fetch(url, opt);
-  if (res.status === 401) { location.href = '/admin/login'; throw new Error('未登录'); }
+  if (res.status === 401) { location.href = '/login'; throw new Error('未登录'); }
   const json = await res.json();
   if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
   return json.data;
@@ -185,20 +185,20 @@ function doAction(fn) {
 
 function approveUser(userId) {
   if (!confirm('确认通过用户「' + userId + '」的审核？通过后即可登录')) return;
-  doAction(() => api('POST', '/api/users/' + encodeURIComponent(userId) + '/approve'));
+  doAction(() => api('PATCH', '/api/users/' + encodeURIComponent(userId), { status: 'APPROVED' }));
 }
 
 function toggleUser(userId, enabled) {
   const tip = enabled ? '启用' : '禁用';
   if (!confirm('确认' + tip + '用户「' + userId + '」？' + (enabled ? '' : '禁用后该用户将无法登录'))) return;
-  doAction(() => api('POST', '/api/users/' + encodeURIComponent(userId) + '/status', { enabled }));
+  doAction(() => api('PATCH', '/api/users/' + encodeURIComponent(userId), { status: enabled ? 'ACTIVE' : 'DISABLED' }));
 }
 
 function resetPassword(userId) {
   const pwd = prompt('为用户「' + userId + '」设置新密码（至少 6 位）：');
   if (pwd === null) return;
   if (pwd.length < 6) return showMsg('密码至少 6 位', false);
-  doAction(() => api('POST', '/api/users/' + encodeURIComponent(userId) + '/reset-password', { newPassword: pwd }));
+  doAction(() => api('POST', '/api/users/' + encodeURIComponent(userId) + '/password', { newPassword: pwd }));
 }
 
 function deleteUser(userId) {
@@ -209,22 +209,22 @@ function deleteUser(userId) {
 function changeMyPassword() {
   const oldPwd = $('pwd-old').value, newPwd = $('pwd-new').value;
   if (newPwd.length < 6) return showMsg('新密码至少 6 位', false);
-  api('POST', '/api/auth/password', { oldPassword: oldPwd, newPassword: newPwd })
+  api('PUT', '/api/users/me/password', { oldPassword: oldPwd, newPassword: newPwd })
     .then(() => { showMsg('密码修改成功', true); $('pwd-old').value = ''; $('pwd-new').value = ''; })
     .catch(e => showMsg('失败：' + e.message, false));
 }
 
 $('filter-status').onchange = () => loadUsers().catch(e => showMsg('加载失败：' + e.message, false));
 $('btn-logout').onclick = async () => {
-  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-  location.href = '/admin/login';
+  try { await fetch('/api/session', { method: 'DELETE' }); } catch (e) {}
+  location.href = '/login';
 };
 
 // init：标题 + 当前用户（拦截器已保证仅 ADMIN 可达此页）
 api('GET', '/api/app').then(d => { if (d && d.title) $('app-title').textContent = d.title; }).catch(() => {});
 (async function initUser() {
   try {
-    me = await api('GET', '/api/auth/me');
+    me = await api('GET', '/api/session');
     if (me) {
       $('user-name').textContent = me.username + ' · 管理员';
       $('user-box').style.display = '';

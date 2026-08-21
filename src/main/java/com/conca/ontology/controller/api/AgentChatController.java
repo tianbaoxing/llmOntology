@@ -22,7 +22,7 @@ import jakarta.validation.Valid;
 
 /**
  * AI 问答入口（SSE 流式）+ 历史会话管理：
- * POST /api/agent/chat {sessionId?, message} → text/event-stream。
+ * POST /api/agent/sessions/{id}/messages {message} → text/event-stream（在会话下创建消息）。
  * 事件序列：session → thinking / tool → answer → done 或 error。
  * GET  /api/agent/sessions                 → 会话列表（updateTime 倒序）
  * GET  /api/agent/sessions/{id}/messages   → 单会话消息
@@ -42,9 +42,9 @@ public class AgentChatController {
         this.agentSessionService = agentSessionService;
     }
 
-    @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chat(@Valid @RequestBody AgentChatRequest request) {
-        return agentChatService.chat(request.sessionId(), request.message());
+    @PostMapping(value = "/sessions/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter chat(@PathVariable String id, @Valid @RequestBody AgentChatRequest request) {
+        return agentChatService.chat(id, request.message());
     }
 
     @GetMapping("/sessions")

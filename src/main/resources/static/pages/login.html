@@ -116,16 +116,16 @@ $('btn-init').onclick = async () => {
   if (p1.length < 6) return showMsg('密码至少 6 位', false);
   if (p1 !== p2) return showMsg('两次输入的密码不一致', false);
   try {
-    await api('POST', '/api/auth/init', { password: p1 });
-    location.href = '/admin';
+    await api('POST', '/api/setup', { password: p1 });
+    location.href = '/';
   } catch (e) { showMsg(e.message, false); }
 };
 
 // 登录
 $('btn-login').onclick = async () => {
   try {
-    await api('POST', '/api/auth/login', { username: $('login-user').value.trim(), password: $('login-pwd').value });
-    location.href = '/admin';
+    await api('POST', '/api/session', { username: $('login-user').value.trim(), password: $('login-pwd').value });
+    location.href = '/';
   } catch (e) { showMsg(e.message, false); }
 };
 
@@ -134,7 +134,7 @@ $('btn-register').onclick = async () => {
   const p1 = $('reg-pwd').value, p2 = $('reg-pwd2').value;
   if (p1 !== p2) return showMsg('两次输入的密码不一致', false);
   try {
-    const d = await api('POST', '/api/auth/register', { username: $('reg-user').value.trim(), password: p1 });
+    const d = await api('POST', '/api/users', { username: $('reg-user').value.trim(), password: p1 });
     showMode('login');
     showMsg('注册成功（' + d.username + '），请等待管理员审核后登录', true);
   } catch (e) { showMsg(e.message, false); }
@@ -147,11 +147,11 @@ $('to-login').onclick = () => showMode('login');
 (async function init() {
   try { const d = await api('GET', '/api/app'); if (d && d.title) $('app-title').textContent = d.title; } catch (e) {}
   try {
-    const me = await api('GET', '/api/auth/me');
-    if (me) { location.replace('/admin'); return; }
+    const me = await api('GET', '/api/session');
+    if (me) { location.replace('/'); return; }
   } catch (e) {}
   try {
-    const st = await api('GET', '/api/auth/status');
+    const st = await api('GET', '/api/app');
     showMode(st.initialized ? 'login' : 'init');
   } catch (e) {
     showMode('login');

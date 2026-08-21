@@ -19,7 +19,7 @@ import com.conca.ontology.dto.NodeUpdateRequest;
 import com.conca.ontology.dto.RelRequest;
 import com.conca.ontology.service.GraphWriteService;
 
-/** admin 入口：图数据单条 CRUD（LLM 专用批量写入已迁 /api/llm/graph） */
+/** 管理端入口：图数据单条 CRUD（LLM 专用批量写入已迁 /api/llm/graph） */
 @RestController
 @RequestMapping("/api/graph")
 public class GraphImportController {
@@ -51,19 +51,19 @@ public class GraphImportController {
     }
 
     /** 创建关系（MERGE 幂等，两端节点须存在，签名须匹配 schema 声明） */
-    @PostMapping("/rels")
+    @PostMapping("/relations")
     public ApiResponse<Map<String, Object>> createRel(@Valid @RequestBody RelRequest req) {
         return ApiResponse.ok(writeService.createRel(req));
     }
 
     /** 更新关系属性（type + 两端键定位） */
-    @PutMapping("/rels")
+    @PutMapping("/relations")
     public ApiResponse<Map<String, Object>> updateRel(@Valid @RequestBody RelRequest req) {
         return ApiResponse.ok(writeService.updateRel(req));
     }
 
     /** 删除关系（type + 两端键定位） */
-    @DeleteMapping("/rels")
+    @DeleteMapping("/relations")
     public ApiResponse<Map<String, Object>> deleteRel(@Valid @RequestBody RelRequest req) {
         return ApiResponse.ok(writeService.deleteRel(req));
     }

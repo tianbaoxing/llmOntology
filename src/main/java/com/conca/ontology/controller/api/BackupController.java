@@ -19,12 +19,12 @@ import com.conca.ontology.dto.ApiResponse;
 import com.conca.ontology.service.BackupService;
 
 /**
- * 管理端入口：备份管理。
- * 备份异步执行（POST 返回 taskId），前端轮询 progress 展示进度条；
- * 列表 = 扫描备份目录文件名解析；下载/删除按文件名（服务端正则校验）。
+ * 管理端入口：备份资源。
+ * 备份异步执行（POST 返回 taskId，前端轮询 tasks/{taskId} 展示进度条）；
+ * 列表 = 扫描备份目录文件名解析；file/删除按文件名（服务端正则校验）。
  */
 @RestController
-@RequestMapping("/api/backup")
+@RequestMapping("/api/backups")
 public class BackupController {
 
     private final BackupService backupService;
@@ -39,8 +39,8 @@ public class BackupController {
         return ApiResponse.ok(backupService.startBackup());
     }
 
-    /** 轮询备份进度 */
-    @GetMapping("/progress/{taskId}")
+    /** 轮询备份任务进度 */
+    @GetMapping("/tasks/{taskId}")
     public ApiResponse<Map<String, Object>> progress(@PathVariable String taskId) {
         return ApiResponse.ok(backupService.progress(taskId));
     }
@@ -52,7 +52,7 @@ public class BackupController {
     }
 
     /** 下载备份 zip */
-    @GetMapping("/{name}/download")
+    @GetMapping("/{name}/file")
     public ResponseEntity<Resource> download(@PathVariable String name) {
         Path path = backupService.requireBackup(name);
         return ResponseEntity.ok()

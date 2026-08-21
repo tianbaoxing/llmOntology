@@ -70,7 +70,7 @@ tr.grp.hl td { background: #fef3c7; }
     </svg>
     <h1 id="app-title">图谱管理控制台</h1>
   </div>
-  <a class="back-link" href="/admin">← 返回控制台</a>
+  <a class="back-link" href="/">← 返回控制台</a>
   <a class="back-link" id="back-list" href="#">← 返回实例列表</a>
   <div class="spacer"></div>
   <div class="user-box" id="user-box" style="display:none">
@@ -142,7 +142,7 @@ async function loadNode(label, key, push) {
     const ck = label + '|' + key;
     let st = nodeCache.get(ck);
     if (!st) {
-      const data = await api('GET', `/api/graph/neighbors?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}&depth=1&skip=0&limit=${PAGE}`);
+      const data = await api('GET', `/api/graph/nodes/${encodeURIComponent(label)}/${encodeURIComponent(key)}/neighbors?depth=1&skip=0&limit=${PAGE}`);
       st = { label, key, start: data.start, edges: data.edges || [], total: data.total ?? (data.edges || []).length, page: 1 };
       nodeCache.set(ck, st);
     }
@@ -154,7 +154,7 @@ async function loadNode(label, key, push) {
       if (path[i].label === label && path[i].key === key) { at = i; break; }
     }
     if (at >= 0) path = path.slice(0, at + 1); else path.push(entry);
-    if (push) history.pushState({}, '', `/admin/graph.html?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}`);
+    if (push) history.pushState({}, '', `/graph?label=${encodeURIComponent(label)}&key=${encodeURIComponent(key)}`);
     buildGraph();
     renderAll();
     runSim();
@@ -181,7 +181,7 @@ async function loadPage(p) {
   const btns = document.querySelectorAll('#loadbar .btn');
   btns.forEach(b => { b.disabled = true; });
   try {
-    const data = await api('GET', `/api/graph/neighbors?label=${encodeURIComponent(cur.label)}&key=${encodeURIComponent(cur.key)}&depth=1&skip=${(target - 1) * PAGE}&limit=${PAGE}`);
+    const data = await api('GET', `/api/graph/nodes/${encodeURIComponent(cur.label)}/${encodeURIComponent(cur.key)}/neighbors?depth=1&skip=${(target - 1) * PAGE}&limit=${PAGE}`);
     cur.edges = data.edges || [];
     if (data.total !== undefined) cur.total = data.total;
     cur.page = target;
@@ -360,7 +360,7 @@ function renderCrumb() {
       : `<a onclick="crumbGo(${i})" title="${esc(p.label)} / ${esc(p.key)}">${txt}</a>`;
   }).join('<span class="sep">→</span>');
   const bl = $('back-list');
-  bl.href = '/admin/instances.html?label=' + encodeURIComponent(G.center.label);
+  bl.href = '/instances?label=' + encodeURIComponent(G.center.label);
   bl.textContent = `← 返回${cnOf(G.center.label)}列表`;
 }
 
@@ -490,14 +490,14 @@ init();
 // 当前用户：显示用户名与退出登录；未登录跳登录页（401 由 api() 统一处理）
 (async function initUser() {
   let me = null;
-  try { me = await fetch('/api/auth/me').then(r => r.json()).then(j => j.data); } catch (e) {}
-  if (!me) { location.href = '/admin/login'; return; }
+  try { me = await fetch('/api/session').then(r => r.json()).then(j => j.data); } catch (e) {}
+  if (!me) { location.href = '/login'; return; }
   $('user-name').textContent = me.username + (me.role === 'ADMIN' ? ' · 管理员' : '');
   $('user-box').style.display = '';
 })();
 $('btn-logout').onclick = async () => {
-  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-  location.href = '/admin/login';
+  try { await fetch('/api/session', { method: 'DELETE' }); } catch (e) {}
+  location.href = '/login';
 };
 </script>
 </body>

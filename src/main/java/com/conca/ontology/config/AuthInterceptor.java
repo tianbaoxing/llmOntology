@@ -1,6 +1,7 @@
 package com.conca.ontology.config;
 
 import java.io.IOException;
+import java.util.Set;
 
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -11,35 +12,48 @@ import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * 认证拦截（Session + 角色）：
- * - 公开：/admin/login（含静态 login.html）、/api/auth/**、/api/app、/api/llm/**（LLM 专属，后续做 token 验证）
- * - /admin/** 页面（含静态资源）：未登录 302 跳登录页；/admin/users 仅 ADMIN
+ * - 公开页面：/login（含静态 /pages/login.html）
+ * - 公开接口：/api/session（登录登出/当前用户，敏感操作在 Controller 内校验）、/api/setup（初始化向导）、
+ *   /api/app、/api/llm/**（LLM 专属，后续做 token 验证）、POST /api/users（自助注册）、
+ *   PUT /api/users/me/password（自助改密，Controller 内校验会话）
+ * - 页面（/、/chat、/users、/instances、/graph、/pages/**）：未登录 302 跳登录页；/users 仅 ADMIN
  * - /api/** 其余：未登录 401 JSON；/api/users 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
  */
 public class AuthInterceptor implements HandlerInterceptor {
+
+    /** 需登录的页面路由（静态资源 /pages/** 单独按前缀判断） */
+    private static final Set<String> PAGE_PATHS = Set.of("/", "/chat", "/users", "/instances", "/graph");
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws Exception {
         String uri = request.getRequestURI();
+        String method = request.getMethod();
 
-        // 公开：登录/初始化页与其静态资源
-        if (uri.equals("/admin/login") || uri.equals("/admin/login.html")) {
+        // 公开：登录页与其静态资源
+        if (uri.equals("/login") || uri.equals("/pages/login.html")) {
             return true;
         }
-        // 公开接口：认证自身（password 等敏感操作在 Controller 内校验会话）、应用信息、LLM 专属
-        if (uri.startsWith("/api/auth/") || uri.equals("/api/app") || uri.startsWith("/api/llm/")) {
+        // 公开接口：会话自身（login/logout/me，登出幂等）、系统初始化、应用信息、LLM 专属
+        if (uri.equals("/api/session") || uri.equals("/api/setup") || uri.equals("/api/app")
+                || uri.startsWith("/api/llm/")) {
+            return true;
+        }
+        // 公开接口：自助注册与自助改密（改密在 Controller 内校验会话）
+        if (("POST".equalsIgnoreCase(method) && uri.equals("/api/users"))
+                || ("PUT".equalsIgnoreCase(method) && uri.equals("/api/users/me/password"))) {
             return true;
         }
 
         SessionUser user = SessionUser.of(request.getSession(false));
 
-        // 管理页面（含静态资源 /admin/*.html）
-        if (uri.startsWith("/admin")) {
+        // 页面（含静态资源 /pages/*.html）
+        if (PAGE_PATHS.contains(uri) || uri.startsWith("/pages/")) {
             if (user == null) {
-                response.sendRedirect("/admin/login");
+                response.sendRedirect("/login");
                 return false;
             }
-            if ((uri.equals("/admin/users") || uri.equals("/admin/users.html")) && !user.isAdmin()) {
+            if ((uri.equals("/users") || uri.equals("/pages/users.html")) && !user.isAdmin()) {
                 response.sendError(403);
                 return false;
             }
@@ -53,7 +67,7 @@ public class AuthInterceptor implements HandlerInterceptor {
                 return false;
             }
             boolean adminOnly = uri.startsWith("/api/users");
-            if (!adminOnly && !isReadMethod(request.getMethod()) && !uri.startsWith("/api/agent")) {
+            if (!adminOnly && !isReadMethod(method) && !uri.startsWith("/api/agent")) {
                 adminOnly = true;
             }
             if (adminOnly && !user.isAdmin()) {

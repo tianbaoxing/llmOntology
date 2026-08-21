@@ -93,13 +93,13 @@ textarea:focus { outline: none; border-color: #2563eb; }
     <h1 id="app-title">管理控制台</h1>
   </div>
   <div class="tabs">
-    <a class="tab" href="/admin#overview">概览</a>
-    <a class="tab admin-tab" href="/admin#schema" style="display:none">概念层管理</a>
-    <a class="tab admin-tab" href="/admin#data" style="display:none">图数据管理</a>
-    <a class="tab" href="/admin#files">知识库</a>
-    <a class="tab admin-tab" href="/admin#backup" style="display:none">备份恢复</a>
-    <a class="tab active" href="/admin/chat">AI 问答</a>
-    <a class="tab admin-tab" href="/admin/users" style="display:none">用户管理</a>
+    <a class="tab" href="/#overview">概览</a>
+    <a class="tab admin-tab" href="/#schema" style="display:none">概念层管理</a>
+    <a class="tab admin-tab" href="/#data" style="display:none">图数据管理</a>
+    <a class="tab" href="/#files">知识库</a>
+    <a class="tab admin-tab" href="/#backup" style="display:none">备份恢复</a>
+    <a class="tab active" href="/chat">AI 问答</a>
+    <a class="tab admin-tab" href="/users" style="display:none">用户管理</a>
   </div>
   <div class="spacer"></div>
   <div class="user-box" id="user-box" style="display:none">
@@ -174,8 +174,8 @@ fetch('/api/app').then(r => r.json()).then(j => {
 // 当前用户：普通用户隐藏管理菜单；未登录跳登录页
 (async function initUser() {
   let me = null;
-  try { me = await fetch('/api/auth/me').then(r => r.json()).then(j => j.data); } catch (e) {}
-  if (!me) { location.href = '/admin/login'; return; }
+  try { me = await fetch('/api/session').then(r => r.json()).then(j => j.data); } catch (e) {}
+  if (!me) { location.href = '/login'; return; }
   if (me.role === 'ADMIN') {
     document.querySelectorAll('.admin-tab').forEach(el => el.style.display = '');
   } else {
@@ -185,8 +185,8 @@ fetch('/api/app').then(r => r.json()).then(j => {
   $('user-box').style.display = '';
 })();
 $('btn-logout').onclick = async () => {
-  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-  location.href = '/admin/login';
+  try { await fetch('/api/session', { method: 'DELETE' }); } catch (e) {}
+  location.href = '/login';
 };
 
 function emptyTipHtml(firstLine) {
@@ -383,16 +383,16 @@ async function send() {
   aborter = new AbortController();
 
   try {
-    const res = await fetch('/api/agent/chat', {
+    const res = await fetch('/api/agent/sessions/' + encodeURIComponent(sessionId) + '/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: sessionId, message: text }),
+      body: JSON.stringify({ message: text }),
       signal: aborter.signal
     });
     if (!res.ok || !res.body) {
       let msg = 'HTTP ' + res.status;
       try { const j = await res.json(); msg = j.message || j.msg || msg; } catch (e) {}
-      if (res.status === 401) { location.href = '/admin/login'; return; }
+      if (res.status === 401) { location.href = '/login'; return; }
       ui.setError(msg);
       return;
     }
@@ -440,7 +440,7 @@ let sessions = [];
 async function loadSessions() {
   try {
     const res = await fetch('/api/agent/sessions');
-    if (res.status === 401) { location.href = '/admin/login'; return; }
+    if (res.status === 401) { location.href = '/login'; return; }
     const j = await res.json();
     sessions = (j && j.data && j.data.sessions) || [];
   } catch (e) {
