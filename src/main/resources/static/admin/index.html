@@ -83,10 +83,9 @@ input[type=file] { padding: 5px; border: 1px solid #d1d5db; border-radius: 5px; 
   </div>
   <div class="tabs">
     <div class="tab active" data-panel="overview">概览</div>
-    <div class="tab" data-panel="cgraph">概念图</div>
     <div class="tab" data-panel="schema">概念层管理</div>
     <div class="tab" data-panel="data">图数据管理</div>
-    <div class="tab" data-panel="files">文件管理</div>
+    <div class="tab" data-panel="files">知识库</div>
     <div class="tab" data-panel="backup">备份恢复</div>
     <a class="tab" href="/admin/chat" style="text-decoration:none;">AI 问答</a>
   </div>
@@ -97,12 +96,6 @@ input[type=file] { padding: 5px; border: 1px solid #d1d5db; border-radius: 5px; 
   <!-- 概览 -->
   <div id="panel-overview" class="panel active">
     <div class="stats-row" id="ov-stats"></div>
-    <div class="card"><h2>节点类型分布</h2><div id="ov-nodes"></div></div>
-    <div class="card"><h2>关系类型分布</h2><div id="ov-rels"></div></div>
-  </div>
-
-  <!-- 概念图 -->
-  <div id="panel-cgraph" class="panel">
     <div class="card">
       <h2>概念关系图</h2>
       <div class="muted" style="margin-bottom:10px">节点 = 类（大小按实例数缩放，颜色区分层），箭头连线 = 关系声明（方向 from → to）；同类间多条关系以弧线区分；节点可拖拽，悬停查看详情</div>
@@ -114,6 +107,8 @@ input[type=file] { padding: 5px; border: 1px solid #d1d5db; border-radius: 5px; 
         </div>
       </div>
     </div>
+    <div class="card"><h2>节点类型分布</h2><div id="ov-nodes"></div></div>
+    <div class="card"><h2>关系类型分布</h2><div id="ov-rels"></div></div>
   </div>
 
   <!-- 概念层管理 -->
