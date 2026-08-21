@@ -233,10 +233,11 @@ function buildGraph() {
   G.nodes = [...map.values()];
   G.center = center;
   G.hl = null;
-  // 邻居越多节点越小，避免大图拥挤
+  // 邻居越多节点越小，避免大图拥挤；节点很少时整体放大（k 同时作用于半径/布局/字号/力参数）
   const n = G.nodes.length;
   const nr = n <= 40 ? 16 : n <= 120 ? 12 : n <= 300 ? 9 : 7;
-  G.nodes.forEach(x => { x.r = x === center ? Math.min(30, nr + 12) : nr; });
+  const k = G.k = Math.max(1, Math.min(2.2, Math.sqrt(40 / n)));
+  G.nodes.forEach(x => { x.r = x === center ? Math.min(56, Math.min(30, nr + 12) * k) : nr * k; });
   // 位置：旧节点原位保留；新节点（含全新中心）从画布中心黄金角螺旋展开
   let i = 0;
   G.nodes.forEach(x => {
@@ -244,7 +245,7 @@ function buildGraph() {
     if (p) { x.x = p.x; x.y = p.y; return; }
     if (x === center) { x.x = W / 2; x.y = H / 2; return; }
     const ang = i * 2.399963;
-    const rad = Math.min(46 + 13 * Math.sqrt(i), 250);
+    const rad = Math.min((46 + 13 * Math.sqrt(i)) * k, 260);
     x.x = W / 2 + rad * Math.cos(ang) + (Math.random() - .5) * 8;
     x.y = H / 2 + rad * Math.sin(ang) + (Math.random() - .5) * 8;
     i++;
@@ -265,7 +266,7 @@ function nodeActive(n) {
 
 function renderGraph() {
   if (!G.center) { $('g-svg').innerHTML = ''; return; }
-  const n = G.nodes.length;
+  const n = G.nodes.length, k = G.k || 1;
   const showInText = n <= 40;                 // 少量节点：名字画进圆内
   const showBelowText = n > 40 && n <= 150;   // 中等：名字画在节点下方
   const hlCount = G.hl ? G.edges.filter(edgeActive).length : 0;
@@ -295,12 +296,13 @@ function renderGraph() {
     s += `<g class="gn" data-eid="${esc(x.eid)}" opacity="${act ? 1 : 0.15}" style="cursor:pointer"><title>${esc(title)}</title>` +
       `<circle cx="${x.x.toFixed(1)}" cy="${x.y.toFixed(1)}" r="${x.r.toFixed(1)}" fill="${fill}" fill-opacity="0.92" stroke="#fff" stroke-width="${isC ? 3 : 1.5}"/>`;
     if (showInText) {
-      s += `<text x="${x.x.toFixed(1)}" y="${(x.y + 4).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="11" font-weight="600" pointer-events="none">${esc(trunc(x.name, 3))}</text>`;
+      const fs = 11 * k, chars = Math.max(1, Math.floor((2 * x.r) / fs) + 1);
+      s += `<text x="${x.x.toFixed(1)}" y="${(x.y + fs * 0.364).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="${fs.toFixed(0)}" font-weight="600" pointer-events="none">${esc(trunc(x.name, chars))}</text>`;
     } else if (showBelowText) {
       s += `<text x="${x.x.toFixed(1)}" y="${(x.y + x.r + 12).toFixed(1)}" text-anchor="middle" fill="#475569" font-size="10" pointer-events="none">${esc(trunc(x.name, 9))}</text>`;
     }
     if (isC) {
-      s += `<text x="${x.x.toFixed(1)}" y="${(x.y - x.r - 8).toFixed(1)}" text-anchor="middle" fill="#b45309" font-size="12" font-weight="700" pointer-events="none">中心 · ${esc(trunc(x.name, 8))}</text>`;
+      s += `<text x="${x.x.toFixed(1)}" y="${(x.y - x.r - (2 + 6 * k)).toFixed(1)}" text-anchor="middle" fill="#b45309" font-size="${(12 * k).toFixed(0)}" font-weight="700" pointer-events="none">中心 · ${esc(trunc(x.name, 8))}</text>`;
     }
     s += '</g>';
   });
@@ -498,17 +500,17 @@ function crumbGo(i) {
 
 // ---------------- 力导向模拟 ----------------
 function step() {
-  const nodes = G.nodes, cut = 440 * 440;
+  const nodes = G.nodes, cut = 440 * 440, kk = (G.k || 1) * (G.k || 1);
   for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
     const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
     const d2 = dx * dx + dy * dy;
     if (d2 > cut || d2 === 0) continue;
-    const d = Math.sqrt(d2), f = 9000 / d2;
+    const d = Math.sqrt(d2), f = 9000 * kk / d2;
     const fx = dx / d * f, fy = dy / d * f;
     nodes[i].vx -= fx; nodes[i].vy -= fy;
     nodes[j].vx += fx; nodes[j].vy += fy;
   }
-  const rest = G.nodes.length > 200 ? 130 : 170;
+  const rest = (G.nodes.length > 200 ? 130 : 170) * (G.k || 1);
   G.edges.forEach(e => {
     const a = e.s, b = e.t;
     const dx = b.x - a.x, dy = b.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
