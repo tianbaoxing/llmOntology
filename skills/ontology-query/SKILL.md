@@ -13,6 +13,20 @@ description: "Queries ontology concepts and graph evidence, then answers with ex
 
 默认服务地址：`http://localhost:9876`。如用户提供了别的地址，优先使用用户给定地址；也可用环境变量 `ONTOLOGY_BASE_URL` 覆盖。
 
+## 环境与工具约定（Windows）
+
+运行环境是 Windows 10，shell 为 cmd.exe。本文所有 HTTP 接口都通过 `execute` 工具执行 curl 命令访问。
+
+`execute` 使用规则：
+
+1. **禁止传 `working_directory` 参数**：当前框架版本在 Windows 上会把它拼成 `cd '路径' &&`（单引号），cmd.exe 不识别，必然失败。需要指定目录时，把 `cd /d "C:\实际路径" && ` 直接写在 `command` 开头。
+2. 只用 Windows/cmd 语法：禁用 `head`、`tail`、`cat`、`ls`、`grep`、`python3` 等 Unix 习惯；对应能力改用 `type`、`dir`、`findstr`、`python`。
+3. URL 与 JSON 参数一律用双引号包裹。POST JSON 示例：`curl -s -X POST "http://localhost:9876/api/llm/ontology-query/query" -H "Content-Type: application/json" -d "{\"question\":\"...\",\"cypher\":\"...\",\"params\":{}}"`
+4. 输出超长会由框架自动截断，不要接 `| head`。
+5. 熔断：`execute` 连续 2 次失败（尤其 stderr 是乱码）时，停止换命令盲试；改用 `read_file`/`grep_files`/`list_files` 完成任务，仍不行就如实向用户报告环境故障。
+
+文件类工具的实际名称：`read_file`（支持 `offset`/`limit` 分页）、`grep_files`（字面关键词搜索）、`glob_files`、`list_files`。不要调用 `Read`、`glob` 等不存在的工具名。
+
 严格按下面顺序执行，不要跳步。
 
 ## 规则
@@ -119,8 +133,10 @@ description: "Queries ontology concepts and graph evidence, then answers with ex
 然后从文件中搜索：
 
 1. 按 `description`、`name` 与用户问题的相关度挑选文件；列表为空则说明无文件可查，不要凭空补造。
-2. 读取文件内容：txt/csv 直接用 Read 工具读 `path`；pdf 先调用 pdf skill 再读。
-3. 在内容中搜索关键词，命中后引用文件名与具体片段作为证据；csv 可按行列定位。
+2. 先用 `grep_files` 在候选文件中搜索关键词：`pattern` 填关键词，`path` 用文件列表返回的绝对路径；大文件禁止整读。
+3. 命中后用 `read_file` 读取命中行附近的内容（`offset`/`limit` 分页定位），csv 按行列引用。
+4. 引用时注明文件名与具体片段作为证据。
+5. pdf 当前运行时没有解析工具：如实告知用户暂不支持读取 pdf，不要伪装成已读取。
 
 只把文件当作兜底证据，不要把它伪装成图谱查询结果。
 
