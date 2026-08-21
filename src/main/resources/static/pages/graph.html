@@ -314,8 +314,12 @@ function renderInfo() {
   const items = Object.entries(n.props).map(([k, v]) => {
     const def = propDefs.find(p => p.name === k);
     const cn = def ? def.cnName : k;
-    const disp = typeof v === 'string' ? trunc(clean(v), 140) : (v ?? '-');
-    return `<div class="detail-item" title="${esc(String(v ?? ''))}"><b>${esc(cn)}</b>${esc(disp)}</div>`;
+    const sv = typeof v === 'string' ? clean(v) : '';
+    const disp = typeof v === 'string' ? trunc(sv, 140) : (v ?? '-');
+    const valHtml = /^https?:\/\//i.test(sv)
+      ? `<a href="${esc(sv)}" target="_blank" rel="noopener" class="prop-link">${esc(disp)}</a>`
+      : esc(disp);
+    return `<div class="detail-item" title="${esc(String(v ?? ''))}"><b>${esc(cn)}</b>${valHtml}</div>`;
   }).join('');
   $('info').innerHTML =
     `<div class="detail-item"><b>类型</b>${esc(n.label)}（${esc(cnOf(n.label))}）${cls ? badge(cls.layer) : ''}</div>` +

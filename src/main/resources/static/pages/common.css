@@ -48,6 +48,8 @@ textarea { width: 100%; min-height: 90px; padding: 8px; border: 1px solid #d1d5d
 @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
 .detail-item { margin-bottom: 10px; }
 .detail-item b { color: #6b7280; font-weight: 600; display: inline-block; width: 90px; }
+.prop-link { color: #2563eb; text-decoration: none; word-break: break-all; }
+.prop-link:hover { text-decoration: underline; }
 .muted { color: #9ca3af; font-size: 12px; }
 code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
 .cnt-link { color: #2563eb; font-weight: 600; text-decoration: none; }
