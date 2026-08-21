@@ -126,8 +126,8 @@ async function init() {
   }
 }
 
-// header 渲染（标题带「 · 实例列表」后缀）+ 登录校验由 common.js 提供
-CF.renderHeader({ titleSuffix: ' · 实例列表' });
+// header 渲染 + 登录校验由 common.js 提供
+CF.renderHeader();
 CF.initUser();
 init();
 </script>

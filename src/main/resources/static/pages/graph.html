@@ -572,7 +572,7 @@ document.addEventListener('mouseup', () => {
 
 // ---------------- init ----------------
 // header 渲染 + 登录校验由 common.js 提供；「返回列表」链接在标题行右侧，href/文案由 renderCrumb 按当前中心类型更新
-CF.renderHeader({ titleSuffix: ' · 实例图谱' });
+CF.renderHeader();
 CF.initUser();
 async function init() {
   try {
