@@ -10,10 +10,10 @@ import org.neo4j.driver.Session;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.dto.BatchNodesResult;
-import com.conca.ontology.dto.BatchRelsResult;
-import com.conca.ontology.dto.NodeBatchRequest;
-import com.conca.ontology.dto.RelBatchRequest;
+import com.conca.ontology.dto.result.BatchNodesResult;
+import com.conca.ontology.dto.result.BatchRelsResult;
+import com.conca.ontology.dto.request.NodeBatchRequest;
+import com.conca.ontology.dto.request.RelBatchRequest;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.ClassDef;
 import com.conca.ontology.model.GraphSchema;

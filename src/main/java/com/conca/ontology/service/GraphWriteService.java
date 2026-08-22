@@ -7,13 +7,13 @@ import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.dto.NodeCreateResult;
-import com.conca.ontology.dto.NodeDeleteResult;
-import com.conca.ontology.dto.NodeUpdateResult;
-import com.conca.ontology.dto.RelCreateResult;
-import com.conca.ontology.dto.RelDeleteResult;
-import com.conca.ontology.dto.RelRequest;
-import com.conca.ontology.dto.RelUpdateResult;
+import com.conca.ontology.dto.result.NodeCreateResult;
+import com.conca.ontology.dto.result.NodeDeleteResult;
+import com.conca.ontology.dto.result.NodeUpdateResult;
+import com.conca.ontology.dto.result.RelCreateResult;
+import com.conca.ontology.dto.result.RelDeleteResult;
+import com.conca.ontology.dto.request.RelRequest;
+import com.conca.ontology.dto.result.RelUpdateResult;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.GraphSchema;
 

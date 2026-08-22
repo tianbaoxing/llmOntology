@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.auth.SessionUser;
 import com.conca.ontology.dto.ApiResponse;
-import com.conca.ontology.dto.InitRequest;
-import com.conca.ontology.dto.LoginRequest;
+import com.conca.ontology.dto.request.InitRequest;
+import com.conca.ontology.dto.request.LoginRequest;
 import com.conca.ontology.model.UserEntry;
 import com.conca.ontology.service.UserService;
 

@@ -9,9 +9,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.dto.ApiResponse;
-import com.conca.ontology.dto.ProfileSaveRequest;
-import com.conca.ontology.dto.ProfileSaveResult;
-import com.conca.ontology.dto.ProfileView;
+import com.conca.ontology.dto.request.ProfileSaveRequest;
+import com.conca.ontology.dto.result.ProfileSaveResult;
+import com.conca.ontology.dto.view.ProfileView;
 import com.conca.ontology.service.ProfileService;
 
 import io.swagger.v3.oas.annotations.Operation;

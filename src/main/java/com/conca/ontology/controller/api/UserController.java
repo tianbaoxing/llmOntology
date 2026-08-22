@@ -15,10 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.auth.SessionUser;
 import com.conca.ontology.dto.ApiResponse;
-import com.conca.ontology.dto.PasswordChangeRequest;
-import com.conca.ontology.dto.RegisterRequest;
-import com.conca.ontology.dto.ResetPasswordRequest;
-import com.conca.ontology.dto.UserPatchRequest;
+import com.conca.ontology.dto.request.PasswordChangeRequest;
+import com.conca.ontology.dto.request.RegisterRequest;
+import com.conca.ontology.dto.request.ResetPasswordRequest;
+import com.conca.ontology.dto.request.UserPatchRequest;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.UserEntry;
 import com.conca.ontology.service.UserService;

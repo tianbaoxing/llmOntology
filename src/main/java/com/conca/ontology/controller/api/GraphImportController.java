@@ -12,15 +12,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.dto.ApiResponse;
-import com.conca.ontology.dto.NodeCreateRequest;
-import com.conca.ontology.dto.NodeCreateResult;
-import com.conca.ontology.dto.NodeDeleteResult;
-import com.conca.ontology.dto.NodeUpdateRequest;
-import com.conca.ontology.dto.NodeUpdateResult;
-import com.conca.ontology.dto.RelCreateResult;
-import com.conca.ontology.dto.RelDeleteResult;
-import com.conca.ontology.dto.RelRequest;
-import com.conca.ontology.dto.RelUpdateResult;
+import com.conca.ontology.dto.request.NodeCreateRequest;
+import com.conca.ontology.dto.result.NodeCreateResult;
+import com.conca.ontology.dto.result.NodeDeleteResult;
+import com.conca.ontology.dto.request.NodeUpdateRequest;
+import com.conca.ontology.dto.result.NodeUpdateResult;
+import com.conca.ontology.dto.result.RelCreateResult;
+import com.conca.ontology.dto.result.RelDeleteResult;
+import com.conca.ontology.dto.request.RelRequest;
+import com.conca.ontology.dto.result.RelUpdateResult;
 import com.conca.ontology.service.GraphWriteService;
 
 import io.swagger.v3.oas.annotations.Operation;

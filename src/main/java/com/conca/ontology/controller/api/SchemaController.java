@@ -12,10 +12,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.dto.ApiResponse;
-import com.conca.ontology.dto.ClassDeleteResult;
-import com.conca.ontology.dto.ClassDetailView;
-import com.conca.ontology.dto.ClassSummary;
-import com.conca.ontology.dto.SchemaView;
+import com.conca.ontology.dto.result.ClassDeleteResult;
+import com.conca.ontology.dto.view.ClassDetailView;
+import com.conca.ontology.dto.view.ClassSummary;
+import com.conca.ontology.dto.view.SchemaView;
 import com.conca.ontology.model.ClassDef;
 import com.conca.ontology.service.SchemaService;
 

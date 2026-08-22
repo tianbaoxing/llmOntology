@@ -9,11 +9,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.dto.ApiResponse;
-import com.conca.ontology.dto.GraphStatsView;
-import com.conca.ontology.dto.NeighborGroupsView;
-import com.conca.ontology.dto.NeighborsView;
-import com.conca.ontology.dto.NodesPageView;
-import com.conca.ontology.dto.QueryResult;
+import com.conca.ontology.dto.view.GraphStatsView;
+import com.conca.ontology.dto.view.NeighborGroupsView;
+import com.conca.ontology.dto.view.NeighborsView;
+import com.conca.ontology.dto.view.NodesPageView;
+import com.conca.ontology.dto.result.QueryResult;
 import com.conca.ontology.service.GraphQueryService;
 
 import io.swagger.v3.oas.annotations.Operation;

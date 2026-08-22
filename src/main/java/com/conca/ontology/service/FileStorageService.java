@@ -21,10 +21,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.conca.ontology.dto.FileDeleteResult;
-import com.conca.ontology.dto.FileListView;
-import com.conca.ontology.dto.FileUpdateResult;
-import com.conca.ontology.dto.FileUploadResult;
+import com.conca.ontology.dto.result.FileDeleteResult;
+import com.conca.ontology.dto.view.FileListView;
+import com.conca.ontology.dto.result.FileUpdateResult;
+import com.conca.ontology.dto.result.FileUploadResult;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.FileEntry;
 import com.conca.ontology.model.FileMetadataFile;

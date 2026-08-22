@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.conca.ontology.dto.AgentChatRequest;
+import com.conca.ontology.dto.request.AgentChatRequest;
 import com.conca.ontology.dto.ApiResponse;
 import com.conca.ontology.service.AgentChatService;
 import com.conca.ontology.service.AgentSessionService;

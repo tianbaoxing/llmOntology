@@ -12,11 +12,11 @@ import org.neo4j.driver.EagerResult;
 import org.neo4j.driver.Record;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.dto.GraphStatsView;
-import com.conca.ontology.dto.NeighborGroupsView;
-import com.conca.ontology.dto.NeighborsView;
-import com.conca.ontology.dto.NodesPageView;
-import com.conca.ontology.dto.QueryResult;
+import com.conca.ontology.dto.view.GraphStatsView;
+import com.conca.ontology.dto.view.NeighborGroupsView;
+import com.conca.ontology.dto.view.NeighborsView;
+import com.conca.ontology.dto.view.NodesPageView;
+import com.conca.ontology.dto.result.QueryResult;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.ClassDef;
 import com.conca.ontology.model.GraphSchema;

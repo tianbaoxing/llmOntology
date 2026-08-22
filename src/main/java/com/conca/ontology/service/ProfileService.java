@@ -15,9 +15,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.conca.ontology.dto.ProfileSaveRequest;
-import com.conca.ontology.dto.ProfileSaveResult;
-import com.conca.ontology.dto.ProfileView;
+import com.conca.ontology.dto.request.ProfileSaveRequest;
+import com.conca.ontology.dto.result.ProfileSaveResult;
+import com.conca.ontology.dto.view.ProfileView;
 import com.conca.ontology.model.ProfileEntry;
 import com.conca.ontology.model.ProfileFile;
 

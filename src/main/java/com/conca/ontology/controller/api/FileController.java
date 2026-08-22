@@ -14,11 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.conca.ontology.dto.ApiResponse;
-import com.conca.ontology.dto.FileDeleteResult;
-import com.conca.ontology.dto.FileDescRequest;
-import com.conca.ontology.dto.FileListView;
-import com.conca.ontology.dto.FileUpdateResult;
-import com.conca.ontology.dto.FileUploadResult;
+import com.conca.ontology.dto.result.FileDeleteResult;
+import com.conca.ontology.dto.request.FileDescRequest;
+import com.conca.ontology.dto.view.FileListView;
+import com.conca.ontology.dto.result.FileUpdateResult;
+import com.conca.ontology.dto.result.FileUploadResult;
 import com.conca.ontology.service.FileStorageService;
 
 import io.swagger.v3.oas.annotations.Operation;
