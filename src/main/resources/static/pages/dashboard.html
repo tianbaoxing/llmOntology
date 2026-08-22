@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>驾驶舱</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/pages/common.css">
+<style>
+/* 驾驶舱专属：每日用量柱状图 */
+.range-btns .btn.on { background: #2563eb; color: #fff; border-color: #2563eb; }
+#daily-svg { display: block; background: #fff; }
+#daily-legend { font-size: 12px; color: #6b7280; display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; }
+#daily-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+.bar-wrap { display: inline-flex; align-items: center; gap: 6px; }
+.bar-track { background: #f3f4f6; border-radius: 4px; height: 12px; width: 110px; }
+.bar-fill { height: 12px; border-radius: 4px; background: #3b82f6; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="msg" class="msg"></div>
+
+  <div class="stats-row" id="dash-stats"></div>
+  <div class="card">
+    <h2>每日 Token 用量</h2>
+    <div class="toolbar">
+      <span class="range-btns" style="display:inline-flex;gap:6px">
+        <button class="btn ghost sm" data-days="7">近 7 天</button>
+        <button class="btn ghost sm on" data-days="30">近 30 天</button>
+        <button class="btn ghost sm" data-days="90">近 90 天</button>
+      </span>
+      <span id="daily-legend">
+        <span><i style="background:#3b82f6"></i>输入</span>
+        <span style="margin-left:10px"><i style="background:#22c55e"></i>输出</span>
+      </span>
+    </div>
+    <svg id="daily-svg" viewBox="0 0 1100 320" width="100%" height="320"></svg>
+  </div>
+  <div class="card">
+    <h2>会话用量明细</h2>
+    <div class="muted" style="margin-bottom:10px">统计口径：轮次 = 会话内用户提问次数；LLM 调用 = 会话内模型推理次数（含工具调用后的再次推理）</div>
+    <div id="dash-sessions"></div>
+  </div>
+</div>
+<script src="/pages/common.js"></script>
+<script>
+let STATS = null;
+let rangeDays = 30;
+
+function fmtNum(n) { return Number(n || 0).toLocaleString('zh-CN'); }
+
+async function load() {
+  STATS = await api('GET', '/api/dashboard/stats');
+  renderStats();
+  renderDaily();
+  renderSessions();
+}
+
+function renderStats() {
+  const s = STATS.summary;
+  $('dash-stats').innerHTML =
+    statCard(fmtNum(s.totalTokens), '总 Token') +
+    statCard(fmtNum(s.todayTokens), '今日 Token') +
+    statCard(fmtNum(s.inputTokens), '输入 Token') +
+    statCard(fmtNum(s.outputTokens), '输出 Token') +
+    statCard(fmtNum(s.cachedTokens), '缓存命中 Token') +
+    statCard(fmtNum(s.sessions), '会话数') +
+    statCard(fmtNum(s.rounds), '提问轮次') +
+    statCard(fmtNum(s.llmCalls), 'LLM 调用次数');
+}
+
+function renderDaily() {
+  const byDate = {};
+  (STATS.daily || []).forEach(d => byDate[d.date] = d);
+  const dates = [];
+  const now = new Date();
+  for (let i = rangeDays - 1; i >= 0; i--) {
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    dates.push(dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0'));
+  }
+  const data = dates.map(d => byDate[d] ||
+    { date: d, inputTokens: 0, outputTokens: 0, tokens: 0, rounds: 0, llmCalls: 0 });
+  const W = 1100, H = 320, padL = 78, padR = 10, padT = 16, padB = 34;
+  const max = Math.max(1, ...data.map(d => d.tokens));
+  const bw = (W - padL - padR) / data.length;
+  let s = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = Math.round(max * i / 4), y = padT + (H - padB - padT) * (1 - i / 4);
+    s += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="#e5e7eb"/>` +
+         `<text x="${padL - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#9ca3af">${fmtNum(v)}</text>`;
+  }
+  const labelStep = Math.ceil(data.length / 12);
+  data.forEach((d, i) => {
+    const x = padL + i * bw;
+    const hIn = (H - padB - padT) * d.inputTokens / max;
+    const hOut = (H - padB - padT) * d.outputTokens / max;
+    if (d.tokens > 0) {
+      const tip = `${d.date}｜输入 ${fmtNum(d.inputTokens)}｜输出 ${fmtNum(d.outputTokens)}｜合计 ${fmtNum(d.tokens)}｜轮次 ${d.rounds}｜LLM 调用 ${d.llmCalls}`;
+      s += `<g><title>${tip}</title>` +
+           `<rect x="${(x + bw * 0.18).toFixed(1)}" y="${(H - padB - hIn - hOut).toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${hOut.toFixed(1)}" fill="#22c55e"/>` +
+           `<rect x="${(x + bw * 0.18).toFixed(1)}" y="${(H - padB - hIn).toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${hIn.toFixed(1)}" fill="#3b82f6"/></g>`;
+    }
+    if (i % labelStep === 0) {
+      s += `<text x="${(x + bw / 2).toFixed(1)}" y="${H - padB + 18}" text-anchor="middle" font-size="11" fill="#9ca3af">${d.date.slice(5)}</text>`;
+    }
+  });
+  $('daily-svg').innerHTML = s;
+}
+
+function renderSessions() {
+  const list = STATS.sessions || [];
+  if (!list.length) {
+    $('dash-sessions').innerHTML = '<div class="muted">暂无会话数据</div>';
+    return;
+  }
+  const total = Math.max(1, STATS.summary.totalTokens);
+  $('dash-sessions').innerHTML = table(
+    ['会话', '最近活动', '轮次', 'LLM 调用', '输入', '输出', '缓存命中', '合计', '占比'],
+    list.map(v => {
+      const pct = Math.min(100, v.tokens * 100 / total).toFixed(1);
+      return [esc(v.title), esc(v.lastTime || '-'), fmtNum(v.rounds), fmtNum(v.llmCalls),
+        fmtNum(v.inputTokens), fmtNum(v.outputTokens), fmtNum(v.cachedTokens), fmtNum(v.tokens),
+        `<span class="bar-wrap"><span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span><span class="muted">${pct}%</span></span>`];
+    }));
+}
+
+document.querySelectorAll('.range-btns button').forEach(b => {
+  b.onclick = () => {
+    rangeDays = Number(b.dataset.days);
+    document.querySelectorAll('.range-btns button').forEach(x => x.classList.toggle('on', x === b));
+    renderDaily();
+  };
+});
+
+CF.renderHeader();
+CF.initUser();
+load().catch(e => showMsg('加载失败：' + e.message, false));
+</script>
+</body>
+</html>

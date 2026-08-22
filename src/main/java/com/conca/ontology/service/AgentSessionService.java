@@ -122,7 +122,8 @@ public class AgentSessionService {
         return sessionId;
     }
 
-    private static String titleOf(AgentState state) {
+    /** 会话标题（首条非空 USER 消息截断；驾驶舱统计复用） */
+    static String titleOf(AgentState state) {
         if (state.getContext() != null) {
             for (Msg msg : state.getContext()) {
                 if (msg.getRole() == MsgRole.USER) {

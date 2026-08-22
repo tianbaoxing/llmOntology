@@ -22,13 +22,7 @@ public class PageController {
         return "forward:/pages/login.html";
     }
 
-    /** 概念层管理页（管理员功能，页面级权限由前端控制，接口层 403 兜底） */
-    @GetMapping("/schema")
-    public String schema() {
-        return "forward:/pages/schema.html";
-    }
-
-    /** 图数据管理页（管理员功能，页面级权限由前端控制，接口层 403 兜底） */
+    /** 图谱管理页（图数据 + 概念层，管理员功能，页面级权限由前端控制，接口层 403 兜底） */
     @GetMapping("/data")
     public String data() {
         return "forward:/pages/data.html";
@@ -50,6 +44,12 @@ public class PageController {
     @GetMapping("/chat")
     public String chat() {
         return "forward:/pages/chat.html";
+    }
+
+    /** 驾驶舱页（AI 用量统计，页面级权限由前端控制，接口层 403 兜底） */
+    @GetMapping("/dashboard")
+    public String dashboard() {
+        return "forward:/pages/dashboard.html";
     }
 
     /** 用户管理页（仅 ADMIN，AuthInterceptor 校验） */
