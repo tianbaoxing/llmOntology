@@ -1,6 +1,9 @@
 package com.conca.ontology.service;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -16,6 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.conca.ontology.config.AgentScopeConfig;
+
+import io.agentscope.core.skill.AgentSkill;
+import io.agentscope.core.skill.repository.AgentSkillRepository;
 
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.event.AgentEvent;
@@ -74,6 +80,32 @@ public class AgentChatService {
     /** 对外提示未配置 key 时的错误文案 */
     public static String missingKeyMessage() {
         return "未配置 OPENROUTER_API_KEY：请在项目根目录 .env 中填写后重启服务（模板见 .env.example）。";
+    }
+
+    /**
+     * 技能清单：从 HarnessAgent 已装配的技能仓库读取
+     * （页面展示的技能 = 模型实际可用的技能，单一事实来源）。
+     * 跨仓库按 name 去重（workspace skills 与全局目录可能同名，取先注册的）。
+     */
+    public List<Map<String, String>> listSkills() {
+        List<Map<String, String>> skills = new ArrayList<>();
+        HarnessAgent agent = agentProvider.getIfAvailable();
+        if (agent == null) {
+            return skills;
+        }
+        Set<String> seen = new HashSet<>();
+        for (AgentSkillRepository repo : agent.getSkillRepositories()) {
+            for (AgentSkill skill : repo.getAllSkills()) {
+                if (skill == null || skill.getName() == null || !seen.add(skill.getName())) {
+                    continue;
+                }
+                String desc = skill.getDescription();
+                skills.add(Map.of(
+                        "name", skill.getName(),
+                        "description", desc == null ? "" : desc));
+            }
+        }
+        return skills;
     }
 
     /**

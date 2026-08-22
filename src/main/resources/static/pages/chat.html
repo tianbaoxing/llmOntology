@@ -52,6 +52,12 @@ body { display: flex; flex-direction: column; }
 .caret { display: inline-block; width: 7px; height: 15px; background: #2563eb; vertical-align: -2px; animation: blink .9s infinite; margin-left: 2px; }
 @keyframes blink { 50% { opacity: 0; } }
 .input-area { background: #fff; border-top: 1px solid #e5e7eb; padding: 14px 24px; }
+.skills-row { display: none; gap: 8px; max-width: 900px; margin: 0 auto 10px; overflow-x: auto; padding-bottom: 2px; }
+.skills-row.show { display: flex; }
+.skill-chip { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 16px; background: #f9fafb; color: #374151; font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; }
+.skill-chip:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+.skill-chip .tip { display: none; position: absolute; bottom: calc(100% + 8px); left: 0; width: max-content; max-width: 360px; padding: 8px 10px; background: #1f2937; color: #f9fafb; border-radius: 8px; font-size: 12px; line-height: 1.6; white-space: normal; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.skill-chip:hover .tip { display: block; }
 .input-row { display: flex; gap: 10px; align-items: flex-end; max-width: 900px; margin: 0 auto; }
 textarea { flex: 1; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5; }
 textarea:focus { outline: none; border-color: #2563eb; }
@@ -76,6 +82,7 @@ textarea:focus { outline: none; border-color: #2563eb; }
       </div>
     </div>
     <div class="input-area">
+      <div class="skills-row" id="skills-row"></div>
       <div class="input-row">
         <textarea id="input" placeholder="输入问题，Enter 发送，Shift+Enter 换行" rows="1"></textarea>
         <button class="btn" id="btn-send">发送</button>
@@ -125,6 +132,41 @@ fetch('/api/app').then(r => r.json()).then(j => {
 // 会话控制（header 渲染 + 登录校验 + 管理菜单显隐）由 common.js 提供
 CF.renderHeader();
 CF.initUser();
+
+// ---------- 技能快捷插入 ----------
+// 技能清单来自 HarnessAgent 已装配的技能仓库（/api/agent/skills），
+// 悬停 chip 显示 description，点击在光标处插入 /技能名
+fetch('/api/agent/skills').then(r => r.json()).then(j => {
+  if (j && j.code === 0) renderSkills(j.data && j.data.skills);
+}).catch(() => { /* 拉取失败时整行隐藏，不影响聊天 */ });
+
+function renderSkills(skills) {
+  const row = $('skills-row');
+  if (!row || !skills || !skills.length) return; // 无技能时整行隐藏
+  for (const s of skills) {
+    const chip = document.createElement('span');
+    chip.className = 'skill-chip';
+    chip.textContent = '🛠 ' + s.name;
+    const tip = document.createElement('span');
+    tip.className = 'tip';
+    tip.textContent = s.description || '（无介绍）';
+    chip.appendChild(tip);
+    chip.addEventListener('click', () => insertSkill(s.name));
+    row.appendChild(chip);
+  }
+  row.classList.add('show');
+}
+
+/** 在光标处插入 /技能名（输入框已含同一标记时不重复插入），插入后聚焦输入框 */
+function insertSkill(name) {
+  const tag = '/' + name + ' ';
+  if (inputEl.value.includes(tag.trim())) { inputEl.focus(); return; }
+  const pos = inputEl.selectionStart == null ? inputEl.value.length : inputEl.selectionStart;
+  inputEl.value = inputEl.value.slice(0, pos) + tag + inputEl.value.slice(pos);
+  inputEl.selectionStart = inputEl.selectionEnd = pos + tag.length;
+  inputEl.focus();
+  autoGrow();
+}
 
 function emptyTipHtml(firstLine) {
   return '<div class="empty-tip" id="empty-tip"><div class="big">' + firstLine +

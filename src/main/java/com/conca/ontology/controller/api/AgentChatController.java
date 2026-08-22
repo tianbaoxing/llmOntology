@@ -27,6 +27,7 @@ import jakarta.validation.Valid;
  * GET  /api/agent/sessions                 → 会话列表（updateTime 倒序）
  * GET  /api/agent/sessions/{id}/messages   → 单会话消息
  * DELETE /api/agent/sessions/{id}          → 删除会话（含 AI 记忆）
+ * GET  /api/agent/skills                   → 技能清单（chat 页输入区快捷插入）
  */
 @RestController
 @RequestMapping("/api/agent")
@@ -40,6 +41,14 @@ public class AgentChatController {
             AgentSessionService agentSessionService) {
         this.agentChatService = agentChatService;
         this.agentSessionService = agentSessionService;
+    }
+
+    /** 技能清单；agent 未装配（未配置 key）时 agentAvailable=false、skills 为空列表 */
+    @GetMapping("/skills")
+    public ApiResponse<Map<String, Object>> skills() {
+        return ApiResponse.ok(Map.of(
+                "agentAvailable", agentChatService.isAvailable(),
+                "skills", agentChatService.listSkills()));
     }
 
     @PostMapping(value = "/sessions/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
