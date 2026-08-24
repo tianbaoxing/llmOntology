@@ -64,6 +64,11 @@ textarea:focus { outline: none; border-color: #2563eb; }
 .hint { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 8px; }
 .empty-tip { margin: auto; text-align: center; color: #9ca3af; }
 .empty-tip .big { font-size: 15px; margin-bottom: 8px; }
+.chat-head { flex-shrink: 0; display: flex; align-items: baseline; gap: 8px; padding: 12px 24px 10px; border-bottom: 1px solid #f3f4f6; }
+.resume-tip { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 8px 14px; background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; color: #713f12; font-size: 13px; }
+.resume-tip .btn { padding: 4px 12px; font-size: 12px; }
+.chat-head .chat-label { font-size: 12px; color: #9ca3af; flex-shrink: 0; }
+.chat-head .chat-title { font-size: 13px; color: #374151; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </head>
 <body>
@@ -75,6 +80,7 @@ textarea:focus { outline: none; border-color: #2563eb; }
   </div>
   <div class="main">
     <div class="chat-wrap">
+    <div class="chat-head"><span class="chat-label">当前会话</span><span class="chat-title" id="chat-title">新会话</span></div>
     <div class="messages" id="messages">
       <div class="empty-tip" id="empty-tip">
         <div class="big">向 AI 助手提问<span id="tip-title"></span>相关问题</div>
@@ -104,7 +110,8 @@ const btnStop = $('btn-stop');
 const SS_KEY = 'agent-chat-session';
 // 会话级 token 累计：最后一条 assistant 记录额外展示总计
 let sessionTotals = { in: 0, out: 0, lastUi: null };
-let sessionId = localStorage.getItem(SS_KEY) || newSessionId();
+let sessionId = localStorage.getItem(SS_KEY); // 先完成声明再调 newSessionId（其内部赋值本变量），避免 TDZ
+if (!sessionId) newSessionId();
 let streaming = false;
 let aborter = null;
 
@@ -174,10 +181,11 @@ function emptyTipHtml(firstLine) {
 }
 
 function newSessionId() {
-  const id = crypto.randomUUID ? crypto.randomUUID() : ('s-' + Date.now() + '-' + Math.random().toString(36).slice(2));
-  localStorage.setItem(SS_KEY, id);
+  // 必须同步更新全局 sessionId（发消息的 URL 取该变量），仅写 localStorage 会导致消息续写进旧会话
+  sessionId = crypto.randomUUID ? crypto.randomUUID() : ('s-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+  localStorage.setItem(SS_KEY, sessionId);
   sessionTotals = { in: 0, out: 0, lastUi: null };
-  return id;
+  return sessionId;
 }
 
 function esc(s) {
@@ -191,6 +199,8 @@ function scrollBottom() {
 function addNode(html) {
   const tip = $('empty-tip');
   if (tip) tip.remove();
+  const rt = $('resume-tip');
+  if (rt) rt.remove(); // 用户开始发消息，恢复提示横幅随之移除
   const div = document.createElement('div');
   div.innerHTML = html;
   const node = div.firstChild;
@@ -431,6 +441,18 @@ async function loadSessions() {
 function renderSessions() {
   const list = $('sess-list');
   list.innerHTML = '';
+  // 当前会话尚未在后端落盘（刚点【新会话】或恢复到已失效 id）→ 顶部显示占位项并高亮，
+  // 首条消息落盘后占位项自动被真实会话条目替代
+  if (!sessions.some(s => s.sessionId === sessionId)) {
+    const ph = document.createElement('div');
+    ph.className = 'sess-item active';
+    ph.title = '新会话';
+    const t = document.createElement('div');
+    t.className = 'sess-title';
+    t.textContent = '(新会话)';
+    ph.appendChild(t);
+    list.appendChild(ph);
+  }
   for (const s of sessions) {
     const item = document.createElement('div');
     item.className = 'sess-item' + (s.sessionId === sessionId ? ' active' : '');
@@ -451,6 +473,42 @@ function renderSessions() {
     item.appendChild(del);
     list.appendChild(item);
   }
+  updateChatHead();
+}
+
+/** 头部当前会话标题：落盘会话取列表标题，未落盘显示“新会话” */
+function updateChatHead() {
+  const el = $('chat-title');
+  if (!el) return;
+  const cur = sessions.find(s => s.sessionId === sessionId);
+  el.textContent = cur ? (cur.title || '(空会话)') : '新会话';
+  el.title = el.textContent;
+}
+
+/** 开启新会话：换新 id、清空消息区、刷新列表（新会话按钮/恢复横幅共用） */
+function startNewSession() {
+  if (streaming && aborter) aborter.abort();
+  newSessionId();
+  messagesEl.innerHTML = emptyTipHtml('已开启新会话');
+  renderSessions();
+  inputEl.focus();
+}
+
+/** 页面加载恢复到旧会话时，消息区顶部显示醒目横幅：继续旧对话 or 一键开新会话 */
+function showResumeTip(title) {
+  if ($('resume-tip')) return;
+  const tip = document.createElement('div');
+  tip.className = 'resume-tip';
+  tip.id = 'resume-tip';
+  const span = document.createElement('span');
+  span.textContent = '已恢复上次会话「' + (title || '空会话') + '」，继续发送将延续该对话';
+  const btn = document.createElement('button');
+  btn.className = 'btn ghost';
+  btn.textContent = '开启新会话';
+  btn.addEventListener('click', startNewSession);
+  tip.appendChild(span);
+  tip.appendChild(btn);
+  messagesEl.insertBefore(tip, messagesEl.firstChild);
 }
 
 /** "yyyy-MM-dd HH:mm:ss(.sss)" → 当天显示时分，非当天显示年月日时分 */
@@ -587,17 +645,16 @@ inputEl.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
 inputEl.addEventListener('input', autoGrow);
-$('btn-new').addEventListener('click', () => {
-  if (streaming && aborter) aborter.abort();
-  newSessionId();
-  messagesEl.innerHTML = emptyTipHtml('已开启新会话');
-  renderSessions();
-});
+$('btn-new').addEventListener('click', startNewSession);
 
-// 初始化：加载会话列表；当前会话有记录则回看
+// 初始化：加载会话列表；当前会话有记录则回看，并提示“已恢复旧会话”（await 后插横幅，避免被 loadMessages 清空）
 inputEl.focus();
-loadSessions().then(() => {
-  if (sessions.some(s => s.sessionId === sessionId)) loadMessages();
+loadSessions().then(async () => {
+  const cur = sessions.find(s => s.sessionId === sessionId);
+  if (cur) {
+    await loadMessages();
+    showResumeTip(cur.title);
+  }
 });
 </script>
 </body>
