@@ -8,8 +8,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import io.agentscope.core.state.JsonFileAgentStateStore;
+import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
+
+import com.conca.ontology.agent.OntologyHttpTools;
 
 /**
  * AgentScope 2.0 Harness 装配：
@@ -28,7 +31,9 @@ public class AgentScopeConfig {
             @Value("${app.agent.model}") String model,
             @Value("${app.agent.workspace-dir}") String workspaceDir,
             @Value("${app.agent.state-dir}") String stateDir,
-            @Value("${app.agent.skills-dir:}") String skillsDir) throws Exception {
+            @Value("${app.agent.skills-dir:}") String skillsDir,
+            @Value("${server.port:9876}") int serverPort,
+            @Value("${app.agent.ontology-base-url:${ONTOLOGY_BASE_URL:}}") String ontologyBaseUrl) throws Exception {
 
         // key 未配置时返回 null（注册为 NullBean），问答接口返回明确错误，不影响其余功能
         if (apiKey == null || apiKey.isBlank()) {
@@ -60,6 +65,15 @@ public class AgentScopeConfig {
                 + "请用中文回答用户问题，回答需简洁、准确、有条理。"
                 + "当问题涉及事实信息而不确定时，如实说明，不要编造。";
 
+        // 原生 HTTP 工具：模型直接以结构化调用访问 /api/llm 只读平面，
+        // 绕开 execute（shell 包装层）在 Windows 下的缺陷；
+        // build() 会在该 toolkit 的拷贝上继续合并注册 harness 内置工具（文件/技能等）
+        String llmBaseUrl = (ontologyBaseUrl == null || ontologyBaseUrl.isBlank())
+                ? "http://127.0.0.1:" + serverPort
+                : ontologyBaseUrl.trim().replaceAll("/+$", "");
+        Toolkit toolkit = new Toolkit();
+        toolkit.registerTool(new OntologyHttpTools(llmBaseUrl));
+
         HarnessAgent.Builder builder = HarnessAgent.builder()
                 .name("ontology-assistant")
                 .description(title + "问答助手")
@@ -67,7 +81,8 @@ public class AgentScopeConfig {
                 .model(chatModel)
                 .workspace(Path.of(workspaceDir))
                 .stateStore(new JsonFileAgentStateStore(Path.of(stateDir)))
-                .maxIters(2);
+                .maxIters(8)
+                .toolkit(toolkit);
                 // 最小化开放面：禁用 harness 内置高危/无关能力
                 // .disableShellTool()
                 // .disableFilesystemTools()
