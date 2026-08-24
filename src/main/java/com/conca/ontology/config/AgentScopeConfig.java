@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.conca.ontology.agent.HttpProxyTool;
+
 import io.agentscope.core.state.JsonFileAgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
@@ -15,8 +17,12 @@ import io.agentscope.harness.agent.HarnessAgent;
 /**
  * AgentScope 2.0 Harness 装配：
  * OpenAI 兼容协议模型（OpenRouter）+ HarnessAgent（ReAct 循环 + 事件流）。
- * 最小可用版本：不注册业务工具（后续由独立的工具设计接入），
- * 同时禁用 harness 内置的 shell/文件系统/子 agent 等能力，只保留推理与记忆。
+ *
+ * 工具层仅注册 HttpProxyTool——一个无业务语义的哑 HTTP 管道（path 白名单 /api/llm/），
+ * 查询协议（端点速查、只读 Cypher 红线、执行主线）由 ontology-query skill 承载，
+ * 保证"查询经由 skills"；外部 Qwen CLI 调用方无此工具，走 skill 中的 execute + curl 通道。
+ * harness 内置的 execute 在 Windows 下存在参数死锁（working_directory 单引号拼接），
+ * skill 已约束本项目环境禁止调用 execute。
  */
 @Configuration
 public class AgentScopeConfig {
@@ -64,19 +70,12 @@ public class AgentScopeConfig {
                 + "当问题涉及事实信息而不确定时，如实说明，不要编造。";
 
         Toolkit toolkit = new Toolkit();
-        // 这里先注释掉本体查询相关原生 HTTP 工具注册：
-        // - ontology_schema
-        // - graph_query
-        // - ontology_ask
-        // - list_uploaded_files
-        // - get_profile
-        //
-        // 当前实现要求查询流程必须经由 skills 进入，不允许 agent 直接命中这些工具。
-        // 如需恢复，再重新注册 OntologyHttpTools 即可。
-        // String llmBaseUrl = (ontologyBaseUrl == null || ontologyBaseUrl.isBlank())
-        //         ? "http://127.0.0.1:" + serverPort
-        //         : ontologyBaseUrl.trim().replaceAll("/+$", "");
-        // toolkit.registerTool(new OntologyHttpTools(llmBaseUrl));
+        // 哑 HTTP 管道：base-url 服务端固定，agent 只传 path（前缀白名单 /api/llm/）。
+        // 解析优先级：app.agent.ontology-base-url → 环境变量 ONTOLOGY_BASE_URL → 本机回环端口
+        String llmBaseUrl = (ontologyBaseUrl == null || ontologyBaseUrl.isBlank())
+                ? "http://127.0.0.1:" + serverPort
+                : ontologyBaseUrl.trim().replaceAll("/+$", "");
+        toolkit.registerTool(new HttpProxyTool(llmBaseUrl));
 
         HarnessAgent.Builder builder = HarnessAgent.builder()
                 .name("ontology-assistant")
