@@ -13,6 +13,25 @@
 .badge.st-pending { background: #dbeafe; color: #1d4ed8; }
 .badge.st-disabled { background: #fee2e2; color: #b91c1c; }
 .self-mark { color: #2563eb; font-size: 12px; margin-left: 6px; }
+/* 记忆查看模态框 */
+.modal-mask { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal-box { background: #fff; border-radius: 10px; width: min(960px, 92vw); max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #e5e7eb; }
+.modal-head h3 { margin: 0; font-size: 16px; }
+.modal-close { border: none; background: none; font-size: 20px; color: #6b7280; cursor: pointer; line-height: 1; }
+.modal-body { display: flex; min-height: 0; flex: 1; }
+.mem-files { width: 220px; border-right: 1px solid #e5e7eb; overflow-y: auto; padding: 10px; flex-shrink: 0; }
+.mem-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; }
+.mem-item:hover { background: #f3f4f6; }
+.mem-item.on { background: #eff6ff; border-color: #bfdbfe; }
+.mem-item .nm { font-size: 13px; font-weight: 600; color: #1f2937; word-break: break-all; }
+.mem-item .meta { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.mem-item .tag { display: inline-block; font-size: 11px; background: #fef3c7; color: #b45309; border-radius: 4px; padding: 0 5px; margin-left: 4px; }
+.mem-detail { flex: 1; overflow-y: auto; padding: 14px 18px; }
+.mem-section { border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+.mem-section .sec-head { background: #f8fafc; padding: 6px 12px; font-size: 12px; color: #475569; border-bottom: 1px solid #e5e7eb; font-family: Consolas, monospace; }
+.mem-section .sec-body { padding: 10px 12px; font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; color: #1f2937; }
+.mem-empty { color: #9ca3af; text-align: center; padding: 40px 0; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -41,6 +60,20 @@
     </div>
   </div>
 </div>
+
+<!-- 记忆查看模态框 -->
+<div class="modal-mask" id="mem-modal" style="display:none" onclick="if(event.target===this)closeMemory()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="mem-title">Agent 记忆</h3>
+      <button class="modal-close" onclick="closeMemory()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="mem-files" id="mem-files"></div>
+      <div class="mem-detail" id="mem-detail"></div>
+    </div>
+  </div>
+</div>
 <script src="/pages/common.js"></script>
 <script>
 let me = null;
@@ -56,8 +89,8 @@ function statusBadge(status) {
 }
 
 function actionsHtml(u) {
-  if (!me || u.userId === me.userId) return '<span class="muted">当前登录账号</span>';
-  let html = '';
+  let html = `<button class="btn sm ghost" onclick="showMemory('${esc(u.userId)}')">记忆</button>`;
+  if (!me || u.userId === me.userId) return html + '<span class="muted">当前登录账号</span>';
   if (u.status === 'PENDING') {
     html += `<button class="btn sm" onclick="approveUser('${esc(u.userId)}')">通过审核</button>`;
   }
@@ -123,6 +156,67 @@ function changeMyPassword() {
     .then(() => { showMsg('密码修改成功', true); $('pwd-old').value = ''; $('pwd-new').value = ''; })
     .catch(e => showMsg('失败：' + e.message, false));
 }
+
+// ---------------- 记忆查看 ----------------
+let memUserId = null;
+
+async function showMemory(userId) {
+  memUserId = userId;
+  $('mem-title').textContent = 'Agent 记忆 — ' + userId;
+  $('mem-modal').style.display = 'flex';
+  $('mem-files').innerHTML = '<div class="mem-empty">加载中…</div>';
+  $('mem-detail').innerHTML = '';
+  try {
+    const d = await api('GET', '/api/users/' + encodeURIComponent(userId) + '/memory');
+    renderMemFiles(d);
+  } catch (e) {
+    $('mem-files').innerHTML = '';
+    $('mem-detail').innerHTML = '<div class="mem-empty">加载失败：' + esc(e.message) + '</div>';
+  }
+}
+
+function closeMemory() {
+  $('mem-modal').style.display = 'none';
+  memUserId = null;
+}
+
+function renderMemFiles(d) {
+  const items = [];
+  if (d.curated) {
+    items.push({ name: d.curated.name, entries: d.curated.entries, size: d.curated.size, tag: '策展记忆' });
+  }
+  (d.daily || []).forEach(f => items.push({ name: f.name, entries: f.entries, size: f.size }));
+  if (!items.length) {
+    $('mem-files').innerHTML = '';
+    $('mem-detail').innerHTML = '<div class="mem-empty">该用户暂无记忆</div>';
+    return;
+  }
+  $('mem-files').innerHTML = items.map(f =>
+    `<div class="mem-item" data-name="${esc(f.name)}" onclick="loadMemFile('${esc(f.name)}')">` +
+    `<div class="nm">${esc(f.name)}${f.tag ? '<span class="tag">' + f.tag + '</span>' : ''}</div>` +
+    `<div class="meta">${f.entries} 段 · ${fmtSize(f.size)}</div></div>`).join('');
+  // 默认选中策展记忆（无则选第一个每日文件）
+  loadMemFile(d.curated ? d.curated.name : items[0].name);
+}
+
+async function loadMemFile(name) {
+  if (!memUserId) return;
+  document.querySelectorAll('.mem-item').forEach(el => el.classList.toggle('on', el.dataset.name === name));
+  $('mem-detail').innerHTML = '<div class="mem-empty">加载中…</div>';
+  try {
+    const d = await api('GET', '/api/users/' + encodeURIComponent(memUserId) + '/memory/file/' + encodeURIComponent(name));
+    const secs = d.sections || [];
+    $('mem-detail').innerHTML = secs.length
+      ? secs.map(s => `<div class="mem-section">` +
+          `<div class="sec-head">${esc(s.time || s.date || '—')}</div>` +
+          `<div class="sec-body">${esc(s.content)}</div></div>`).join('')
+      : '<div class="mem-empty">文件内容为空</div>';
+  } catch (e) {
+    $('mem-detail').innerHTML = '<div class="mem-empty">加载失败：' + esc(e.message) + '</div>';
+  }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMemory(); });
 
 $('filter-status').onchange = () => loadUsers().catch(e => showMsg('加载失败：' + e.message, false));
 

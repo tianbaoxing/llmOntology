@@ -83,6 +83,11 @@ public class UserService {
                 .findFirst().orElse(null);
     }
 
+    /** userId 是否存在（记忆查看等场景的用户合法性预检） */
+    public synchronized boolean exists(String userId) {
+        return load().users().stream().anyMatch(u -> u.userId().equals(userId));
+    }
+
     // ---------------- 初始化 / 注册 / 登录 ----------------
 
     /** 系统初始化：创建 admin（仅当不存在任何 ADMIN 时可用，防重复初始化重置系统） */

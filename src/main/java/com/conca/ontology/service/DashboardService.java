@@ -22,13 +22,12 @@ import io.agentscope.harness.agent.HarnessAgent;
  * 驾驶舱统计：只读遍历框架 agent-state（HarnessAgent 轮末自动落盘），
  * 聚合 token 用量（ASSISTANT 消息 usage：input/output/cached）与调用量
  * （USER 消息数 = 提问轮次，ASSISTANT 消息数 = LLM 调用次数），按日 / 按会话分组。
+ * 统计口径为指定用户自己的用量（userId 由 Controller 从登录态传入）。
  * 未配置 OPENROUTER_API_KEY（agent 未装配）时返回全零空统计。
  */
 @Service
 public class DashboardService {
 
-    /** 与 AgentSessionService 中 RuntimeContext.userId 一致 */
-    static final String USER_ID = "admin";
     /** 框架 ReActAgent 落盘 state 用的 key（JsonFileAgentStateStore 对应 agent_state.json） */
     static final String STATE_KEY = "agent_state";
 
@@ -39,7 +38,7 @@ public class DashboardService {
     }
 
     /** 全量统计：summary（总量与今日）/ daily（按日聚合，升序）/ sessions（会话明细，最近活动倒序） */
-    public Map<String, Object> stats() {
+    public Map<String, Object> stats(String userId) {
         AgentStateStore store = storeOrNull();
         if (store == null) {
             return Map.of("summary", emptySummary(), "daily", List.of(), "sessions", List.of());
@@ -50,8 +49,8 @@ public class DashboardService {
         Map<String, long[]> daily = new TreeMap<>();
         long inTotal = 0, outTotal = 0, cachedTotal = 0, roundsTotal = 0, llmCallsTotal = 0;
 
-        for (String id : store.listSessionIds(USER_ID)) {
-            AgentState state = store.get(USER_ID, id, STATE_KEY, AgentState.class).orElse(null);
+        for (String id : store.listSessionIds(userId)) {
+            AgentState state = store.get(userId, id, STATE_KEY, AgentState.class).orElse(null);
             if (state == null) {
                 continue;
             }

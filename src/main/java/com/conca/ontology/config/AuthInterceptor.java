@@ -17,8 +17,8 @@ import jakarta.servlet.http.HttpServletResponse;
  *   /api/app、/api/llm/**（LLM 专属，后续做 token 验证）、POST /api/users（自助注册）、
  *   PUT /api/users/me/password（自助改密，Controller 内校验会话）
  * - 页面（/、/data、/files、/backup、/chat、/dashboard、/users、/instances、/graph、/pages/**）：
- *   未登录 302 跳登录页；/users 仅 ADMIN（/data、/backup、/dashboard 页面级权限由前端控制，接口层 403 兜底）
- * - /api/** 其余：未登录 401 JSON；/api/users、/api/dashboard 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
+ *   未登录 302 跳登录页；/users 仅 ADMIN（/data、/backup 页面级权限由前端控制，接口层 403 兜底）
+ * - /api/** 其余：未登录 401 JSON；/api/users 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
  */
 public class AuthInterceptor implements HandlerInterceptor {
 
@@ -68,7 +68,8 @@ public class AuthInterceptor implements HandlerInterceptor {
                 writeJson(response, 401, "未登录或会话已过期");
                 return false;
             }
-            boolean adminOnly = uri.startsWith("/api/users") || uri.startsWith("/api/dashboard");
+            // /api/dashboard 已放开为登录即可（统计当前用户自己的用量）
+            boolean adminOnly = uri.startsWith("/api/users");
             if (!adminOnly && !isReadMethod(method) && !uri.startsWith("/api/agent")) {
                 adminOnly = true;
             }

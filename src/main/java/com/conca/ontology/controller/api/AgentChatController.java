@@ -14,13 +14,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.conca.ontology.auth.SessionUser;
 import com.conca.ontology.dto.request.AgentChatRequest;
 import com.conca.ontology.dto.request.MemoryToolsRequest;
 import com.conca.ontology.dto.ApiResponse;
+import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.service.AgentChatService;
 import com.conca.ontology.service.AgentMemoryToolsToggle;
 import com.conca.ontology.service.AgentSessionService;
 
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 
 /**
@@ -34,6 +37,7 @@ import jakarta.validation.Valid;
  * GET  /api/agent/skills                   → 技能清单（chat 页输入区快捷插入）
  * GET  /api/agent/memory-tools             → 记忆工具开关状态（activeTools 与开关值对账）
  * PUT  /api/agent/memory-tools             → 切换 memory_search/get/save 对模型可见性
+ * 会话/记忆按登录用户隔离：userId 一律取当前会话，不信任请求参数。
  */
 @RestController
 @RequestMapping("/api/agent")
@@ -73,22 +77,32 @@ public class AgentChatController {
     }
 
     @PostMapping(value = "/sessions/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chat(@PathVariable String id, @Valid @RequestBody AgentChatRequest request) {
-        return agentChatService.chat(id, request.message());
+    public SseEmitter chat(@PathVariable String id, @Valid @RequestBody AgentChatRequest request,
+            HttpSession session) {
+        return agentChatService.chat(id, request.message(), currentUserId(session));
     }
 
     @GetMapping("/sessions")
-    public ApiResponse<Map<String, Object>> sessions() {
-        return ApiResponse.ok(agentSessionService.list());
+    public ApiResponse<Map<String, Object>> sessions(HttpSession session) {
+        return ApiResponse.ok(agentSessionService.list(currentUserId(session)));
     }
 
     @GetMapping("/sessions/{id}/messages")
-    public ApiResponse<Map<String, Object>> messages(@PathVariable String id) {
-        return ApiResponse.ok(agentSessionService.messages(id));
+    public ApiResponse<Map<String, Object>> messages(@PathVariable String id, HttpSession session) {
+        return ApiResponse.ok(agentSessionService.messages(currentUserId(session), id));
     }
 
     @DeleteMapping("/sessions/{id}")
-    public ApiResponse<Map<String, Object>> delete(@PathVariable String id) {
-        return ApiResponse.ok(agentSessionService.delete(id));
+    public ApiResponse<Map<String, Object>> delete(@PathVariable String id, HttpSession session) {
+        return ApiResponse.ok(agentSessionService.delete(currentUserId(session), id));
+    }
+
+    /** 拦截器已保证登录；此处兜底防御性校验 */
+    private static String currentUserId(HttpSession session) {
+        SessionUser u = SessionUser.of(session);
+        if (u == null) {
+            throw new ApiException(401, "未登录或会话已过期");
+        }
+        return u.userId();
     }
 }

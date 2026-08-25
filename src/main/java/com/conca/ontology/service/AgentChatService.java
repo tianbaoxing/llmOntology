@@ -115,8 +115,9 @@ public class AgentChatService {
 
     /**
      * 流式问答：订阅 streamEvents 并逐事件转发到 SseEmitter。
+     * userId 为当前登录用户（会话/记忆按用户隔离，落盘在 workspace/{userId}/ 下）。
      */
-    public SseEmitter chat(String sessionId, String message) {
+    public SseEmitter chat(String sessionId, String message, String userId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         String session = (sessionId == null || sessionId.isBlank()) ? UUID.randomUUID().toString() : sessionId;
 
@@ -155,7 +156,7 @@ public class AgentChatService {
 
         Msg userMsg = Msg.builder().role(MsgRole.USER).textContent(message).build();
         RuntimeContext ctx = RuntimeContext.builder()
-                .userId("admin")
+                .userId(userId)
                 .sessionId(session)
                 .build();
 

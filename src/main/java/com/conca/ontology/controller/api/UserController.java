@@ -21,6 +21,7 @@ import com.conca.ontology.dto.request.ResetPasswordRequest;
 import com.conca.ontology.dto.request.UserPatchRequest;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.UserEntry;
+import com.conca.ontology.service.AgentMemoryService;
 import com.conca.ontology.service.UserService;
 
 import jakarta.servlet.http.HttpSession;
@@ -31,15 +32,18 @@ import jakarta.validation.Valid;
  * - 公开（拦截器放行）：POST /api/users（自助注册 → PENDING 待审核）
  * - 自助（方法内校验会话）：PUT /api/users/me/password（修改自己密码）
  * - 管理操作（拦截器保证仅 ADMIN 可达）：列表 / 状态变更（审核、启停）/ 重置密码 / 删除
+ * - 记忆查看（仅 ADMIN）：GET /{userId}/memory（文件列表）、GET /{userId}/memory/file/{name}（分段详情）
  */
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
 
     private final UserService users;
+    private final AgentMemoryService agentMemory;
 
-    public UserController(UserService users) {
+    public UserController(UserService users, AgentMemoryService agentMemory) {
         this.users = users;
+        this.agentMemory = agentMemory;
     }
 
     /** 用户列表（?status=PENDING/ACTIVE/DISABLED 可选筛选，仅 ADMIN） */
@@ -98,6 +102,18 @@ public class UserController {
     public ApiResponse<Map<String, Object>> delete(@PathVariable String userId, HttpSession session) {
         users.delete(userId, operator(session));
         return ApiResponse.ok(Map.of("deleted", userId));
+    }
+
+    /** 指定用户的记忆文件列表（仅 ADMIN）：curated（MEMORY.md）+ daily（每日文件倒序） */
+    @GetMapping("/{userId}/memory")
+    public ApiResponse<Map<String, Object>> memory(@PathVariable String userId) {
+        return ApiResponse.ok(agentMemory.list(userId));
+    }
+
+    /** 指定用户的单个记忆文件分段详情（仅 ADMIN）：name 限 MEMORY.md 或 yyyy-MM-dd.md */
+    @GetMapping("/{userId}/memory/file/{name}")
+    public ApiResponse<Map<String, Object>> memoryFile(@PathVariable String userId, @PathVariable String name) {
+        return ApiResponse.ok(agentMemory.detail(userId, name));
     }
 
     /** 拦截器已保证管理操作仅 ADMIN 且已登录可达 */

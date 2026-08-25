@@ -28,13 +28,12 @@ import io.agentscope.harness.agent.HarnessAgent;
 /**
  * 历史会话服务：复用框架 agent-state 持久化（HarnessAgent 轮末自动落盘），
  * 只读 + 删除，全部经 AgentStateStore 官方 API，不解析 state 文件本身。
+ * 会话按登录用户隔离（userId 由 Controller 从登录态传入，与 AgentChatService 一致）。
  * 删除仅清 agent 记忆（stateStore.delete）；workspace 侧 jsonl 日志为无害残留，不清理。
  */
 @Service
 public class AgentSessionService {
 
-    /** 与 AgentChatService 中 RuntimeContext.userId 一致 */
-    static final String USER_ID = "admin";
     /** 框架 ReActAgent 落盘 state 用的 key（JsonFileAgentStateStore 对应 agent_state.json） */
     static final String STATE_KEY = "agent_state";
     /** 与框架同款 sessionId 合法字符集，先挡路径穿越 */
@@ -54,14 +53,14 @@ public class AgentSessionService {
     }
 
     /** 会话列表（updateTime 倒序）；未配置 key 或目录为空均返回空列表 */
-    public Map<String, Object> list() {
+    public Map<String, Object> list(String userId) {
         AgentStateStore store = storeOrNull();
         if (store == null) {
             return Map.of("sessions", List.of());
         }
         List<Map<String, Object>> sessions = new ArrayList<>();
-        for (String id : store.listSessionIds(USER_ID)) {
-            store.get(USER_ID, id, STATE_KEY, AgentState.class).ifPresent(state -> {
+        for (String id : store.listSessionIds(userId)) {
+            store.get(userId, id, STATE_KEY, AgentState.class).ifPresent(state -> {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("sessionId", id);
                 m.put("title", titleOf(state));
@@ -76,9 +75,9 @@ public class AgentSessionService {
     }
 
     /** 单会话全部消息，映射为前端可直接渲染的结构 */
-    public Map<String, Object> messages(String sessionId) {
+    public Map<String, Object> messages(String userId, String sessionId) {
         String id = validate(sessionId);
-        AgentState state = requireStore().get(USER_ID, id, STATE_KEY, AgentState.class)
+        AgentState state = requireStore().get(userId, id, STATE_KEY, AgentState.class)
                 .orElseThrow(() -> new ApiException(404, "会话不存在"));
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sessionId", id);
@@ -87,16 +86,16 @@ public class AgentSessionService {
     }
 
     /** 删除会话：进行中拒绝（409）→ 清 agent 记忆（官方 delete） */
-    public Map<String, Object> delete(String sessionId) {
+    public Map<String, Object> delete(String userId, String sessionId) {
         String id = validate(sessionId);
         AgentStateStore store = requireStore();
         if (agentChatService.isRunning(id)) {
             throw new ApiException(409, "会话正在处理中，请稍后再删除");
         }
-        if (!store.exists(USER_ID, id)) {
+        if (!store.exists(userId, id)) {
             throw new ApiException(404, "会话不存在");
         }
-        store.delete(USER_ID, id);
+        store.delete(userId, id);
         return Map.of("deleted", id);
     }
 
