@@ -188,7 +188,7 @@ function insertSkill(name) {
 }
 
 // ---------- 记忆工具开关 ----------
-// 运行时控制 agent 的 memory_search/get/save 对模型是否可见（GET 对账，PUT 切换）；
+// 运行时控制 agent 的 session_search/memory_search/get/save 对模型是否可见（GET 对账，PUT 切换）；
 // agent 未装配（无 key）或拉取失败时不渲染开关，不影响聊天
 const memToggle = $('mem-toggle');
 const memCheck = $('mem-check');
@@ -207,7 +207,7 @@ function syncMemToggle(d) {
   memCheck.checked = live;
   memToggle.classList.toggle('on', live);
   memTip.textContent = live
-    ? '记忆工具已开启：AI 可检索历史会话沉淀的记忆（memory_search / memory_get / memory_save）'
+    ? '记忆工具已开启：AI 可检索历史会话沉淀的记忆（session_search / memory_search / memory_get / memory_save）'
     : '记忆工具已关闭：AI 无法检索历史会话记忆，下一轮对话生效';
 }
 
@@ -642,6 +642,7 @@ async function loadMessages() {
   let msgs = null;
   try {
     const res = await fetch('/api/agent/sessions/' + encodeURIComponent(sessionId) + '/messages');
+    if (res.status === 401) { location.href = '/login'; return; }
     const j = await res.json();
     if (res.ok && j.code === 0) msgs = j.data && j.data.messages;
   } catch (e) { /* 网络异常按无记录处理 */ }

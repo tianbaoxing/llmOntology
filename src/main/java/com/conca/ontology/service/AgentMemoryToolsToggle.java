@@ -24,7 +24,7 @@ import io.agentscope.harness.agent.HarnessAgent;
 
 /**
  * 记忆工具热插拔开关：运行时控制 HarnessAgent 内置的
- * memory_search / memory_get / memory_save 三个工具是否对模型可见。
+ * session_search/memory_search / memory_get / memory_save 三个工具是否对模型可见。
  *
  * 机制（方案 A：Toolkit 热插拔）：
  * - 启动时（ApplicationReadyEvent，单例 agent 已装配）先抓取三个工具的原始引用缓存，
