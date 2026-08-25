@@ -49,6 +49,12 @@
             <artifactId>agentscope-extensions-model-openai</artifactId>
             <version>${agentscope.version}</version>
         </dependency>
+        <!-- AgentScope Studio 可视化对接（Run 注册 + 消息推送 + OTLP Trace 上报） -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-studio</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
         <!-- OpenAPI 3 文档 + Swagger UI（/swagger-ui.html，免登录） -->
         <dependency>
             <groupId>org.springdoc</groupId>

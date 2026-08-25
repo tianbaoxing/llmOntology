@@ -39,6 +39,8 @@ app:
     state-dir: data/agent-state
     # 自定义全局技能目录（projectGlobalSkillsDir）：ontology-builder / ontology-query 等技能放这里
     skills-dir: skills
+    # AgentScope Studio 可视化对接地址（留空 = 不启用）；Studio 未启动时降级告警，不阻断主服务
+    studio-url: ${STUDIO_URL:http://localhost:3000}
 
 neo4j:
   uri: bolt://localhost:7687

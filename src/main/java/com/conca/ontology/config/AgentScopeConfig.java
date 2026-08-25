@@ -3,6 +3,8 @@ package com.conca.ontology.config;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import com.conca.ontology.agent.HttpProxyTool;
 
 import io.agentscope.core.state.JsonFileAgentStateStore;
+import io.agentscope.core.studio.StudioManager;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
@@ -27,6 +30,8 @@ import io.agentscope.harness.agent.HarnessAgent;
 @Configuration
 public class AgentScopeConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(AgentScopeConfig.class);
+
     @Bean(destroyMethod = "close")
     public HarnessAgent harnessAgent(
             @Value("${app.title:图谱}") String title,
@@ -36,6 +41,7 @@ public class AgentScopeConfig {
             @Value("${app.agent.workspace-dir}") String workspaceDir,
             @Value("${app.agent.state-dir}") String stateDir,
             @Value("${app.agent.skills-dir:}") String skillsDir,
+            @Value("${app.agent.studio-url:}") String studioUrl,
             @Value("${server.port:9876}") int serverPort,
             @Value("${app.agent.ontology-base-url:${ONTOLOGY_BASE_URL:}}") String ontologyBaseUrl) throws Exception {
 
@@ -97,6 +103,24 @@ public class AgentScopeConfig {
         if (globalSkillsDir != null) {
             builder.projectGlobalSkillsDir(globalSkillsDir);
         }
-        return builder.build();
+        HarnessAgent agent = builder.build();
+
+        // AgentScope Studio 可视化对接（可选）：初始化成功后自动注册 Run、
+        // 全局挂 StudioMessageHook 推送消息、全局注册 OTLP Tracer 上报 Trace；
+        // Studio 未启动时降级告警，不阻断主服务
+        if (studioUrl != null && !studioUrl.isBlank()) {
+            try {
+                StudioManager.init()
+                        .studioUrl(studioUrl.trim().replaceAll("/+$", ""))
+                        .project(title)
+                        .initialize()
+                        .block();
+                log.info("AgentScope Studio 对接成功：{}（project={}）", studioUrl, title);
+                Runtime.getRuntime().addShutdownHook(new Thread(StudioManager::shutdown));
+            } catch (Exception e) {
+                log.warn("AgentScope Studio 连接失败（{}），本次运行不推送可视化数据：{}", studioUrl, e.getMessage());
+            }
+        }
+        return agent;
     }
 }
