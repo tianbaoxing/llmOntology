@@ -35,6 +35,7 @@ import jakarta.validation.Valid;
  * GET  /api/agent/sessions/{id}/messages   → 单会话消息
  * DELETE /api/agent/sessions/{id}          → 删除会话（含 AI 记忆）
  * GET  /api/agent/skills                   → 技能清单（chat 页输入区快捷插入）
+ * GET  /api/agent/tools                    → 工具清单（chat 页「工具列表」悬停面板）
  * GET  /api/agent/memory-tools             → 记忆工具开关状态（activeTools 与开关值对账）
  * PUT  /api/agent/memory-tools             → 切换session_search/ memory_search/get/save 对模型可见性
  * 会话/记忆按登录用户隔离：userId 一律取当前会话，不信任请求参数。
@@ -62,6 +63,14 @@ public class AgentChatController {
         return ApiResponse.ok(Map.of(
                 "agentAvailable", agentChatService.isAvailable(),
                 "skills", agentChatService.listSkills()));
+    }
+
+    /** 工具清单；Toolkit 实时存活集（页面展示 = 模型实际可用），agent 未装配时为空列表 */
+    @GetMapping("/tools")
+    public ApiResponse<Map<String, Object>> tools() {
+        return ApiResponse.ok(Map.of(
+                "agentAvailable", agentChatService.isAvailable(),
+                "tools", agentChatService.listTools()));
     }
 
     /** 记忆工具开关状态；activeTools 为 Toolkit 实际存活集（与开关值对账，前端以它为准） */

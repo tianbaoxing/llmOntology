@@ -1,6 +1,7 @@
 package com.conca.ontology.service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +44,7 @@ import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ToolResultState;
+import io.agentscope.core.tool.AgentTool;
 import io.agentscope.harness.agent.HarnessAgent;
 import reactor.core.Disposable;
 
@@ -85,6 +87,32 @@ public class AgentChatService {
     /** 对外提示未配置 key 时的错误文案 */
     public static String missingKeyMessage() {
         return "未配置 OPENROUTER_API_KEY：请在项目根目录 .env 中填写后重启服务（模板见 .env.example）。";
+    }
+
+    /**
+     * 工具清单：从 HarnessAgent 的 Toolkit 实时读取
+     * （页面展示的工具 = 模型本次实际可见的工具集，单一事实来源；
+     * 记忆工具开关切换后 Toolkit 增减，本清单随之变化）。
+     */
+    public List<Map<String, String>> listTools() {
+        List<Map<String, String>> tools = new ArrayList<>();
+        HarnessAgent agent = agentProvider.getIfAvailable();
+        if (agent == null) {
+            return tools;
+        }
+        List<String> names = new ArrayList<>(agent.getToolkit().getToolNames());
+        Collections.sort(names);
+        for (String name : names) {
+            AgentTool tool = agent.getToolkit().getTool(name);
+            if (tool == null) {
+                continue;
+            }
+            String desc = tool.getDescription();
+            tools.add(Map.of(
+                    "name", name,
+                    "description", desc == null ? "" : desc));
+        }
+        return tools;
     }
 
     /**
