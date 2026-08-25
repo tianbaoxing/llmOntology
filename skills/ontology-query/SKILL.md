@@ -189,15 +189,7 @@ echo %OS%
 - 必须按 `schema -> cypher -> query` 的显式流程执行
 - 图谱结果为空、无命中或证据不足时，才进入文件兜底
 
-### Step 5 图谱无结果时回查 profile（仅构建背景兜底）
-
-当用户问的是构建背景，或者图谱结果不足以回答背景问题时，再调用 `GET /api/llm/profile`。
-
-重点关注：`domain`、`purpose`、`data_source`、`concept_scope`、`concept_design`、`extract_rules`、`final_report`。
-
-只把 profile 当作兜底证据，不要伪装成图谱结果。
-
-### Step 6 从已上传文件中搜索
+### Step 5 图谱无结果时从已上传文件中搜索
 
 只有在 `/query` 返回结果为空、证据不足或无法回答时，才进入本步骤。
 
