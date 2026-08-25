@@ -26,6 +26,8 @@ import io.agentscope.core.skill.repository.AgentSkillRepository;
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.event.AgentEvent;
 import io.agentscope.core.event.AgentResultEvent;
+import io.agentscope.core.event.ModelCallEndEvent;
+import io.agentscope.core.event.ModelCallStartEvent;
 import io.agentscope.core.event.TextBlockDeltaEvent;
 import io.agentscope.core.event.ThinkingBlockDeltaEvent;
 import io.agentscope.core.event.ToolCallDeltaEvent;
@@ -35,6 +37,7 @@ import io.agentscope.core.event.ToolResultDataDeltaEvent;
 import io.agentscope.core.event.ToolResultEndEvent;
 import io.agentscope.core.event.ToolResultStartEvent;
 import io.agentscope.core.event.ToolResultTextDeltaEvent;
+import io.agentscope.core.model.ChatUsage;
 import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
@@ -46,7 +49,9 @@ import reactor.core.Disposable;
 /**
  * AI 问答服务：把 HarnessAgent 的 AgentEvent 流映射为 SSE 事件推给页面。
  * 事件契约（前端 chat.html 同步实现）：
- * session → 会话号；thinking → 思考增量；tool → 工具调用与执行
+ * session → 会话号；round → 轮次边界（ReAct 每轮模型调用一对
+ * start/end，end 携带该轮 tokens；前端按轮分块渲染，与历史渲染一致）；
+ * thinking → 思考增量；tool → 工具调用与执行
  * （phase=start/args/end 为调用阶段，args 为参数增量；
  * phase=result-start/result-delta/result-end 为执行结果阶段，
  * result-delta 为结果文本增量，result-end 携带 state（success/error 等），
@@ -172,6 +177,9 @@ public class AgentChatService {
 
     private void handleEvent(SseEmitter emitter, AgentEvent event) {
         switch (event.getType()) {
+            case MODEL_CALL_START -> send(emitter, "round", Map.of(
+                    "phase", "start", "replyId", safeStr(((ModelCallStartEvent) event).getReplyId())));
+            case MODEL_CALL_END -> send(emitter, "round", roundEndPayload((ModelCallEndEvent) event));
             case THINKING_BLOCK_DELTA -> send(emitter, "thinking",
                     Map.of("delta", ((ThinkingBlockDeltaEvent) event).getDelta()));
             case TEXT_BLOCK_DELTA -> send(emitter, "answer",
@@ -215,6 +223,19 @@ public class AgentChatService {
         return payload;
     }
 
+    /** 轮次结束：携带该轮模型调用的 tokens（usage 可能缺失，如异常截断） */
+    private static Map<String, Object> roundEndPayload(ModelCallEndEvent event) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("phase", "end");
+        payload.put("replyId", safeStr(event.getReplyId()));
+        ChatUsage usage = event.getUsage();
+        if (usage != null) {
+            payload.put("promptTokens", usage.getInputTokens());
+            payload.put("completionTokens", usage.getOutputTokens());
+        }
+        return payload;
+    }
+
     private void send(SseEmitter emitter, String name, Map<String, Object> data) {
         try {
             emitter.send(SseEmitter.event().name(name).data(data));
@@ -231,6 +252,10 @@ public class AgentChatService {
     /** Map.of 不接受 null 值，delta 可能为 null 时兜底空串 */
     private static String safeDelta(String delta) {
         return delta == null ? "" : delta;
+    }
+
+    private static String safeStr(String s) {
+        return s == null ? "" : s;
     }
 
     /** DataDelta 事件携带结构化 block：文本直接透出，其余以类型名占位 */

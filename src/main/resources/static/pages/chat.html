@@ -52,12 +52,17 @@ body { display: flex; flex-direction: column; }
 .caret { display: inline-block; width: 7px; height: 15px; background: #2563eb; vertical-align: -2px; animation: blink .9s infinite; margin-left: 2px; }
 @keyframes blink { 50% { opacity: 0; } }
 .input-area { background: #fff; border-top: 1px solid #e5e7eb; padding: 14px 24px; }
-.skills-row { display: none; gap: 8px; max-width: 900px; margin: 0 auto 10px; overflow-x: auto; padding-bottom: 2px; }
+.tools-bar { display: flex; align-items: center; gap: 8px; max-width: 900px; margin: 0 auto 10px; }
+.skills-row { display: none; gap: 8px; flex: 1; overflow-x: auto; padding-bottom: 2px; }
 .skills-row.show { display: flex; }
 .skill-chip { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 16px; background: #f9fafb; color: #374151; font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; }
 .skill-chip:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
-.skill-chip .tip { display: none; position: absolute; bottom: calc(100% + 8px); left: 0; width: max-content; max-width: 360px; padding: 8px 10px; background: #1f2937; color: #f9fafb; border-radius: 8px; font-size: 12px; line-height: 1.6; white-space: normal; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
-.skill-chip:hover .tip { display: block; }
+.skill-chip .tip, .mem-toggle .tip { display: none; position: absolute; bottom: calc(100% + 8px); left: 0; width: max-content; max-width: 360px; padding: 8px 10px; background: #1f2937; color: #f9fafb; border-radius: 8px; font-size: 12px; line-height: 1.6; white-space: normal; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.skill-chip:hover .tip, .mem-toggle:hover .tip { display: block; }
+.mem-toggle { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 16px; background: #f9fafb; color: #374151; font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; }
+.mem-toggle.on { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+.mem-toggle input { accent-color: #2563eb; margin: 0; cursor: pointer; }
+.mem-toggle .tip { left: auto; right: 0; }
 .input-row { display: flex; gap: 10px; align-items: flex-end; max-width: 900px; margin: 0 auto; }
 textarea { flex: 1; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5; }
 textarea:focus { outline: none; border-color: #2563eb; }
@@ -88,7 +93,14 @@ textarea:focus { outline: none; border-color: #2563eb; }
       </div>
     </div>
     <div class="input-area">
-      <div class="skills-row" id="skills-row"></div>
+      <div class="tools-bar">
+        <div class="skills-row" id="skills-row"></div>
+        <label class="mem-toggle" id="mem-toggle" style="display:none;">
+          <input type="checkbox" id="mem-check">
+          <span>记忆工具</span>
+          <span class="tip" id="mem-tip"></span>
+        </label>
+      </div>
       <div class="input-row">
         <textarea id="input" placeholder="输入问题，Enter 发送，Shift+Enter 换行" rows="1"></textarea>
         <button class="btn" id="btn-send">发送</button>
@@ -175,6 +187,51 @@ function insertSkill(name) {
   autoGrow();
 }
 
+// ---------- 记忆工具开关 ----------
+// 运行时控制 agent 的 memory_search/get/save 对模型是否可见（GET 对账，PUT 切换）；
+// agent 未装配（无 key）或拉取失败时不渲染开关，不影响聊天
+const memToggle = $('mem-toggle');
+const memCheck = $('mem-check');
+const memTip = $('mem-tip');
+
+fetch('/api/agent/memory-tools').then(r => r.json()).then(j => {
+  if (j && j.code === 0 && j.data && j.data.agentAvailable) {
+    memToggle.style.display = '';
+    syncMemToggle(j.data);
+  }
+}).catch(() => { /* 拉取失败不显示开关 */ });
+
+/** 以 Toolkit 实际存活集（activeTools）为准渲染，与开关值不一致时对账纠偏 */
+function syncMemToggle(d) {
+  const live = Array.isArray(d.activeTools) && d.activeTools.length > 0;
+  memCheck.checked = live;
+  memToggle.classList.toggle('on', live);
+  memTip.textContent = live
+    ? '记忆工具已开启：AI 可检索历史会话沉淀的记忆（memory_search / memory_get / memory_save）'
+    : '记忆工具已关闭：AI 无法检索历史会话记忆，下一轮对话生效';
+}
+
+memCheck.addEventListener('change', async () => {
+  const target = memCheck.checked;
+  try {
+    const res = await fetch('/api/agent/memory-tools', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: target })
+    });
+    if (res.status === 401) { location.href = '/login'; return; }
+    const j = await res.json();
+    if (res.ok && j && j.code === 0 && j.data) {
+      syncMemToggle(j.data);
+      return;
+    }
+    throw new Error((j && j.msg) || ('HTTP ' + res.status));
+  } catch (e) {
+    memCheck.checked = !target; // 切换失败回滚
+    memTip.textContent = '切换失败：' + (e.message || '网络异常');
+  }
+});
+
 function emptyTipHtml(firstLine) {
   return '<div class="empty-tip" id="empty-tip"><div class="big">' + firstLine +
       '</div><div>向 AI 助手提问' + esc(appTitle) + '相关问题</div></div>';
@@ -260,7 +317,16 @@ function addAgentMsg() {
 }
 
 // ---------- SSE 解析 ----------
-function handleSseBlock(block, ui) {
+/** 轮次块懒创建：round start 已建则复用；兼容未发 round 事件的旧流（首个内容事件时兜底创建） */
+function ensureRound(st) {
+  if (!st.ui) {
+    st.ui = addAgentMsg();
+    sessionTotals.lastUi = st.ui;
+  }
+  return st.ui;
+}
+
+function handleSseBlock(block, st) {
   let eventName = 'message';
   const dataLines = [];
   for (const line of block.split('\n')) {
@@ -274,12 +340,25 @@ function handleSseBlock(block, ui) {
   if (eventName === 'session') {
     sessionId = payload.sessionId || sessionId;
     localStorage.setItem(SS_KEY, sessionId);
+  } else if (eventName === 'round') {
+    // 轮次边界：ReAct 每轮模型调用一对 start/end；每轮独立气泡，与历史渲染一致
+    if (payload.phase === 'start') {
+      st.ui = addAgentMsg();
+      sessionTotals.lastUi = st.ui;
+    } else if (payload.phase === 'end' && st.ui) {
+      st.ui.setDone({ promptTokens: payload.promptTokens, completionTokens: payload.completionTokens });
+      sessionTotals.in += payload.promptTokens || 0;
+      sessionTotals.out += payload.completionTokens || 0;
+      scrollBottom();
+    }
   } else if (eventName === 'thinking') {
+    const ui = ensureRound(st);
     ui.thinkBox.style.display = '';
     ui.thinkInner.textContent += (payload.delta || '');
     ui.thinkBox.open = true;
     scrollBottom();
   } else if (eventName === 'tool') {
+    const ui = ensureRound(st);
     ui.toolBox.style.display = '';
     ui.toolBox.open = true;
     const entry = (payload.id && ui.toolLines && ui.toolLines[payload.id]) || null;
@@ -344,16 +423,17 @@ function handleSseBlock(block, ui) {
     }
     scrollBottom();
   } else if (eventName === 'answer') {
+    const ui = ensureRound(st);
     ui.answer.textContent += (payload.delta || '');
     ui.caret.style.display = '';
     scrollBottom();
   } else if (eventName === 'done') {
-    ui.setDone(payload);
-    sessionTotals.in += (payload && payload.promptTokens) || 0;
-    sessionTotals.out += (payload && payload.completionTokens) || 0;
+    // 各轮 tokens 已在 round end 落位（done 的 usage 为全轮聚合，不再重复累计）；
+    // 这里只对末块兜底（未收到 round end 时补时间行）并刷新总计行
+    if (st.ui) st.ui.setDone(null);
     appendTotalUsage();
   } else if (eventName === 'error') {
-    ui.setError(payload.message || '未知错误');
+    ensureRound(st).setError(payload.message || '未知错误');
   }
 }
 
@@ -367,8 +447,7 @@ async function send() {
   autoGrow();
 
   addUserMsg(text);
-  const ui = addAgentMsg();
-  sessionTotals.lastUi = ui;
+  const st = { ui: null }; // 当前轮次块：round start 时创建，一轮一个气泡（与历史渲染一致）
   aborter = new AbortController();
 
   try {
@@ -382,7 +461,7 @@ async function send() {
       let msg = 'HTTP ' + res.status;
       try { const j = await res.json(); msg = j.message || j.msg || msg; } catch (e) {}
       if (res.status === 401) { location.href = '/login'; return; }
-      ui.setError(msg);
+      ensureRound(st).setError(msg);
       return;
     }
     const reader = res.body.getReader();
@@ -396,17 +475,19 @@ async function send() {
       while ((idx = buf.indexOf('\n\n')) >= 0) {
         const block = buf.slice(0, idx);
         buf = buf.slice(idx + 2);
-        if (block.trim()) handleSseBlock(block, ui);
+        if (block.trim()) handleSseBlock(block, st);
       }
     }
-    if (buf.trim()) handleSseBlock(buf, ui);
-    ui.setDone(null);
+    if (buf.trim()) handleSseBlock(buf, st);
+    if (st.ui) st.ui.setDone(null); // 流结束兜底（round end 已处理则幂等）
   } catch (e) {
     if (e.name === 'AbortError') {
-      ui.answer.textContent += '\n\n（已停止）';
-      ui.setDone(null);
+      if (st.ui) {
+        st.ui.answer.textContent += '\n\n（已停止）';
+        st.ui.setDone(null);
+      }
     } else {
-      ui.setError(e.message || '网络异常');
+      ensureRound(st).setError(e.message || '网络异常');
     }
   } finally {
     streaming = false;
