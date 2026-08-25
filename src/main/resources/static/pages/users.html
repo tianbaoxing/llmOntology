@@ -89,7 +89,8 @@ function statusBadge(status) {
 }
 
 function actionsHtml(u) {
-  let html = `<button class="btn sm ghost" onclick="showMemory('${esc(u.userId)}')">记忆</button>`;
+  let html = `<button class="btn sm ghost" onclick="showMemory('${esc(u.userId)}')">记忆</button>` +
+    `<button class="btn sm ghost" onclick="openDashboard('${esc(u.userId)}')">驾驶舱</button>`;
   if (!me || u.userId === me.userId) return html + '<span class="muted">当前登录账号</span>';
   if (u.status === 'PENDING') {
     html += `<button class="btn sm" onclick="approveUser('${esc(u.userId)}')">通过审核</button>`;
@@ -124,6 +125,10 @@ async function loadUsers() {
 
 function doAction(fn) {
   fn().then(d => { showMsg('操作成功', true); loadUsers(); }).catch(e => showMsg('失败：' + e.message, false));
+}
+
+function openDashboard(userId) {
+  window.open('/dashboard?userId=' + encodeURIComponent(userId), '_blank');
 }
 
 function approveUser(userId) {

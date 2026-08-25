@@ -15,11 +15,13 @@
 .bar-wrap { display: inline-flex; align-items: center; gap: 6px; }
 .bar-track { background: #f3f4f6; border-radius: 4px; height: 12px; width: 110px; }
 .bar-fill { height: 12px; border-radius: 4px; background: #3b82f6; }
+#view-banner { display: none; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 8px; padding: 10px 16px; font-size: 14px; margin-bottom: 14px; }
 </style>
 </head>
 <body>
 <div class="container">
   <div id="msg" class="msg"></div>
+  <div id="view-banner"></div>
 
   <div class="stats-row" id="dash-stats"></div>
   <div class="card">
@@ -47,11 +49,13 @@
 <script>
 let STATS = null;
 let rangeDays = 30;
+// URL 带 userId 参数时查看指定用户（管理员入口），否则统计当前登录用户自己
+const viewUserId = new URLSearchParams(location.search).get('userId');
 
 function fmtNum(n) { return Number(n || 0).toLocaleString('zh-CN'); }
 
 async function load() {
-  STATS = await api('GET', '/api/dashboard/stats');
+  STATS = await api('GET', viewUserId ? '/api/dashboard/stats/' + encodeURIComponent(viewUserId) : '/api/dashboard/stats');
   renderStats();
   renderDaily();
   renderSessions();
@@ -133,7 +137,12 @@ document.querySelectorAll('.range-btns button').forEach(b => {
   };
 });
 
-CF.renderHeader();
+if (viewUserId) {
+  const b = $('view-banner');
+  b.style.display = 'block';
+  b.textContent = '正在查看用户：' + viewUserId;
+}
+CF.renderHeader(viewUserId ? { titleSuffix: ' · 用户 ' + viewUserId } : {});
 CF.initUser();
 load().catch(e => showMsg('加载失败：' + e.message, false));
 </script>
