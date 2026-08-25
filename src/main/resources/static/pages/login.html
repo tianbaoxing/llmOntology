@@ -19,6 +19,9 @@ input:focus { outline: none; border-color: #2563eb; }
 .btn { display: block; width: 100%; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; background: #2563eb; color: #fff; margin-top: 4px; }
 .btn:hover { background: #1d4ed8; }
 .btn:disabled { background: #93c5fd; cursor: not-allowed; }
+.btn.loading { background: #1d4ed8; cursor: default; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .links { text-align: center; margin-top: 16px; }
 .links a { color: #2563eb; text-decoration: none; cursor: pointer; font-size: 13px; }
 .links a:hover { text-decoration: underline; }
@@ -123,10 +126,20 @@ $('btn-init').onclick = async () => {
 
 // 登录
 $('btn-login').onclick = async () => {
+  const btn = $('btn-login');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.innerHTML = '<span class="spinner"></span>登录中...';
   try {
     await api('POST', '/api/session', { username: $('login-user').value.trim(), password: $('login-pwd').value });
     location.href = '/';
-  } catch (e) { showMsg(e.message, false); }
+  } catch (e) {
+    showMsg(e.message, false);
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    btn.innerHTML = original;
+  }
 };
 
 // 注册（PENDING，等待审核）
