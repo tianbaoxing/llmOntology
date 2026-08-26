@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>评测中心</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/pages/common.css">
+<style>
+.score { display:inline-block; min-width:3.2em; padding:1px 8px; border-radius:10px; font-size:12px; text-align:center; color:#fff; margin:1px 2px; }
+.score.hi { background:#16a34a; } .score.mid { background:#d97706; } .score.lo { background:#dc2626; }
+.score.err { background:#6b7280; }
+.grader-checks label { display:inline-flex; align-items:flex-start; gap:5px; margin:3px 14px 3px 0; font-weight:normal; cursor:pointer; max-width:420px; vertical-align:top; }
+.grader-checks input { margin-top:3px; }
+.grader-desc { color:#64748b; font-size:12px; }
+details.eval-detail { margin:2px 0; }
+details.eval-detail summary { cursor:pointer; color:#2563eb; font-size:13px; }
+details.eval-detail pre { background:#f1f5f9; padding:8px; border-radius:5px; font-size:12px; white-space:pre-wrap; word-break:break-all; max-height:320px; overflow:auto; }
+td.wrap { max-width:360px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="msg" class="msg"></div>
+
+  <div class="card">
+    <h2>运行评测</h2>
+    <div class="muted" style="margin-bottom:10px">选择数据集与评测器，批量驱动 AI 问答并判分；评测需调用 agent（须已配置 OPENROUTER_API_KEY），逐条串行执行</div>
+    <div class="toolbar" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+      <label>数据集 <select id="ev-dataset"></select></label>
+      <button class="btn" id="ev-btn" onclick="startEval()">运行评测</button>
+      <span class="muted" id="ev-dataset-info"></span>
+    </div>
+    <div style="margin-top:8px">
+      <div class="muted" style="margin-bottom:4px">评测器（不勾选 = 全部启用；悬停查看说明）</div>
+      <div class="grader-checks" id="ev-graders"></div>
+    </div>
+    <div id="ev-progress-wrap" style="display:none; margin-top:12px">
+      <div style="background:#e5e7eb;border-radius:5px;height:18px;overflow:hidden">
+        <div id="ev-bar" style="background:#2563eb;height:100%;width:0%;transition:width .3s"></div>
+      </div>
+      <div class="muted" style="margin-top:6px" id="ev-detail"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>历史评测</h2>
+    <div id="ev-runs"></div>
+  </div>
+
+  <div class="card" id="ev-result-card" style="display:none">
+    <h2 id="ev-result-title">结果明细</h2>
+    <div id="ev-summary"></div>
+    <div id="ev-samples" style="margin-top:12px"></div>
+  </div>
+</div>
+<script src="/pages/common.js"></script>
+<script>
+// ---------------- 运行评测 ----------------
+let evTaskId = null;
+
+async function startEval() {
+  const dataset = $('ev-dataset').value;
+  if (!dataset) return showMsg('请先选择数据集', false);
+  const graders = [...document.querySelectorAll('#ev-graders input:checked')].map(c => c.value);
+  try {
+    const d = await api('POST', '/api/eval/runs', { dataset, graders });
+    evTaskId = d.taskId;
+  } catch (e) { return showMsg('启动失败：' + e.message, false); }
+  $('ev-btn').disabled = true;
+  $('ev-progress-wrap').style.display = 'block';
+  $('ev-bar').style.width = '0%';
+  $('ev-detail').textContent = '准备中';
+  pollEval();
+}
+
+function pollEval() {
+  api('GET', '/api/eval/runs/' + encodeURIComponent(evTaskId)).then(p => {
+    $('ev-bar').style.width = p.percent + '%';
+    $('ev-detail').textContent = p.detail + '（' + p.percent + '%）';
+    if (p.status === 'running') { setTimeout(pollEval, 1000); return; }
+    $('ev-btn').disabled = false;
+    if (p.status === 'success') {
+      showMsg('评测完成', true);
+      renderResult(p.result);
+      loadRuns().catch(() => {});
+    } else {
+      showMsg('评测失败：' + (p.error || '未知错误'), false);
+    }
+  }).catch(e => {
+    $('ev-btn').disabled = false;
+    showMsg('进度获取失败：' + e.message, false);
+  });
+}
+
+// ---------------- 结果渲染 ----------------
+function scoreBadge(s) {
+  if (s.error) return `<span class="score err" title="${esc(s.reason || '')}">${esc(s.name)}:错误</span>`;
+  const v = Number(s.score);
+  const cls = v >= 0.8 ? 'hi' : v >= 0.5 ? 'mid' : 'lo';
+  return `<span class="score ${cls}" title="${esc(s.reason || '')}">${esc(s.name)}:${v.toFixed(2)}</span>`;
+}
+
+function fmtDuration(ms) {
+  if (ms >= 60000) return (ms / 60000).toFixed(1) + ' 分';
+  return (ms / 1000).toFixed(1) + ' 秒';
+}
+
+function renderResult(result) {
+  if (!result) return;
+  $('ev-result-card').style.display = '';
+  $('ev-result-title').textContent = '结果明细：' + result.id + '（' + result.dataset + '）';
+  const s = result.summary || {};
+  $('ev-summary').innerHTML = '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+    statCard(s.total ?? '-', '样本总数') +
+    statCard((s.passCount ?? '-') + '/' + (s.total ?? '-'), '通过数（均分≥0.8）') +
+    statCard(s.passRate != null ? (s.passRate * 100).toFixed(1) + '%' : '-', '通过率') +
+    statCard(s.avgScore != null ? s.avgScore.toFixed(3) : '-', '平均分') +
+    statCard(s.errorCount ?? '-', '异常样本数') +
+    statCard(s.avgDurationMs ? fmtDuration(s.avgDurationMs) : '-', '平均耗时') +
+    statCard((s.promptTokens ?? 0) + '/' + (s.completionTokens ?? 0), 'tokens(入/出)') +
+    '</div>';
+  const rows = (result.samples || []).map(sm => {
+    const scores = sm.scores || [];
+    const toolCalls = sm.toolCalls || [];
+    const answerDetail = `<details class="eval-detail"><summary>回答与轨迹（${toolCalls.length} 次工具调用，${sm.rounds ?? 0} 轮，${sm.durationMs ? fmtDuration(sm.durationMs) : '-'}）</summary>` +
+      `<pre>${sm.agentError ? '【agent 调用失败】' + esc(sm.agentError) + '\n\n' : ''}${esc(sm.answer || '（空）')}` +
+      (toolCalls.length ? '\n\n—— 工具调用轨迹 ——\n' + toolCalls.map(t =>
+        `#${t.name} [${t.state}] args: ${t.args}\n  result: ${t.result}`).join('\n') : '') + '</pre></details>';
+    const reasonDetail = scores.map(sc =>
+      `<div><b>${esc(sc.name)}：</b>${sc.error ? '错误 - ' : ''}${esc(sc.reason || '')}</div>`).join('');
+    return [
+      `<td class="wrap">${esc(sm.id || '')}<div class="muted" style="font-size:12px">${esc(sm.query || '')}</div></td>`,
+      `<td class="wrap">${scores.map(scoreBadge).join(' ') || '<span class="muted">无</span>'}` +
+        `<details class="eval-detail"><summary>判分理由</summary><div style="font-size:13px">${reasonDetail || '<span class="muted">无</span>'}</div></details></td>`,
+      `<td class="wrap">${answerDetail}</td>`
+    ].join('');
+  });
+  $('ev-samples').innerHTML = rows.length
+    ? '<table><tr><th>样本</th><th>评测器得分</th><th style="width:32%">回答 / 轨迹</th></tr>' +
+      rows.map(r => `<tr>${r}</tr>`).join('') + '</table>'
+    : '<div class="muted">无样本</div>';
+  $('ev-result-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ---------------- 历史 / 初始化 ----------------
+async function loadRuns() {
+  const d = await api('GET', '/api/eval/runs');
+  $('ev-runs').innerHTML = d.runs.length ? table(
+    ['任务 id', '数据集', '通过率', '平均分', '样本数', '异常', '操作'],
+    d.runs.map(r => {
+      const s = r.summary || {};
+      return [
+        code(r.id), esc(r.dataset || '-'),
+        s.passRate != null ? (s.passRate * 100).toFixed(1) + '%' : '-',
+        s.avgScore != null ? s.avgScore.toFixed(3) : '-',
+        s.total ?? '-', s.errorCount ?? '-',
+        `<button class="btn sm" onclick="viewRun('${encodeURIComponent(r.id)}')">查看</button>` +
+        `<a class="btn sm" href="/api/eval/runs/${encodeURIComponent(r.id)}/file">下载</a>`
+      ];
+    })) : '<div class="muted">暂无评测记录</div>';
+}
+
+async function viewRun(encId) {
+  const id = decodeURIComponent(encId);
+  try {
+    const p = await api('GET', '/api/eval/runs/' + encodeURIComponent(id));
+    if (p.result) renderResult(p.result);
+  } catch (e) { showMsg('加载失败：' + e.message, false); }
+}
+
+async function loadDatasets() {
+  const d = await api('GET', '/api/eval/datasets');
+  const sel = $('ev-dataset');
+  sel.innerHTML = d.datasets.length
+    ? d.datasets.map(ds => `<option value="${esc(ds.name)}">${esc(ds.name)}（${ds.count} 条）</option>`).join('')
+    : '<option value="">（无数据集）</option>';
+  if (d.datasets.length) previewDataset(d.datasets[0].name);
+}
+
+async function previewDataset(name) {
+  $('ev-dataset-info').textContent = '';
+  try {
+    const d = await api('GET', '/api/eval/datasets/' + encodeURIComponent(name) + '/file');
+    const bad = (d.samples || []).filter(s => !s.valid).length;
+    $('ev-dataset-info').textContent = '预览前 ' + (d.samples || []).length + ' 行' + (bad ? '（含 ' + bad + ' 行格式错误）' : '');
+  } catch (e) { /* 预览失败不阻断 */ }
+}
+
+async function loadGraders() {
+  const d = await api('GET', '/api/eval/graders');
+  $('ev-graders').innerHTML = (d.graders || []).map(g =>
+    `<label title="${esc(g.description)}"><input type="checkbox" value="${esc(g.name)}">` +
+    `<span><code>${esc(g.name)}</code> <span class="grader-desc">${esc(g.type)}</span></span></label>`).join('')
+    || '<span class="muted">无已注册评测器</span>';
+}
+
+// ---------------- init ----------------
+CF.renderHeader({ titleSuffix: ' · 评测中心' });
+CF.initUser();
+loadDatasets().catch(e => showMsg('数据集加载失败：' + e.message, false));
+loadGraders().catch(e => showMsg('评测器加载失败：' + e.message, false));
+loadRuns().catch(e => showMsg('历史评测加载失败：' + e.message, false));
+</script>
+</body>
+</html>

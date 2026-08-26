@@ -64,13 +64,14 @@ const CF = (() => {
     { path: '/', label: '概览' },
     { path: '/chat', label: 'AI 问答' },
     { path: '/dashboard', label: '驾驶舱' },
+    { path: '/eval', label: '评测中心', admin: true },
     { path: '/files', label: '知识库', admin: true },
     { path: '/data', label: '图谱管理', admin: true },
     { path: '/backup', label: '备份恢复', admin: true },
     { path: '/users', label: '用户管理', admin: true }
   ];
   /** ADMIN 专属页面：普通用户直访时前端跳回概览（接口层另有 403 兜底；/users 由后端 403；驾驶舱为全员自助统计） */
-  const ADMIN_PAGES = new Set(['/files', '/data', '/backup']);
+  const ADMIN_PAGES = new Set(['/eval', '/files', '/data', '/backup']);
 
   function renderHeader(opts = {}) {
     const cur = location.pathname;

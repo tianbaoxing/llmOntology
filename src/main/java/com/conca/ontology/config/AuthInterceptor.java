@@ -16,15 +16,15 @@ import jakarta.servlet.http.HttpServletResponse;
  * - 公开接口：/api/session（登录登出/当前用户，敏感操作在 Controller 内校验）、/api/setup（初始化向导）、
  *   /api/app、/api/llm/**（LLM 专属，后续做 token 验证）、POST /api/users（自助注册）、
  *   PUT /api/users/me/password（自助改密，Controller 内校验会话）
- * - 页面（/、/data、/files、/backup、/chat、/dashboard、/users、/instances、/graph、/pages/**）：
- *   未登录 302 跳登录页；/users 仅 ADMIN（/data、/backup 页面级权限由前端控制，接口层 403 兜底）
- * - /api/** 其余：未登录 401 JSON；/api/users 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
+ * - 页面（/、/data、/files、/backup、/chat、/dashboard、/users、/instances、/graph、/eval、/pages/**）：
+ *   未登录 302 跳登录页；/users 与 /eval 仅 ADMIN（/data、/backup 页面级权限由前端控制，接口层 403 兜底）
+ * - /api/** 其余：未登录 401 JSON；/api/users、/api/eval 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
  */
 public class AuthInterceptor implements HandlerInterceptor {
 
     /** 需登录的页面路由（静态资源 /pages/** 单独按前缀判断） */
     private static final Set<String> PAGE_PATHS = Set.of("/", "/data", "/files", "/backup",
-            "/chat", "/dashboard", "/users", "/instances", "/graph");
+            "/chat", "/dashboard", "/users", "/instances", "/graph", "/eval");
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
@@ -55,7 +55,8 @@ public class AuthInterceptor implements HandlerInterceptor {
                 response.sendRedirect("/login");
                 return false;
             }
-            if ((uri.equals("/users") || uri.equals("/pages/users.html")) && !user.isAdmin()) {
+            if ((uri.equals("/users") || uri.equals("/pages/users.html")
+                    || uri.equals("/eval") || uri.equals("/pages/eval.html")) && !user.isAdmin()) {
                 response.sendError(403);
                 return false;
             }
@@ -68,9 +69,11 @@ public class AuthInterceptor implements HandlerInterceptor {
                 writeJson(response, 401, "未登录或会话已过期");
                 return false;
             }
-            // /api/dashboard 已放开为登录即可（统计当前用户自己的用量）
-            boolean adminOnly = uri.startsWith("/api/users");
-            if (!adminOnly && !isReadMethod(method) && !uri.startsWith("/api/agent")) {
+            // /api/dashboard 已放开为登录即可（统计当前用户自己的用量）；
+            // /api/eval 评测中心整体仅 ADMIN（页面与接口一致）
+            boolean adminOnly = uri.startsWith("/api/users") || uri.startsWith("/api/eval");
+            if (!adminOnly && !isReadMethod(method)
+                    && !uri.startsWith("/api/agent")) {
                 adminOnly = true;
             }
             if (adminOnly && !user.isAdmin()) {

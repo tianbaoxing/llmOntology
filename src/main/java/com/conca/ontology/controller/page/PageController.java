@@ -52,6 +52,12 @@ public class PageController {
         return "forward:/pages/dashboard.html";
     }
 
+    /** 评测中心页（数据集驱动问答评测，登录即可） */
+    @GetMapping("/eval")
+    public String eval() {
+        return "forward:/pages/eval.html";
+    }
+
     /** 用户管理页（仅 ADMIN，AuthInterceptor 校验） */
     @GetMapping("/users")
     public String users() {
