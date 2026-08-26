@@ -28,8 +28,8 @@
     <h2>每日 Token 用量</h2>
     <div class="toolbar">
       <span class="range-btns" style="display:inline-flex;gap:6px">
-        <button class="btn ghost sm" data-days="7">近 7 天</button>
-        <button class="btn ghost sm on" data-days="30">近 30 天</button>
+        <button class="btn ghost sm on" data-days="7">近 7 天</button>
+        <button class="btn ghost sm" data-days="30">近 30 天</button>
         <button class="btn ghost sm" data-days="90">近 90 天</button>
       </span>
       <span id="daily-legend">
@@ -48,7 +48,7 @@
 <script src="/pages/common.js"></script>
 <script>
 let STATS = null;
-let rangeDays = 30;
+let rangeDays = 7;
 // URL 带 userId 参数时查看指定用户（管理员入口），否则统计当前登录用户自己
 const viewUserId = new URLSearchParams(location.search).get('userId');
 
