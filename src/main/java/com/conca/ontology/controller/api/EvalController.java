@@ -41,7 +41,7 @@ import jakarta.validation.Valid;
  */
 @RestController
 @RequestMapping("/api/eval")
-@Tag(name = "eval", description = "评测中心：数据集驱动 agent 问答并多评测器判分（一期为规则评测器）")
+@Tag(name = "eval", description = "评测中心：数据集驱动 agent 问答并多评测器判分（规则评测器 + LLM 判分）")
 public class EvalController {
 
     private final EvalService evalService;

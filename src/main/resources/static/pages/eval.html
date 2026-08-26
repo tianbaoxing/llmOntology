@@ -25,7 +25,7 @@ td.wrap { max-width:360px; }
 
   <div class="card">
     <h2>运行评测</h2>
-    <div class="muted" style="margin-bottom:10px">选择数据集与评测器，批量驱动 AI 问答并判分；未预置 response 的样本调用 agent（须已配置 OPENROUTER_API_KEY）逐条串行作答，预置 response 的样本跳过 agent 直接判分（OpenJudge 纯判分模式）</div>
+    <div class="muted" style="margin-bottom:10px">选择数据集与评测器，批量驱动 AI 问答并判分。评测器分两类：规则评测（本地算法，零成本）与 LLM 评测（judge 模型判分，消耗 tokens，须已配置 OPENROUTER_API_KEY）。未预置 response 的样本调用 agent 逐条串行作答，预置 response 的样本跳过 agent 直接判分（OpenJudge 纯判分模式）</div>
     <div class="toolbar" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
       <label>数据集 <select id="ev-dataset"></select></label>
       <button class="btn" id="ev-btn" onclick="startEval()">运行评测</button>
@@ -98,7 +98,8 @@ function scoreBadge(s) {
   if (s.error) return `<span class="score err" title="${esc(s.reason || '')}">${esc(s.name)}:错误</span>`;
   const v = Number(s.score);
   const cls = v >= 0.8 ? 'hi' : v >= 0.5 ? 'mid' : 'lo';
-  return `<span class="score ${cls}" title="${esc(s.reason || '')}">${esc(s.name)}:${v.toFixed(2)}</span>`;
+  const raw = s.metadata && s.metadata.rawScore != null ? `(${s.metadata.rawScore}/5)` : '';
+  return `<span class="score ${cls}" title="${esc(s.reason || '')}">${esc(s.name)}:${v.toFixed(2)}${raw}</span>`;
 }
 
 function fmtDuration(ms) {

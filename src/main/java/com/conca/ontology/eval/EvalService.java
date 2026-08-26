@@ -95,6 +95,7 @@ public class EvalService {
 
     private final ObjectProvider<HarnessAgent> agentProvider;
     private final ObjectMapper mapper;
+    private final JudgeClient judgeClient;
     private final Map<String, Grader> graders = new TreeMap<>();
 
     @Value("${app.eval.dataset-dir:data/eval/datasets}")
@@ -111,9 +112,10 @@ public class EvalService {
     });
 
     public EvalService(ObjectProvider<HarnessAgent> agentProvider,
-            ObjectMapper mapper, List<Grader> graderBeans) {
+            ObjectMapper mapper, JudgeClient judgeClient, List<Grader> graderBeans) {
         this.agentProvider = agentProvider;
         this.mapper = mapper;
+        this.judgeClient = judgeClient;
         for (Grader g : graderBeans) {
             graders.put(g.name(), g);
         }
@@ -219,6 +221,11 @@ public class EvalService {
                     throw new ApiException(400, "未知评测器: " + n + "（可用：" + graders.keySet() + "）");
                 }
             }
+        }
+        // LLM 判分依赖 judge 通道：未配置 key 时提前 409（对齐现有「AI 服务未配置」文案约定）
+        if (names.stream().anyMatch(n -> "llm".equals(graders.get(n).type())) && !judgeClient.isConfigured()) {
+            throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：所选评测器包含 LLM 判分，"
+                    + "请配置后重启服务或仅勾选规则评测器");
         }
         // 仅当存在需 agent 作答的样本（未预置 response）时才要求 agent 装配；
         // 全部预置 response 的数据集为纯判分模式（对齐 OpenJudge），不依赖 AI 服务
@@ -437,7 +444,8 @@ public class EvalService {
         return scores;
     }
 
-    /** 汇总：passRate 按样本级均分 ≥ 0.8 记通过；errorCount 含 agent 调用失败与评测器失败 */
+    /** 汇总：passRate 按样本级均分 ≥ 0.8 记通过；errorCount 含 agent 调用失败与评测器失败；
+     *  judge 汇总 LLM 评测器的判分调用成本（tokens/次数/模型，从各 score 的 metadata.judge 累计） */
     private Map<String, Object> summarize(List<Map<String, Object>> sampleResults,
             long totalDuration, long totalPromptTokens, long totalCompletionTokens) {
         int total = sampleResults.size();
@@ -445,12 +453,24 @@ public class EvalService {
         int errorSamples = 0;
         double scoreSum = 0;
         int scoreCount = 0;
+        long judgePromptTokens = 0;
+        long judgeCompletionTokens = 0;
+        int judgeCalls = 0;
+        String judgeModel = null;
         for (Map<String, Object> row : sampleResults) {
             List<Map<String, Object>> scores = (List<Map<String, Object>>) row.get("scores");
             double rowSum = 0;
             int rowCount = 0;
             boolean rowError = false;
             for (Map<String, Object> s : scores) {
+                if (s.get("metadata") instanceof Map<?, ?> mm && mm.get("judge") instanceof Map<?, ?> j) {
+                    judgePromptTokens += num(j.get("promptTokens"));
+                    judgeCompletionTokens += num(j.get("completionTokens"));
+                    judgeCalls += num(j.get("calls"));
+                    if (j.get("model") instanceof String ms && !ms.isBlank()) {
+                        judgeModel = ms;
+                    }
+                }
                 if (Boolean.TRUE.equals(s.get("error"))) {
                     rowError = true;
                     continue;
@@ -470,6 +490,11 @@ public class EvalService {
                 }
             }
         }
+        Map<String, Object> judge = new LinkedHashMap<>();
+        judge.put("model", judgeModel);
+        judge.put("calls", judgeCalls);
+        judge.put("promptTokens", judgePromptTokens);
+        judge.put("completionTokens", judgeCompletionTokens);
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("total", total);
         m.put("passCount", pass);
@@ -479,7 +504,12 @@ public class EvalService {
         m.put("avgDurationMs", total == 0 ? 0 : totalDuration / total);
         m.put("promptTokens", totalPromptTokens);
         m.put("completionTokens", totalCompletionTokens);
+        m.put("judge", judge);
         return m;
+    }
+
+    private static long num(Object v) {
+        return v instanceof Number n ? n.longValue() : 0;
     }
 
     // ---------------- agent 驱动与轨迹采集 ----------------
