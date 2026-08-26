@@ -16,6 +16,9 @@
 .bar-track { background: #f3f4f6; border-radius: 4px; height: 12px; width: 110px; }
 .bar-fill { height: 12px; border-radius: 4px; background: #3b82f6; }
 #view-banner { display: none; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 8px; padding: 10px 16px; font-size: 14px; margin-bottom: 14px; }
+#dash-sessions tr { cursor: pointer; }
+#dash-sessions a.session-link { color: #2563eb; text-decoration: none; }
+#dash-sessions a.session-link:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -123,11 +126,21 @@ function renderSessions() {
     ['会话', '最近活动', '轮次', 'LLM 调用', '输入', '输出', '缓存命中', '合计', '占比'],
     list.map(v => {
       const pct = Math.min(100, v.tokens * 100 / total).toFixed(1);
-      return [esc(v.title), esc(v.lastTime || '-'), fmtNum(v.rounds), fmtNum(v.llmCalls),
+      const href = '/session-detail?sessionId=' + encodeURIComponent(v.sessionId) +
+        (viewUserId ? '&userId=' + encodeURIComponent(viewUserId) : '');
+      return [`<a class="session-link" href="${href}" target="_blank" title="查看会话详情">${esc(v.title)}</a>`,
+        esc(v.lastTime || '-'), fmtNum(v.rounds), fmtNum(v.llmCalls),
         fmtNum(v.inputTokens), fmtNum(v.outputTokens), fmtNum(v.cachedTokens), fmtNum(v.tokens),
         `<span class="bar-wrap"><span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span><span class="muted">${pct}%</span></span>`];
     }));
 }
+
+// 整行点击跳会话详情（点链接本身走默认新标签行为，避免开两个）
+$('dash-sessions').addEventListener('click', e => {
+  if (e.target.closest('a')) return;
+  const a = e.target.closest('tr')?.querySelector('a.session-link');
+  if (a) window.open(a.href, '_blank');
+});
 
 document.querySelectorAll('.range-btns button').forEach(b => {
   b.onclick = () => {

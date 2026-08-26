@@ -52,6 +52,12 @@ public class PageController {
         return "forward:/pages/dashboard.html";
     }
 
+    /** 会话详情页（驾驶舱会话用量明细下钻：上下文构成双图 + 消息明细） */
+    @GetMapping("/session-detail")
+    public String sessionDetail() {
+        return "forward:/pages/session-detail.html";
+    }
+
     /** 评测中心页（数据集驱动问答评测，登录即可） */
     @GetMapping("/eval")
     public String eval() {

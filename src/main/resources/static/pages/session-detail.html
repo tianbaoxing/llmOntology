@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会话详情</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect x='9' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Crect x='34' y='3' width='5' height='9' rx='1.5' fill='%23e3b04b'/%3E%3Cpath d='M5 11h38l-4.5 21h-29Z' fill='%23e3b04b'/%3E%3Cpath d='M14 19L24 15.5 34 19 24 27.5Z' stroke='%238a5a18' stroke-width='1.8' fill='none' opacity='.7'/%3E%3Ccircle cx='14' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='34' cy='19' r='3' fill='%2338bdf8'/%3E%3Ccircle cx='24' cy='15.5' r='3' fill='%23f8fafc'/%3E%3Ccircle cx='24' cy='27.5' r='3' fill='%2338bdf8'/%3E%3Cpath d='M12 32l-3 13h6l1.5-13Z' fill='%23e3b04b'/%3E%3Cpath d='M36 32l3 13h-6l-1.5-13Z' fill='%23e3b04b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/pages/common.css">
+<style>
+/* 会话详情专属样式 */
+.sd-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sd-title-row h2 { display: flex; align-items: center; min-width: 0; flex: 1; height: 32px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sd-back { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 999px; font-size: 13px; text-decoration: none;
+  background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; transition: background .15s, border-color .15s; }
+#sd-back:hover { background: #dbeafe; border-color: #93c5fd; }
+#sd-back .arrow { transition: transform .15s; }
+#sd-back:hover .arrow { transform: translateX(-2px); }
+#sd-meta { font-size: 13px; color: #6b7280; margin-top: 6px; word-break: break-all; }
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 900px) { .charts-row { grid-template-columns: 1fr; } }
+.chart-cell h3 { font-size: 14px; font-weight: 600; color: #374151; margin: 0 0 8px; }
+.chart-cell svg { display: block; background: #fff; width: 100%; }
+#sd-note { font-size: 12px; color: #9ca3af; margin-top: 10px; }
+
+/* 消息时间线 */
+.msg-item { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;
+  background: #fff; content-visibility: auto; contain-intrinsic-size: 240px; }
+.msg-item.user { border-left: 4px solid #3b82f6; }
+.msg-item.assistant { border-left: 4px solid #22c55e; }
+.msg-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; font-size: 12px; }
+.role-chip { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.role-chip.user { background: #eff6ff; color: #1d4ed8; }
+.role-chip.assistant { background: #f0fdf4; color: #15803d; }
+.role-chip.tool { background: #fef3c7; color: #b45309; }
+.tok-chip { color: #9ca3af; }
+.tok-chip.real { color: #2563eb; }
+.msg-body { white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.7; color: #1f2937; }
+.think-block, .tool-block { background: #f9fafb; border: 1px solid #f3f4f6; border-radius: 8px;
+  padding: 10px 12px; margin: 8px 0; }
+.think-block pre, .tool-io pre { white-space: pre-wrap; word-break: break-word; font-size: 12px;
+  line-height: 1.6; margin: 4px 0 0; color: #374151; font-family: Consolas, 'Courier New', monospace; }
+.think-block { border-left: 3px solid #a78bfa; }
+.think-block .io-label { color: #7c3aed; }
+.tool-block { border-left: 3px solid #f59e0b; }
+.tool-io { margin-top: 8px; }
+.io-label { font-size: 11px; font-weight: 600; color: #b45309; text-transform: uppercase; letter-spacing: .04em; }
+
+/* 静态上下文折叠块 */
+details.static-item { border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; background: #fff; }
+details.static-item > summary { cursor: pointer; padding: 10px 14px; font-size: 13px; color: #374151;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; list-style: none; user-select: none; }
+details.static-item > summary::-webkit-details-marker { display: none; }
+details.static-item > summary::before { content: '▸'; color: #9ca3af; transition: transform .15s; font-size: 11px; }
+details.static-item[open] > summary::before { transform: rotate(90deg); }
+details.static-item > summary:hover { background: #f9fafb; border-radius: 8px; }
+.static-body { padding: 4px 14px 12px; border-top: 1px dashed #e5e7eb; }
+.static-body pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.6;
+  margin: 8px 0 0; color: #374151; font-family: Consolas, 'Courier New', monospace; }
+.static-name { font-weight: 600; color: #111827; }
+.static-desc { color: #9ca3af; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-io .io-label.output { color: #15803d; }
+.tool-name { font-weight: 600; }
+#sd-messages .muted { font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="msg" class="msg"></div>
+
+  <div class="card">
+    <div class="sd-title-row">
+      <h2 id="sd-title">会话详情</h2>
+      <a id="sd-back" href="/dashboard"><span class="arrow">←</span> 返回驾驶舱</a>
+    </div>
+    <div id="sd-meta"></div>
+  </div>
+  <div class="stats-row" id="sd-stats"></div>
+  <div class="card">
+    <h2>LLM 上下文构成</h2>
+    <div class="muted" style="margin-bottom:10px">口径：最后一次 LLM 调用实际输入的构成（System Prompt / Tool Schemas / 各类消息）</div>
+    <div class="charts-row">
+      <div class="chart-cell"><h3>条目数</h3><svg id="items-svg"></svg></div>
+      <div class="chart-cell"><h3>Token 与占比</h3><svg id="tokens-svg"></svg></div>
+    </div>
+    <div id="sd-note"></div>
+  </div>
+  <div class="card">
+    <h2>LLM 调用输入 Token 增长</h2>
+    <div class="toolbar" style="margin-bottom:10px">
+      <span id="growth-legend" style="font-size:12px;color:#6b7280;display:inline-flex;align-items:center;gap:4px">
+        <span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#3b82f6;margin-right:4px"></i>输入 Token</span>
+        <span style="margin-left:10px"><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#22c55e;margin-right:4px"></i>其中缓存命中</span>
+      </span>
+    </div>
+    <svg id="growth-svg" viewBox="0 0 1100 300" width="100%" height="300"></svg>
+  </div>
+  <div class="card">
+    <h2>静态上下文</h2>
+    <div class="muted" style="margin-bottom:10px">每次 LLM 调用均携带的固定输入：系统提示词与工具 Schema（点击展开完整内容）</div>
+    <div id="sd-static"></div>
+  </div>
+  <div class="card">
+    <h2>消息明细</h2>
+    <div class="muted" style="margin-bottom:10px">完整消息内容（含思考过程与工具调用，不截断）</div>
+    <div id="sd-messages"></div>
+  </div>
+</div>
+<script src="/pages/common.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const sessionId = params.get('sessionId');
+const viewUserId = params.get('userId'); // 管理员查看指定用户时携带
+
+function fmtNum(n) { return Number(n || 0).toLocaleString('zh-CN'); }
+
+const COLORS = ['#3b82f6', '#8b5cf6', '#22c55e', '#f59e0b', '#ec4899', '#64748b'];
+
+async function load() {
+  if (!sessionId) throw new Error('缺少 sessionId 参数');
+  let url = '/api/dashboard/sessions/' + encodeURIComponent(sessionId) + '/detail';
+  if (viewUserId) url += '?userId=' + encodeURIComponent(viewUserId);
+  const d = await api('GET', url);
+  renderTitle(d);
+  renderStats(d);
+  renderBreakdown(d.breakdown || {});
+  renderGrowth(d.messages || []);
+  renderStatic(d);
+  renderMessages(d.messages || []);
+}
+
+function renderTitle(d) {
+  document.title = (d.title || '会话详情') + ' - 会话详情';
+  $('sd-title').textContent = d.title || '(空会话)';
+  $('sd-meta').textContent = '会话 ID：' + (d.sessionId || '-') + ' ｜ 最近活动：' + (d.lastTime || '-');
+}
+
+function renderStats(d) {
+  const s = d.summary || {};
+  $('sd-stats').innerHTML =
+    statCard(fmtNum(s.totalTokens), '总 Token') +
+    statCard(fmtNum(s.rounds), '提问轮次') +
+    statCard(fmtNum(s.llmCalls), 'LLM 调用') +
+    statCard(fmtNum(s.inputTokens), '输入 Token') +
+    statCard(fmtNum(s.outputTokens), '输出 Token') +
+    statCard(fmtNum(s.cachedTokens), '缓存命中 Token');
+}
+
+/** 横向条形图（与驾驶舱 SVG 风格一致）：valueKey 取值字段，showPct 时右侧数值附占比 */
+function renderHBar(svgId, categories, valueKey, showPct) {
+  const W = 560, rowH = 34, padT = 6, padL = 96, padR = 140, padB = 6;
+  const H = padT + padB + categories.length * rowH;
+  const max = Math.max(1, ...categories.map(c => Number(c[valueKey]) || 0));
+  let s = '';
+  categories.forEach((c, i) => {
+    const y = padT + i * rowH;
+    const v = Number(c[valueKey]) || 0;
+    const bw = Math.max(v > 0 ? 2 : 0, (W - padL - padR) * v / max);
+    const val = showPct ? fmtNum(v) + '（' + (c.pct || 0) + '%）' : fmtNum(v);
+    s += `<text x="${padL - 8}" y="${y + rowH / 2 + 4}" text-anchor="end" font-size="12" fill="#374151">${esc(c.name)}</text>` +
+         `<rect x="${padL}" y="${y + 8}" width="${W - padL - padR}" height="${rowH - 16}" rx="4" fill="#f3f4f6"/>` +
+         (bw > 0 ? `<rect x="${padL}" y="${y + 8}" width="${bw.toFixed(1)}" height="${rowH - 16}" rx="4" fill="${COLORS[i % COLORS.length]}"/>` : '') +
+         `<text x="${(padL + bw + 8).toFixed(1)}" y="${y + rowH / 2 + 4}" font-size="11" fill="#111827">${val}</text>`;
+  });
+  const svg = $(svgId);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('height', H);
+  svg.innerHTML = s;
+}
+
+function renderBreakdown(b) {
+  const cats = b.categories || [];
+  renderHBar('items-svg', cats, 'items', false);
+  renderHBar('tokens-svg', cats, 'tokens', true);
+  let note;
+  if (b.lastCallInputTokens != null) {
+    const dev = b.estimatedTokens > 0
+      ? '（原始估算 ' + fmtNum(b.estimatedTokens) + '，校准系数 ×' + (b.calibration || 1) + '）' : '';
+    note = 'Token 为字符启发式估算（CJK ≈1 token/字，其余 ≈4 字符/token），已按最后一次调用实际输入 ' +
+      fmtNum(b.lastCallInputTokens) + ' 等比例校准' + dev;
+  } else {
+    note = 'Token 为字符启发式估算（本会话无 LLM 调用用量记录，未校准）';
+  }
+  $('sd-note').textContent = note;
+}
+
+/** LLM 调用输入 Token 增长曲线：每次调用的实际 promptTokens（蓝）与其中缓存命中（绿），悬停看明细 */
+function renderGrowth(messages) {
+  const svg = $('growth-svg');
+  const calls = messages.filter(m => m.role === 'assistant' && m.promptTokens != null);
+  if (!calls.length) {
+    svg.outerHTML = '<div class="muted">本会话无 LLM 调用用量记录</div>';
+    return;
+  }
+  const W = 1100, H = 300, padL = 84, padR = 20, padT = 16, padB = 34;
+  const max = Math.max(1, ...calls.map(c => c.promptTokens));
+  const x = i => padL + (W - padL - padR) * (calls.length === 1 ? 0.5 : i / (calls.length - 1));
+  const y = v => padT + (H - padB - padT) * (1 - v / max);
+  let s = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = Math.round(max * i / 4), gy = y(v);
+    s += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" stroke="#e5e7eb"/>` +
+         `<text x="${padL - 8}" y="${(gy + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#9ca3af">${fmtNum(v)}</text>`;
+  }
+  // 缓存命中面积（绿，垫底）+ 输入折线（蓝）
+  const area = calls.map((c, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(c.cachedTokens || 0).toFixed(1)}`).join('');
+  const closeY = y(0).toFixed(1);
+  s += `<path d="${area}L${x(calls.length - 1).toFixed(1)},${closeY}L${x(0).toFixed(1)},${closeY}Z" fill="#22c55e" opacity="0.18"/>`;
+  s += `<path d="${calls.map((c, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(c.cachedTokens || 0).toFixed(1)}`).join('')}" fill="none" stroke="#22c55e" stroke-width="2"/>`;
+  s += `<path d="${calls.map((c, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(c.promptTokens).toFixed(1)}`).join('')}" fill="none" stroke="#3b82f6" stroke-width="2"/>`;
+  const labelStep = Math.ceil(calls.length / 15);
+  calls.forEach((c, i) => {
+    const tip = `第 ${i + 1} 次调用｜输入 ${fmtNum(c.promptTokens)}｜缓存命中 ${fmtNum(c.cachedTokens || 0)}｜输出 ${fmtNum(c.completionTokens || 0)}｜${c.ts || ''}`;
+    s += `<g><title>${tip}</title>` +
+         `<rect x="${(x(i) - (W - padL - padR) / calls.length / 2).toFixed(1)}" y="${padT}" width="${((W - padL - padR) / calls.length).toFixed(1)}" height="${H - padB - padT}" fill="transparent"/>` +
+         `<circle cx="${x(i).toFixed(1)}" cy="${y(c.promptTokens).toFixed(1)}" r="3.5" fill="#3b82f6"/>` +
+         `<circle cx="${x(i).toFixed(1)}" cy="${y(c.cachedTokens || 0).toFixed(1)}" r="3" fill="#22c55e"/></g>`;
+    if (i % labelStep === 0) {
+      s += `<text x="${x(i).toFixed(1)}" y="${H - padB + 18}" text-anchor="middle" font-size="11" fill="#9ca3af">${i + 1}</text>`;
+    }
+  });
+  s += `<text x="${(padL + W - padR) / 2}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#9ca3af">LLM 调用序号（共 ${calls.length} 次）</text>`;
+  svg.innerHTML = s;
+}
+
+/** 静态上下文：系统提示词 + 工具 Schema（默认折叠，点击展开完整内容） */
+function renderStatic(d) {
+  const el = $('sd-static');
+  let html = '';
+  if (d.systemPrompt) {
+    html += `<details class="static-item">
+      <summary><span class="static-name">System Prompt 系统提示词</span>
+        <span class="tok-chip">≈ ${fmtNum(d.systemPromptTokens)} tokens</span>
+        <span class="static-desc">${esc(d.systemPrompt.split('\n')[0].slice(0, 80))}</span></summary>
+      <div class="static-body"><pre>${esc(d.systemPrompt)}</pre></div>
+    </details>`;
+  }
+  const tools = d.toolSchemas || [];
+  if (tools.length) {
+    html += `<details class="static-item">
+      <summary><span class="static-name">Tool Schemas 工具定义</span>
+        <span class="tok-chip">${tools.length} 个工具</span></summary>
+      <div class="static-body">${tools.map(t => `
+        <details class="static-item" style="margin-top:8px">
+          <summary><span class="static-name">${esc(t.name)}</span>
+            <span class="tok-chip">≈ ${fmtNum(t.estTokens)} tokens</span>
+            <span class="static-desc">${esc((t.description || '').split('\n')[0].slice(0, 60))}</span></summary>
+          <div class="static-body">
+            <div class="io-label">Description</div>
+            <pre>${esc(t.description || '(空)')}</pre>
+            <div class="io-label" style="margin-top:8px">Parameters</div>
+            <pre>${esc(JSON.stringify(t.parameters ?? {}, null, 2))}</pre>
+          </div>
+        </details>`).join('')}
+      </div>
+    </details>`;
+  }
+  el.innerHTML = html || '<div class="muted">无静态上下文</div>';
+}
+
+function renderMessages(list) {
+  if (!list.length) {
+    $('sd-messages').innerHTML = '<div class="muted">暂无消息</div>';
+    return;
+  }
+  $('sd-messages').innerHTML = list.map(m => m.role === 'user' ? userItem(m) : assistantItem(m)).join('');
+}
+
+function userItem(m) {
+  return `<div class="msg-item user">
+    <div class="msg-head"><span class="role-chip user">用户</span><span class="muted">${esc(m.ts || '')}</span>
+      <span class="tok-chip">≈ ${fmtNum(m.estTokens)} tokens</span></div>
+    <div class="msg-body">${esc(m.content || '')}</div>
+  </div>`;
+}
+
+function assistantItem(m) {
+  let inner = '';
+  if (m.thinking) {
+    inner += `<div class="think-block"><div class="io-label">思考过程</div><pre>${esc(m.thinking)}</pre></div>`;
+  }
+  (m.tools || []).forEach(t => {
+    inner += `<div class="tool-block"><div class="msg-head" style="margin-bottom:0">
+        <span class="role-chip tool">工具调用</span><span class="tool-name">${code(t.name)}</span></div>
+      <div class="tool-io"><div class="io-label">输入</div><pre>${esc(t.input || '(空)')}</pre></div>
+      <div class="tool-io"><div class="io-label output">输出（≈ ${fmtNum(t.outputTokens)} tokens）</div><pre>${esc(t.output || '(空)')}</pre></div>
+    </div>`;
+  });
+  if (m.answer) {
+    inner += `<div class="msg-body">${esc(m.answer)}</div>`;
+  }
+  const real = m.promptTokens != null
+    ? `<span class="tok-chip real">实际 输入 ${fmtNum(m.promptTokens)} / 输出 ${fmtNum(m.completionTokens)}${m.cachedTokens ? ' / 缓存 ' + fmtNum(m.cachedTokens) : ''}</span>` : '';
+  return `<div class="msg-item assistant">
+    <div class="msg-head"><span class="role-chip assistant">助手</span><span class="muted">${esc(m.ts || '')}</span>
+      <span class="tok-chip">≈ ${fmtNum(m.estTokens)} tokens</span>${real}</div>
+    ${inner || '<div class="muted">（无内容）</div>'}
+  </div>`;
+}
+
+const backHref = viewUserId ? '/dashboard?userId=' + encodeURIComponent(viewUserId) : '/dashboard';
+$('sd-back').href = backHref;
+CF.renderHeader({ titleSuffix: '' });
+CF.initUser();
+load().catch(e => showMsg('加载失败：' + e.message, false));
+</script>
+</body>
+</html>
