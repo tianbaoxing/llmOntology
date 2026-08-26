@@ -67,6 +67,8 @@ public class EvalService {
     /** 数据集文件名（防路径穿越）与任务 id / 结果文件名 */
     private static final Pattern DATASET_NAME_RE = Pattern.compile("^[A-Za-z0-9._-]+\\.jsonl$");
     private static final Pattern RUN_ID_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{3}$");
+    /** 结果文件名（RUN_ID + .json；独立于 RUN_ID_RE，避免锚点 pattern 拼接后永不匹配） */
+    private static final Pattern RUN_FILE_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{3}\\.json$");
     private static final int TRUNCATE = 500;
 
     /** 进度任务（内存态；产物落盘不受服务重启影响，历史任务从结果文件读取） */
@@ -279,7 +281,7 @@ public class EvalService {
         }
         try (Stream<Path> s = Files.list(dir)) {
             for (Path p : s.filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().matches(RUN_ID_RE.pattern() + "\\.json"))
+                    .filter(p -> RUN_FILE_RE.matcher(p.getFileName().toString()).matches())
                     .sorted(Comparator.comparing((Path p) -> p.getFileName().toString(), Comparator.reverseOrder()))
                     .toList()) {
                 String id = p.getFileName().toString().replaceFirst("\\.json$", "");

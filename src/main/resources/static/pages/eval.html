@@ -132,8 +132,10 @@ function renderResult(result) {
         `#${t.name} [${t.state}] args: ${t.args}\n  result: ${t.result}`).join('\n') : '') + '</pre></details>';
     const reasonDetail = scores.map(sc =>
       `<div><b>${esc(sc.name)}：</b>${sc.error ? '错误 - ' : ''}${esc(sc.reason || '')}</div>`).join('');
+    const refText = sm.referenceResponse == null ? '（无）'
+      : typeof sm.referenceResponse === 'string' ? sm.referenceResponse : JSON.stringify(sm.referenceResponse);
     return [
-      `<td class="wrap">${esc(sm.id || '')}<div class="muted" style="font-size:12px">${esc(sm.query || '')}</div></td>`,
+      `<td class="wrap">${esc(sm.query || '')}<div class="muted" style="font-size:12px">期望回答：${esc(refText)}</div></td>`,
       `<td class="wrap">${scores.map(scoreBadge).join(' ') || '<span class="muted">无</span>'}` +
         `<details class="eval-detail"><summary>判分理由</summary><div style="font-size:13px">${reasonDetail || '<span class="muted">无</span>'}</div></details></td>`,
       `<td class="wrap">${answerDetail}</td>`
