@@ -49,7 +49,10 @@ cd c:\me\kaiyuan\history\llmOntology
 # 构建（首次较慢，依赖在项目内 .m2\repo）
 .\mvnw.cmd clean package "-DskipTests" -q
 
-# 启动（后台运行，启动时自动创建 8 个唯一约束）
+# 启动方式一：Maven Wrapper 直接启动（开发常用，无需先构建）
+.\mvnw.cmd spring-boot:run
+
+# 启动方式二：构建后运行 jar（后台运行，启动时自动创建 8 个唯一约束）
 java -jar target\ontology-0.1.0-SNAPSHOT.jar
 
 # 健康检查
