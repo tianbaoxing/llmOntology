@@ -25,7 +25,7 @@ td.wrap { max-width:360px; }
 
   <div class="card">
     <h2>运行评测</h2>
-    <div class="muted" style="margin-bottom:10px">选择数据集与评测器，批量驱动 AI 问答并判分；评测需调用 agent（须已配置 OPENROUTER_API_KEY），逐条串行执行</div>
+    <div class="muted" style="margin-bottom:10px">选择数据集与评测器，批量驱动 AI 问答并判分；未预置 response 的样本调用 agent（须已配置 OPENROUTER_API_KEY）逐条串行作答，预置 response 的样本跳过 agent 直接判分（OpenJudge 纯判分模式）</div>
     <div class="toolbar" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
       <label>数据集 <select id="ev-dataset"></select></label>
       <button class="btn" id="ev-btn" onclick="startEval()">运行评测</button>
@@ -123,7 +123,10 @@ function renderResult(result) {
   const rows = (result.samples || []).map(sm => {
     const scores = sm.scores || [];
     const toolCalls = sm.toolCalls || [];
-    const answerDetail = `<details class="eval-detail"><summary>回答与轨迹（${toolCalls.length} 次工具调用，${sm.rounds ?? 0} 轮，${sm.durationMs ? fmtDuration(sm.durationMs) : '-'}）</summary>` +
+    const srcInfo = sm.responseSource === 'preset'
+      ? '预置回答，跳过 agent'
+      : `${toolCalls.length} 次工具调用，${sm.rounds ?? 0} 轮，${sm.durationMs ? fmtDuration(sm.durationMs) : '-'}`;
+    const answerDetail = `<details class="eval-detail"><summary>回答与轨迹（${srcInfo}）</summary>` +
       `<pre>${sm.agentError ? '【agent 调用失败】' + esc(sm.agentError) + '\n\n' : ''}${esc(sm.answer || '（空）')}` +
       (toolCalls.length ? '\n\n—— 工具调用轨迹 ——\n' + toolCalls.map(t =>
         `#${t.name} [${t.state}] args: ${t.args}\n  result: ${t.result}`).join('\n') : '') + '</pre></details>';

@@ -51,8 +51,10 @@ import io.agentscope.harness.agent.HarnessAgent;
 
 /**
  * 评测编排服务（工程模式对齐 BackupService：异步任务 + 内存进度 + 结果落盘 + 单任务互斥）：
- * 数据集（data/eval/datasets/*.jsonl）逐条驱动 HarnessAgent（服务端直接收集事件流，
- * 不走前端 SSE），轨迹与回答交由 Grader 判分，结果写 data/eval/results/eval-*.json。
+ * 数据集（data/eval/datasets/*.jsonl，格式对齐 OpenJudge：query/response/reference_response）
+ * 逐条驱动 HarnessAgent（服务端直接收集事件流，不走前端 SSE；样本预置 response 时跳过
+ * agent 直接判分，即 OpenJudge 纯判分模式），轨迹与回答交由 Grader 判分，
+ * 结果写 data/eval/results/eval-*.json。
  * 单条样本/单个评测器异常均转为 error 结果，不中断整批（对齐 OpenJudge GraderError 语义）。
  */
 @Service
@@ -152,12 +154,16 @@ public class EvalService {
                     continue;
                 }
                 Map<String, Object> row = new LinkedHashMap<>();
-                row.put("line", lineNo);
                 try {
                     JsonNode node = mapper.readTree(line);
                     row.put("id", node.path("id").asText("line-" + lineNo));
                     row.put("query", node.path("query").asText(""));
-                    row.put("expected", mapper.writeValueAsString(node.path("expected")));
+                    row.put("response", node.path("response").asText(null));
+                    JsonNode ref = node.path("reference_response");
+                    row.put("referenceResponse",
+                            ref.isMissingNode() || ref.isNull() ? null
+                                    : ref.isTextual() ? ref.asText() : mapper.writeValueAsString(ref));
+                    row.put("tolerance", node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null);
                     ArrayNode g = (ArrayNode) node.path("graders");
                     List<String> names = new ArrayList<>();
                     if (g != null && g.isArray()) {
@@ -212,8 +218,17 @@ public class EvalService {
                 }
             }
         }
-        if (agentProvider.getIfAvailable() == null) {
-            throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：评测需驱动 agent 回答，请配置后重启服务");
+        // 仅当存在需 agent 作答的样本（未预置 response）时才要求 agent 装配；
+        // 全部预置 response 的数据集为纯判分模式（对齐 OpenJudge），不依赖 AI 服务
+        boolean needAgent;
+        try {
+            needAgent = loadSamples(dataset).stream().anyMatch(s -> !s.hasPresetResponse());
+        } catch (IOException e) {
+            throw new ApiException(500, "读取数据集失败: " + e.getMessage());
+        }
+        if (needAgent && agentProvider.getIfAvailable() == null) {
+            throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：数据集含需 agent 作答的样本，"
+                    + "请配置后重启服务或改用全部预置 response 的数据集");
         }
         String id = "eval-" + LocalDateTime.now().format(STAMP) + "-"
                 + Integer.toHexString((int) (Math.random() * 0xfff));
@@ -319,9 +334,18 @@ public class EvalService {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("id", sample.id());
                 row.put("query", sample.query());
-                row.put("expected", sample.expected());
+                row.put("referenceResponse", sample.referenceResponse());
+                row.put("tolerance", sample.tolerance());
                 try {
-                    AgentRecord record = askAgent(sample.query(), task);
+                    // 预置 response 纯判分模式（对齐 OpenJudge）：跳过 agent，占位 record 仅承载回答
+                    AgentRecord record;
+                    if (sample.hasPresetResponse()) {
+                        record = new AgentRecord(sample.response(), List.of(), 0, 0, 0, 0, null);
+                        row.put("responseSource", "preset");
+                    } else {
+                        record = askAgent(sample.query(), task);
+                        row.put("responseSource", "agent");
+                    }
                     totalDuration += record.durationMs();
                     totalPromptTokens += record.promptTokens();
                     totalCompletionTokens += record.completionTokens();
@@ -373,6 +397,10 @@ public class EvalService {
      * 样本 × 评测器逐个判分：单评测器异常转 GraderScore.fail，不影响其它评测器。
      * 评测器选择 = 任务级勾选（task.graderNames，空已归一化为全集）∩ 样本指定
      * （sample.graders 为空视为不限制）；交集为空时该样本不判分（scores 为空列表）。
+     * mapper 落点（对齐 OpenJudge grader_configs.mapper，数据集字段 → grader 参数名）：
+     * query→query、reference_response→reference_response、tolerance→tolerance、
+     * rubric→rubric 为恒等映射；response 由运行时注入（预置样本取数据集 response，
+     * agent 样本取 record.answer）。
      */
     private List<Map<String, Object>> judge(EvalSample sample, AgentRecord record, Task task) {
         List<String> names;
@@ -381,11 +409,18 @@ public class EvalService {
         } else {
             names = sample.graders().stream().filter(task.graderNames::contains).toList();
         }
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("query", sample.query());
+        params.put("response", record.answer());
+        params.put("reference_response", sample.referenceResponse());
+        params.put("tolerance", sample.tolerance());
+        params.put("rubric", sample.rubric());
+        GraderInput input = new GraderInput(params, record);
         List<Map<String, Object>> scores = new ArrayList<>();
         for (String n : names) {
             GraderScore score;
             try {
-                score = graders.get(n).evaluate(sample, record);
+                score = graders.get(n).evaluate(input);
             } catch (Exception e) {
                 score = GraderScore.fail(n, "评测器执行异常：" + e.getMessage());
             }
@@ -585,16 +620,20 @@ public class EvalService {
                     if (gn.isArray()) {
                         gn.forEach(n -> gs.add(n.asText()));
                     }
-                    Map<String, Object> expected = mapper.convertValue(node.path("expected"), Map.class);
+                    JsonNode ref = node.path("reference_response");
+                    Object refObj = ref.isMissingNode() || ref.isNull()
+                            ? null : mapper.convertValue(ref, Object.class);
                     list.add(new EvalSample(
                             node.path("id").asText("line-" + lineNo),
                             node.path("query").asText(""),
-                            expected == null ? Map.of() : expected,
+                            node.path("response").asText(null),
+                            refObj,
+                            node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null,
                             node.path("rubric").asText(null),
                             gs));
                 } catch (Exception e) {
                     list.add(new EvalSample("line-" + lineNo,
-                            "[数据行解析失败] " + e.getMessage(), Map.of(), null, List.of()));
+                            "[数据行解析失败] " + e.getMessage(), null, null, null, null, List.of()));
                 }
             }
         }

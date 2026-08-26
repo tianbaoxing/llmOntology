@@ -9,16 +9,15 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.eval.AgentRecord;
-import com.conca.ontology.eval.EvalSample;
 import com.conca.ontology.eval.Grader;
+import com.conca.ontology.eval.GraderInput;
 import com.conca.ontology.eval.GraderScore;
 
 /**
- * 数字准确性评测（对齐 OpenJudge NumberAccuracyGrader）：
- * expected = {type:"number", value:123 或 [1,23], tolerance:0}。
- * 从回答中提取全部数字，逐个参考数字检查回答数字中是否存在容差内匹配，
- * score = 命中参考数字数 / 参考数字总数。
+ * 数字准确性评测（对齐 OpenJudge NumberAccuracyGrader：顺序逐位比对）：
+ * reference_response = 123 / "高15.5，足径15.3" / [15.5,15.3]（数字/文本/数组统一提取数字）。
+ * 从回答与参考答案中各提取全部数字，按出现顺序逐位容差比对，
+ * score = 命中数 / 参考数字总数；回答多出的数字忽略，缺漏按比例扣分。
  */
 @Component
 public class NumberAccuracyGrader implements Grader {
@@ -32,48 +31,56 @@ public class NumberAccuracyGrader implements Grader {
 
     @Override
     public String description() {
-        return "数字准确性：从回答中提取全部数字，与 expected.value 中的参考数字逐一容差比对，按命中比例得分";
+        return "数字准确性：从回答与 reference_response 中按顺序提取数字逐位容差比对（对齐 OpenJudge 顺序比对语义），按命中比例得分";
     }
 
     @Override
-    public GraderScore evaluate(EvalSample sample, AgentRecord record) {
-        Map<String, Object> expected = sample.expected();
-        List<Double> refs = toDoubleList(expected == null ? null : expected.get("value"));
-        if (refs.isEmpty()) {
-            return GraderScore.fail(name(), "[参数错误] expected.value 缺失或无有效数字，无法判分");
+    public GraderScore evaluate(GraderInput input) {
+        Object ref = input.referenceResponse();
+        if (ref == null || String.valueOf(ref).isBlank()) {
+            return GraderScore.fail(name(), "[参数错误] reference_response 缺失，无法判分");
         }
-        double tolerance = expected.get("tolerance") instanceof Number n ? n.doubleValue() : 0.0;
-        if (record.failed()) {
-            return GraderScore.fail(name(), "agent 调用失败：" + record.error());
+        List<Double> refNumbers = extractNumbers(String.valueOf(ref));
+        if (refNumbers.isEmpty()) {
+            return GraderScore.fail(name(), "[参数错误] reference_response 中未提取到参考数字，无法判分");
         }
-        String answer = record.answer() == null ? "" : record.answer();
+        if (input.record().failed()) {
+            return GraderScore.fail(name(), "agent 调用失败：" + input.record().error());
+        }
+        double tolerance = input.tolerance();
+        String answer = input.response() == null ? "" : input.response();
         List<Double> answerNumbers = extractNumbers(answer);
 
-        List<Double> missed = new ArrayList<>();
-        for (double ref : refs) {
-            if (answerNumbers.stream().noneMatch(a -> Math.abs(a - ref) <= tolerance)) {
-                missed.add(ref);
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("response_numbers", answerNumbers);
+        meta.put("reference_response_numbers", refNumbers);
+        meta.put("tolerance", tolerance);
+
+        if (answer.isBlank() || answerNumbers.isEmpty()) {
+            return GraderScore.of(name(), 0.0,
+                    "回答中未提取到数字（共 " + refNumbers.size() + " 个参考数字全部未命中）", meta);
+        }
+
+        // 顺序逐位比对：多出的回答数字忽略，比对长度取两者较小值
+        int correct = 0;
+        int compare = Math.min(answerNumbers.size(), refNumbers.size());
+        for (int i = 0; i < compare; i++) {
+            if (Math.abs(answerNumbers.get(i) - refNumbers.get(i)) <= tolerance) {
+                correct++;
             }
         }
-        double score = (refs.size() - missed.size()) * 1.0 / refs.size();
-        Map<String, Object> meta = new LinkedHashMap<>();
-        meta.put("refNumbers", refs);
-        meta.put("answerNumbers", answerNumbers);
-        meta.put("tolerance", tolerance);
-        String reason;
-        if (answer.isBlank()) {
-            reason = "回答为空，未提取到任何数字";
-        } else if (answerNumbers.isEmpty()) {
-            reason = "回答中未提取到数字（共 " + refs.size() + " 个参考数字全部未命中）";
-        } else {
-            reason = missed.isEmpty() ? "全部 " + refs.size() + " 个参考数字均已命中"
-                    : "参考数字命中 " + (refs.size() - missed.size()) + "/" + refs.size()
-                            + "，未命中：" + missed + "（回答中的数字：" + answerNumbers + "）";
-        }
-        return GraderScore.of(name(), score, reason, meta);
+        double accuracy = correct * 1.0 / refNumbers.size();
+        meta.put("accuracy", accuracy);
+        meta.put("correct_numbers", correct);
+        meta.put("total_reference_response_numbers", refNumbers.size());
+        String reason = correct == refNumbers.size()
+                ? "全部 " + refNumbers.size() + " 个参考数字按顺序全部命中"
+                : "参考数字顺序命中 " + correct + "/" + refNumbers.size()
+                        + "（参考：" + refNumbers + "，回答：" + answerNumbers + "）";
+        return GraderScore.of(name(), accuracy, reason, meta);
     }
 
-    /** 提取回答中的全部数字（含小数，负号仅在前导时算入；先合并千位分隔符如 1,017 → 1017） */
+    /** 提取文本中的全部数字（含小数，负号仅在前导时算入；先合并千位分隔符如 1,017 → 1017） */
     static List<Double> extractNumbers(String text) {
         List<Double> list = new ArrayList<>();
         if (text == null || text.isBlank()) {
@@ -86,33 +93,6 @@ public class NumberAccuracyGrader implements Grader {
                 list.add(Double.parseDouble(m.group()));
             } catch (NumberFormatException ignore) {
                 // 理论上正则已保证可解析
-            }
-        }
-        return list;
-    }
-
-    /** value 兼容单数字 / 数字数组 */
-    static List<Double> toDoubleList(Object value) {
-        List<Double> list = new ArrayList<>();
-        if (value instanceof List<?> l) {
-            for (Object o : l) {
-                if (o instanceof Number n) {
-                    list.add(n.doubleValue());
-                } else if (o != null) {
-                    try {
-                        list.add(Double.parseDouble(String.valueOf(o)));
-                    } catch (NumberFormatException ignore) {
-                        // 非数字元素跳过
-                    }
-                }
-            }
-        } else if (value instanceof Number n) {
-            list.add(n.doubleValue());
-        } else if (value != null) {
-            try {
-                list.add(Double.parseDouble(String.valueOf(value)));
-            } catch (NumberFormatException ignore) {
-                // 非数字跳过
             }
         }
         return list;

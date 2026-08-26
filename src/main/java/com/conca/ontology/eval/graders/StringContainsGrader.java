@@ -7,13 +7,13 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.eval.AgentRecord;
-import com.conca.ontology.eval.EvalSample;
 import com.conca.ontology.eval.Grader;
+import com.conca.ontology.eval.GraderInput;
 import com.conca.ontology.eval.GraderScore;
 
 /**
- * 关键词包含评测：expected = {type:"contains", value:["关键词",...]}（也兼容单个字符串）。
+ * 关键词包含评测（对齐 OpenJudge StringMatchGrader 的 contains_all 算法，按比例得分）：
+ * reference_response = ["关键词",...]（也兼容单个字符串/数字）。
  * score = 命中关键词数 / 总数（缺一按比例扣分），metadata.missing 列出未命中的关键词。
  */
 @Component
@@ -26,20 +26,19 @@ public class StringContainsGrader implements Grader {
 
     @Override
     public String description() {
-        return "关键词包含比对：回答须包含 expected.value 中的全部关键词，按命中比例得分（如 3 个关键词命中 2 个得 0.67）";
+        return "关键词包含比对：回答须包含 reference_response 中的全部关键词，按命中比例得分（如 3 个关键词命中 2 个得 0.67）";
     }
 
     @Override
-    public GraderScore evaluate(EvalSample sample, AgentRecord record) {
-        Object value = sample.expected() == null ? null : sample.expected().get("value");
-        List<String> keywords = toStringList(value);
+    public GraderScore evaluate(GraderInput input) {
+        List<String> keywords = toStringList(input.referenceResponse());
         if (keywords.isEmpty()) {
-            return GraderScore.fail(name(), "[参数错误] expected.value 缺失或为空，无法进行关键词判分");
+            return GraderScore.fail(name(), "[参数错误] reference_response 缺失或为空，无法进行关键词判分");
         }
-        if (record.failed()) {
-            return GraderScore.fail(name(), "agent 调用失败：" + record.error());
+        if (input.record().failed()) {
+            return GraderScore.fail(name(), "agent 调用失败：" + input.record().error());
         }
-        String answer = record.answer() == null ? "" : record.answer();
+        String answer = input.response() == null ? "" : input.response();
         if (answer.isBlank()) {
             Map<String, Object> meta = new LinkedHashMap<>();
             meta.put("keywords", keywords);
@@ -61,7 +60,7 @@ public class StringContainsGrader implements Grader {
         return GraderScore.of(name(), score, reason, meta);
     }
 
-    /** value 兼容单字符串 / 字符串数组 */
+    /** reference_response 兼容单值 / 数组 */
     static List<String> toStringList(Object value) {
         List<String> list = new ArrayList<>();
         if (value instanceof List<?> l) {

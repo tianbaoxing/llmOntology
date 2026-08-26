@@ -97,24 +97,32 @@ data/eval/results/eval-yyyyMMdd-HHmmss.json（每样本 × 每评测器的 score
 /eval 页面轮询展示
 ```
 
-### 3.3 数据集格式（JSONL）
+### 3.3 数据集格式（JSONL，对齐 OpenJudge 扁平数据集）
 
 ```json
 {"id":"q001","query":"定窑白釉莲纹大碗是什么朝代的？",
- "expected":{"type":"contains","value":["北宋"]},
- "graders":["string_contains","number_accuracy"]}
+ "reference_response":["北宋"],
+ "graders":["string_contains"]}
 {"id":"q002","query":"图谱里一共有多少件唐代文物？",
- "expected":{"type":"cypher","cypher":"MATCH (a:CulturalRelic)-[:ERA]->(e:Era) WHERE e.name CONTAINS '唐' RETURN count(a)","value":123},
- "graders":["cypher_match"]}
+ "reference_response":223,
+ "graders":["number_accuracy"]}
 {"id":"q003","query":"介绍一下青花釉里红云龙纹天球瓶",
- "expected":{"type":"contains","value":["清","乾隆","青花"]},
+ "reference_response":["清","乾隆","青花"],
  "rubric":"答案应包含朝代、釉彩、器型信息，不得编造图谱中不存在的细节",
  "graders":["string_contains","llm_correctness","llm_hallucination"]}
+{"id":"q004","query":"定窑白釉莲纹大碗是什么朝代的？",
+ "response":"定窑白釉莲纹大碗是北宋时期的器物，由定窑烧制。",
+ "reference_response":["北宋","定窑"],
+ "graders":["string_contains"]}
 ```
 
-- `expected.type`：`exact`（整串等值）/ `contains`（含全部关键词）/ `number`（文本中数字比对，容差可配）/ `cypher`（附带一条期望结果的标准查询，判分器直连 Neo4j 只读通道比对）
-- `graders`：该样本启用哪些评测器，缺省 = 全部已启用的
+- 核心字段对齐 OpenJudge：`query`（问题）/ `response`（预置回答，可选）/ `reference_response`（参考答案：字符串/数字/数组，各评测器自行解释）
+- `response` 预置时跳过 agent 直接判分（OpenJudge 纯判分模式，可直接复用 OpenJudge 生态数据集）；未预置时驱动 agent 现场作答
+- `tolerance`：数字比对容差（可选，缺省 0）
+- `graders`：该样本启用哪些评测器，缺省 = 全部已启用的（OpenJudge grader_configs 的样本级等价物）
 - `rubric`：LLM 评测器的补充评分细则（二期使用）
+- 字段映射（mapper，对齐 OpenJudge grader_configs.mapper）：query→query、reference_response→reference_response、tolerance→tolerance、rubric→rubric 恒等映射；response 由运行时注入（预置样本取数据集 response，agent 样本取运行记录 answer）。评测器经 GraderInput 参数包按名取值，不感知数据集 schema
+- v2 的 `expected` 嵌套结构（type/value/cypher）已废弃；`cypher_match`（图谱事实核对）整体后置单独处理
 
 ### 3.4 REST API（对齐现有 URL 风格与 DTO 规范）
 
@@ -146,11 +154,11 @@ data/eval/results/eval-yyyyMMdd-HHmmss.json（每样本 × 每评测器的 score
 | 模块 | 内容 |
 |---|---|
 | 框架 | Grader 接口、GraderScore、RuleGrader 基类、EvalRunner、EvalService（异步任务+进度+落盘） |
-| 规则评测器（5 个） | `string_exact`（整串等值）、`string_contains`（关键词全包含，缺一按比例扣分）、`number_accuracy`（文本数字按序比对+容差，对齐 OpenJudge NumberAccuracyGrader 语义）、`cypher_match`（标准查询结果比对，走 GraphQueryService 只读通道+红线正则）、`format_json`（回答若应为 JSON 时校验语法，可一期先空实现占位） |
+| 规则评测器（4 个） | `string_exact`（整串等值）、`string_contains`（关键词全包含，缺一按比例扣分）、`number_accuracy`（文本数字按序逐位比对+容差，对齐 OpenJudge NumberAccuracyGrader 语义）、`format_json`（启用即校验回答为合法 JSON）；`cypher_match`（图谱事实核对）已后置单独处理 |
 | 轨迹采集 | AgentRecord：answer + 工具调用序列（名称/入参/返回摘要）+ 轮次 + tokens + 时长，随结果落盘（为二期 Agent 类评测器备料） |
 | API | 3.4 全部 7 个端点 |
 | 页面 | eval.html 三区块 + 导航入口 |
-| 示例数据 | 内置 `demo.jsonl`：10 条国博图谱问题，覆盖 exact/contains/number/cypher 四种判分 |
+| 示例数据 | 内置 `demo.jsonl`：12 条国博图谱问题，覆盖 exact/contains/number/json 四种判分，含 2 条预置 response 纯判分样本 |
 
 ### 4.2 一期验收标准（逐条可操作）
 
@@ -158,18 +166,17 @@ data/eval/results/eval-yyyyMMdd-HHmmss.json（每样本 × 每评测器的 score
 |---|---|---|---|
 | A1 | 编译 | `mvnw compile` | BUILD SUCCESS，无新警告 |
 | A2 | 页面入口 | 登录后看导航栏 | 出现「评测中心」，点击进入 /eval，三区块可见 |
-| A3 | 数据集接口 | `GET /api/eval/datasets` | 返回 demo.jsonl，条数=10 |
-| A4 | 评测器清单 | `GET /api/eval/graders` | 返回 5 个规则评测器，type=rule |
+| A3 | 数据集接口 | `GET /api/eval/datasets` | 返回 demo.jsonl，条数=12 |
+| A4 | 评测器清单 | `GET /api/eval/graders` | 返回 4 个规则评测器，type=rule |
 | A5 | 运行任务 | 页面勾选 demo + 全部评测器，点运行 | 创建成功返回任务 id；进度轮询从 0% 单调推进到 100%；无卡死 |
-| A6 | 结果明细 | 任务完成后看结果表 | 10 行；每行每评测器有 0-1 分数与 reason；answer 摘要与轨迹可展开 |
+| A6 | 结果明细 | 任务完成后看结果表 | 12 行；每行每评测器有 0-1 分数与 reason；answer 摘要与轨迹可展开 |
 | A7 | 判分正确性抽查 | 取 q001（contains 北宋）等 3 条 | 期望命中的样本 contains=1.0；人为构造答错的期望值时得分<1.0（可临时改 demo 验证） |
-| A8 | cypher 判分 | q002 类样本 | 判分器执行期望查询返回数值，与 agent 回答中的数字比对；Neo4j 停机时该条记 error 不影响其它样本 |
+| A8 | 纯判分模式 | q011/q012（预置 response 样本） | 跳过 agent 直接判分，结果行 responseSource=preset，得分为 1.0；全部预置的数据集无 OPENROUTER_API_KEY 也可运行 |
 | A9 | 异常隔离 | 数据集中手工掺 1 条坏样本（如非法 JSON 字段） | 该行显示 error，整批正常完成，指标中 error 数=1 |
 | A10 | 并发互斥 | 任务运行中再点运行 | 返回 409，提示已有任务 |
 | A11 | 结果落盘 | 查看 `data/eval/results/` | 生成 `eval-*.json`，内容与页面一致（query/answer/各分数/reason/汇总） |
 | A12 | 权限 | 未登录直接 `GET /api/eval/runs` | 401 |
 | A13 | Swagger | 打开 /swagger-ui/index.html admin 分组 | 出现 eval 标签的 7 个端点，含 @Operation 描述 |
-| A14 | 只读红线 | 检查 cypher_match 评测器 | 仅允许只读查询（复用红线正则），数据集里写 DROP 等语句直接判参数错误 |
 
 ---
 

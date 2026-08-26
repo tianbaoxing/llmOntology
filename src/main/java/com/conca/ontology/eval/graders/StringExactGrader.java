@@ -5,14 +5,14 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.eval.AgentRecord;
-import com.conca.ontology.eval.EvalSample;
 import com.conca.ontology.eval.Grader;
+import com.conca.ontology.eval.GraderInput;
 import com.conca.ontology.eval.GraderScore;
 
 /**
- * 整串等值评测：expected = {type:"exact", value:"..."}。
- * 回答去首尾空白后与期望值全等得 1.0，否则 0.0（严苛模式，适合答案高度受限的问题）。
+ * 整串等值评测（对齐 OpenJudge StringMatchGrader 的 exact_match 算法）：
+ * reference_response = "..."（字符串/数字均可）。
+ * 回答去首尾空白后与参考答案全等得 1.0，否则 0.0（严苛模式，适合答案高度受限的问题）。
  */
 @Component
 public class StringExactGrader implements Grader {
@@ -24,20 +24,20 @@ public class StringExactGrader implements Grader {
 
     @Override
     public String description() {
-        return "整串等值比对：回答去首尾空白后与 expected.value 全等得 1 分，适合答案高度受限（如纯数字）的问题";
+        return "整串等值比对：回答去首尾空白后与 reference_response 全等得 1 分，适合答案高度受限（如纯数字）的问题";
     }
 
     @Override
-    public GraderScore evaluate(EvalSample sample, AgentRecord record) {
-        Object value = sample.expected() == null ? null : sample.expected().get("value");
+    public GraderScore evaluate(GraderInput input) {
+        Object value = input.referenceResponse();
         if (value == null || String.valueOf(value).isBlank()) {
-            return GraderScore.fail(name(), "[参数错误] expected.value 缺失，无法进行整串等值判分");
+            return GraderScore.fail(name(), "[参数错误] reference_response 缺失，无法进行整串等值判分");
         }
-        if (record.failed()) {
-            return GraderScore.fail(name(), "agent 调用失败：" + record.error());
+        if (input.record().failed()) {
+            return GraderScore.fail(name(), "agent 调用失败：" + input.record().error());
         }
         String expected = String.valueOf(value).trim();
-        String actual = record.answer() == null ? "" : record.answer().trim();
+        String actual = input.response() == null ? "" : input.response().trim();
         boolean matched = expected.equals(actual);
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("expected", expected);
