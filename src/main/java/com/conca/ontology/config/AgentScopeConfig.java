@@ -90,7 +90,7 @@ public class AgentScopeConfig {
                 .model(chatModel)
                 .workspace(Path.of(workspaceDir))
                 .stateStore(new JsonFileAgentStateStore(Path.of(stateDir)))
-                .maxIters(5)
+                .maxIters(6)
                 .toolkit(toolkit);
                 // 最小化开放面：禁用 harness 内置高危/无关能力
                 // .disableShellTool()
