@@ -202,7 +202,7 @@ async function loadGraders() {
 }
 
 // ---------------- init ----------------
-CF.renderHeader({ titleSuffix: ' · 评测中心' });
+CF.renderHeader({ titleSuffix: '' });
 CF.initUser();
 loadDatasets().catch(e => showMsg('数据集加载失败：' + e.message, false));
 loadGraders().catch(e => showMsg('评测器加载失败：' + e.message, false));
