@@ -9,16 +9,21 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.auth.SessionUser;
 import com.conca.ontology.dto.ApiResponse;
+import com.conca.ontology.dto.request.EvalDatasetRequest;
 import com.conca.ontology.dto.request.EvalRunRequest;
+import com.conca.ontology.dto.request.EvalSampleRequest;
 import com.conca.ontology.eval.EvalService;
 import com.conca.ontology.exception.ApiException;
 
@@ -61,6 +66,46 @@ public class EvalController {
     @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
     public ApiResponse<Map<String, Object>> datasetPreview(@PathVariable String name) {
         return ApiResponse.ok(evalService.datasetPreview(name, 20));
+    }
+
+    @PostMapping("/datasets")
+    @Operation(summary = "新建数据集", description = "创建空 jsonl 文件（同名已存在 409）")
+    public ApiResponse<Map<String, Object>> createDataset(@Valid @RequestBody EvalDatasetRequest request) {
+        return ApiResponse.ok(evalService.createDataset(request.name()));
+    }
+
+    @GetMapping("/datasets/{name}/samples")
+    @Operation(summary = "样本分页列表", description = "seq = 非空行序号（从 1 起），供编辑/删除定位；page 越界自动收敛")
+    @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
+    public ApiResponse<Map<String, Object>> samples(@PathVariable String name,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int pageSize) {
+        return ApiResponse.ok(evalService.datasetSamples(name, page, pageSize));
+    }
+
+    @PostMapping("/datasets/{name}/samples")
+    @Operation(summary = "新增样本", description = "校验后追加一行（query 必填、评测器须已注册、id 唯一）")
+    @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
+    public ApiResponse<Map<String, Object>> addSample(@PathVariable String name,
+            @Valid @RequestBody EvalSampleRequest request) {
+        return ApiResponse.ok(evalService.addSample(name, request));
+    }
+
+    @PutMapping("/datasets/{name}/samples/{seq}")
+    @Operation(summary = "编辑样本", description = "整读整写 + tmp 原子替换；seq 为非空行序号")
+    @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
+    @Parameter(name = "seq", description = "非空行序号（从 1 起）", example = "1")
+    public ApiResponse<Map<String, Object>> updateSample(@PathVariable String name, @PathVariable int seq,
+            @Valid @RequestBody EvalSampleRequest request) {
+        return ApiResponse.ok(evalService.updateSample(name, seq, request));
+    }
+
+    @DeleteMapping("/datasets/{name}/samples/{seq}")
+    @Operation(summary = "删除样本", description = "删除第 seq 个非空行（整读整写 + tmp 原子替换）")
+    @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
+    @Parameter(name = "seq", description = "非空行序号（从 1 起）", example = "1")
+    public ApiResponse<Map<String, Object>> deleteSample(@PathVariable String name, @PathVariable int seq) {
+        return ApiResponse.ok(evalService.deleteSample(name, seq));
     }
 
     @GetMapping("/graders")

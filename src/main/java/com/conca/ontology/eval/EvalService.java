@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.dto.request.EvalSampleRequest;
 import com.conca.ontology.exception.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -147,46 +149,10 @@ public class EvalService {
 
     /** 数据集预览（前 limit 行，逐行解析；坏行标记 error 不中断） */
     public Map<String, Object> datasetPreview(String name, int limit) {
-        Path p = requireDataset(name);
-        List<Map<String, Object>> samples = new ArrayList<>();
-        int lineNo = 0;
-        try (var reader = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
-            String line;
-            while (samples.size() < Math.max(1, limit) && (line = reader.readLine()) != null) {
-                lineNo++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                Map<String, Object> row = new LinkedHashMap<>();
-                try {
-                    JsonNode node = mapper.readTree(line);
-                    row.put("id", node.path("id").asText("line-" + lineNo));
-                    row.put("query", node.path("query").asText(""));
-                    row.put("response", node.path("response").asText(null));
-                    JsonNode ref = node.path("reference_response");
-                    row.put("referenceResponse",
-                            ref.isMissingNode() || ref.isNull() ? null
-                                    : ref.isTextual() ? ref.asText() : mapper.writeValueAsString(ref));
-                    row.put("tolerance", node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null);
-                    ArrayNode g = (ArrayNode) node.path("graders");
-                    List<String> names = new ArrayList<>();
-                    if (g != null && g.isArray()) {
-                        g.forEach(n -> names.add(n.asText()));
-                    }
-                    row.put("graders", names);
-                    row.put("valid", true);
-                } catch (Exception e) {
-                    row.put("valid", false);
-                    row.put("error", "JSON 解析失败: " + e.getMessage());
-                }
-                samples.add(row);
-            }
-        } catch (IOException e) {
-            throw new ApiException(500, "读取数据集失败: " + e.getMessage());
-        }
+        List<Map<String, Object>> all = readAllSamples(requireDataset(name));
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("name", name);
-        m.put("samples", samples);
+        m.put("samples", all.subList(0, Math.min(all.size(), Math.max(1, limit))));
         return m;
     }
 
@@ -201,6 +167,247 @@ public class EvalService {
             list.add(m);
         });
         return Map.of("graders", list);
+    }
+
+    // ---------------- 数据集管理：分页读取 / 增删改 / 新建 ----------------
+
+    /** 分页读取样本（seq = 非空行序号，从 1 起，编辑/删除按此定位；page 越界自动收敛） */
+    public Map<String, Object> datasetSamples(String name, int page, int pageSize) {
+        List<Map<String, Object>> all = readAllSamples(requireDataset(name));
+        int size = Math.min(Math.max(pageSize, 1), 100);
+        int total = all.size();
+        int pages = Math.max((total + size - 1) / size, 1);
+        int cur = Math.min(Math.max(page, 1), pages);
+        List<Map<String, Object>> slice = all.subList(Math.min((cur - 1) * size, total), Math.min(cur * size, total));
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", name);
+        m.put("page", cur);
+        m.put("pageSize", size);
+        m.put("total", total);
+        m.put("pages", pages);
+        m.put("samples", new ArrayList<>(slice));
+        return m;
+    }
+
+    /** 新增一条样本（校验后追加一行） */
+    public synchronized Map<String, Object> addSample(String name, EvalSampleRequest req) {
+        Path p = requireDataset(name);
+        String line = buildSampleLine(req, p, -1);
+        try {
+            Files.write(p, (line + "\n").getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            throw new ApiException(500, "写入数据集失败: " + e.getMessage());
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", name);
+        m.put("total", countLines(p));
+        return m;
+    }
+
+    /** 编辑第 seq 个非空行（整读整写 + tmp 原子替换；运行中评测任务已在启动时载入内存，不受影响） */
+    public synchronized Map<String, Object> updateSample(String name, int seq, EvalSampleRequest req) {
+        Path p = requireDataset(name);
+        List<String> lines = readPhysicalLines(p);
+        int idx = indexOfSeq(lines, seq);
+        if (idx < 0) {
+            throw new ApiException(404, "样本不存在: 第 " + seq + " 条（数据集可能已被修改，请刷新）");
+        }
+        lines.set(idx, buildSampleLine(req, p, seq));
+        rewrite(p, lines);
+        return Map.of("name", name, "seq", seq);
+    }
+
+    /** 删除第 seq 个非空行 */
+    public synchronized Map<String, Object> deleteSample(String name, int seq) {
+        Path p = requireDataset(name);
+        List<String> lines = readPhysicalLines(p);
+        int idx = indexOfSeq(lines, seq);
+        if (idx < 0) {
+            throw new ApiException(404, "样本不存在: 第 " + seq + " 条（数据集可能已被修改，请刷新）");
+        }
+        lines.remove(idx);
+        rewrite(p, lines);
+        return Map.of("name", name, "seq", seq, "total", countLines(p));
+    }
+
+    /** 新建空数据集文件（同名已存在 409） */
+    public synchronized Map<String, Object> createDataset(String name) {
+        if (name == null || !DATASET_NAME_RE.matcher(name).matches()) {
+            throw new ApiException(400, "非法数据集文件名: " + name + "（须形如 my-ds.jsonl）");
+        }
+        Path p = datasetPath().resolve(name).normalize();
+        if (!p.startsWith(datasetPath())) {
+            throw new ApiException(400, "非法数据集文件名: " + name);
+        }
+        if (Files.exists(p)) {
+            throw new ApiException(409, "数据集已存在: " + name);
+        }
+        try {
+            Files.createDirectories(datasetPath());
+            Files.createFile(p);
+        } catch (IOException e) {
+            throw new ApiException(500, "创建数据集失败: " + e.getMessage());
+        }
+        return Map.of("name", name, "count", 0);
+    }
+
+    /** 全量读取样本（seq = 非空行序号，从 1 起；坏行 valid=false 不中断） */
+    private List<Map<String, Object>> readAllSamples(Path p) {
+        List<Map<String, Object>> samples = new ArrayList<>();
+        int seq = 0;
+        try (var reader = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                samples.add(parseSampleRow(line, ++seq));
+            }
+        } catch (IOException e) {
+            throw new ApiException(500, "读取数据集失败: " + e.getMessage());
+        }
+        return samples;
+    }
+
+    /** 解析一行样本（与预览字段一致，附 seq；raw 供坏行编辑时展示原文） */
+    private Map<String, Object> parseSampleRow(String line, int seq) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("seq", seq);
+        row.put("raw", line);
+        try {
+            JsonNode node = mapper.readTree(line);
+            row.put("id", node.path("id").asText("line-" + seq));
+            row.put("query", node.path("query").asText(""));
+            row.put("response", node.path("response").asText(null));
+            JsonNode ref = node.path("reference_response");
+            row.put("referenceResponse",
+                    ref.isMissingNode() || ref.isNull() ? null
+                            : ref.isTextual() ? ref.asText() : mapper.writeValueAsString(ref));
+            row.put("tolerance", node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null);
+            JsonNode g = node.path("graders");
+            List<String> names = new ArrayList<>();
+            if (g.isArray()) {
+                g.forEach(n -> names.add(n.asText()));
+            }
+            row.put("graders", names);
+            row.put("valid", true);
+        } catch (Exception e) {
+            row.put("valid", false);
+            row.put("error", "JSON 解析失败: " + e.getMessage());
+        }
+        return row;
+    }
+
+    /** 构建并校验一行样本 JSON（query 必填；评测器须已注册；ref 按类型解析；id 须唯一） */
+    private String buildSampleLine(EvalSampleRequest req, Path p, int excludeSeq) {
+        if (req.query() == null || req.query().isBlank()) {
+            throw new ApiException(400, "query 不能为空");
+        }
+        if (req.graders() != null) {
+            for (String g : req.graders()) {
+                if (!graders.containsKey(g)) {
+                    throw new ApiException(400, "未知评测器: " + g + "（可用：" + graders.keySet() + "）");
+                }
+            }
+        }
+        String id = req.id() == null ? "" : req.id().trim();
+        if (id.isEmpty()) {
+            id = "q-" + STAMP.format(LocalDateTime.now()) + "-"
+                    + Integer.toHexString((int) (System.currentTimeMillis() & 0xfff));
+        }
+        for (Map<String, Object> r : readAllSamples(p)) {
+            if ((int) r.get("seq") != excludeSeq && id.equals(r.get("id"))) {
+                throw new ApiException(409, "id 已存在: " + id);
+            }
+        }
+        try {
+            ObjectNode node = mapper.createObjectNode();
+            node.put("id", id);
+            node.put("query", req.query().trim());
+            if (req.response() != null && !req.response().isBlank()) {
+                node.put("response", req.response().trim());
+            }
+            String type = req.referenceType() == null ? "" : req.referenceType().trim();
+            if (!type.isEmpty()) {
+                String text = req.referenceText() == null ? "" : req.referenceText().trim();
+                switch (type) {
+                    case "string" -> node.put("reference_response", text);
+                    case "number" -> {
+                        try {
+                            if (text.matches("-?\\d+")) {
+                                node.put("reference_response", Long.parseLong(text));
+                            } else {
+                                node.put("reference_response", Double.parseDouble(text));
+                            }
+                        } catch (NumberFormatException e) {
+                            throw new ApiException(400, "数字类型解析失败: " + text);
+                        }
+                    }
+                    case "array" -> {
+                        JsonNode arr;
+                        try {
+                            arr = mapper.readTree(text);
+                        } catch (Exception e) {
+                            throw new ApiException(400, "数组类型解析失败（须形如 [\"北宋\",\"唐代\"]）");
+                        }
+                        if (!arr.isArray()) {
+                            throw new ApiException(400, "数组类型须形如 [\"北宋\",\"唐代\"]");
+                        }
+                        node.set("reference_response", arr);
+                    }
+                    default -> throw new ApiException(400, "未知 referenceType: " + type + "（string|number|array）");
+                }
+            }
+            if (req.tolerance() != null) {
+                node.put("tolerance", req.tolerance());
+            }
+            if (req.graders() != null && !req.graders().isEmpty()) {
+                ArrayNode g = node.putArray("graders");
+                req.graders().forEach(g::add);
+            }
+            return mapper.writeValueAsString(node);
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ApiException(500, "样本序列化失败: " + e.getMessage());
+        }
+    }
+
+    /** 物理行全量读取（保留空行原样） */
+    private List<String> readPhysicalLines(Path p) {
+        try {
+            return Files.readAllLines(p, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new ApiException(500, "读取数据集失败: " + e.getMessage());
+        }
+    }
+
+    /** 第 seq 个非空行的物理下标（无则 -1） */
+    private int indexOfSeq(List<String> lines, int seq) {
+        int n = 0;
+        for (int i = 0; i < lines.size(); i++) {
+            if (!lines.get(i).isBlank() && ++n == seq) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** 原子重写（tmp 后 rename，读方只会看到旧或新完整文件） */
+    private void rewrite(Path p, List<String> lines) {
+        Path tmp = p.resolveSibling(p.getFileName() + ".tmp");
+        try {
+            Files.write(tmp, lines, StandardCharsets.UTF_8);
+            Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException ignore) {
+                // 清理失败不影响主错误上报
+            }
+            throw new ApiException(500, "写入数据集失败: " + e.getMessage());
+        }
     }
 
     // ---------------- 任务控制 ----------------

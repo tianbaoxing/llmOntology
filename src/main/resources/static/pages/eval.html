@@ -17,12 +17,30 @@ details.eval-detail { margin:2px 0; }
 details.eval-detail summary { cursor:pointer; color:#2563eb; font-size:13px; }
 details.eval-detail pre { background:#f1f5f9; padding:8px; border-radius:5px; font-size:12px; white-space:pre-wrap; word-break:break-all; max-height:320px; overflow:auto; }
 td.wrap { max-width:360px; }
+/* 页内 Tab（运行评测 / 数据集管理） */
+.page-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.ptab { padding: 8px 22px; border-radius: 6px; cursor: pointer; background: #fff; color: #6b7280; border: 1px solid #e5e7eb; user-select: none; }
+.ptab.active { background: #2563eb; color: #fff; font-weight: 600; border-color: #2563eb; }
+/* 模态框 */
+.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal-box { background: #fff; border-radius: 8px; padding: 18px 22px; width: min(680px, 92vw); max-height: 88vh; overflow: auto; }
+/* 数据集管理表格：坏行标红 */
+tr.bad td { background: #fef2f2; }
+.pager { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.pager .cur { background: #2563eb; color: #fff; border: 1px solid #2563eb; border-radius: 6px; padding: 4px 10px; font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="container">
   <div id="msg" class="msg"></div>
 
+  <div class="page-tabs">
+    <a class="ptab active" data-tab="run" onclick="switchTab('run')">运行评测</a>
+    <a class="ptab" data-tab="ds" onclick="switchTab('ds')">数据集管理</a>
+  </div>
+
+  <!-- Tab 1：运行评测 -->
+  <div id="tab-run">
   <div class="card">
     <h2>运行评测</h2>
     <div class="muted" style="margin-bottom:10px">选择数据集与评测器，批量驱动 AI 问答并判分。评测器分两类：规则评测（本地算法，零成本）与 LLM 评测（judge 模型判分，消耗 tokens，须已配置 OPENROUTER_API_KEY）。未预置 response 的样本调用 agent 逐条串行作答，预置 response 的样本跳过 agent 直接判分（OpenJudge 纯判分模式）</div>
@@ -52,6 +70,67 @@ td.wrap { max-width:360px; }
     <h2 id="ev-result-title">结果明细</h2>
     <div id="ev-summary"></div>
     <div id="ev-samples" style="margin-top:12px"></div>
+  </div>
+  </div>
+
+  <!-- Tab 2：数据集管理 -->
+  <div id="tab-ds" style="display:none">
+    <div class="card">
+      <h2>数据集管理</h2>
+      <div class="toolbar" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+        <label>数据集 <select id="ds-name" onchange="onDsChange()"></select></label>
+        <button class="btn" onclick="openNewDsModal()">新建数据集</button>
+        <button class="btn" onclick="openSampleModal('add')">新增记录</button>
+        <label>每页
+          <select id="ds-page-size" onchange="onPageSizeChange()">
+            <option>10</option><option>20</option><option>50</option>
+          </select> 条
+        </label>
+        <span class="muted" id="ds-count"></span>
+      </div>
+      <div class="muted" style="margin:6px 0">记录按非空行序号（#）定位，编辑/删除即时写回 jsonl 文件（原子替换）；格式错误的行标红，可编辑修复。新增记录后跳至最后一页</div>
+      <div id="ds-table"></div>
+      <div class="pager" id="ds-pager"></div>
+    </div>
+  </div>
+
+  <!-- 模态框：新增/编辑记录 -->
+  <div class="modal-mask" id="sm-modal" style="display:none">
+    <div class="modal-box">
+      <h2 id="sm-title">新增记录</h2>
+      <div class="detail-item"><b>id</b><input type="text" id="sm-id" placeholder="留空自动生成"></div>
+      <div class="detail-item"><b>query（必填）</b><textarea id="sm-query" rows="3"></textarea></div>
+      <div class="detail-item"><b>期望回答类型</b>
+        <select id="sm-reftype">
+          <option value="">（不指定）</option>
+          <option value="string">字符串</option>
+          <option value="number">数字</option>
+          <option value="array">数组</option>
+        </select></div>
+      <div class="detail-item"><b>期望回答</b><input type="text" id="sm-reftext" placeholder="如：北宋"></div>
+      <div class="detail-item"><b>数值容差</b><input type="number" id="sm-tolerance" step="any" placeholder="number_accuracy 可选"></div>
+      <div class="detail-item"><b>预置回答（可选）</b><textarea id="sm-response" rows="3" placeholder="非空则评测时跳过 agent 直接判分"></textarea></div>
+      <div class="detail-item"><b>指定评测器（不勾 = 不指定，评测时用任务级勾选；悬停查看说明）</b>
+        <div class="grader-checks" id="sm-graders"></div></div>
+      <div class="muted" id="sm-raw-hint" style="display:none"></div>
+      <div class="toolbar" style="margin-top:12px">
+        <button class="btn" onclick="saveSample()">保存</button>
+        <button class="btn" onclick="closeSampleModal()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框：新建数据集 -->
+  <div class="modal-mask" id="dsnew-modal" style="display:none">
+    <div class="modal-box">
+      <h2>新建数据集</h2>
+      <div class="detail-item"><b>文件名</b><input type="text" id="ds-new-name" placeholder="如 my-ds.jsonl（可省略后缀）"></div>
+      <div class="muted">仅允许字母/数字/点/下划线/连字符；同名已存在会提示冲突</div>
+      <div class="toolbar" style="margin-top:12px">
+        <button class="btn" onclick="createDataset()">创建</button>
+        <button class="btn" onclick="closeNewDsModal()">取消</button>
+      </div>
+    </div>
   </div>
 </div>
 <script src="/pages/common.js"></script>
@@ -193,12 +272,260 @@ async function previewDataset(name) {
   } catch (e) { /* 预览失败不阻断 */ }
 }
 
+let graderCache = [];
 async function loadGraders() {
   const d = await api('GET', '/api/eval/graders');
-  $('ev-graders').innerHTML = (d.graders || []).map(g =>
+  graderCache = d.graders || [];
+  $('ev-graders').innerHTML = graderCache.map(g =>
     `<label title="${esc(g.description)}"><input type="checkbox" value="${esc(g.name)}">` +
     `<span><code>${esc(g.name)}</code> <span class="grader-desc">${esc(g.type)}</span></span></label>`).join('')
     || '<span class="muted">无已注册评测器</span>';
+}
+
+// ---------------- 数据集管理 ----------------
+let dsTabLoaded = false;
+let dsState = { name: null, page: 1, pageSize: 10, pages: 1, total: 0 };
+let smModal = { mode: 'add', seq: 0 };
+
+function switchTab(name) {
+  document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  $('tab-run').style.display = name === 'run' ? '' : 'none';
+  $('tab-ds').style.display = name === 'ds' ? '' : 'none';
+  if (name === 'ds' && !dsTabLoaded) {
+    dsTabLoaded = true;
+    initDsTab().catch(e => showMsg('数据集加载失败：' + e.message, false));
+  }
+}
+
+async function initDsTab() {
+  await loadDsSelector();
+  if (dsState.name) await loadSamples(1); else renderSamples([]);
+}
+
+async function loadDsSelector(keep) {
+  const d = await api('GET', '/api/eval/datasets');
+  const sel = $('ds-name');
+  sel.innerHTML = d.datasets.length
+    ? d.datasets.map(ds => `<option value="${esc(ds.name)}">${esc(ds.name)}（${ds.count} 条）</option>`).join('')
+    : '<option value="">（无数据集，请先新建）</option>';
+  if (keep && d.datasets.some(x => x.name === keep)) sel.value = keep;
+  dsState.name = sel.value || null;
+}
+
+function onDsChange() {
+  dsState.name = $('ds-name').value || null;
+  loadSamples(1).catch(e => showMsg('加载失败：' + e.message, false));
+}
+
+function onPageSizeChange() {
+  dsState.pageSize = Number($('ds-page-size').value) || 10;
+  loadSamples(1).catch(e => showMsg('加载失败：' + e.message, false));
+}
+
+async function loadSamples(page) {
+  if (!dsState.name) { renderSamples([]); $('ds-pager').innerHTML = ''; $('ds-count').textContent = ''; return; }
+  const d = await api('GET', '/api/eval/datasets/' + encodeURIComponent(dsState.name)
+    + '/samples?page=' + page + '&pageSize=' + dsState.pageSize);
+  dsState.page = d.page; dsState.pages = d.pages; dsState.total = d.total;
+  $('ds-count').textContent = '共 ' + d.total + ' 条 / ' + d.pages + ' 页';
+  renderSamples(d.samples || []);
+  renderPager();
+}
+
+function renderSamples(samples) {
+  if (!samples.length) { $('ds-table').innerHTML = '<div class="muted">无记录</div>'; return; }
+  $('ds-table').innerHTML = table(
+    ['#', 'id', '问题 / 期望回答', '指定评测器', '操作'],
+    samples.map(s => {
+      const bad = s.valid === false;
+      const query = bad
+        ? `<span style="color:#dc2626">格式错误：${esc(s.error || '')}</span>`
+        : esc(s.query || '') +
+          `<div class="muted" style="font-size:12px">期望回答：${esc(fmtRef(s.referenceResponse))}` +
+          (s.response ? '　<span style="color:#2563eb">预置回答</span>' : '') +
+          (s.tolerance != null ? '　容差 ' + s.tolerance : '') + '</div>';
+      return [
+        s.seq,
+        code(s.id || ''),
+        `<div class="wrap">${query}</div>`,
+        (s.graders || []).map(g => code(g)).join(' ') || '<span class="muted">（未指定）</span>',
+        `<button class="btn sm" onclick="openSampleModal('edit', ${s.seq})">编辑</button>` +
+        `<button class="btn sm danger" onclick="deleteSample(${s.seq})">删除</button>`
+      ];
+    }));
+  markBadRows(samples);
+}
+
+function markBadRows(samples) {
+  const rows = document.querySelectorAll('#ds-table table tr');
+  samples.forEach((s, i) => {
+    const tr = rows[i + 1];
+    if (tr && s.valid === false) tr.classList.add('bad');
+  });
+}
+
+function fmtRef(v) {
+  if (v == null) return '（无）';
+  return typeof v === 'string' ? v : JSON.stringify(v);
+}
+
+function renderPager() {
+  const { page, pages } = dsState;
+  if (pages <= 1) { $('ds-pager').innerHTML = ''; return; }
+  const win = [];
+  const start = Math.max(1, Math.min(page - 2, pages - 4));
+  for (let i = start; i <= Math.min(pages, start + 4); i++) win.push(i);
+  const btn = (label, target, dis) =>
+    `<button class="btn sm" ${dis ? 'disabled' : ''} onclick="loadSamples(${target})">${label}</button>`;
+  $('ds-pager').innerHTML =
+    btn('首页', 1, page === 1) + btn('上一页', page - 1, page === 1) +
+    (start > 1 ? '<span class="muted">…</span>' : '') +
+    win.map(i => i === page ? `<span class="cur">${i}</span>` : btn(i, i, false)).join('') +
+    (start + 4 < pages ? '<span class="muted">…</span>' : '') +
+    btn('下一页', page + 1, page === pages) + btn('尾页', pages, page === pages);
+}
+
+// ---------------- 样本模态框 ----------------
+
+/** 由 referenceResponse 反推类型（string 原样 / number|array 为 JSON 文本） */
+function detectRefType(v) {
+  if (v == null || v === '') return '';
+  try {
+    const j = JSON.parse(v);
+    if (typeof j === 'number') return 'number';
+    if (Array.isArray(j)) return 'array';
+  } catch (e) { /* 纯文本 → string */ }
+  return 'string';
+}
+
+function openSampleModal(mode, seq) {
+  if (!dsState.name) return showMsg('请先选择数据集', false);
+  smModal = { mode, seq: seq || 0 };
+  $('sm-title').textContent = mode === 'add' ? '新增记录（' + dsState.name + '）' : '编辑第 ' + seq + ' 条（' + dsState.name + '）';
+  $('sm-id').value = ''; $('sm-query').value = '';
+  $('sm-reftype').value = ''; $('sm-reftext').value = '';
+  $('sm-tolerance').value = ''; $('sm-response').value = '';
+  $('sm-raw-hint').style.display = 'none';
+  $('sm-raw-hint').textContent = '';
+  // 评测器复选框（复用 graderCache）
+  $('sm-graders').innerHTML = graderCache.map(g =>
+    `<label title="${esc(g.description)}"><input type="checkbox" value="${esc(g.name)}">` +
+    `<span><code>${esc(g.name)}</code> <span class="grader-desc">${esc(g.type)}</span></span></label>`).join('')
+    || '<span class="muted">无已注册评测器</span>';
+  if (mode === 'edit') {
+    // 取当前页数据回填（列表刚加载，内存一致）
+    api('GET', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples?page=' + dsState.page
+      + '&pageSize=' + dsState.pageSize).then(d => {
+      const s = (d.samples || []).find(x => x.seq === seq);
+      if (!s) { showMsg('记录不存在，请刷新', false); return; }
+      if (s.valid === false) {
+        $('sm-raw-hint').style.display = '';
+        $('sm-raw-hint').textContent = '该行格式错误，原文：' + (s.raw || '') + '（重新填写保存即修复）';
+      } else {
+        $('sm-id').value = s.id || '';
+        $('sm-query').value = s.query || '';
+        $('sm-reftype').value = detectRefType(s.referenceResponse);
+        $('sm-reftext').value = s.referenceResponse == null ? '' : String(s.referenceResponse);
+        $('sm-tolerance').value = s.tolerance == null ? '' : s.tolerance;
+        $('sm-response').value = s.response || '';
+        (s.graders || []).forEach(g => {
+          const c = document.querySelector('#sm-graders input[value="' + CSS.escape(g) + '"]');
+          if (c) c.checked = true;
+        });
+      }
+      $('sm-modal').style.display = 'flex';
+    }).catch(e => showMsg('加载失败：' + e.message, false));
+  } else {
+    $('sm-modal').style.display = 'flex';
+  }
+}
+
+function closeSampleModal() { $('sm-modal').style.display = 'none'; }
+
+async function saveSample() {
+  if (!dsState.name) return;
+  const query = $('sm-query').value.trim();
+  if (!query) return showMsg('query 不能为空', false);
+  const refType = $('sm-reftype').value;
+  const refText = $('sm-reftext').value.trim();
+  if (refType && !refText) return showMsg('已选期望回答类型，请填写期望回答', false);
+  const tol = $('sm-tolerance').value;
+  const body = {
+    id: $('sm-id').value.trim(),
+    query,
+    referenceType: refType,
+    referenceText: refText,
+    tolerance: tol === '' ? null : Number(tol),
+    response: $('sm-response').value.trim(),
+    graders: [...document.querySelectorAll('#sm-graders input:checked')].map(c => c.value)
+  };
+  if (tol !== '' && isNaN(body.tolerance)) return showMsg('容差须为数字', false);
+  try {
+    if (smModal.mode === 'add') {
+      await api('POST', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples', body);
+      showMsg('已新增（文件现 ' + await lastTotal() + ' 条）', true);
+      await loadSamples(999999); // 越界自动收敛到最后一页
+    } else {
+      await api('PUT', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples/' + smModal.seq, body);
+      showMsg('已保存', true);
+      await loadSamples(dsState.page);
+    }
+    closeSampleModal();
+    refreshRunDatasets().catch(() => {});
+  } catch (e) { showMsg('保存失败：' + e.message, false); }
+}
+
+async function lastTotal() {
+  const d = await api('GET', '/api/eval/datasets/' + encodeURIComponent(dsState.name)
+    + '/samples?page=1&pageSize=1');
+  return d.total;
+}
+
+async function deleteSample(seq) {
+  if (!dsState.name) return;
+  if (!confirm('确认删除第 ' + seq + ' 条记录？删除立即写回文件。')) return;
+  try {
+    await api('DELETE', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples/' + seq);
+    showMsg('已删除', true);
+    // 若删空当前页则回退一页
+    const page = dsState.total % dsState.pageSize === 1 && dsState.page > 1 ? dsState.page - 1 : dsState.page;
+    await loadSamples(page);
+    refreshRunDatasets().catch(() => {});
+  } catch (e) { showMsg('删除失败：' + e.message, false); }
+}
+
+// ---------------- 新建数据集 ----------------
+
+function openNewDsModal() {
+  $('ds-new-name').value = '';
+  $('dsnew-modal').style.display = 'flex';
+}
+
+function closeNewDsModal() { $('dsnew-modal').style.display = 'none'; }
+
+async function createDataset() {
+  let name = $('ds-new-name').value.trim();
+  if (!name) return showMsg('请输入文件名', false);
+  if (!/\.jsonl$/i.test(name)) name += '.jsonl';
+  if (!/^[A-Za-z0-9._-]+$/.test(name)) return showMsg('文件名仅允许字母/数字/点/下划线/连字符', false);
+  try {
+    await api('POST', '/api/eval/datasets', { name });
+    showMsg('已创建 ' + name, true);
+    closeNewDsModal();
+    await loadDsSelector(name);
+    await loadSamples(1);
+    refreshRunDatasets().catch(() => {});
+  } catch (e) { showMsg('创建失败：' + e.message, false); }
+}
+
+/** 数据集增删改后，同步刷新「运行评测」Tab 的数据集下拉（保持选中） */
+async function refreshRunDatasets() {
+  const keep = $('ev-dataset').value;
+  const d = await api('GET', '/api/eval/datasets');
+  $('ev-dataset').innerHTML = d.datasets.length
+    ? d.datasets.map(ds => `<option value="${esc(ds.name)}">${esc(ds.name)}（${ds.count} 条）</option>`).join('')
+    : '<option value="">（无数据集）</option>';
+  if (keep && d.datasets.some(x => x.name === keep)) $('ev-dataset').value = keep;
 }
 
 // ---------------- init ----------------
