@@ -22,8 +22,27 @@ td.wrap { max-width:360px; }
 .ptab { padding: 8px 22px; border-radius: 6px; cursor: pointer; background: #fff; color: #6b7280; border: 1px solid #e5e7eb; user-select: none; }
 .ptab.active { background: #2563eb; color: #fff; font-weight: 600; border-color: #2563eb; }
 /* 模态框 */
-.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal-box { background: #fff; border-radius: 8px; padding: 18px 22px; width: min(680px, 92vw); max-height: 88vh; overflow: auto; }
+.modal-mask { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: flex; align-items: center; justify-content: center; z-index: 100; animation: modal-fade .18s ease; }
+@keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+.modal-box { background: #fff; border-radius: 12px; width: min(620px, 92vw); max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(15,23,42,.28); animation: modal-pop .22s ease; }
+.modal-head { padding: 16px 22px; border-bottom: 1px solid #f0f1f4; display: flex; align-items: center; }
+.modal-head h2 { font-size: 16px; color: #1f2937; font-weight: 600; margin: 0; padding: 0; border: none; }
+.modal-body { padding: 20px 22px; overflow: auto; }
+.modal-foot { padding: 13px 22px; border-top: 1px solid #f0f1f4; background: #fafbfc; display: flex; justify-content: flex-end; gap: 10px; }
+.modal-foot .btn + .btn { margin-left: 0; }
+/* 模态框表单 */
+.field { margin-bottom: 15px; }
+.field:last-child { margin-bottom: 0; }
+.field > label { display: block; font-size: 13px; color: #374151; font-weight: 600; margin-bottom: 6px; }
+.field > label .req { color: #dc2626; margin-left: 3px; }
+.field input, .field select, .field textarea { width: 100%; display: block; }
+.field textarea { min-height: 68px; }
+.field .hint { font-size: 12px; color: #94a3b8; margin-top: 5px; }
+.field input[type=number] { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: #fff; }
+.field-row { display: flex; gap: 16px; }
+.field-row .field { flex: 1; }
+@media (max-width: 560px) { .field-row { flex-direction: column; gap: 0; } }
 /* 数据集管理表格：坏行标红 */
 tr.bad td { background: #fef2f2; }
 .pager { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
@@ -97,36 +116,64 @@ tr.bad td { background: #fef2f2; }
   <!-- 模态框：新增/编辑记录 -->
   <div class="modal-mask" id="sm-modal" style="display:none">
     <div class="modal-box">
-      <h2 id="sm-title">新增记录</h2>
-      <div class="detail-item"><b>id</b><input type="text" id="sm-id" placeholder="留空自动生成"></div>
-      <div class="detail-item"><b>query（必填）</b><textarea id="sm-query" rows="3"></textarea></div>
-      <div class="detail-item"><b>期望回答类型</b>
-        <select id="sm-reftype">
-          <option value="">（不指定）</option>
-          <option value="string">字符串</option>
-          <option value="number">数字</option>
-          <option value="array">数组</option>
-        </select></div>
-      <div class="detail-item"><b>期望回答</b><input type="text" id="sm-reftext" placeholder="如：北宋"></div>
-      <div class="detail-item"><b>数值容差</b><input type="number" id="sm-tolerance" step="any" placeholder="number_accuracy 可选"></div>
-      <div class="detail-item"><b>预置回答（可选）</b><textarea id="sm-response" rows="3" placeholder="非空则评测时跳过 agent 直接判分"></textarea></div>
-      <div class="muted" id="sm-raw-hint" style="display:none"></div>
-      <div class="toolbar" style="margin-top:12px">
+      <div class="modal-head"><h2 id="sm-title">新增记录</h2></div>
+      <div class="modal-body">
+        <div class="field">
+          <label>id</label>
+          <input type="text" id="sm-id" placeholder="留空自动生成">
+        </div>
+        <div class="field">
+          <label>query<span class="req">*</span></label>
+          <textarea id="sm-query" rows="3" placeholder="要评测的提问，如：知识图谱中一共收录了多少件文物？"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>期望回答类型</label>
+            <select id="sm-reftype">
+              <option value="">（不指定）</option>
+              <option value="string">字符串</option>
+              <option value="number">数字</option>
+              <option value="array">数组</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>数值容差</label>
+            <input type="number" id="sm-tolerance" step="any" placeholder="如 0.1">
+            <div class="hint">number_accuracy 可选</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>期望回答</label>
+          <input type="text" id="sm-reftext" placeholder="如：北宋">
+        </div>
+        <div class="field">
+          <label>预置回答（可选）</label>
+          <textarea id="sm-response" rows="3"></textarea>
+          <div class="hint">非空则评测时跳过 agent 直接判分</div>
+        </div>
+        <div class="muted" id="sm-raw-hint" style="display:none"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="closeSampleModal()">取消</button>
         <button class="btn" onclick="saveSample()">保存</button>
-        <button class="btn" onclick="closeSampleModal()">取消</button>
       </div>
     </div>
   </div>
 
   <!-- 模态框：新建数据集 -->
   <div class="modal-mask" id="dsnew-modal" style="display:none">
-    <div class="modal-box">
-      <h2>新建数据集</h2>
-      <div class="detail-item"><b>文件名</b><input type="text" id="ds-new-name" placeholder="如 my-ds.jsonl（可省略后缀）"></div>
-      <div class="muted">仅允许字母/数字/点/下划线/连字符；同名已存在会提示冲突</div>
-      <div class="toolbar" style="margin-top:12px">
+    <div class="modal-box" style="width:min(460px,92vw)">
+      <div class="modal-head"><h2>新建数据集</h2></div>
+      <div class="modal-body">
+        <div class="field">
+          <label>文件名<span class="req">*</span></label>
+          <input type="text" id="ds-new-name" placeholder="如 my-ds.jsonl">
+          <div class="hint">仅允许字母/数字/点/下划线/连字符，后缀可省略；同名已存在会提示冲突</div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="closeNewDsModal()">取消</button>
         <button class="btn" onclick="createDataset()">创建</button>
-        <button class="btn" onclick="closeNewDsModal()">取消</button>
       </div>
     </div>
   </div>
