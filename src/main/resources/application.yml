@@ -38,6 +38,9 @@ app:
       timeout-seconds: 60
       # 判分次数（>1 时多次取平均降噪，对齐 OpenJudge AverageEvaluationStrategy）
       runs: 1
+      # judge 专用 HarnessAgent（纯 LLM 管道：无工具/技能/子代理），工作区与会话留痕目录
+      workspace-dir: data/eval/judge-workspace
+      state-dir: data/eval/judge-state
   # AI 问答（AgentScope 2.0 Harness，OpenRouter OpenAI 兼容协议）
   agent:
     base-url: https://openrouter.ai/api/v1

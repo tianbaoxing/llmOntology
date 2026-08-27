@@ -13,9 +13,11 @@ import com.conca.ontology.eval.JudgeClient;
 
 /**
  * LLM 评测器基类（二期，对齐 OpenJudge LLMGrader）：
- * 固定系统模板（评分标准 + 仅输出 JSON 约束）+ 用户模板五变量
+ * 评分标准随用户消息首区块【评分标准】下发（各评测器 criteria 不同；仅输出 JSON
+ * 的守则固定在 judge agent sysPrompt）+ 用户模板五变量
  * （query/answer/reference/context/rubric，与数据集字段名解耦）→ JudgeClient
- * → 解析 {score, reason}，原始 1-5 分归一化为 0-1（(raw-1)/4），metadata 同时保留 rawScore。
+ * （judge 专用 HarnessAgent 通道，会话留痕可回查）→ 解析 {score, reason}，
+ * 原始 1-5 分归一化为 0-1（(raw-1)/4），metadata 同时保留 rawScore。
  * 省 token 短路：回答为空直接判 0 分；轨迹类评测器（requireToolCalls）无工具调用时跳过，
  * 均不发起 judge 调用。context = 轨迹中图谱工具返回的拼接（hallucination/groundedness
  * 类「以图谱为证据」核查）。judge 调用失败重试 1 次后仍失败记 GraderError，不影响其它评测器。
@@ -70,13 +72,14 @@ public abstract class LlmJudgeGrader implements Grader {
         int runs = client.runs();
         List<Double> rawScores = new ArrayList<>();
         List<String> reasons = new ArrayList<>();
+        List<String> sessionIds = new ArrayList<>();
         String model = null;
         long promptTokens = 0;
         long completionTokens = 0;
         int calls = 0;
         long durationMs = 0;
         for (int i = 0; i < runs; i++) {
-            JudgeClient.JudgeCall c = client.call(systemPrompt(), userPrompt(input));
+            JudgeClient.JudgeCall c = client.call(userPrompt(input));
             promptTokens += c.promptTokens();
             completionTokens += c.completionTokens();
             calls += c.attempts();
@@ -87,6 +90,9 @@ public abstract class LlmJudgeGrader implements Grader {
             }
             rawScores.add(c.rawScore());
             reasons.add(c.reason());
+            if (c.sessionId() != null) {
+                sessionIds.add(c.sessionId());
+            }
         }
         double avgRaw = rawScores.stream().mapToDouble(Double::doubleValue).average().orElse(1.0);
 
@@ -96,6 +102,7 @@ public abstract class LlmJudgeGrader implements Grader {
         judge.put("completionTokens", completionTokens);
         judge.put("calls", calls);
         judge.put("durationMs", durationMs);
+        judge.put("sessionId", sessionIds.isEmpty() ? null : String.join(",", sessionIds));
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("rawScore", runs == 1 ? rawScores.get(0) : rawScores);
         meta.put("judge", judge);
@@ -104,18 +111,11 @@ public abstract class LlmJudgeGrader implements Grader {
         return GraderScore.of(name(), (avgRaw - 1) / 4.0, reason, meta);
     }
 
-    /** 固定系统模板：评分标准 + 只输出 JSON（样本内容仅在 user 侧明确区块中，降注入面） */
-    private String systemPrompt() {
-        return "你是问答系统质量评测专家，评测「国博藏品图谱」问答系统的回答质量。\n"
-                + "评分采用 1-5 整数分制：" + criteria() + "\n"
-                + "只输出一个 JSON 对象：{\"score\": 分数, \"reason\": \"一句话中文理由\"}，"
-                + "禁止输出 JSON 以外的任何内容。";
-    }
-
-    /** 用户模板五变量（与数据集字段名解耦）：query/answer/reference/context/rubric */
+    /** 用户模板：首区块评分标准（各评测器不同）+ 五变量（与数据集字段名解耦）：query/answer/reference/context/rubric */
     private String userPrompt(GraderInput input) {
         StringBuilder sb = new StringBuilder();
-        sb.append("【问题】\n").append(text(input.query())).append("\n\n")
+        sb.append("【评分标准（1-5 整数分制）】\n").append(criteria()).append("\n\n")
+                .append("【问题】\n").append(text(input.query())).append("\n\n")
                 .append("【待评估回答】\n").append(text(input.response())).append("\n\n")
                 .append("【参考答案】\n").append(refText(input.referenceResponse())).append("\n\n")
                 .append("【证据上下文（回答所依据的图谱查询返回）】\n").append(contextText(input.record()));
