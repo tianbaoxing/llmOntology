@@ -31,7 +31,6 @@ import com.conca.ontology.dto.request.EvalSampleRequest;
 import com.conca.ontology.exception.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.agentscope.core.agent.RuntimeContext;
@@ -285,12 +284,6 @@ public class EvalService {
                     ref.isMissingNode() || ref.isNull() ? null
                             : ref.isTextual() ? ref.asText() : mapper.writeValueAsString(ref));
             row.put("tolerance", node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null);
-            JsonNode g = node.path("graders");
-            List<String> names = new ArrayList<>();
-            if (g.isArray()) {
-                g.forEach(n -> names.add(n.asText()));
-            }
-            row.put("graders", names);
             row.put("valid", true);
         } catch (Exception e) {
             row.put("valid", false);
@@ -299,17 +292,10 @@ public class EvalService {
         return row;
     }
 
-    /** 构建并校验一行样本 JSON（query 必填；评测器须已注册；ref 按类型解析；id 须唯一） */
+    /** 构建并校验一行样本 JSON（query 必填；ref 按类型解析；id 须唯一；样本不含评测器字段） */
     private String buildSampleLine(EvalSampleRequest req, Path p, int excludeSeq) {
         if (req.query() == null || req.query().isBlank()) {
             throw new ApiException(400, "query 不能为空");
-        }
-        if (req.graders() != null) {
-            for (String g : req.graders()) {
-                if (!graders.containsKey(g)) {
-                    throw new ApiException(400, "未知评测器: " + g + "（可用：" + graders.keySet() + "）");
-                }
-            }
         }
         String id = req.id() == null ? "" : req.id().trim();
         if (id.isEmpty()) {
@@ -361,10 +347,6 @@ public class EvalService {
             }
             if (req.tolerance() != null) {
                 node.put("tolerance", req.tolerance());
-            }
-            if (req.graders() != null && !req.graders().isEmpty()) {
-                ArrayNode g = node.putArray("graders");
-                req.graders().forEach(g::add);
             }
             return mapper.writeValueAsString(node);
         } catch (ApiException e) {
@@ -421,12 +403,12 @@ public class EvalService {
         requireDataset(dataset);
         List<String> names = graderNames == null ? List.of() : graderNames.stream().filter(n -> n != null && !n.isBlank()).toList();
         if (names.isEmpty()) {
-            names = List.copyOf(graders.keySet());
-        } else {
-            for (String n : names) {
-                if (!graders.containsKey(n)) {
-                    throw new ApiException(400, "未知评测器: " + n + "（可用：" + graders.keySet() + "）");
-                }
+            // 评测器仅任务级选择（样本不指定）：必选至少一个，避免误跑全量 LLM 判分产生 token 成本
+            throw new ApiException(400, "请至少勾选一个评测器（可用：" + graders.keySet() + "）");
+        }
+        for (String n : names) {
+            if (!graders.containsKey(n)) {
+                throw new ApiException(400, "未知评测器: " + n + "（可用：" + graders.keySet() + "）");
             }
         }
         // LLM 判分依赖 judge 通道：未配置 key 时提前 409（对齐现有「AI 服务未配置」文案约定）
@@ -611,20 +593,14 @@ public class EvalService {
 
     /**
      * 样本 × 评测器逐个判分：单评测器异常转 GraderScore.fail，不影响其它评测器。
-     * 评测器选择 = 任务级勾选（task.graderNames，空已归一化为全集）∩ 样本指定
-     * （sample.graders 为空视为不限制）；交集为空时该样本不判分（scores 为空列表）。
+     * 评测器选择 = 任务级勾选（task.graderNames，启动时已校验非空且均已注册），样本不指定评测器。
      * mapper 落点（对齐 OpenJudge grader_configs.mapper，数据集字段 → grader 参数名）：
      * query→query、reference_response→reference_response、tolerance→tolerance、
      * rubric→rubric 为恒等映射；response 由运行时注入（预置样本取数据集 response，
      * agent 样本取 record.answer）。
      */
     private List<Map<String, Object>> judge(EvalSample sample, AgentRecord record, Task task) {
-        List<String> names;
-        if (sample.graders() == null || sample.graders().isEmpty()) {
-            names = task.graderNames;
-        } else {
-            names = sample.graders().stream().filter(task.graderNames::contains).toList();
-        }
+        List<String> names = task.graderNames;
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("query", sample.query());
         params.put("response", record.answer());
@@ -854,11 +830,6 @@ public class EvalService {
                 }
                 try {
                     JsonNode node = mapper.readTree(line);
-                    List<String> gs = new ArrayList<>();
-                    JsonNode gn = node.path("graders");
-                    if (gn.isArray()) {
-                        gn.forEach(n -> gs.add(n.asText()));
-                    }
                     JsonNode ref = node.path("reference_response");
                     Object refObj = ref.isMissingNode() || ref.isNull()
                             ? null : mapper.convertValue(ref, Object.class);
@@ -868,11 +839,10 @@ public class EvalService {
                             node.path("response").asText(null),
                             refObj,
                             node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null,
-                            node.path("rubric").asText(null),
-                            gs));
+                            node.path("rubric").asText(null)));
                 } catch (Exception e) {
                     list.add(new EvalSample("line-" + lineNo,
-                            "[数据行解析失败] " + e.getMessage(), null, null, null, null, List.of()));
+                            "[数据行解析失败] " + e.getMessage(), null, null, null, null));
                 }
             }
         }

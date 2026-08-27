@@ -1,7 +1,5 @@
 package com.conca.ontology.dto.request;
 
-import java.util.List;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 
@@ -22,7 +20,5 @@ public record EvalSampleRequest(
         @Schema(description = "数值容差（number_accuracy 用）", example = "0.0")
         Double tolerance,
         @Schema(description = "预置回答（非空则评测时跳过 agent 直接判分）")
-        String response,
-        @Schema(description = "样本指定的评测器名列表（空 = 不指定）", example = "[\"number_accuracy\"]")
-        List<String> graders) {
+        String response) {
 }

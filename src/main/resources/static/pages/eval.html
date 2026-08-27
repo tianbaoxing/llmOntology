@@ -50,7 +50,7 @@ tr.bad td { background: #fef2f2; }
       <span class="muted" id="ev-dataset-info"></span>
     </div>
     <div style="margin-top:8px">
-      <div class="muted" style="margin-bottom:4px">评测器（不勾选 = 全部启用；悬停查看说明）</div>
+      <div class="muted" style="margin-bottom:4px">评测器（样本不指定评测器，仅在此任务级勾选；必选至少一个；悬停查看说明）</div>
       <div class="grader-checks" id="ev-graders"></div>
     </div>
     <div id="ev-progress-wrap" style="display:none; margin-top:12px">
@@ -110,8 +110,6 @@ tr.bad td { background: #fef2f2; }
       <div class="detail-item"><b>期望回答</b><input type="text" id="sm-reftext" placeholder="如：北宋"></div>
       <div class="detail-item"><b>数值容差</b><input type="number" id="sm-tolerance" step="any" placeholder="number_accuracy 可选"></div>
       <div class="detail-item"><b>预置回答（可选）</b><textarea id="sm-response" rows="3" placeholder="非空则评测时跳过 agent 直接判分"></textarea></div>
-      <div class="detail-item"><b>指定评测器（不勾 = 不指定，评测时用任务级勾选；悬停查看说明）</b>
-        <div class="grader-checks" id="sm-graders"></div></div>
       <div class="muted" id="sm-raw-hint" style="display:none"></div>
       <div class="toolbar" style="margin-top:12px">
         <button class="btn" onclick="saveSample()">保存</button>
@@ -142,6 +140,7 @@ async function startEval() {
   const dataset = $('ev-dataset').value;
   if (!dataset) return showMsg('请先选择数据集', false);
   const graders = [...document.querySelectorAll('#ev-graders input:checked')].map(c => c.value);
+  if (!graders.length) return showMsg('请至少勾选一个评测器', false);
   try {
     const d = await api('POST', '/api/eval/runs', { dataset, graders });
     evTaskId = d.taskId;
@@ -335,20 +334,19 @@ async function loadSamples(page) {
 function renderSamples(samples) {
   if (!samples.length) { $('ds-table').innerHTML = '<div class="muted">无记录</div>'; return; }
   $('ds-table').innerHTML = table(
-    ['#', 'id', '问题 / 期望回答', '指定评测器', '操作'],
+    ['#', 'id', '问题 / 期望回答', '预置回答', '操作'],
     samples.map(s => {
       const bad = s.valid === false;
       const query = bad
         ? `<span style="color:#dc2626">格式错误：${esc(s.error || '')}</span>`
         : esc(s.query || '') +
           `<div class="muted" style="font-size:12px">期望回答：${esc(fmtRef(s.referenceResponse))}` +
-          (s.response ? '　<span style="color:#2563eb">预置回答</span>' : '') +
           (s.tolerance != null ? '　容差 ' + s.tolerance : '') + '</div>';
       return [
         s.seq,
         code(s.id || ''),
         `<div class="wrap">${query}</div>`,
-        (s.graders || []).map(g => code(g)).join(' ') || '<span class="muted">（未指定）</span>',
+        s.response ? `<div class="wrap" style="color:#2563eb">${esc(s.response)}</div>` : '<span class="muted">（无）</span>',
         `<button class="btn sm" onclick="openSampleModal('edit', ${s.seq})">编辑</button>` +
         `<button class="btn sm danger" onclick="deleteSample(${s.seq})">删除</button>`
       ];
@@ -407,11 +405,6 @@ function openSampleModal(mode, seq) {
   $('sm-tolerance').value = ''; $('sm-response').value = '';
   $('sm-raw-hint').style.display = 'none';
   $('sm-raw-hint').textContent = '';
-  // 评测器复选框（复用 graderCache）
-  $('sm-graders').innerHTML = graderCache.map(g =>
-    `<label title="${esc(g.description)}"><input type="checkbox" value="${esc(g.name)}">` +
-    `<span><code>${esc(g.name)}</code> <span class="grader-desc">${esc(g.type)}</span></span></label>`).join('')
-    || '<span class="muted">无已注册评测器</span>';
   if (mode === 'edit') {
     // 取当前页数据回填（列表刚加载，内存一致）
     api('GET', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples?page=' + dsState.page
@@ -428,10 +421,6 @@ function openSampleModal(mode, seq) {
         $('sm-reftext').value = s.referenceResponse == null ? '' : String(s.referenceResponse);
         $('sm-tolerance').value = s.tolerance == null ? '' : s.tolerance;
         $('sm-response').value = s.response || '';
-        (s.graders || []).forEach(g => {
-          const c = document.querySelector('#sm-graders input[value="' + CSS.escape(g) + '"]');
-          if (c) c.checked = true;
-        });
       }
       $('sm-modal').style.display = 'flex';
     }).catch(e => showMsg('加载失败：' + e.message, false));
@@ -456,8 +445,7 @@ async function saveSample() {
     referenceType: refType,
     referenceText: refText,
     tolerance: tol === '' ? null : Number(tol),
-    response: $('sm-response').value.trim(),
-    graders: [...document.querySelectorAll('#sm-graders input:checked')].map(c => c.value)
+    response: $('sm-response').value.trim()
   };
   if (tol !== '' && isNaN(body.tolerance)) return showMsg('容差须为数字', false);
   try {
