@@ -65,6 +65,14 @@ tr.bad td { background: #fef2f2; }
     <div class="muted" style="margin-bottom:10px">选择数据集与评测器，批量驱动 AI 问答并判分。评测器分两类：规则评测（本地算法，零成本）与 LLM 评测（judge 模型判分，消耗 tokens，须已配置 OPENROUTER_API_KEY）。未预置 response 的样本调用 agent 逐条串行作答，预置 response 的样本跳过 agent 直接判分（OpenJudge 纯判分模式）</div>
     <div class="toolbar" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
       <label>数据集 <select id="ev-dataset"></select></label>
+      <label>LLM 判分次数
+        <select id="ev-runs" title="仅对 LLM 评测器生效：>1 时多次判分取平均降噪（judge 调用成本随次数线性增长）；缺省取服务端配置">
+          <option value="">缺省（配置）</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        </select>
+      </label>
       <button class="btn" id="ev-btn" onclick="startEval()">运行评测</button>
       <span class="muted" id="ev-dataset-info"></span>
     </div>
@@ -188,8 +196,11 @@ async function startEval() {
   if (!dataset) return showMsg('请先选择数据集', false);
   const graders = [...document.querySelectorAll('#ev-graders input:checked')].map(c => c.value);
   if (!graders.length) return showMsg('请至少勾选一个评测器', false);
+  const runsVal = $('ev-runs').value;
+  const body = { dataset, graders };
+  if (runsVal !== '') body.judgeRuns = parseInt(runsVal, 10);
   try {
-    const d = await api('POST', '/api/eval/runs', { dataset, graders });
+    const d = await api('POST', '/api/eval/runs', body);
     evTaskId = d.taskId;
   } catch (e) { return showMsg('启动失败：' + e.message, false); }
   $('ev-btn').disabled = true;
@@ -223,7 +234,12 @@ function scoreBadge(s) {
   if (s.error) return `<span class="score err" title="${esc(s.reason || '')}">${esc(s.name)}:错误</span>`;
   const v = Number(s.score);
   const cls = v >= 0.8 ? 'hi' : v >= 0.5 ? 'mid' : 'lo';
-  const raw = s.metadata && s.metadata.rawScore != null ? `(${s.metadata.rawScore}/5)` : '';
+  let raw = '';
+  if (s.metadata && s.metadata.rawScore != null) {
+    // 多次判分取平均时 rawScore 为数组（B8），展示为 4.0/5.0→(4.0/5) 与 (4.5/5 平均)
+    const rs = s.metadata.rawScore;
+    raw = Array.isArray(rs) ? `(${rs.map(x => Number(x).toFixed(1)).join('/')}/5)` : `(${rs}/5)`;
+  }
   return `<span class="score ${cls}" title="${esc(s.reason || '')}">${esc(s.name)}:${v.toFixed(2)}${raw}</span>`;
 }
 
@@ -235,7 +251,8 @@ function fmtDuration(ms) {
 function renderResult(result) {
   if (!result) return;
   $('ev-result-card').style.display = '';
-  $('ev-result-title').textContent = '结果明细：' + result.id + '（' + result.dataset + '）';
+  $('ev-result-title').textContent = '结果明细：' + result.id + '（' + result.dataset + '）'
+    + (result.judgeRuns > 1 ? '，LLM 判分 ×' + result.judgeRuns : '');
   const s = result.summary || {};
   $('ev-summary').innerHTML = '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
     statCard(s.total ?? '-', '样本总数') +
@@ -249,11 +266,14 @@ function renderResult(result) {
   const rows = (result.samples || []).map(sm => {
     const scores = sm.scores || [];
     const toolCalls = sm.toolCalls || [];
+    const dialogue = sm.dialogue || [];
     const srcInfo = sm.responseSource === 'preset'
-      ? '预置回答，跳过 agent'
-      : `${toolCalls.length} 次工具调用，${sm.rounds ?? 0} 轮，${sm.durationMs ? fmtDuration(sm.durationMs) : '-'}`;
+      ? '预置回答，跳过 agent' + (dialogue.length > 1 ? `，多轮 ${dialogue.length} 轮` : '')
+      : `${dialogue.length > 1 ? `多轮 ${dialogue.length} 轮，` : ''}${toolCalls.length} 次工具调用，${sm.rounds ?? 0} 轮，${sm.durationMs ? fmtDuration(sm.durationMs) : '-'}`;
     const answerDetail = `<details class="eval-detail"><summary>回答与轨迹（${srcInfo}）</summary>` +
       `<pre>${sm.agentError ? '【agent 调用失败】' + esc(sm.agentError) + '\n\n' : ''}${esc(sm.answer || '（空）')}` +
+      (dialogue.length > 1 ? '\n\n—— 多轮对话记录 ——\n' + dialogue.map((d, i) =>
+        `第 ${i + 1} 轮\n问：${esc(d.query || '')}\n答：${esc(d.answer || '')}`).join('\n\n') : '') +
       (toolCalls.length ? '\n\n—— 工具调用轨迹 ——\n' + toolCalls.map(t =>
         `#${t.name} [${t.state}] args: ${t.args}\n  result: ${t.result}`).join('\n') : '') + '</pre></details>';
     const reasonDetail = scores.map(sc =>
@@ -322,10 +342,15 @@ let graderCache = [];
 async function loadGraders() {
   const d = await api('GET', '/api/eval/graders');
   graderCache = d.graders || [];
-  $('ev-graders').innerHTML = graderCache.map(g =>
+  const chip = g =>
     `<label title="${esc(g.description)}"><input type="checkbox" value="${esc(g.name)}">` +
-    `<span><code>${esc(g.name)}</code> <span class="grader-desc">${esc(g.type)}</span></span></label>`).join('')
-    || '<span class="muted">无已注册评测器</span>';
+    `<span><code>${esc(g.name)}</code> <span class="grader-desc">${esc(g.type)}</span></span></label>`;
+  const rule = graderCache.filter(g => g.type !== 'llm');
+  const llm = graderCache.filter(g => g.type === 'llm');
+  $('ev-graders').innerHTML =
+    (rule.length ? `<div class="muted" style="margin:6px 0 2px">规则评测（本地算法，零成本）</div><div class="grader-checks">${rule.map(chip).join('')}</div>` : '') +
+    (llm.length ? `<div class="muted" style="margin:10px 0 2px">LLM 评测（judge 模型判分，消耗 tokens）</div><div class="grader-checks">${llm.map(chip).join('')}</div>` : '') ||
+    '<span class="muted">无已注册评测器</span>';
 }
 
 // ---------------- 数据集管理 ----------------

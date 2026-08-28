@@ -37,6 +37,16 @@ public record GraderInput(Map<String, Object> params, AgentRecord record) {
         return str("rubric");
     }
 
+    /**
+     * LLM 判分次数（B8 多次评测策略的运行参数，覆盖 app.eval.judge.runs 配置）：
+     * 由任务级传入（POST /api/eval/runs 的 judgeRuns），>1 时多次判分取平均降噪；
+     * 未指定为 null（评测器回落配置值）。
+     */
+    public Integer judgeRuns() {
+        Object v = params.get("judge_runs");
+        return v instanceof Number n ? n.intValue() : null;
+    }
+
     private String str(String key) {
         Object v = params.get(key);
         return v == null ? null : String.valueOf(v);

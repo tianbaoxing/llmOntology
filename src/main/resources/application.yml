@@ -33,8 +33,8 @@ app:
   # 评测 LLM judge（二期）：base-url/api-key/model 缺省复用 app.agent 同名配置
   eval:
     judge:
-      # 单次判分输出上限与超时（reason 简短即可，控成本）
-      max-output-tokens: 400
+      # 单次判分输出上限与超时（reason 简短即可，控成本；多轮评测器证据更长，400 曾致 JSON 截断解析失败）
+      max-output-tokens: 600
       timeout-seconds: 60
       # 判分次数（>1 时多次取平均降噪，对齐 OpenJudge AverageEvaluationStrategy）
       runs: 1

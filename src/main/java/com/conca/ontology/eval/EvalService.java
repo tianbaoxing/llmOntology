@@ -78,6 +78,8 @@ public class EvalService {
         public final String dataset;
         public final List<String> graderNames;
         public final String userId;
+        /** LLM 判分次数（B8 运行参数，null = 未指定回落 app.eval.judge.runs 配置） */
+        public final Integer judgeRuns;
         public final LocalDateTime startedAt = LocalDateTime.now();
         volatile String status = "running";  // running | success | failed
         volatile String detail = "准备中";
@@ -86,10 +88,11 @@ public class EvalService {
         volatile Map<String, Object> result;
         volatile String resultFile;
 
-        Task(String id, String dataset, List<String> graderNames, String userId) {
+        Task(String id, String dataset, List<String> graderNames, Integer judgeRuns, String userId) {
             this.id = id;
             this.dataset = dataset;
             this.graderNames = graderNames;
+            this.judgeRuns = judgeRuns;
             this.userId = userId;
         }
     }
@@ -277,7 +280,18 @@ public class EvalService {
         try {
             JsonNode node = mapper.readTree(line);
             row.put("id", node.path("id").asText("line-" + seq));
-            row.put("query", node.path("query").asText(""));
+            JsonNode turnsNode = node.path("turns");
+            if (turnsNode.isArray() && turnsNode.size() >= 2) {
+                // 多轮样本：query 展示为各轮串联（编辑器暂不支持 turns，编辑保存将转为单轮）
+                StringBuilder q = new StringBuilder("【多轮 " + turnsNode.size() + " 轮】");
+                for (int i = 0; i < turnsNode.size(); i++) {
+                    q.append(" 轮").append(i + 1).append("：").append(turnsNode.get(i).path("query").asText(""));
+                }
+                row.put("query", q.toString());
+                row.put("turns", turnsNode.size());
+            } else {
+                row.put("query", node.path("query").asText(""));
+            }
             row.put("response", node.path("response").asText(null));
             JsonNode ref = node.path("reference_response");
             row.put("referenceResponse",
@@ -394,11 +408,20 @@ public class EvalService {
 
     // ---------------- 任务控制 ----------------
 
-    /** 启动评测（异步），同一时间仅允许一个任务 */
-    public synchronized Map<String, Object> start(String dataset, List<String> graderNames, String userId) {
+    /** 启动评测（异步），同一时间仅允许一个任务；judgeRuns 为 LLM 判分次数运行参数（null/1 = 单次） */
+    public synchronized Map<String, Object> start(String dataset, List<String> graderNames, Integer judgeRuns, String userId) {
         Task t = current.get();
         if (t != null && "running".equals(t.status)) {
             throw new ApiException(409, "已有评测任务进行中，请等待完成");
+        }
+        Integer runs = null;
+        if (judgeRuns != null) {
+            if (judgeRuns < 1 || judgeRuns > 3) {
+                throw new ApiException(400, "judgeRuns 须在 1-3 之间（多次判分取平均降噪，judge 调用成本随次数线性增长）");
+            }
+            if (judgeRuns > 1) {
+                runs = judgeRuns;
+            }
         }
         requireDataset(dataset);
         List<String> names = graderNames == null ? List.of() : graderNames.stream().filter(n -> n != null && !n.isBlank()).toList();
@@ -430,7 +453,7 @@ public class EvalService {
         }
         String id = "eval-" + LocalDateTime.now().format(STAMP) + "-"
                 + Integer.toHexString((int) (Math.random() * 0xfff));
-        Task task = new Task(id, dataset, names, userId);
+        Task task = new Task(id, dataset, names, runs, userId);
         current.set(task);
         executor.submit(() -> runEval(task));
         log.info("eval started: {} dataset={} graders={}", task.id, dataset, names);
@@ -528,18 +551,36 @@ public class EvalService {
 
             for (int i = 0; i < total; i++) {
                 EvalSample sample = samples.get(i);
-                task.detail = "评测 " + (i + 1) + "/" + total + "：" + brief(sample.query());
+                task.detail = "评测 " + (i + 1) + "/" + total + "：" + brief(displayQuery(sample));
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("id", sample.id());
-                row.put("query", sample.query());
+                row.put("query", displayQuery(sample));
                 row.put("referenceResponse", sample.referenceResponse());
                 row.put("tolerance", sample.tolerance());
+                if (sample.isMultiTurn()) {
+                    row.put("turns", sample.turns().size());
+                }
                 try {
-                    // 预置 response 纯判分模式（对齐 OpenJudge）：跳过 agent，占位 record 仅承载回答
+                    // 预置 response 纯判分模式（对齐 OpenJudge）：跳过 agent，占位 record 仅承载回答；
+                    // 多轮样本（turns）预置时同样跳过 agent，dialogue 取预置脚本
                     AgentRecord record;
                     if (sample.hasPresetResponse()) {
-                        record = new AgentRecord(sample.response(), List.of(), 0, 0, 0, 0, null);
+                        if (sample.isMultiTurn()) {
+                            List<Map<String, Object>> dialogue = new ArrayList<>();
+                            for (EvalSample.Turn t : sample.turns()) {
+                                dialogue.add(Map.of("query", t.query() == null ? "" : t.query(),
+                                        "answer", t.response() == null ? "" : t.response()));
+                            }
+                            record = new AgentRecord(sample.turns().get(sample.turns().size() - 1).response(),
+                                    List.of(), 0, 0, 0, 0, null, dialogue);
+                        } else {
+                            record = new AgentRecord(sample.response(), List.of(), 0, 0, 0, 0, null);
+                        }
                         row.put("responseSource", "preset");
+                    } else if (sample.isMultiTurn()) {
+                        // 多轮 agent 模式：轮序在同一会话连续作答（跨轮上下文记忆），被评测对象为最后一轮回答
+                        record = askAgentMultiTurn(sample, task);
+                        row.put("responseSource", "agent");
                     } else {
                         record = askAgent(sample.query(), task);
                         row.put("responseSource", "agent");
@@ -549,6 +590,9 @@ public class EvalService {
                     totalCompletionTokens += record.completionTokens();
                     row.put("answer", record.answer());
                     row.put("toolCalls", record.toolCalls());
+                    if (!record.dialogue().isEmpty()) {
+                        row.put("dialogue", record.dialogue());
+                    }
                     row.put("rounds", record.rounds());
                     row.put("durationMs", record.durationMs());
                     row.put("promptTokens", record.promptTokens());
@@ -571,6 +615,7 @@ public class EvalService {
             result.put("id", task.id);
             result.put("dataset", task.dataset);
             result.put("graders", task.graderNames);
+            result.put("judgeRuns", task.judgeRuns);
             result.put("startedAt", task.startedAt.toString());
             result.put("finishedAt", LocalDateTime.now().toString());
             result.put("summary", summary);
@@ -602,11 +647,16 @@ public class EvalService {
     private List<Map<String, Object>> judge(EvalSample sample, AgentRecord record, Task task) {
         List<String> names = task.graderNames;
         Map<String, Object> params = new LinkedHashMap<>();
-        params.put("query", sample.query());
+        // 多轮样本被评测对象为最后一轮回答，query 取最后一轮问题（完整对话在 record.dialogue）
+        params.put("query", sample.isMultiTurn()
+                ? sample.turns().get(sample.turns().size() - 1).query() : sample.query());
         params.put("response", record.answer());
         params.put("reference_response", sample.referenceResponse());
         params.put("tolerance", sample.tolerance());
         params.put("rubric", sample.rubric());
+        if (task.judgeRuns != null) {
+            params.put("judge_runs", task.judgeRuns);
+        }
         GraderInput input = new GraderInput(params, record);
         List<Map<String, Object>> scores = new ArrayList<>();
         for (String n : names) {
@@ -696,6 +746,59 @@ public class EvalService {
     }
 
     // ---------------- agent 驱动与轨迹采集 ----------------
+
+    /** 多轮样本展示用 query：各轮问题串联（轮1：… ◆ 轮2：…） */
+    private static String displayQuery(EvalSample sample) {
+        if (!sample.isMultiTurn()) {
+            return sample.query();
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < sample.turns().size(); i++) {
+            if (i > 0) {
+                sb.append(" ◆ ");
+            }
+            sb.append("轮").append(i + 1).append("：").append(sample.turns().get(i).query());
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 多轮样本驱动：轮序在同一会话（sessionId=task.id，与 chat 页同一机制）连续作答，
+     * 跨轮上下文记忆生效；tokens/轮次/工具轨迹累计，answer 为最后一轮回答，
+     * dialogue 承载全轮对话（多轮评测器的证据）。任一轮失败即中止（后续轮上下文已不可信）。
+     */
+    private AgentRecord askAgentMultiTurn(EvalSample sample, Task task) {
+        List<Map<String, Object>> dialogue = new ArrayList<>();
+        List<Map<String, Object>> allToolCalls = new ArrayList<>();
+        int rounds = 0;
+        long promptTokens = 0;
+        long completionTokens = 0;
+        long durationMs = 0;
+        String lastAnswer = "";
+        for (int i = 0; i < sample.turns().size(); i++) {
+            EvalSample.Turn turn = sample.turns().get(i);
+            task.detail = "评测 " + displayQuery(sample) + " —— 第 " + (i + 1) + "/" + sample.turns().size() + " 轮";
+            AgentRecord r = askAgent(turn.query(), task);
+            rounds += r.rounds();
+            promptTokens += r.promptTokens();
+            completionTokens += r.completionTokens();
+            durationMs += r.durationMs();
+            if (r.toolCalls() != null) {
+                allToolCalls.addAll(r.toolCalls());
+            }
+            lastAnswer = r.answer();
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("query", turn.query());
+            d.put("answer", r.answer());
+            dialogue.add(d);
+            if (r.failed()) {
+                return new AgentRecord(lastAnswer, allToolCalls, rounds, promptTokens,
+                        completionTokens, durationMs, "第 " + (i + 1) + " 轮失败：" + r.error(), dialogue);
+            }
+        }
+        return new AgentRecord(lastAnswer, allToolCalls, rounds, promptTokens,
+                completionTokens, durationMs, null, dialogue);
+    }
 
     /** 订阅 HarnessAgent 事件流（collectList 阻塞等待完成），采集回答全文与工具轨迹 */
     private AgentRecord askAgent(String query, Task task) {
@@ -833,20 +936,41 @@ public class EvalService {
                     JsonNode ref = node.path("reference_response");
                     Object refObj = ref.isMissingNode() || ref.isNull()
                             ? null : mapper.convertValue(ref, Object.class);
+                    List<EvalSample.Turn> turns = parseTurns(node.path("turns"));
                     list.add(new EvalSample(
                             node.path("id").asText("line-" + lineNo),
                             node.path("query").asText(""),
                             node.path("response").asText(null),
                             refObj,
                             node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null,
-                            node.path("rubric").asText(null)));
+                            node.path("rubric").asText(null),
+                            turns));
                 } catch (Exception e) {
                     list.add(new EvalSample("line-" + lineNo,
-                            "[数据行解析失败] " + e.getMessage(), null, null, null, null));
+                            "[数据行解析失败] " + e.getMessage(), null, null, null, null, List.of()));
                 }
             }
         }
         return list;
+    }
+
+    /** 解析多轮脚本 turns（缺失/非数组返回空列表 = 单轮样本；≥2 轮方为多轮，轮内 query 必填） */
+    private List<EvalSample.Turn> parseTurns(JsonNode turnsNode) {
+        if (turnsNode == null || !turnsNode.isArray()) {
+            return List.of();
+        }
+        if (turnsNode.size() == 1) {
+            throw new IllegalArgumentException("turns 仅 1 轮，请改用单轮 query/response 字段");
+        }
+        List<EvalSample.Turn> turns = new ArrayList<>();
+        for (JsonNode t : turnsNode) {
+            String q = t.path("query").asText("");
+            if (q.isBlank()) {
+                throw new IllegalArgumentException("turns 中存在 query 为空的轮次");
+            }
+            turns.add(new EvalSample.Turn(q, t.path("response").asText(null)));
+        }
+        return turns;
     }
 
     /** 结果落盘（先 .tmp 后 rename，半成品不进列表） */

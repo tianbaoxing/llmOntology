@@ -52,6 +52,11 @@ public abstract class LlmJudgeGrader implements Grader {
         return false;
     }
 
+    /** 多轮类评测器返回 true：样本非多轮（对话不足 2 轮）时跳过 judge 调用 */
+    protected boolean requireMultiTurn() {
+        return false;
+    }
+
     @Override
     public GraderScore evaluate(GraderInput input) {
         if (!client.isConfigured()) {
@@ -69,7 +74,12 @@ public abstract class LlmJudgeGrader implements Grader {
         if (requireToolCalls() && (toolCalls == null || toolCalls.isEmpty())) {
             return GraderScore.of(name(), 1.0, "未调用工具，无轨迹可评，跳过 judge 调用", Map.of());
         }
-        int runs = client.runs();
+        List<Map<String, Object>> dialogue = input.record().dialogue();
+        if (requireMultiTurn() && (dialogue == null || dialogue.size() < 2)) {
+            return GraderScore.of(name(), 1.0, "非多轮样本（对话不足 2 轮），跳过 judge 调用", Map.of());
+        }
+        // 判分次数：运行参数（任务级）优先，缺省回落配置 app.eval.judge.runs
+        int runs = input.judgeRuns() != null ? Math.max(1, input.judgeRuns()) : client.runs();
         List<Double> rawScores = new ArrayList<>();
         List<String> reasons = new ArrayList<>();
         List<String> sessionIds = new ArrayList<>();
@@ -97,6 +107,7 @@ public abstract class LlmJudgeGrader implements Grader {
         double avgRaw = rawScores.stream().mapToDouble(Double::doubleValue).average().orElse(1.0);
 
         Map<String, Object> judge = new LinkedHashMap<>();
+        judge.put("runs", runs);
         judge.put("model", model);
         judge.put("promptTokens", promptTokens);
         judge.put("completionTokens", completionTokens);
@@ -162,6 +173,22 @@ public abstract class LlmJudgeGrader implements Grader {
             sb.append(i++).append(". ").append(t.getOrDefault("name", "?"))
                     .append("（").append(truncate(String.valueOf(t.getOrDefault("args", "")), 150)).append("）→ ")
                     .append(truncate(String.valueOf(t.getOrDefault("result", "")), 150)).append("\n");
+        }
+        return sb.toString();
+    }
+
+    /** 多轮对话渲染（多轮评测器的 extraBlock 使用）：轮次序号 + 每轮问题与回答（各自截断） */
+    protected String renderDialogue(AgentRecord record) {
+        List<Map<String, Object>> dialogue = record.dialogue();
+        if (dialogue == null || dialogue.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("【多轮对话记录（按时间序）】\n");
+        int i = 1;
+        for (Map<String, Object> t : dialogue) {
+            sb.append("第 ").append(i++).append(" 轮\n")
+                    .append("问：").append(truncate(String.valueOf(t.getOrDefault("query", "")), 300)).append("\n")
+                    .append("答：").append(truncate(String.valueOf(t.getOrDefault("answer", "")), 400)).append("\n");
         }
         return sb.toString();
     }

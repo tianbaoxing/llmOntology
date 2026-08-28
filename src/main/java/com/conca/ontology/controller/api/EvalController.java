@@ -124,7 +124,7 @@ public class EvalController {
             throw new ApiException(401, "未登录或会话已过期");
         }
         List<String> graders = request.graders() == null ? List.of() : request.graders();
-        return ApiResponse.ok(evalService.start(request.dataset(), graders, user.userId()));
+        return ApiResponse.ok(evalService.start(request.dataset(), graders, request.judgeRuns(), user.userId()));
     }
 
     @GetMapping("/runs")
