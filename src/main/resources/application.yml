@@ -43,6 +43,18 @@ app:
       # judge 专用 HarnessAgent（纯 LLM 管道：无工具/技能/子代理），工作区与会话留痕目录
       workspace-dir: data/eval/judge-workspace
       state-dir: data/eval/judge-state
+    # Agentic 取证评测（三期模块一）：judge 是带只读图谱工具的 agent，自主查证断言后判分；
+    # base-url/api-key/model 缺省复用 app.agent 同名配置
+    agent:
+      # 取证 ReAct 迭代上限与单样本查询次数硬上限（超限确定性文案截断，按已获证据判分）
+      max-iters: 5
+      max-queries: 8
+      # 输出含 evidence 数组，比纯判分 JSON 长
+      max-output-tokens: 1200
+      timeout-seconds: 60
+      # 取证评测 agent 工作区与会话留痕目录（userId=eval-agentic，可回查每次取证的完整轨迹）
+      workspace-dir: data/eval/agentic-workspace
+      state-dir: data/eval/agentic-judge-state
   # AI 问答（AgentScope 2.0 Harness，OpenRouter OpenAI 兼容协议）
   agent:
     base-url: https://openrouter.ai/api/v1

@@ -322,8 +322,20 @@ function renderResult(result) {
         `第 ${i + 1} 轮\n问：${esc(d.query || '')}\n答：${esc(d.answer || '')}`).join('\n\n') : '') +
       (toolCalls.length ? '\n\n—— 工具调用轨迹 ——\n' + toolCalls.map(t =>
         `#${t.name} [${t.state}] args: ${t.args}\n  result: ${t.result}`).join('\n') : '') + '</pre></details>';
+    const evidenceDetail = sc => {
+      const md = sc.metadata || {};
+      if (!Array.isArray(md.evidence) || !md.evidence.length) return '';
+      const items = md.evidence.map((e, i) =>
+        `<div style="margin:3px 0;padding:4px 8px;border-left:3px solid ${e.confirmed ? '#16a34a' : '#dc2626'};background:#f8fafc">` +
+        `<b>证据${i + 1} ${e.confirmed ? '✓ 已证实' : '✗ 未证实'}：</b>${esc(e.claim || '')}` +
+        (e.cypher ? `<div style="font-size:12px;margin-top:2px"><code style="background:#eef2f7;padding:1px 4px;border-radius:3px">${esc(e.cypher)}</code></div>` : '') +
+        (e.summary ? `<div class="muted" style="font-size:12px">图谱返回：${esc(e.summary)}</div>` : '') +
+        `</div>`).join('');
+      const stat = `取证 ${md.queryCount ?? '?'} 次${md.truncated ? '（已达上限截断）' : ''}`;
+      return `<details class="eval-detail" style="margin-top:4px"><summary>证据链（${stat}，${md.evidence.length} 条断言）</summary>${items}</details>`;
+    };
     const reasonDetail = scores.map(sc =>
-      `<div><b>${esc(sc.name)}：</b>${sc.error ? '错误 - ' : ''}${esc(sc.reason || '')}</div>`).join('');
+      `<div style="margin-bottom:6px"><b>${esc(sc.name)}：</b>${sc.error ? '错误 - ' : ''}${esc(sc.reason || '')}${evidenceDetail(sc)}</div>`).join('');
     const refText = sm.referenceResponse == null ? '（无）'
       : typeof sm.referenceResponse === 'string' ? sm.referenceResponse : JSON.stringify(sm.referenceResponse);
     return [
@@ -533,7 +545,7 @@ async function previewDataset(name) {
 
 let graderCache = [];
 /** 分组展示元数据（group = 后端 graders 包路径后缀，新增评测器自动归组；未知组按通道兜底） */
-const GROUP_ORDER = ['rule.match', 'rule.text', 'rule.tool', 'llm.answer', 'llm.dialogue', 'llm.tool'];
+const GROUP_ORDER = ['rule.match', 'rule.text', 'rule.tool', 'llm.answer', 'llm.dialogue', 'llm.tool', 'agent'];
 const GROUP_META = {
   'rule.match':  { title: '精确匹配', channel: '规则', cls: 'rule' },
   'rule.text':   { title: '文本统计', channel: '规则', cls: 'rule' },
@@ -541,6 +553,7 @@ const GROUP_META = {
   'llm.answer':  { title: '回答质量', channel: 'LLM', cls: 'llm' },
   'llm.dialogue':{ title: '多轮对话', channel: 'LLM', cls: 'llm' },
   'llm.tool':    { title: '工具轨迹', channel: 'LLM', cls: 'llm' },
+  'agent':       { title: '图谱取证（Agentic）', channel: 'Agentic', cls: 'llm' },
 };
 
 async function loadGraders() {

@@ -103,6 +103,7 @@ public class EvalService {
     private final ObjectProvider<HarnessAgent> agentProvider;
     private final ObjectMapper mapper;
     private final JudgeClient judgeClient;
+    private final AgenticJudgeHolder agenticJudgeHolder;
     private final Map<String, Grader> graders = new TreeMap<>();
 
     @Value("${app.eval.dataset-dir:data/eval/datasets}")
@@ -123,10 +124,12 @@ public class EvalService {
     });
 
     public EvalService(ObjectProvider<HarnessAgent> agentProvider,
-            ObjectMapper mapper, JudgeClient judgeClient, List<Grader> graderBeans) {
+            ObjectMapper mapper, JudgeClient judgeClient, AgenticJudgeHolder agenticJudgeHolder,
+            List<Grader> graderBeans) {
         this.agentProvider = agentProvider;
         this.mapper = mapper;
         this.judgeClient = judgeClient;
+        this.agenticJudgeHolder = agenticJudgeHolder;
         for (Grader g : graderBeans) {
             graders.put(g.name(), g);
         }
@@ -452,6 +455,12 @@ public class EvalService {
         // LLM 判分依赖 judge 通道：未配置 key 时提前 409（对齐现有「AI 服务未配置」文案约定）
         if (names.stream().anyMatch(n -> "llm".equals(graders.get(n).type())) && !judgeClient.isConfigured()) {
             throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：所选评测器包含 LLM 判分，"
+                    + "请配置后重启服务或仅勾选规则评测器");
+        }
+        // Agentic 取证评测依赖独立装配的取证 agent，同文案提前拦截
+        if (names.stream().anyMatch(n -> "agentic".equals(graders.get(n).type()))
+                && (!agenticJudgeHolder.isConfigured() || agenticJudgeHolder.agent() == null)) {
+            throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：所选评测器包含 Agentic 取证判分，"
                     + "请配置后重启服务或仅勾选规则评测器");
         }
         // 仅当存在需 agent 作答的样本（未预置 response）时才要求 agent 装配；
