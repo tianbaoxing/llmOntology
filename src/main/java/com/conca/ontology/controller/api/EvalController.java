@@ -133,6 +133,20 @@ public class EvalController {
         return ApiResponse.ok(evalService.listRuns());
     }
 
+    @GetMapping("/runs/diff")
+    @Operation(summary = "回归对比（Run Diff）", description = "两次 run 的总体/按评测器/按样本三级对比 + 翻转矩阵；"
+            + "先校验两 run 的 dataset 哈希（不一致提示数据集已变更，对比仅供参考）；"
+            + "all=true 返回全部共同样本（默认仅返回有变化的样本，回归最严重置顶）")
+    public ApiResponse<Map<String, Object>> diff(
+            @Parameter(name = "base", description = "基线 run id（旧）", example = "eval-20260826-153000-a1b")
+            @RequestParam String base,
+            @Parameter(name = "target", description = "目标 run id（新）", example = "eval-20260828-100000-b2c")
+            @RequestParam String target,
+            @Parameter(name = "all", description = "true 返回全部共同样本；默认仅变化样本")
+            @RequestParam(defaultValue = "false") boolean all) {
+        return ApiResponse.ok(evalService.diff(base, target, all));
+    }
+
     @GetMapping("/runs/{id}")
     @Operation(summary = "任务进度/详情", description = "运行中返回实时进度；完成后（含服务重启后的历史）返回完整结果")
     @Parameter(name = "id", description = "任务 id（eval-时间-随机码）", example = "eval-20260826-153000-a1b")

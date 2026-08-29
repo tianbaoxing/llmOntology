@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import com.conca.ontology.dto.request.EvalSampleRequest;
 import com.conca.ontology.exception.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.agentscope.core.agent.RuntimeContext;
@@ -67,9 +69,10 @@ public class EvalService {
     private static final long AGENT_TIMEOUT_MINUTES = 5;
     /** 数据集文件名（防路径穿越）与任务 id / 结果文件名 */
     private static final Pattern DATASET_NAME_RE = Pattern.compile("^[A-Za-z0-9._-]+\\.jsonl$");
-    private static final Pattern RUN_ID_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{3}$");
+    /** 任务 id / 结果文件名（随机码 1-3 位十六进制：Integer.toHexString 不补零，历史 run 存在 2 位码） */
+    private static final Pattern RUN_ID_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{1,3}$");
     /** 结果文件名（RUN_ID + .json；独立于 RUN_ID_RE，避免锚点 pattern 拼接后永不匹配） */
-    private static final Pattern RUN_FILE_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{3}\\.json$");
+    private static final Pattern RUN_FILE_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{1,3}\\.json$");
     private static final int TRUNCATE = 500;
 
     /** 进度任务（内存态；产物落盘不受服务重启影响，历史任务从结果文件读取） */
@@ -107,6 +110,10 @@ public class EvalService {
 
     @Value("${app.eval.result-dir:data/eval/results}")
     private String resultDir;
+
+    /** 样本级通过阈值（均分 ≥ 此值且无 error 记通过）；summary 与回归对比翻转矩阵同口径 */
+    @Value("${app.eval.pass-threshold:0.8}")
+    private double passThreshold;
 
     private final AtomicReference<Task> current = new AtomicReference<>();
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
@@ -550,6 +557,14 @@ public class EvalService {
     private void runEval(Task task) {
         try {
             List<EvalSample> samples = loadSamples(task.dataset);
+            // 数据集内容哈希快照（回归对比 Run Diff 校验用；失败不阻断评测，diff 时按 unknown 处理）
+            String dsh;
+            try {
+                dsh = datasetHash(samples);
+            } catch (Exception e) {
+                dsh = null;
+                log.warn("dataset hash failed: {}", e.getMessage());
+            }
             int total = samples.size();
             task.detail = "共 " + total + " 条样本，开始评测";
             List<Map<String, Object>> sampleResults = new ArrayList<>();
@@ -622,6 +637,7 @@ public class EvalService {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("id", task.id);
             result.put("dataset", task.dataset);
+            result.put("datasetHash", dsh);
             result.put("graders", task.graderNames);
             result.put("judgeRuns", task.judgeRuns);
             result.put("startedAt", task.startedAt.toString());
@@ -726,7 +742,7 @@ public class EvalService {
                 double avg = rowSum / rowCount;
                 scoreSum += avg;
                 scoreCount++;
-                if (avg >= 0.8 && !rowError) {
+                if (avg >= passThreshold && !rowError) {
                     pass++;
                 }
             }
@@ -751,6 +767,357 @@ public class EvalService {
 
     private static long num(Object v) {
         return v instanceof Number n ? n.longValue() : 0;
+    }
+
+    // ---------------- 回归对比（Run Diff，三期模块二） ----------------
+
+    /**
+     * 数据集内容哈希（SHA-256）：对解析后的样本做规范化序列化——record 固定字段序 +
+     * 容器键排序（ORDER_MAP_ENTRIES_BY_KEYS），格式化空格/字段顺序差异不影响，
+     * 真实内容变更（含多轮转单轮）必被检出。哈希是运行时快照，diff 不依赖数据集文件现存状态。
+     */
+    private String datasetHash(List<EvalSample> samples) {
+        try {
+            var writer = mapper.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+            StringBuilder sb = new StringBuilder();
+            for (EvalSample s : samples) {
+                sb.append(writer.writeValueAsString(s)).append('\n');
+            }
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            StringBuilder hex = new StringBuilder();
+            for (byte b : md.digest(sb.toString().getBytes(StandardCharsets.UTF_8))) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (Exception e) {
+            throw new ApiException(500, "数据集哈希计算失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 两次 run 的回归对比：dataset 哈希校验 + 总体/按评测器/按样本三级对比 + 翻转矩阵。
+     * 纯内存计算（直接加载两份结果文件，历史 run 可比、服务重启后可用），不落盘。
+     * 口径约定：总体指标直接取各 run 落盘的 summary（与详情页逐字段一致）；
+     * 样本/评测器级的 pass 判定与翻转按当前服务配置的 passThreshold 现算（error 视为 fail）。
+     * all=false 时 bySample 仅返回有变化的样本（按 delta 升序 = 回归最严重置顶）。
+     */
+    public Map<String, Object> diff(String baseId, String targetId, boolean all) {
+        if (baseId == null || !RUN_ID_RE.matcher(baseId).matches()
+                || targetId == null || !RUN_ID_RE.matcher(targetId).matches()) {
+            throw new ApiException(400, "非法任务 id");
+        }
+        if (baseId.equals(targetId)) {
+            throw new ApiException(400, "base 与 target 不能相同");
+        }
+        Map<String, Object> base = requireResult(baseId);
+        Map<String, Object> target = requireResult(targetId);
+
+        Map<String, Object> meta = new LinkedHashMap<>();
+        Map<String, Object> baseMeta = runMeta(base);
+        Map<String, Object> targetMeta = runMeta(target);
+        meta.put("base", baseMeta);
+        meta.put("target", targetMeta);
+        String bh = (String) baseMeta.get("datasetHash");
+        String th = (String) targetMeta.get("datasetHash");
+        // 旧版本结果未记录哈希 → unknown（提示仅供参考，不拦截）
+        meta.put("hashMatch", bh == null || th == null ? "unknown" : bh.equals(th) ? "match" : "mismatch");
+        meta.put("passThreshold", passThreshold);
+
+        Map<String, Object> overall = new LinkedHashMap<>();
+        Map<String, Object> baseMetrics = summaryMetrics(base);
+        Map<String, Object> targetMetrics = summaryMetrics(target);
+        overall.put("base", baseMetrics);
+        overall.put("target", targetMetrics);
+        Map<String, Object> delta = new LinkedHashMap<>();
+        for (String k : List.of("passRate", "avgScore", "errorCount",
+                "promptTokens", "completionTokens", "judgeTokens")) {
+            delta.put(k, sub(targetMetrics.get(k), baseMetrics.get(k)));
+        }
+        overall.put("delta", delta);
+
+        Map<String, Map<String, Object>> baseIdx = indexSamples(base);
+        Map<String, Map<String, Object>> targetIdx = indexSamples(target);
+
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("meta", meta);
+        m.put("overall", overall);
+        m.put("byGrader", diffByGrader(base, target, baseIdx, targetIdx));
+        m.put("bySample", diffBySample(baseIdx, targetIdx, all));
+        return m;
+    }
+
+    /** 读取结果文件（不存在 404） */
+    private Map<String, Object> requireResult(String taskId) {
+        Map<String, Object> saved = readResult(taskId);
+        if (saved == null) {
+            throw new ApiException(404, "评测结果不存在: " + taskId);
+        }
+        return saved;
+    }
+
+    /** run 元信息（哈希校验 + 页面展示用） */
+    private static Map<String, Object> runMeta(Map<String, Object> run) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", run.get("id"));
+        m.put("dataset", run.get("dataset"));
+        m.put("datasetHash", run.get("datasetHash"));
+        m.put("graders", run.get("graders"));
+        m.put("finishedAt", run.get("finishedAt"));
+        return m;
+    }
+
+    /** 总体指标（取结果文件 summary 字段，与详情页口径逐字段一致；judgeTokens 为入/出合计） */
+    private static Map<String, Object> summaryMetrics(Map<String, Object> run) {
+        Map<String, Object> s = run.get("summary") instanceof Map<?, ?> mm
+                ? (Map<String, Object>) mm : Map.of();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("passRate", s.get("passRate"));
+        m.put("avgScore", s.get("avgScore"));
+        m.put("errorCount", s.get("errorCount"));
+        m.put("promptTokens", s.get("promptTokens"));
+        m.put("completionTokens", s.get("completionTokens"));
+        long judgeTokens = 0;
+        if (s.get("judge") instanceof Map<?, ?> j) {
+            judgeTokens = num(j.get("promptTokens")) + num(j.get("completionTokens"));
+        }
+        m.put("judgeTokens", judgeTokens);
+        return m;
+    }
+
+    /** 按评测器对比：均值（仅两侧共同评测器，error 不计分）+ 翻转矩阵（通过→失败/失败→通过，error 视为失败）；
+     *  单边启用的评测器不进对比，标注 onlyIn */
+    private Map<String, Object> diffByGrader(Map<String, Object> base, Map<String, Object> target,
+            Map<String, Map<String, Object>> baseIdx, Map<String, Map<String, Object>> targetIdx) {
+        List<String> baseGraders = graderNames(base);
+        List<String> targetGraders = graderNames(target);
+        var names = new java.util.LinkedHashSet<String>(baseGraders);
+        names.addAll(targetGraders);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (String name : names) {
+            boolean inBase = baseGraders.contains(name);
+            boolean inTarget = targetGraders.contains(name);
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("name", name);
+            if (!inBase || !inTarget) {
+                r.put("onlyIn", inBase ? "base" : "target");
+                rows.add(r);
+                continue;
+            }
+            double baseSum = 0, targetSum = 0;
+            int baseCnt = 0, targetCnt = 0, passToFail = 0, failToPass = 0, common = 0;
+            for (String id : baseIdx.keySet()) {
+                Map<String, Object> bs = scoresByName(baseIdx.get(id)).get(name);
+                Map<String, Object> ts = targetIdx.containsKey(id)
+                        ? scoresByName(targetIdx.get(id)).get(name) : null;
+                if (bs == null || ts == null) {
+                    continue;
+                }
+                common++;
+                if (scoreVal(bs) != null) {
+                    baseSum += scoreVal(bs);
+                    baseCnt++;
+                }
+                if (scoreVal(ts) != null) {
+                    targetSum += scoreVal(ts);
+                    targetCnt++;
+                }
+                boolean bp = graderPass(bs), tp = graderPass(ts);
+                if (bp && !tp) {
+                    passToFail++;
+                } else if (!bp && tp) {
+                    failToPass++;
+                }
+            }
+            r.put("baseAvg", baseCnt == 0 ? null : round3(baseSum / baseCnt));
+            r.put("targetAvg", targetCnt == 0 ? null : round3(targetSum / targetCnt));
+            r.put("delta", sub(r.get("targetAvg"), r.get("baseAvg")));
+            Map<String, Object> flips = new LinkedHashMap<>();
+            flips.put("passToFail", passToFail);
+            flips.put("failToPass", failToPass);
+            r.put("flips", flips);
+            r.put("commonSamples", common);
+            rows.add(r);
+        }
+        return Map.of("graders", rows);
+    }
+
+    /** 按样本对比：同 id 逐行 diff；默认仅返回有变化的（任一共同评测器得分/error 变化、
+     *  均分变化、样本级通过状态翻转），按 delta 升序（回归最严重置顶，error 转换 delta 缺失视为最严重）；
+     *  all=true 返回全部共同样本；单边存在的 id 列入 added/removed */
+    private Map<String, Object> diffBySample(Map<String, Map<String, Object>> baseIdx,
+            Map<String, Map<String, Object>> targetIdx, boolean all) {
+        List<String> added = new ArrayList<>(), removed = new ArrayList<>();
+        for (String id : targetIdx.keySet()) {
+            if (!baseIdx.containsKey(id)) {
+                added.add(id);
+            }
+        }
+        for (String id : baseIdx.keySet()) {
+            if (!targetIdx.containsKey(id)) {
+                removed.add(id);
+            }
+        }
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int changedTotal = 0;
+        for (String id : baseIdx.keySet()) {
+            Map<String, Object> brow = baseIdx.get(id);
+            Map<String, Object> trow = targetIdx.get(id);
+            if (trow == null) {
+                continue;
+            }
+            Map<String, Object> bstats = rowStats(brow);
+            Map<String, Object> tstats = rowStats(trow);
+            Double baseAvg = (Double) bstats.get("avg");
+            Double targetAvg = (Double) tstats.get("avg");
+            boolean passChange = !bstats.get("pass").equals(tstats.get("pass"));
+            boolean avgDiff = (baseAvg == null) != (targetAvg == null)
+                    || (baseAvg != null && Math.abs(targetAvg - baseAvg) > 1e-9);
+
+            // 共同评测器的得分级明细与翻转
+            Map<String, Map<String, Object>> bs = scoresByName(brow);
+            Map<String, Map<String, Object>> ts = scoresByName(trow);
+            List<Map<String, Object>> scores = new ArrayList<>();
+            boolean anyChange = false;
+            for (String name : bs.keySet()) {
+                if (!ts.containsKey(name)) {
+                    continue;
+                }
+                Map<String, Object> b = bs.get(name), t = ts.get(name);
+                boolean berr = Boolean.TRUE.equals(b.get("error"));
+                boolean terr = Boolean.TRUE.equals(t.get("error"));
+                String flip = null;
+                if (graderPass(b) && !graderPass(t)) {
+                    flip = "pass_to_fail";
+                } else if (!graderPass(b) && graderPass(t)) {
+                    flip = "fail_to_pass";
+                }
+                boolean diffScore = berr != terr
+                        || (scoreVal(b) == null) != (scoreVal(t) == null)
+                        || (scoreVal(b) != null && Math.abs(scoreVal(t) - scoreVal(b)) > 1e-9);
+                if (diffScore || flip != null) {
+                    anyChange = true;
+                }
+                Map<String, Object> e = new LinkedHashMap<>();
+                e.put("name", name);
+                e.put("base", berr ? null : scoreVal(b));
+                e.put("target", terr ? null : scoreVal(t));
+                e.put("baseError", berr);
+                e.put("targetError", terr);
+                e.put("flip", flip);
+                scores.add(e);
+            }
+            boolean changedRow = anyChange || passChange || avgDiff;
+            if (changedRow) {
+                changedTotal++;
+            }
+            if (!changedRow && !all) {
+                continue;
+            }
+            Double delta = baseAvg != null && targetAvg != null ? round3(targetAvg - baseAvg) : null;
+            String sampleFlip = null;
+            if (Boolean.TRUE.equals(bstats.get("pass")) && !Boolean.TRUE.equals(tstats.get("pass"))) {
+                sampleFlip = "pass_to_fail";
+            } else if (!Boolean.TRUE.equals(bstats.get("pass")) && Boolean.TRUE.equals(tstats.get("pass"))) {
+                sampleFlip = "fail_to_pass";
+            }
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("id", id);
+            r.put("query", brow.get("query"));
+            r.put("baseAvg", baseAvg == null ? null : round3(baseAvg));
+            r.put("targetAvg", targetAvg == null ? null : round3(targetAvg));
+            r.put("delta", delta);
+            r.put("flip", sampleFlip);
+            r.put("changed", changedRow);
+            r.put("scores", scores);
+            rows.add(r);
+        }
+        rows.sort(Comparator.comparingDouble(r -> r.get("delta") instanceof Number n
+                ? n.doubleValue() : -1));  // delta 缺失（error 转换）视为最严重
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("commonTotal", baseIdx.size() - removed.size());
+        m.put("changedTotal", changedTotal);
+        m.put("all", all);
+        m.put("samples", rows);
+        m.put("addedIds", added);
+        m.put("removedIds", removed);
+        return m;
+    }
+
+    /** 样本按 id 建索引（重复 id 取首个；join 的最小单元） */
+    private static Map<String, Map<String, Object>> indexSamples(Map<String, Object> run) {
+        Map<String, Map<String, Object>> idx = new LinkedHashMap<>();
+        if (run.get("samples") instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> row) {
+                    idx.putIfAbsent(String.valueOf(row.get("id")), (Map<String, Object>) row);
+                }
+            }
+        }
+        return idx;
+    }
+
+    /** 样本 scores 按 name 建索引 */
+    private static Map<String, Map<String, Object>> scoresByName(Map<String, Object> row) {
+        Map<String, Map<String, Object>> idx = new LinkedHashMap<>();
+        if (row.get("scores") instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> s) {
+                    idx.put(String.valueOf(s.get("name")), (Map<String, Object>) s);
+                }
+            }
+        }
+        return idx;
+    }
+
+    /** 单样本行统计（对齐 summarize 口径）：均分 = 有效评测器（非 error）均分；
+     *  pass = 存在有效分且均分 ≥ 阈值且无 error */
+    private Map<String, Object> rowStats(Map<String, Object> row) {
+        double sum = 0;
+        int cnt = 0;
+        boolean err = false;
+        if (row.get("scores") instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> s && Boolean.TRUE.equals(s.get("error"))) {
+                    err = true;
+                } else if (o instanceof Map<?, ?> s && s.get("score") instanceof Number n) {
+                    sum += n.doubleValue();
+                    cnt++;
+                }
+            }
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("avg", cnt == 0 ? null : sum / cnt);
+        m.put("error", err);
+        m.put("pass", cnt > 0 && !err && sum / cnt >= passThreshold);
+        return m;
+    }
+
+    /** 单评测器单样本通过判定（error / 缺分视为失败） */
+    private boolean graderPass(Map<String, Object> score) {
+        return score != null && !Boolean.TRUE.equals(score.get("error"))
+                && score.get("score") instanceof Number n && n.doubleValue() >= passThreshold;
+    }
+
+    private static Double scoreVal(Map<String, Object> score) {
+        return score.get("score") instanceof Number n ? n.doubleValue() : null;
+    }
+
+    private static List<String> graderNames(Map<String, Object> run) {
+        return run.get("graders") instanceof List<?> l
+                ? l.stream().map(String::valueOf).toList() : List.of();
+    }
+
+    /** 数值差（target - base，四舍五入 3 位；任一非数值返回 null） */
+    private static Object sub(Object a, Object b) {
+        if (a instanceof Number x && b instanceof Number y) {
+            double v = x.doubleValue() - y.doubleValue();
+            return Math.abs(v) < 1e-9 ? 0 : Math.round(v * 1000.0) / 1000.0;
+        }
+        return null;
+    }
+
+    private static double round3(double v) {
+        return Math.round(v * 1000.0) / 1000.0;
     }
 
     // ---------------- agent 驱动与轨迹采集 ----------------

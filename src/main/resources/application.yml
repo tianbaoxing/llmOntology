@@ -32,6 +32,8 @@ app:
   backup-dir: backups
   # 评测 LLM judge（二期）：base-url/api-key/model 缺省复用 app.agent 同名配置
   eval:
+    # 样本级通过阈值（样本均分 ≥ 此值且无 error 记通过），summary 通过率与回归对比翻转矩阵同口径
+    pass-threshold: 0.8
     judge:
       # 单次判分输出上限与超时（reason 简短即可，控成本；多轮评测器证据更长，400 曾致 JSON 截断解析失败）
       max-output-tokens: 600

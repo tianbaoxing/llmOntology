@@ -63,6 +63,9 @@ td.wrap { max-width:360px; }
 @media (max-width: 560px) { .field-row { flex-direction: column; gap: 0; } }
 /* 数据集管理表格：坏行标红 */
 tr.bad td { background: #fef2f2; }
+/* 回归对比（Run Diff）：样本级翻转行高亮（红=通过→失败，绿=失败→通过） */
+tr.diff-reg td { background: #fef2f2; }
+tr.diff-imp td { background: #f0fdf4; }
 .pager { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .pager .cur { background: #2563eb; color: #fff; border: 1px solid #2563eb; border-radius: 6px; padding: 4px 10px; font-weight: 600; }
 </style>
@@ -115,6 +118,18 @@ tr.bad td { background: #fef2f2; }
     <h2 id="ev-result-title">结果明细</h2>
     <div id="ev-summary"></div>
     <div id="ev-samples" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card" id="ev-diff-card" style="display:none">
+    <h2>回归对比（Run Diff）</h2>
+    <div class="toolbar" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px">
+      <label>基线 run <select id="diff-base"></select></label>
+      <button class="btn" onclick="runDiff(diffShowAll)">对比</button>
+      <button class="btn ghost" id="diff-all-btn" style="display:none" onclick="toggleDiffAll()">显示全部样本</button>
+      <button class="btn ghost" onclick="closeDiff()">收起</button>
+      <span class="muted">基线=历史 run，目标=当前结果 run；哈希校验 + 总体/评测器/样本三级对比 + 翻转矩阵</span>
+    </div>
+    <div id="ev-diff"></div>
   </div>
   </div>
 
@@ -322,12 +337,21 @@ function renderResult(result) {
     ? '<table><tr><th>样本</th><th>评测器得分</th><th style="width:32%">回答 / 轨迹</th></tr>' +
       rows.map(r => `<tr>${r}</tr>`).join('') + '</table>'
     : '<div class="muted">无样本</div>';
+  // 回归对比入口：目标 run 固定为当前结果，基线从历史 run 选择
+  currentResultId = result.id;
+  diffShowAll = false;
+  $('diff-all-btn').textContent = '显示全部样本';
+  $('diff-all-btn').style.display = 'none';
+  $('ev-diff-card').style.display = '';
+  $('ev-diff').innerHTML = '';
+  refreshDiffBase();
   $('ev-result-card').scrollIntoView({ behavior: 'smooth' });
 }
 
 // ---------------- 历史 / 初始化 ----------------
 async function loadRuns() {
   const d = await api('GET', '/api/eval/runs');
+  runsCache = d.runs || [];  // 供回归对比的基线下拉复用
   $('ev-runs').innerHTML = d.runs.length ? table(
     ['任务 id', '数据集', '通过率', '平均分', '样本数', '异常', '操作'],
     d.runs.map(r => {
@@ -341,6 +365,7 @@ async function loadRuns() {
         `<a class="btn sm" href="/api/eval/runs/${encodeURIComponent(r.id)}/file">下载</a>`
       ];
     })) : '<div class="muted">暂无评测记录</div>';
+  refreshDiffBase();
 }
 
 async function viewRun(encId) {
@@ -349,6 +374,143 @@ async function viewRun(encId) {
     const p = await api('GET', '/api/eval/runs/' + encodeURIComponent(id));
     if (p.result) renderResult(p.result);
   } catch (e) { showMsg('加载失败：' + e.message, false); }
+}
+
+// ---------------- 回归对比（Run Diff） ----------------
+let runsCache = [];
+let currentResultId = null;
+let diffShowAll = false;
+
+/** 基线下拉：历史 run（排除当前目标 run），显示数据集与通过率便于选择 */
+function refreshDiffBase() {
+  const sel = $('diff-base');
+  if (!sel || !currentResultId) return;
+  const opts = runsCache.filter(r => r.id !== currentResultId);
+  sel.innerHTML = opts.length
+    ? opts.map(r => {
+        const pr = r.summary && r.summary.passRate != null ? '，通过率 ' + (r.summary.passRate * 100).toFixed(1) + '%' : '';
+        return `<option value="${esc(r.id)}">${esc(r.id)}（${esc(r.dataset || '-')}${pr}）</option>`;
+      }).join('')
+    : '<option value="">（无其它历史 run）</option>';
+}
+
+async function runDiff(all) {
+  if (!currentResultId) return showMsg('请先查看一次评测结果', false);
+  const baseId = $('diff-base').value;
+  if (!baseId) return showMsg('请选择基线 run', false);
+  try {
+    const d = await api('GET', '/api/eval/runs/diff?base=' + encodeURIComponent(baseId)
+      + '&target=' + encodeURIComponent(currentResultId) + (all ? '&all=true' : ''));
+    renderDiff(d);
+  } catch (e) { showMsg('对比失败：' + e.message, false); }
+}
+
+function toggleDiffAll() {
+  diffShowAll = !diffShowAll;
+  $('diff-all-btn').textContent = diffShowAll ? '仅显示变化样本' : '显示全部样本';
+  runDiff(diffShowAll);
+}
+
+function closeDiff() {
+  $('ev-diff-card').style.display = 'none';
+  $('ev-diff').innerHTML = '';
+}
+
+function fmtNum(v, digits) {
+  return v == null ? '-' : Number(v).toFixed(digits);
+}
+
+/** 变化量徽章（带 ▲▼ 与百分比/绝对值）；invert=true 时上升为坏（异常数/tokens） */
+function deltaCell(v, fmt, invert) {
+  if (v == null || Math.abs(v) < 1e-9) return '<span class="muted">—</span>';
+  const up = v > 0;
+  const good = invert ? !up : up;
+  return `<span style="color:${good ? '#16a34a' : '#dc2626'};font-weight:600">${up ? '▲' : '▼'} ${fmt(Math.abs(v))}</span>`;
+}
+
+const flipBadge = f => f === 'pass_to_fail'
+  ? '<span style="color:#dc2626;font-weight:600">通过→失败</span>'
+  : f === 'fail_to_pass' ? '<span style="color:#16a34a;font-weight:600">失败→通过</span>' : '';
+
+function renderDiff(d) {
+  const m = d.meta || {};
+  const hashBanner = m.hashMatch === 'mismatch'
+    ? '<div style="background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:6px;margin-bottom:10px">⚠ 两次 run 的数据集内容不一致（dataset 哈希不同），分数差异可能来自题目变更而非被评测对象，对比仅供参考</div>'
+    : m.hashMatch === 'unknown'
+      ? '<div style="background:#f1f5f9;color:#475569;padding:8px 12px;border-radius:6px;margin-bottom:10px">基线 run 未记录数据集哈希（旧版本结果），无法校验数据集一致性，对比仅供参考</div>'
+      : `<div style="background:#ecfdf5;color:#065f46;padding:8px 12px;border-radius:6px;margin-bottom:10px">✓ 数据集一致（哈希校验通过，通过阈值 ${m.passThreshold}）</div>`;
+
+  // ① 总体指标（基线 → 目标 + 变化量）
+  const ov = d.overall || {};
+  const b = ov.base || {}, t = ov.target || {}, de = ov.delta || {};
+  const fmtPct = v => v == null ? '-' : (v * 100).toFixed(1) + '%';
+  const fmtPctP = v => (v * 100).toFixed(1) + 'pp';
+  const fmtInt = v => Math.round(v).toLocaleString();
+  const metric = (label, key, show, deltaFmt, invert) =>
+    `<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;min-width:132px">` +
+    `<div class="muted" style="font-size:12px">${label}</div>` +
+    `<div style="font-size:15px;font-weight:600;margin:2px 0">${show(b[key])} <span class="muted" style="font-weight:400">→</span> ${show(t[key])}</div>` +
+    `<div style="font-size:12px">${deltaCell(de[key], deltaFmt, invert)}</div></div>`;
+  const overallHtml = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">' +
+    metric('通过率', 'passRate', fmtPct, fmtPctP, false) +
+    metric('平均分', 'avgScore', v => fmtNum(v, 3), v => fmtNum(v, 3), false) +
+    metric('异常样本', 'errorCount', v => v == null ? '-' : v, fmtInt, true) +
+    metric('tokens(入)', 'promptTokens', fmtInt, fmtInt, true) +
+    metric('tokens(出)', 'completionTokens', fmtInt, fmtInt, true) +
+    metric('judge tokens', 'judgeTokens', fmtInt, fmtInt, true) +
+    '</div>';
+
+  // ② 按评测器（均值对比 + 翻转矩阵；单边启用单独标注）
+  const graderRows = ((d.byGrader || {}).graders) || [];
+  const graderHtml = graderRows.length ? table(
+    ['评测器', '基线均分', '目标均分', '变化', '通过→失败', '失败→通过', '备注'],
+    graderRows.map(g => {
+      if (g.onlyIn) return [code(g.name), '<span class="muted">—</span>', '<span class="muted">—</span>',
+        '<span class="muted">—</span>', '<span class="muted">—</span>', '<span class="muted">—</span>',
+        `<span class="muted">仅${g.onlyIn === 'base' ? '基线' : '目标'}启用</span>`];
+      const f = g.flips || {};
+      return [
+        code(g.name),
+        fmtNum(g.baseAvg, 3),
+        fmtNum(g.targetAvg, 3),
+        deltaCell(g.delta, v => fmtNum(v, 3), false),
+        f.passToFail > 0 ? `<span style="color:#dc2626;font-weight:600">${f.passToFail}</span>` : (f.passToFail || 0),
+        f.failToPass > 0 ? `<span style="color:#16a34a;font-weight:600">${f.failToPass}</span>` : (f.failToPass || 0),
+        (g.commonSamples || 0) + ' 个共同样本'
+      ];
+    })) : '<div class="muted">无共同评测器</div>';
+
+  // ③ 按样本（均分 base→target、翻转明细、可展开逐评测器得分；回归红置顶由服务端排序）
+  const bs = d.bySample || {};
+  const samples = bs.samples || [];
+  const sampleRows = samples.map(sm => {
+    const scoreList = (sm.scores || []).map(sc => {
+      const bv = sc.baseError ? '错误' : sc.base == null ? '-' : Number(sc.base).toFixed(2);
+      const tv = sc.targetError ? '错误' : sc.target == null ? '-' : Number(sc.target).toFixed(2);
+      return `<div>${code(sc.name)}：${bv} → ${tv}${sc.flip ? '（' + flipBadge(sc.flip) + '）' : ''}</div>`;
+    }).join('');
+    const flips = (sm.scores || []).filter(sc => sc.flip).map(sc => code(sc.name) + ' ' + flipBadge(sc.flip)).join('；');
+    const cls = sm.flip === 'pass_to_fail' ? ' class="diff-reg"' : sm.flip === 'fail_to_pass' ? ' class="diff-imp"' : '';
+    return `<tr${cls}>` +
+      `<td class="wrap">${esc(sm.query || '')}<div class="muted" style="font-size:12px">${code(sm.id)}</div></td>` +
+      `<td style="white-space:nowrap">${fmtNum(sm.baseAvg, 3)} → ${fmtNum(sm.targetAvg, 3)}` +
+        `<div style="font-size:12px">${deltaCell(sm.delta, v => fmtNum(v, 3), false)}</div></td>` +
+      `<td class="wrap">${sm.flip ? flipBadge(sm.flip) + (flips ? '；' + flips : '') : flips || '<span class="muted">得分变化未翻转</span>'}` +
+        (scoreList ? `<details class="eval-detail"><summary>逐评测器得分</summary><div style="font-size:13px">${scoreList}</div></details>` : '') + '</td>' +
+      '</tr>';
+  }).join('');
+  const addRemove = (bs.addedIds || []).length || (bs.removedIds || []).length
+    ? `<div class="muted" style="margin-bottom:8px">新增样本（仅目标 run）：${(bs.addedIds || []).map(code).join('、') || '无'}；移除样本（仅基线 run）：${(bs.removedIds || []).map(code).join('、') || '无'}（不参与逐行对比）</div>` : '';
+  const sampleTable = samples.length
+    ? '<table><tr><th>样本</th><th>均分（基线 → 目标）</th><th>翻转明细</th></tr>' + sampleRows + '</table>'
+    : `<div class="muted">无${bs.all ? '' : '变化'}样本</div>`;
+
+  $('ev-diff').innerHTML = hashBanner + overallHtml +
+    '<h3 style="margin:14px 0 8px">按评测器</h3>' + graderHtml +
+    `<h3 style="margin:14px 0 8px">按样本（共同 ${bs.commonTotal ?? '-'} 条，变化 ${bs.changedTotal ?? '-'} 条${bs.all ? '，显示全部' : '，仅显示变化'}）</h3>` +
+    addRemove + sampleTable;
+  $('diff-all-btn').style.display = '';
+  $('ev-diff-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function loadDatasets() {
