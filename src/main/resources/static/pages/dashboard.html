@@ -56,6 +56,19 @@ let rangeDays = 7;
 const viewUserId = new URLSearchParams(location.search).get('userId');
 
 function fmtNum(n) { return Number(n || 0).toLocaleString('zh-CN'); }
+// Token 大数用 K/M/G 单位缩写（单位字母带不同颜色），小数值保持原样；返回 HTML 仅用于卡片 innerHTML
+function fmtToken(n) {
+  const v = Number(n || 0);
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return numHtml((v / 1e9).toFixed(2).replace(/\.?0+$/, ''), 'G');
+  if (abs >= 1e6) return numHtml((v / 1e6).toFixed(2).replace(/\.?0+$/, ''), 'M');
+  if (abs >= 1e3) return numHtml((v / 1e3).toFixed(1).replace(/\.0$/, ''), 'K');
+  return fmtNum(v);
+}
+function numHtml(num, unit) {
+  const color = unit === 'K' ? '#f59e0b' : unit === 'M' ? '#8b5cf6' : '#ef4444';
+  return `<span style="color:${color}">${num}<span style="font-size:0.72em;margin-left:1px">${unit}</span></span>`;
+}
 
 async function load() {
   STATS = await api('GET', viewUserId ? '/api/dashboard/stats/' + encodeURIComponent(viewUserId) : '/api/dashboard/stats');
@@ -67,11 +80,11 @@ async function load() {
 function renderStats() {
   const s = STATS.summary;
   $('dash-stats').innerHTML =
-    statCard(fmtNum(s.totalTokens), '总 Token') +
-    statCard(fmtNum(s.todayTokens), '今日 Token') +
-    statCard(fmtNum(s.inputTokens), '输入 Token') +
-    statCard(fmtNum(s.outputTokens), '输出 Token') +
-    statCard(fmtNum(s.cachedTokens), '缓存命中 Token') +
+    statCard(fmtToken(s.totalTokens), '总 Token') +
+    statCard(fmtToken(s.todayTokens), '今日 Token') +
+    statCard(fmtToken(s.inputTokens), '输入 Token') +
+    statCard(fmtToken(s.outputTokens), '输出 Token') +
+    statCard(fmtToken(s.cachedTokens), '缓存命中 Token') +
     statCard(fmtNum(s.sessions), '会话数') +
     statCard(fmtNum(s.rounds), '提问轮次') +
     statCard(fmtNum(s.llmCalls), 'LLM 调用次数');
