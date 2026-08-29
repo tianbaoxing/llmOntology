@@ -1,4 +1,6 @@
-package com.conca.ontology.eval.graders;
+package com.conca.ontology.eval.graders.llm.tool;
+
+import com.conca.ontology.eval.graders.llm.LlmJudgeGrader;
 
 import org.springframework.stereotype.Component;
 

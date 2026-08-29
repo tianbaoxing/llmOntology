@@ -1,4 +1,4 @@
-package com.conca.ontology.eval.graders;
+package com.conca.ontology.eval.graders.rule.text;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -81,7 +81,7 @@ public class TextSimilarityGrader implements Grader {
     }
 
     /** n-gram 多重集 F1（n=1 即字符 rouge1） */
-    static double ngramF1(String a, String b, int n) {
+    public static double ngramF1(String a, String b, int n) {
         Map<String, Integer> ba = ngramCounts(a, n);
         Map<String, Integer> bb = ngramCounts(b, n);
         int ta = total(ba);

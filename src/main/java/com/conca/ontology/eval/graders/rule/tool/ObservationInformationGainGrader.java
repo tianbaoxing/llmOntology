@@ -1,4 +1,6 @@
-package com.conca.ontology.eval.graders;
+package com.conca.ontology.eval.graders.rule.tool;
+
+import com.conca.ontology.eval.graders.rule.text.TextSimilarityGrader;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

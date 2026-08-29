@@ -1,4 +1,4 @@
-package com.conca.ontology.eval.graders;
+package com.conca.ontology.eval.graders.rule.match;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

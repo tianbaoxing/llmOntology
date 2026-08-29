@@ -166,9 +166,17 @@ public class EvalService {
             m.put("name", g.name());
             m.put("description", g.description());
             m.put("type", g.type());
+            m.put("group", groupOf(g));
             list.add(m);
         });
         return Map.of("graders", list);
+    }
+
+    /** 评测器分组（graders 包路径后缀，如 rule.match / llm.answer，页面按此分类展示） */
+    private static String groupOf(Grader g) {
+        String prefix = Grader.class.getPackageName() + ".graders.";
+        String pkg = g.getClass().getPackage().getName();
+        return pkg.startsWith(prefix) ? pkg.substring(prefix.length()) : "other";
     }
 
     // ---------------- 数据集管理：分页读取 / 增删改 / 新建 ----------------
