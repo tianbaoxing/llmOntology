@@ -14,18 +14,23 @@
 .grader-groups { display:grid; grid-template-columns:repeat(auto-fit, minmax(430px, 1fr)); gap:10px; align-items:start; }
 .ggroup { border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; background:#fff; }
 .ggroup-head { display:flex; align-items:center; gap:8px; padding:7px 12px; background:#f8fafc; border-bottom:1px solid #eef0f3; }
+.ggroup.rule { border-color:#cfe3ee; }
+.ggroup.rule .ggroup-head { background:#eff7fb; border-bottom:1px solid #dbeaf3; }
+.ggroup.llm { border-color:#ded4f4; }
+.ggroup.llm .ggroup-head { background:#f7f4fd; border-bottom:1px solid #e5dcf8; }
 .ggroup-title { font-weight:600; font-size:13px; color:#1f2937; }
 .ggroup-cnt { font-size:12px; color:#94a3b8; }
-.channel-tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; color:#fff; flex:none; }
-.channel-tag.rule { background:#0891b2; }
-.channel-tag.llm { background:#7c3aed; }
+.channel-tag { display:inline-block; padding:1px 9px; border-radius:10px; font-size:11px; flex:none; font-weight:600; }
+.channel-tag.rule { background:#cfe6f2; color:#0c5a78; }
+.channel-tag.llm { background:#e6dcfa; color:#5b21b6; }
 .g-toggle { margin-left:auto; font-size:12px; color:#2563eb; cursor:pointer; background:none; border:none; padding:2px 6px; border-radius:4px; }
 .g-toggle:hover { background:#eff6ff; }
 .ggroup-body { padding:8px 12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:2px 14px; }
 .ggroup-body label { display:flex; align-items:flex-start; gap:6px; padding:3px 6px; border-radius:5px; cursor:pointer; font-weight:normal; }
 .ggroup-body label:hover { background:#f1f5f9; }
 .ggroup-body input { margin-top:3px; flex:none; }
-.ggroup-body code { font-size:12px; word-break:break-all; }
+.ggroup-body code { font-size:12px; word-break:break-all; background:#e9f2f8; color:#0c5a78; padding:1px 6px; border-radius:4px; }
+.ggroup.llm .ggroup-body code { background:#ece5fa; color:#5b21b6; }
 details.eval-detail { margin:2px 0; }
 details.eval-detail summary { cursor:pointer; color:#2563eb; font-size:13px; }
 details.eval-detail pre { background:#f1f5f9; padding:8px; border-radius:5px; font-size:12px; white-space:pre-wrap; word-break:break-all; max-height:320px; overflow:auto; }
@@ -370,7 +375,7 @@ const GROUP_ORDER = ['rule.match', 'rule.text', 'rule.tool', 'llm.answer', 'llm.
 const GROUP_META = {
   'rule.match':  { title: '精确匹配', channel: '规则', cls: 'rule' },
   'rule.text':   { title: '文本统计', channel: '规则', cls: 'rule' },
-  'rule.tool':   { title: '工具轨迹', channel: '规则', cls: 'rule' },
+  'rule.tool':   { title: '工具调用', channel: '规则', cls: 'rule' },
   'llm.answer':  { title: '回答质量', channel: 'LLM', cls: 'llm' },
   'llm.dialogue':{ title: '多轮对话', channel: 'LLM', cls: 'llm' },
   'llm.tool':    { title: '工具轨迹', channel: 'LLM', cls: 'llm' },
@@ -393,11 +398,11 @@ async function loadGraders() {
   $('ev-graders').innerHTML = order.length
     ? order.map(grp => {
         const meta = GROUP_META[grp] || { title: grp, channel: '?', cls: 'rule' };
-        return `<div class="ggroup" data-group="${esc(grp)}">
+        return `<div class="ggroup ${meta.cls}" data-group="${esc(grp)}">
           <div class="ggroup-head">
             <span class="channel-tag ${meta.cls}">${meta.channel}</span>
             <span class="ggroup-title">${esc(meta.title)}</span>
-            <span class="ggroup-cnt">${buckets[grp].length} 个</span>
+            <span class="ggroup-cnt">共 ${buckets[grp].length} 项</span>
             <button type="button" class="g-toggle" onclick="toggleGroup('${esc(grp)}')">全选/清空</button>
           </div>
           <div class="ggroup-body">${buckets[grp].map(chip).join('')}</div>
