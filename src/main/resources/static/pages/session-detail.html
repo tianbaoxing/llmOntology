@@ -63,6 +63,16 @@ details.static-item > summary:hover { background: #f9fafb; border-radius: 8px; }
 .tool-io .io-label.output { color: #15803d; }
 .tool-name { font-weight: 600; }
 #sd-messages .muted { font-size: 13px; }
+
+/* 调用统计 */
+.usage-h { font-size: 14px; font-weight: 600; color: #374151; margin: 0 0 8px; }
+.usage-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13px; }
+.usage-name { font-family: Consolas, 'Courier New', monospace; color: #111827; flex-shrink: 0;
+  width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.usage-bar { flex: 1; height: 8px; background: #f3f4f6; border-radius: 4px; overflow: hidden; min-width: 60px; }
+.usage-bar i { display: block; height: 100%; background: #f59e0b; border-radius: 4px; }
+.usage-num { color: #6b7280; flex-shrink: 0; }
+.usage-desc { color: #9ca3af; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -102,6 +112,11 @@ details.static-item > summary:hover { background: #f9fafb; border-radius: 8px; }
     <div id="sd-static"></div>
   </div>
   <div class="card">
+    <h2>工具调用与技能加载</h2>
+    <div class="muted" style="margin-bottom:10px">从会话消息中汇总：各工具的调用次数，以及通过 load_skill 加载的技能</div>
+    <div id="sd-usage"></div>
+  </div>
+  <div class="card">
     <h2>消息明细</h2>
     <div class="muted" style="margin-bottom:10px">完整消息内容（含思考过程与工具调用，不截断）</div>
     <div id="sd-messages"></div>
@@ -127,6 +142,7 @@ async function load() {
   renderBreakdown(d.breakdown || {});
   renderGrowth(d.messages || []);
   renderStatic(d);
+  renderUsage(d);
   renderMessages(d.messages || []);
 }
 
@@ -257,6 +273,54 @@ function renderStatic(d) {
     </details>`;
   }
   el.innerHTML = html || '<div class="muted">无静态上下文</div>';
+}
+
+/** 工具调用与技能加载：从消息的工具调用记录汇总（load_skill* 调用额外解析技能名与描述） */
+function renderUsage(d) {
+  const el = $('sd-usage');
+  const counts = new Map();
+  const skills = new Map();
+  (d.messages || []).forEach(m => (m.tools || []).forEach(t => {
+    counts.set(t.name, (counts.get(t.name) || 0) + 1);
+    if (/^load_skill/.test(t.name || '')) {
+      const out = t.output || '';
+      let id = (/Successfully loaded skill:\s*(.+)/.exec(out) || [])[1] || '';
+      const name = (/^Name:\s*(.+)$/m.exec(out) || [])[1] || '';
+      const desc = (/^Description:\s*(.+)$/m.exec(out) || [])[1] || '';
+      if (!id) {
+        try { id = JSON.parse(t.input || '{}').skillId || t.name; } catch (e) { id = t.name; }
+      }
+      const key = (name || id).trim();
+      const s = skills.get(key) || { id: id.trim(), times: 0, desc: desc.trim() };
+      s.times++;
+      if (!s.desc && desc) s.desc = desc.trim();
+      skills.set(key, s);
+    }
+  }));
+  let html = '';
+  const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  if (entries.length) {
+    const total = entries.reduce((s, e) => s + e[1], 0);
+    const max = entries[0][1];
+    html += '<div class="usage-h">工具调用（共 ' + total + ' 次，' + entries.length + ' 个工具）</div>';
+    html += entries.map(([name, n]) =>
+      '<div class="usage-row"><span class="usage-name">' + code(name) + '</span>' +
+      '<span class="usage-bar"><i style="width:' + (n * 100 / max).toFixed(1) + '%"></i></span>' +
+      '<span class="usage-num">' + n + ' 次</span></div>').join('');
+  } else {
+    html += '<div class="usage-h">工具调用</div><div class="muted">本会话无工具调用</div>';
+  }
+  const skillList = [...skills.values()];
+  html += '<div class="usage-h" style="margin-top:14px">技能加载（' + skillList.length + ' 个）</div>';
+  if (skillList.length) {
+    html += skillList.map(s =>
+      '<div class="usage-row"><span class="usage-name">' + esc(s.id) + '</span>' +
+      '<span class="usage-num">' + s.times + ' 次</span>' +
+      '<span class="usage-desc">' + esc(s.desc) + '</span></div>').join('');
+  } else {
+    html += '<div class="muted">本会话未加载技能</div>';
+  }
+  el.innerHTML = html;
 }
 
 function renderMessages(list) {
