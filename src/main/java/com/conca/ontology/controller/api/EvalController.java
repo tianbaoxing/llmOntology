@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.auth.SessionUser;
 import com.conca.ontology.dto.ApiResponse;
+import com.conca.ontology.dto.request.EvalCustomGraderRequest;
+import com.conca.ontology.dto.request.EvalCustomGraderTestRequest;
 import com.conca.ontology.dto.request.EvalDatasetRequest;
 import com.conca.ontology.dto.request.EvalRunRequest;
 import com.conca.ontology.dto.request.EvalSampleRequest;
@@ -112,6 +114,55 @@ public class EvalController {
     @Operation(summary = "评测器清单", description = "当前已注册的评测器（名称/描述/类型 rule|llm）")
     public ApiResponse<Map<String, Object>> graders() {
         return ApiResponse.ok(evalService.graderList());
+    }
+
+    // ---------------- 自定义评测器（用户提示词驱动） ----------------
+
+    @GetMapping("/custom-graders")
+    @Operation(summary = "自定义评测器清单", description = "用户创建的 LLM 评测器（附 mode/更新时间；"
+            + "亦出现在 /graders 注册清单中，可勾选运行、被数据集引用、结果落盘可 Diff）")
+    public ApiResponse<Map<String, Object>> customGraders() {
+        return ApiResponse.ok(evalService.customGraderList());
+    }
+
+    @GetMapping("/custom-graders/{name}")
+    @Operation(summary = "自定义评测器详情", description = "含 prompt 全文（编辑回填用；列表接口不含 prompt 控载荷）")
+    @Parameter(name = "name", description = "评测器名", example = "my_concise_check")
+    public ApiResponse<Map<String, Object>> customGraderDetail(@PathVariable String name) {
+        return ApiResponse.ok(evalService.customGraderDetail(name));
+    }
+
+    @PostMapping("/custom-graders")
+    @Operation(summary = "创建自定义评测器", description = "mode=criteria：prompt 仅写评分标准（样本内容框架隔离拼接）；"
+            + "mode=template：prompt 为完整模板，占位符 {{query}}/{{answer}}/{{reference}}/{{context}}/{{rubric}}；"
+            + "与内置评测器重名 400")
+    public ApiResponse<Map<String, Object>> createCustomGrader(@Valid @RequestBody EvalCustomGraderRequest request) {
+        return ApiResponse.ok(evalService.createCustomGrader(request));
+    }
+
+    @PutMapping("/custom-graders/{name}")
+    @Operation(summary = "更新自定义评测器", description = "热替换注册表实例（同一次运行即生效）；名称不可改；"
+            + "prompt 变更后历史 run 对比会标注「定义已变更」")
+    @Parameter(name = "name", description = "评测器名（不可改）", example = "my_concise_check")
+    public ApiResponse<Map<String, Object>> updateCustomGrader(@PathVariable String name,
+            @Valid @RequestBody EvalCustomGraderRequest request) {
+        return ApiResponse.ok(evalService.updateCustomGrader(name, request));
+    }
+
+    @DeleteMapping("/custom-graders/{name}")
+    @Operation(summary = "删除自定义评测器", description = "被数据集内容引用时 409 并列出引用位置，不静默破坏")
+    @Parameter(name = "name", description = "评测器名", example = "my_concise_check")
+    public ApiResponse<Map<String, Object>> deleteCustomGrader(@PathVariable String name) {
+        return ApiResponse.ok(evalService.deleteCustomGrader(name));
+    }
+
+    @PostMapping("/custom-graders/{name}/test")
+    @Operation(summary = "试跑自定义评测器", description = "单次判分即时返回 score/reason（不落盘、不产生任务）；"
+            + "先验证提示词有效再入库，避免整批跑完才发现评分细则写歪")
+    @Parameter(name = "name", description = "评测器名", example = "my_concise_check")
+    public ApiResponse<Map<String, Object>> testCustomGrader(@PathVariable String name,
+            @Valid @RequestBody EvalCustomGraderTestRequest request) {
+        return ApiResponse.ok(evalService.testCustomGrader(name, request));
     }
 
     @PostMapping("/runs")

@@ -122,14 +122,29 @@ public abstract class LlmJudgeGrader implements Grader {
         return GraderScore.of(name(), (avgRaw - 1) / 4.0, reason, meta);
     }
 
+    /**
+     * 五变量取值（与数据集字段名解耦）：query/answer/reference/context/rubric。
+     * 固定区块模板（userPrompt）与自定义评测器 template 模式占位符渲染共用同一取值口径。
+     */
+    protected Map<String, String> variables(GraderInput input) {
+        Map<String, String> v = new LinkedHashMap<>();
+        v.put("query", text(input.query()));
+        v.put("answer", text(input.response()));
+        v.put("reference", refText(input.referenceResponse()));
+        v.put("context", contextText(input.record()));
+        v.put("rubric", input.rubric() == null || input.rubric().isBlank() ? "无" : input.rubric());
+        return v;
+    }
+
     /** 用户模板：首区块评分标准（各评测器不同）+ 五变量（与数据集字段名解耦）：query/answer/reference/context/rubric */
-    private String userPrompt(GraderInput input) {
+    protected String userPrompt(GraderInput input) {
+        Map<String, String> v = variables(input);
         StringBuilder sb = new StringBuilder();
         sb.append("【评分标准（1-5 整数分制）】\n").append(criteria()).append("\n\n")
-                .append("【问题】\n").append(text(input.query())).append("\n\n")
-                .append("【待评估回答】\n").append(text(input.response())).append("\n\n")
-                .append("【参考答案】\n").append(refText(input.referenceResponse())).append("\n\n")
-                .append("【证据上下文（回答所依据的图谱查询返回）】\n").append(contextText(input.record()));
+                .append("【问题】\n").append(v.get("query")).append("\n\n")
+                .append("【待评估回答】\n").append(v.get("answer")).append("\n\n")
+                .append("【参考答案】\n").append(v.get("reference")).append("\n\n")
+                .append("【证据上下文（回答所依据的图谱查询返回）】\n").append(v.get("context"));
         if (input.rubric() != null && !input.rubric().isBlank()) {
             sb.append("\n\n【补充评分细则】\n").append(input.rubric());
         }

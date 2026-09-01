@@ -28,7 +28,10 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.dto.request.EvalCustomGraderRequest;
+import com.conca.ontology.dto.request.EvalCustomGraderTestRequest;
 import com.conca.ontology.dto.request.EvalSampleRequest;
+import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
 import com.conca.ontology.exception.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -125,15 +128,23 @@ public class EvalService {
 
     public EvalService(ObjectProvider<HarnessAgent> agentProvider,
             ObjectMapper mapper, JudgeClient judgeClient, AgenticJudgeHolder agenticJudgeHolder,
-            List<Grader> graderBeans) {
+            List<Grader> graderBeans, CustomGraderStore customGraderStore) {
         this.agentProvider = agentProvider;
         this.mapper = mapper;
         this.judgeClient = judgeClient;
         this.agenticJudgeHolder = agenticJudgeHolder;
+        this.customGraderStore = customGraderStore;
         for (Grader g : graderBeans) {
             graders.put(g.name(), g);
         }
+        // 自定义评测器（用户提示词驱动）：启动时从 data/eval/custom-graders.json 装载，
+        // 与内置评测器同等注册（可勾选运行 / 数据集引用 / 结果落盘可 Diff）
+        for (CustomGraderDefinition d : customGraderStore.all()) {
+            graders.put(d.name(), new CustomLlmGrader(judgeClient, d));
+        }
     }
+
+    private final CustomGraderStore customGraderStore;
 
     // ---------------- 查询：数据集 / 评测器 ----------------
 
@@ -422,6 +433,137 @@ public class EvalService {
             }
             throw new ApiException(500, "写入数据集失败: " + e.getMessage());
         }
+    }
+
+    // ---------------- 自定义评测器（用户提示词驱动） ----------------
+
+    /** 自定义评测器清单（graders 注册表已含全部，此清单附 mode/时间等定义元数据） */
+    public Map<String, Object> customGraderList() {
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (CustomGraderDefinition d : customGraderStore.all()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("name", d.name());
+            m.put("description", d.description());
+            m.put("mode", d.mode());
+            m.put("updatedAt", d.updatedAt());
+            list.add(m);
+        }
+        return Map.of("graders", list);
+    }
+
+    /** 单个定义详情（含 prompt 全文，编辑回填用；列表接口不含 prompt 控载荷） */
+    public Map<String, Object> customGraderDetail(String name) {
+        CustomGraderDefinition d = customGraderStore.find(name);
+        if (d == null) {
+            throw new ApiException(404, "自定义评测器不存在: " + name);
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", d.name());
+        m.put("description", d.description());
+        m.put("mode", d.mode());
+        m.put("prompt", d.prompt());
+        m.put("createdAt", d.createdAt());
+        m.put("updatedAt", d.updatedAt());
+        return m;
+    }
+
+    /** 创建：与内置/既有评测器重名 400；定义校验（名称/模式/占位符）见 CustomGraderStore.validate */
+    public synchronized Map<String, Object> createCustomGrader(EvalCustomGraderRequest req) {
+        CustomGraderDefinition def = CustomGraderStore.validate(req.name(), req.description(),
+                req.mode(), req.prompt(), null);
+        if (graders.containsKey(def.name())) {
+            throw new ApiException(400, "评测器名已存在（内置或自定义）: " + def.name() + "，请换一个名称");
+        }
+        customGraderStore.create(def);
+        graders.put(def.name(), new CustomLlmGrader(judgeClient, def));
+        log.info("custom grader created: {}", def.name());
+        return Map.of("name", def.name(), "mode", def.mode());
+    }
+
+    /** 更新：名称不可改；更新后热替换注册表中的实例（同一次运行即生效，无需重启） */
+    public synchronized Map<String, Object> updateCustomGrader(String name, EvalCustomGraderRequest req) {
+        if (customGraderStore.find(name) == null) {
+            throw new ApiException(404, "自定义评测器不存在: " + name);
+        }
+        if (req.name() != null && !req.name().isBlank() && !req.name().trim().equals(name)) {
+            throw new ApiException(400, "名称不可修改（当前 " + name + "）");
+        }
+        CustomGraderDefinition def = CustomGraderStore.validate(name, req.description(),
+                req.mode(), req.prompt(), customGraderStore.find(name).createdAt());
+        customGraderStore.update(name, def);
+        graders.put(name, new CustomLlmGrader(judgeClient, def));
+        log.info("custom grader updated: {}", name);
+        return Map.of("name", name, "mode", def.mode());
+    }
+
+    /** 删除：被数据集样本内容引用（保守匹配带引号的名称串）时 409 列出引用位置 */
+    public synchronized Map<String, Object> deleteCustomGrader(String name) {
+        if (customGraderStore.find(name) == null) {
+            throw new ApiException(404, "自定义评测器不存在: " + name);
+        }
+        List<String> refs = findGraderReferences(name);
+        if (!refs.isEmpty()) {
+            throw new ApiException(409, "评测器被以下数据集引用，请先清理引用后再删除："
+                    + String.join("、", refs));
+        }
+        customGraderStore.delete(name);
+        graders.remove(name);
+        log.info("custom grader deleted: {}", name);
+        return Map.of("name", name);
+    }
+
+    /** 试跑：单次判分即时返回（不落盘、不消耗任务配额），body 为一条临时样本 */
+    public Map<String, Object> testCustomGrader(String name, EvalCustomGraderTestRequest req) {
+        Grader g = graders.get(name);
+        if (g == null || !(g instanceof CustomLlmGrader cg)) {
+            throw new ApiException(404, "自定义评测器不存在: " + name);
+        }
+        if (!judgeClient.isConfigured()) {
+            throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：试跑依赖 LLM 判分通道");
+        }
+        // 占位 record（预置 response 纯判分模式同构）：无轨迹，context 变量为「无」
+        AgentRecord record = new AgentRecord(req.response() == null ? "" : req.response(),
+                List.of(), 0, 0, 0, 0, null);
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("query", req.query());
+        params.put("response", req.response());
+        params.put("reference_response", req.referenceResponse());
+        params.put("rubric", req.rubric());
+        GraderScore s = cg.evaluate(new GraderInput(params, record));
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("score", s.score());
+        m.put("reason", s.reason());
+        m.put("error", s.error());
+        m.put("metadata", s.metadata());
+        return m;
+    }
+
+    /** 扫描数据集目录，找出内容中出现带引号评测器名的行（保守引用检测，供删除拦截） */
+    private List<String> findGraderReferences(String name) {
+        List<String> refs = new ArrayList<>();
+        Path dir = datasetPath();
+        if (!Files.isDirectory(dir)) {
+            return refs;
+        }
+        String needle = "\"" + name + "\"";
+        try (Stream<Path> s = Files.list(dir)) {
+            for (Path p : s.filter(Files::isRegularFile)
+                    .filter(x -> x.getFileName().toString().endsWith(".jsonl")).toList()) {
+                try {
+                    List<String> lines = Files.readAllLines(p, StandardCharsets.UTF_8);
+                    for (int i = 0; i < lines.size(); i++) {
+                        if (lines.get(i).contains(needle)) {
+                            refs.add(p.getFileName() + " 第" + (i + 1) + "行");
+                        }
+                    }
+                } catch (IOException ignore) {
+                    // 单文件读取失败不阻断引用检测
+                }
+            }
+        } catch (IOException e) {
+            throw new ApiException(500, "扫描数据集目录失败: " + e.getMessage());
+        }
+        return refs;
     }
 
     // ---------------- 任务控制 ----------------
@@ -914,6 +1056,7 @@ public class EvalService {
             }
             double baseSum = 0, targetSum = 0;
             int baseCnt = 0, targetCnt = 0, passToFail = 0, failToPass = 0, common = 0;
+            String baseHash = null, targetHash = null;
             for (String id : baseIdx.keySet()) {
                 Map<String, Object> bs = scoresByName(baseIdx.get(id)).get(name);
                 Map<String, Object> ts = targetIdx.containsKey(id)
@@ -922,6 +1065,12 @@ public class EvalService {
                     continue;
                 }
                 common++;
+                if (baseHash == null) {
+                    baseHash = customPromptHash(bs);
+                }
+                if (targetHash == null) {
+                    targetHash = customPromptHash(ts);
+                }
                 if (scoreVal(bs) != null) {
                     baseSum += scoreVal(bs);
                     baseCnt++;
@@ -945,9 +1094,22 @@ public class EvalService {
             flips.put("failToPass", failToPass);
             r.put("flips", flips);
             r.put("commonSamples", common);
+            // 自定义评测器定义（提示词）指纹比对：两次 run 间 prompt 变更则标注，不拦截
+            if (baseHash != null && targetHash != null && !baseHash.equals(targetHash)) {
+                r.put("customPromptChanged", true);
+                r.put("note", "自定义评测器定义（提示词）已变更（" + baseHash + " → " + targetHash + "），对比仅供参考");
+            }
             rows.add(r);
         }
         return Map.of("graders", rows);
+    }
+
+    /** 从 score 行提取自定义评测器 promptHash（无 custom 标记返回 null，内置评测器恒 null） */
+    private static String customPromptHash(Map<String, Object> score) {
+        if (score == null || !(score.get("metadata") instanceof Map<?, ?> mm)) {
+            return null;
+        }
+        return mm.get("custom") instanceof Map<?, ?> c && c.get("promptHash") instanceof String h ? h : null;
     }
 
     /** 按样本对比：同 id 逐行 diff；默认仅返回有变化的（任一共同评测器得分/error 变化、
