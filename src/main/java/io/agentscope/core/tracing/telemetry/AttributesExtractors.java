@@ -45,6 +45,7 @@ import static io.agentscope.core.tracing.telemetry.GenAiIncubatingAttributes.GEN
 import static io.agentscope.core.tracing.telemetry.GenAiIncubatingAttributes.GEN_AI_TOOL_DEFINITIONS;
 import static io.agentscope.core.tracing.telemetry.GenAiIncubatingAttributes.GEN_AI_TOOL_DESCRIPTION;
 import static io.agentscope.core.tracing.telemetry.GenAiIncubatingAttributes.GEN_AI_TOOL_NAME;
+import static io.agentscope.core.tracing.telemetry.GenAiIncubatingAttributes.GEN_AI_TOOL_TYPE;
 import static io.agentscope.core.tracing.telemetry.GenAiIncubatingAttributes.GEN_AI_USAGE_INPUT_TOKENS;
 import static io.agentscope.core.tracing.telemetry.GenAiIncubatingAttributes.GEN_AI_USAGE_OUTPUT_TOKENS;
 import static io.agentscope.core.tracing.telemetry.GenAiIncubatingAttributes.GenAiOperationNameIncubatingValues.CHAT;
@@ -72,6 +73,7 @@ import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.model.ToolSchema;
 import io.agentscope.core.studio.StudioManager;
 import io.agentscope.core.tool.AgentTool;
+import io.agentscope.core.tool.ToolBase;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tracing.telemetry.model.InputMessage;
 import io.agentscope.core.tracing.telemetry.model.MessagePart;
@@ -254,6 +256,13 @@ final class AttributesExtractors {
             AgentTool tool = instance.getTool(toolUseBlock.getName());
             if (tool != null) {
                 internalSet(builder, GEN_AI_TOOL_DESCRIPTION, tool.getDescription());
+                 // 工具来源标记（MCP / 嵌入式），供 Studio 工具监控页 tool_source 列使用
+                if (tool instanceof ToolBase toolBase) {
+                    internalSet(
+                            builder,
+                            GEN_AI_TOOL_TYPE,
+                            toolBase.isMcp() ? "mcp" : toolBase.isExternalTool() ? "external" : "builtin");
+                }
             }
         }
 
