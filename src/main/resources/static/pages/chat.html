@@ -76,8 +76,16 @@ body { display: flex; flex-direction: column; }
 .tool-item .tname2 { font-family: Consolas, monospace; color: #93c5fd; font-size: 13px; }
 .tool-item .tdesc { font-size: 12px; color: #d1d5db; line-height: 1.5; margin-top: 2px; white-space: normal; word-break: break-word; }
 .input-row { display: flex; gap: 10px; align-items: flex-end; max-width: 900px; margin: 0 auto; }
-textarea { flex: 1; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5; }
+textarea { flex: 1; width: 100%; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5; }
 textarea:focus { outline: none; border-color: #2563eb; }
+/* ---------- “/” 工具快捷菜单 ---------- */
+.slash-wrap { position: relative; flex: 1; display: flex; }
+.slash-menu { display: none; position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); max-height: 280px; overflow-y: auto; background: #1f2937; color: #f9fafb; border-radius: 8px; padding: 6px; z-index: 20; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.slash-menu .s-item { padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.slash-menu .s-item.active, .slash-menu .s-item:hover { background: #374151; }
+.slash-menu .s-name { font-family: Consolas, monospace; color: #93c5fd; font-size: 13px; }
+.slash-menu .s-desc { font-size: 12px; color: #d1d5db; margin-top: 2px; white-space: normal; word-break: break-word; line-height: 1.5; }
+.slash-menu .s-empty { padding: 8px 10px; font-size: 12px; color: #9ca3af; }
 .hint { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 8px; }
 .empty-tip { margin: auto; text-align: center; color: #9ca3af; }
 .empty-tip .big { font-size: 15px; margin-bottom: 8px; }
@@ -118,7 +126,10 @@ textarea:focus { outline: none; border-color: #2563eb; }
         </div>
       </div>
       <div class="input-row">
-        <textarea id="input" placeholder="输入问题，Enter 发送，Shift+Enter 换行" rows="1"></textarea>
+        <div class="slash-wrap">
+          <textarea id="input" placeholder="输入问题，Enter 发送，Shift+Enter 换行；输入 / 唤起工具" rows="1"></textarea>
+          <div class="slash-menu" id="slash-menu"></div>
+        </div>
         <button class="btn" id="btn-send">发送</button>
         <button class="btn stop" id="btn-stop" style="display:none;">停止</button>
       </div>
@@ -251,13 +262,18 @@ memCheck.addEventListener('change', async () => {
 
 // ---------- 工具列表面板 ----------
 // 数据来自 Toolkit 实时存活集（GET /api/agent/tools），页面展示 = 模型实际可用；
-// 悬停按钮弹出面板、移开消失（纯 CSS hover），agent 未装配或拉取失败时按钮整体隐藏
+// 悬停按钮弹出面板、移开消失（纯 CSS hover），agent 未装配或拉取失败时按钮整体隐藏；
+// 拉取结果同时缓存到 toolCache，供输入框 "/" 快捷菜单过滤使用
 const toolsToggle = $('tools-toggle');
 const toolsPanel = $('tools-panel');
+let toolCache = [];
 
 function loadTools() {
   fetch('/api/agent/tools').then(r => r.json()).then(j => {
-    if (j && j.code === 0 && j.data && j.data.agentAvailable) renderTools(j.data.tools);
+    if (j && j.code === 0 && j.data && j.data.agentAvailable) {
+      toolCache = j.data.tools || [];
+      renderTools(j.data.tools);
+    }
   }).catch(() => { /* 拉取失败不显示按钮 */ });
 }
 
@@ -290,6 +306,88 @@ function renderTools(tools) {
 loadTools();
 // 悬停即拉取最新工具清单（无前端缓存）：记忆开关等一切 Toolkit 变化后，面板始终显示实时状态
 toolsToggle.addEventListener('mouseenter', loadTools);
+
+// ---------- “/” 工具快捷菜单 ----------
+// 输入框中键入 / （或 /前缀）时在输入框上方弹出工具清单，点击或 Enter 选中后
+// 将 /工具名 写回光标处；数据与「工具列表」面板同源（toolCache）
+const slashMenu = $('slash-menu');
+let slashItems = [];   // 当前过滤后的候选工具
+let slashActive = 0;   // 当前高亮项索引
+let slashStart = -1;   // 触发 "/" 标记在输入框中的起始下标
+const slashOpen = () => slashMenu.style.display === 'block';
+
+/** 取光标前正在输入的 "/xxx" 标记（须前邻空格或行首），无则返回 null */
+function currentSlashToken() {
+  const pos = inputEl.selectionStart;
+  if (pos == null) return null;
+  const m = inputEl.value.slice(0, pos).match(/(?:^|\s)(\/[A-Za-z0-9_-]*)$/);
+  return m ? { start: pos - m[1].length, token: m[1] } : null;
+}
+
+function hideSlashMenu() {
+  slashMenu.style.display = 'none';
+  slashMenu.innerHTML = '';
+  slashItems = [];
+  slashActive = 0;
+  slashStart = -1;
+}
+
+function showSlashMenu() {
+  const cur = currentSlashToken();
+  if (!cur || !toolCache.length) { hideSlashMenu(); return; }
+  const kw = cur.token.slice(1).toLowerCase();
+  const list = kw ? toolCache.filter(t => (t.name || '').toLowerCase().includes(kw)) : toolCache;
+  if (!list.length) { hideSlashMenu(); return; }
+  slashItems = list;
+  slashStart = cur.start;
+  slashActive = 0;
+  renderSlashMenu();
+  slashMenu.style.display = 'block';
+}
+
+function renderSlashMenu() {
+  slashMenu.innerHTML = '';
+  slashItems.forEach((t, i) => {
+    const item = document.createElement('div');
+    item.className = 's-item' + (i === slashActive ? ' active' : '');
+    const name = document.createElement('div');
+    name.className = 's-name';
+    name.textContent = '/' + t.name;
+    const desc = document.createElement('div');
+    desc.className = 's-desc';
+    desc.textContent = t.description || '（无说明）';
+    item.appendChild(name);
+    item.appendChild(desc);
+    // mousedown 阻止默认，避免点击瞬间失焦导致菜单先被 blur 收起；
+    // 兼容仅派发 click 事件的场景（脚本点击/触屏）：mousedown 选中后 slashItems 已清空，不会重复写入
+    item.addEventListener('mousedown', e => { e.preventDefault(); pickSlashTool(i); });
+    item.addEventListener('click', () => pickSlashTool(i));
+    // 鼠标悬停仅切换高亮，不重建 DOM（整菜单重渲染会替换鼠标下方的节点，导致点击落空）
+    item.addEventListener('mousemove', () => setActiveItem(i));
+    slashMenu.appendChild(item);
+  });
+}
+
+/** 切换高亮到第 i 项（仅更新 class，不动 DOM 结构） */
+function setActiveItem(i) {
+  if (i === slashActive) return;
+  slashActive = i;
+  const items = slashMenu.children;
+  for (let k = 0; k < items.length; k++) items[k].classList.toggle('active', k === i);
+}
+
+/** 选中第 i 个候选：用 "/工具名 " 替换光标前的 "/xxx" 标记 */
+function pickSlashTool(i) {
+  const t = slashItems[i];
+  if (!t) return;
+  const pos = inputEl.selectionStart;
+  inputEl.value = inputEl.value.slice(0, slashStart) + '/' + t.name + ' ' + inputEl.value.slice(pos);
+  const c = slashStart + t.name.length + 2;
+  inputEl.selectionStart = inputEl.selectionEnd = c;
+  hideSlashMenu();
+  inputEl.focus();
+  autoGrow();
+}
 
 function emptyTipHtml(firstLine) {
   return '<div class="empty-tip" id="empty-tip"><div class="big">' + firstLine +
@@ -503,6 +601,7 @@ async function send() {
   btnSend.disabled = true;
   btnStop.style.display = '';
   inputEl.value = '';
+  hideSlashMenu(); // JS 清空不触发 input 事件，菜单需手动收起
   autoGrow();
 
   addUserMsg(text);
@@ -783,9 +882,24 @@ async function deleteSession(id) {
 btnSend.addEventListener('click', send);
 btnStop.addEventListener('click', () => { if (aborter) aborter.abort(); });
 inputEl.addEventListener('keydown', e => {
+  if (slashOpen()) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIdx = slashActive;
+      slashActive = (slashActive + (e.key === 'ArrowDown' ? 1 : slashItems.length - 1)) % slashItems.length;
+      if (slashMenu.children[prevIdx]) slashMenu.children[prevIdx].classList.remove('active');
+      if (slashMenu.children[slashActive]) slashMenu.children[slashActive].classList.add('active');
+      const act = slashMenu.children[slashActive];
+      if (act) act.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pickSlashTool(slashActive); return; }
+    if (e.key === 'Escape') { e.preventDefault(); hideSlashMenu(); return; }
+  }
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
-inputEl.addEventListener('input', autoGrow);
+inputEl.addEventListener('input', () => { autoGrow(); showSlashMenu(); });
+inputEl.addEventListener('blur', () => setTimeout(hideSlashMenu, 150));
 $('btn-new').addEventListener('click', startNewSession);
 
 // 初始化：加载会话列表；当前会话有记录则回看，并提示“已恢复旧会话”（await 后插横幅，避免被 loadMessages 清空）
