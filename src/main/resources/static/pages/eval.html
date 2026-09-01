@@ -77,6 +77,7 @@ tr.diff-imp td { background: #f0fdf4; }
   <div class="page-tabs">
     <a class="ptab active" data-tab="run" onclick="switchTab('run')">运行评测</a>
     <a class="ptab" data-tab="ds" onclick="switchTab('ds')">数据集管理</a>
+    <a class="ptab" data-tab="cg" onclick="switchTab('cg')">自定义评测器</a>
   </div>
 
   <!-- Tab 1：运行评测 -->
@@ -154,7 +155,90 @@ tr.diff-imp td { background: #f0fdf4; }
     </div>
   </div>
 
-  <!-- 模态框：新增/编辑记录 -->
+  <!-- Tab 3：自定义评测器 -->
+  <div id="tab-cg" style="display:none">
+    <div class="card">
+      <h2>自定义评测器</h2>
+      <div class="muted" style="margin-bottom:10px">不写代码，用提示词定义 LLM 评测器，与内置评测器同等地位（可勾选运行、结果落盘、可回归对比）。两种模式：<b>评分标准</b>（默认）只写「怎么打分」，样本内容由框架固定区块隔离拼接（防提示词注入）；<b>完整模板</b>（进阶）可用五个占位符 {{query}}/{{answer}}/{{reference}}/{{context}}/{{rubric}}。先「试跑」验证判分效果再入库；保存后热生效，重启自动恢复</div>
+      <div class="toolbar" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px">
+        <button class="btn" onclick="openCgModal('add')">新建评测器</button>
+        <span class="muted" id="cg-count"></span>
+      </div>
+      <div id="cg-table"></div>
+    </div>
+  </div>
+
+  <!-- 模态框：新建/编辑自定义评测器 -->
+  <div class="modal-mask" id="cg-modal" style="display:none">
+    <div class="modal-box">
+      <div class="modal-head"><h2 id="cg-title">新建评测器</h2></div>
+      <div class="modal-body">
+        <div class="field-row">
+          <div class="field">
+            <label>名称<span class="req">*</span></label>
+            <input type="text" id="cg-name" placeholder="如 my_concise_check">
+            <div class="hint">3-32 位小写字母/数字/下划线；创建后不可改名；不能与内置评测器重名</div>
+          </div>
+          <div class="field">
+            <label>模式</label>
+            <select id="cg-mode" onchange="onCgModeChange()">
+              <option value="criteria">评分标准（推荐）</option>
+              <option value="template">完整模板（进阶）</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>描述</label>
+          <input type="text" id="cg-desc" placeholder="一句话用途（勾选时悬停展示）">
+        </div>
+        <div class="field">
+          <label>提示词<span class="req">*</span></label>
+          <textarea id="cg-prompt" rows="8" oninput="onCgPromptInput()" placeholder="评分标准模式示例：&#10;5 分：回答简洁准确，不超过 3 句话且无冗余信息&#10;4 分：准确但略有冗余&#10;3 分：准确但啰嗦&#10;2 分：有冗余且部分偏题&#10;1 分：严重跑题或空洞"></textarea>
+          <div class="hint" id="cg-prompt-hint"></div>
+        </div>
+        <div class="field" id="cg-ph-row" style="display:none">
+          <label>占位符（点击插入到光标处）</label>
+          <div id="cg-ph-chips"></div>
+          <div class="hint">五变量渲染为真实样本内容；缺失变量渲染为「无」；未知占位符保存被拒</div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="closeCgModal()">取消</button>
+        <button class="btn" onclick="saveCg()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框：试跑自定义评测器 -->
+  <div class="modal-mask" id="cgt-modal" style="display:none">
+    <div class="modal-box" style="width:min(720px,92vw)">
+      <div class="modal-head"><h2 id="cgt-title">试跑</h2></div>
+      <div class="modal-body">
+        <div class="field">
+          <label>问题</label>
+          <input type="text" id="cgt-query" placeholder="如：定窑白釉莲纹大碗是什么朝代的？">
+        </div>
+        <div class="field">
+          <label>被评测回答<span class="req">*</span></label>
+          <textarea id="cgt-response" rows="4" placeholder="粘贴或输入要判分的回答"></textarea>
+        </div>
+        <div class="field">
+          <label>参考答案（可选）</label>
+          <input type="text" id="cgt-reference" placeholder="如：北宋">
+        </div>
+        <div class="field">
+          <label>补充评分细则（可选）</label>
+          <input type="text" id="cgt-rubric" placeholder="如：回答须包含朝代">
+        </div>
+        <div id="cgt-result" style="display:none"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="closeCgTest()">关闭</button>
+        <button class="btn" id="cgt-btn" onclick="runCgTest()">试跑（单次判分）</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-mask" id="sm-modal" style="display:none">
     <div class="modal-box">
       <div class="modal-head"><h2 id="sm-title">新增记录</h2></div>
@@ -363,21 +447,52 @@ function renderResult(result) {
 // ---------------- 历史 / 初始化 ----------------
 async function loadRuns() {
   const d = await api('GET', '/api/eval/runs');
-  runsCache = d.runs || [];  // 供回归对比的基线下拉复用
-  $('ev-runs').innerHTML = d.runs.length ? table(
-    ['任务 id', '数据集', '通过率', '平均分', '样本数', '异常', '操作'],
-    d.runs.map(r => {
-      const s = r.summary || {};
-      return [
-        code(r.id), esc(r.dataset || '-'),
-        s.passRate != null ? (s.passRate * 100).toFixed(1) + '%' : '-',
-        s.avgScore != null ? s.avgScore.toFixed(3) : '-',
-        s.total ?? '-', s.errorCount ?? '-',
-        `<button class="btn sm" onclick="viewRun('${encodeURIComponent(r.id)}')">查看</button>` +
-        `<a class="btn sm" href="/api/eval/runs/${encodeURIComponent(r.id)}/file">下载</a>`
-      ];
-    })) : '<div class="muted">暂无评测记录</div>';
+  runsCache = d.runs || [];  // 供回归对比的基线下拉复用（全量缓存，分页仅控制展示）
+  runState.total = runsCache.length;
+  runState.pages = Math.max(1, Math.ceil(runState.total / runState.size));
+  if (runState.page > runState.pages) runState.page = runState.pages;
+  renderRunsPage();
   refreshDiffBase();
+}
+
+let runState = { page: 1, size: 5, pages: 1, total: 0 };
+
+function renderRunsPage() {
+  if (!runsCache.length) { $('ev-runs').innerHTML = '<div class="muted">暂无评测记录</div>'; return; }
+  const { page, size, pages, total } = runState;
+  const slice = runsCache.slice((page - 1) * size, page * size);
+  const rows = slice.map(r => {
+    const s = r.summary || {};
+    return [
+      code(r.id), esc(r.dataset || '-'),
+      s.passRate != null ? (s.passRate * 100).toFixed(1) + '%' : '-',
+      s.avgScore != null ? s.avgScore.toFixed(3) : '-',
+      s.total ?? '-', s.errorCount ?? '-',
+      `<button class="btn sm" onclick="viewRun('${encodeURIComponent(r.id)}')">查看</button>` +
+      `<a class="btn sm" href="/api/eval/runs/${encodeURIComponent(r.id)}/file">下载</a>`
+    ];
+  });
+  let html = table(['任务 id', '数据集', '通过率', '平均分', '样本数', '异常', '操作'], rows);
+  html += '<div style="display:flex; gap:10px; align-items:center; margin-top:10px">'
+    + `<span class="muted">共 ${total} 条 / ${pages} 页</span><div class="pager" id="runs-pager" style="margin-top:0"></div></div>`;
+  $('ev-runs').innerHTML = html;
+  const win = [];
+  const start = Math.max(1, Math.min(page - 2, pages - 4));
+  for (let i = start; i <= Math.min(pages, start + 4); i++) win.push(i);
+  const btn = (label, target, dis) =>
+    `<button class="btn sm" ${dis ? 'disabled' : ''} onclick="goRunsPage(${target})">${label}</button>`;
+  $('runs-pager').innerHTML =
+    btn('首页', 1, page === 1) + btn('上一页', page - 1, page === 1) +
+    (start > 1 ? '<span class="muted">…</span>' : '') +
+    win.map(i => i === page ? `<span class="cur">${i}</span>` : btn(i, i, false)).join('') +
+    (start + 4 < pages ? '<span class="muted">…</span>' : '') +
+    btn('下一页', page + 1, page === pages) + btn('尾页', pages, page === pages);
+}
+
+function goRunsPage(n) {
+  if (n < 1 || n > runState.pages || n === runState.page) return;
+  runState.page = n;
+  renderRunsPage();
 }
 
 async function viewRun(encId) {
@@ -488,7 +603,9 @@ function renderDiff(d) {
         deltaCell(g.delta, v => fmtNum(v, 3), false),
         f.passToFail > 0 ? `<span style="color:#dc2626;font-weight:600">${f.passToFail}</span>` : (f.passToFail || 0),
         f.failToPass > 0 ? `<span style="color:#16a34a;font-weight:600">${f.failToPass}</span>` : (f.failToPass || 0),
-        (g.commonSamples || 0) + ' 个共同样本'
+        g.customPromptChanged
+          ? `<span style="color:#92400e">⚠ ${esc(g.note || '定义已变更，对比仅供参考')}</span>`
+          : (g.commonSamples || 0) + ' 个共同样本'
       ];
     })) : '<div class="muted">无共同评测器</div>';
 
@@ -545,7 +662,7 @@ async function previewDataset(name) {
 
 let graderCache = [];
 /** 分组展示元数据（group = 后端 graders 包路径后缀，新增评测器自动归组；未知组按通道兜底） */
-const GROUP_ORDER = ['rule.match', 'rule.text', 'rule.tool', 'llm.answer', 'llm.dialogue', 'llm.tool', 'agent'];
+const GROUP_ORDER = ['rule.match', 'rule.text', 'rule.tool', 'llm.answer', 'llm.dialogue', 'llm.tool', 'agent', 'custom'];
 const GROUP_META = {
   'rule.match':  { title: '精确匹配', channel: '规则', cls: 'rule' },
   'rule.text':   { title: '文本统计', channel: '规则', cls: 'rule' },
@@ -554,6 +671,7 @@ const GROUP_META = {
   'llm.dialogue':{ title: '多轮对话', channel: 'LLM', cls: 'llm' },
   'llm.tool':    { title: '工具轨迹', channel: 'LLM', cls: 'llm' },
   'agent':       { title: '图谱取证（Agentic）', channel: 'Agentic', cls: 'llm' },
+  'custom':      { title: '自定义（用户提示词）', channel: 'LLM', cls: 'llm' },
 };
 
 async function loadGraders() {
@@ -602,9 +720,14 @@ function switchTab(name) {
   document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   $('tab-run').style.display = name === 'run' ? '' : 'none';
   $('tab-ds').style.display = name === 'ds' ? '' : 'none';
+  $('tab-cg').style.display = name === 'cg' ? '' : 'none';
   if (name === 'ds' && !dsTabLoaded) {
     dsTabLoaded = true;
     initDsTab().catch(e => showMsg('数据集加载失败：' + e.message, false));
+  }
+  if (name === 'cg' && !cgTabLoaded) {
+    cgTabLoaded = true;
+    loadCustomGraders().catch(e => showMsg('自定义评测器加载失败：' + e.message, false));
   }
 }
 
@@ -826,6 +949,163 @@ async function refreshRunDatasets() {
     ? d.datasets.map(ds => `<option value="${esc(ds.name)}">${esc(ds.name)}（${ds.count} 条）</option>`).join('')
     : '<option value="">（无数据集）</option>';
   if (keep && d.datasets.some(x => x.name === keep)) $('ev-dataset').value = keep;
+}
+
+// ---------------- 自定义评测器（用户提示词驱动） ----------------
+let cgTabLoaded = false;
+let cgModal = { mode: 'add', name: '' };
+const CG_PLACEHOLDERS = ['query', 'answer', 'reference', 'context', 'rubric'];
+
+async function loadCustomGraders() {
+  const d = await api('GET', '/api/eval/custom-graders');
+  const list = d.graders || [];
+  $('cg-count').textContent = list.length ? '共 ' + list.length + ' 个' : '';
+  $('cg-table').innerHTML = list.length ? table(
+    ['名称', '描述', '模式', '更新时间', '操作'],
+    list.map(g => [
+      code(g.name),
+      `<div class="wrap">${esc(g.description || '')}</div>`,
+      g.mode === 'template' ? '完整模板' : '评分标准',
+      g.updatedAt ? g.updatedAt.replace('T', ' ').substring(0, 19) : '-',
+      `<button class="btn sm" onclick="openCgTest('${esc(g.name)}')">试跑</button>` +
+      `<button class="btn sm" onclick="openCgModal('edit', '${esc(g.name)}')">编辑</button>` +
+      `<button class="btn sm danger" onclick="deleteCg('${esc(g.name)}')">删除</button>`
+    ])) : '<div class="muted">暂无自定义评测器，点「新建评测器」用提示词创建</div>';
+}
+
+function openCgModal(mode, name) {
+  cgModal = { mode, name: name || '' };
+  $('cg-title').textContent = mode === 'add' ? '新建评测器' : '编辑评测器：' + name;
+  $('cg-name').value = name || '';
+  $('cg-name').disabled = mode === 'edit'; // 名称不可改
+  $('cg-desc').value = '';
+  $('cg-mode').value = 'criteria';
+  $('cg-prompt').value = '';
+  $('cg-prompt-hint').textContent = '';
+  onCgModeChange();
+  $('cg-modal').style.display = 'flex';
+  if (mode === 'edit') {
+    // 详情端点回填（列表接口不含 prompt 全文）
+    api('GET', '/api/eval/custom-graders/' + encodeURIComponent(name)).then(g => {
+      $('cg-desc').value = g.description || '';
+      $('cg-mode').value = g.mode || 'criteria';
+      $('cg-prompt').value = g.prompt || '';
+      onCgModeChange();
+    }).catch(e => showMsg('加载失败：' + e.message, false));
+  }
+}
+
+function closeCgModal() { $('cg-modal').style.display = 'none'; }
+
+/** 模式切换：提示词占位提示与占位符 chips 显隐 */
+function onCgModeChange() {
+  const tpl = $('cg-mode').value === 'template';
+  $('cg-ph-row').style.display = tpl ? '' : 'none';
+  if (tpl && !$('cg-ph-chips').childElementCount) {
+    $('cg-ph-chips').innerHTML = CG_PLACEHOLDERS.map(p =>
+      `<button type="button" class="btn sm" style="margin:0 6px 6px 0" onclick="insertPh('{{${p}}}')">{{${p}}}</button>`).join('');
+  }
+  onCgPromptInput();
+}
+
+/** 实时字符数与占位符校验提示 */
+function onCgPromptInput() {
+  const v = $('cg-prompt').value;
+  let hint = v.length + ' / 4000 字符';
+  if ($('cg-mode').value === 'template') {
+    const ph = (v.match(/\{\{(\w+)}}/g) || []).map(s => s.slice(2, -2));
+    const unknown = ph.filter(p => !CG_PLACEHOLDERS.includes(p));
+    hint += '；已用占位符：' + (ph.length ? ph.join(' ') : '无');
+    if (!v.includes('{{answer}}')) hint += '；⚠ 须包含 {{answer}}';
+    if (unknown.length) hint += '；✗ 未知占位符：' + unknown.join(' ');
+  }
+  $('cg-prompt-hint').textContent = hint;
+}
+
+/** 占位符插入到提示词光标处（已含同名标记不重复插） */
+function insertPh(ph) {
+  const ta = $('cg-prompt');
+  if (ta.value.includes(ph)) return;
+  const pos = ta.selectionStart ?? ta.value.length;
+  ta.value = ta.value.slice(0, pos) + ph + ta.value.slice(ta.selectionEnd ?? pos);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = pos + ph.length;
+  onCgPromptInput();
+}
+
+async function saveCg() {
+  const prompt = $('cg-prompt').value.trim();
+  if (!prompt) return showMsg('提示词不能为空', false);
+  const body = {
+    name: $('cg-name').value.trim(),
+    description: $('cg-desc').value.trim(),
+    mode: $('cg-mode').value,
+    prompt
+  };
+  try {
+    if (cgModal.mode === 'add') {
+      await api('POST', '/api/eval/custom-graders', body);
+      showMsg('已创建 ' + body.name + '（可到「运行评测」勾选使用）', true);
+    } else {
+      await api('PUT', '/api/eval/custom-graders/' + encodeURIComponent(cgModal.name), body);
+      showMsg('已保存（同一次运行即生效）', true);
+    }
+    closeCgModal();
+    await loadCustomGraders();
+    await loadGraders(); // 同步刷新运行区勾选分组（「自定义」组）
+  } catch (e) { showMsg('保存失败：' + e.message, false); }
+}
+
+async function deleteCg(name) {
+  if (!confirm('确认删除自定义评测器「' + name + '」？被数据集引用时会拒绝删除。')) return;
+  try {
+    await api('DELETE', '/api/eval/custom-graders/' + encodeURIComponent(name));
+    showMsg('已删除 ' + name, true);
+    await loadCustomGraders();
+    await loadGraders();
+  } catch (e) { showMsg('删除失败：' + e.message, false); }
+}
+
+function openCgTest(name) {
+  cgTestName = name;
+  $('cgt-title').textContent = '试跑：' + name;
+  $('cgt-query').value = '';
+  $('cgt-response').value = '';
+  $('cgt-reference').value = '';
+  $('cgt-rubric').value = '';
+  $('cgt-result').style.display = 'none';
+  $('cgt-result').innerHTML = '';
+  $('cgt-btn').disabled = false;
+  $('cgt-modal').style.display = 'flex';
+}
+
+function closeCgTest() { $('cgt-modal').style.display = 'none'; }
+
+let cgTestName = '';
+
+/** 单次判分即时返回（同步加载条内嵌结果卡） */
+async function runCgTest() {
+  const response = $('cgt-response').value.trim();
+  if (!response) return showMsg('被评测回答不能为空', false);
+  const body = { query: $('cgt-query').value.trim(), response };
+  const ref = $('cgt-reference').value.trim();
+  if (ref) body.referenceResponse = ref;
+  const rub = $('cgt-rubric').value.trim();
+  if (rub) body.rubric = rub;
+  $('cgt-btn').disabled = true;
+  $('cgt-result').style.display = '';
+  $('cgt-result').innerHTML = '<div class="muted">判分中（通常 3-10 秒）…</div>';
+  try {
+    const d = await api('POST', '/api/eval/custom-graders/' + encodeURIComponent(cgTestName) + '/test', body);
+    const raw = d.metadata && d.metadata.rawScore != null ? '（原始分 ' + d.metadata.rawScore + '/5）' : '';
+    $('cgt-result').innerHTML = d.error
+      ? `<div class="msg err">判分失败：${esc(d.reason || '')}</div>`
+      : `<div class="msg ok">得分：${Number(d.score).toFixed(2)}${raw}</div>` +
+        `<div style="font-size:13px;margin-top:6px">${esc(d.reason || '')}</div>`;
+  } catch (e) {
+    $('cgt-result').innerHTML = `<div class="msg err">试跑失败：${esc(e.message)}</div>`;
+  }
+  $('cgt-btn').disabled = false;
 }
 
 // ---------------- init ----------------
