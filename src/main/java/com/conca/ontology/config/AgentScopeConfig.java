@@ -2,6 +2,7 @@ package com.conca.ontology.config;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,8 @@ import com.conca.ontology.agent.HttpProxyTool;
 import io.agentscope.core.state.JsonFileAgentStateStore;
 import io.agentscope.core.studio.StudioManager;
 import io.agentscope.core.tool.Toolkit;
+import io.agentscope.core.tool.mcp.McpClientBuilder;
+import io.agentscope.core.tool.mcp.McpClientWrapper;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
 
@@ -43,7 +46,9 @@ public class AgentScopeConfig {
             @Value("${app.agent.skills-dir:}") String skillsDir,
             @Value("${app.agent.studio-url:}") String studioUrl,
             @Value("${server.port:9876}") int serverPort,
-            @Value("${app.agent.ontology-base-url:${ONTOLOGY_BASE_URL:}}") String ontologyBaseUrl) throws Exception {
+            @Value("${app.agent.ontology-base-url:${ONTOLOGY_BASE_URL:}}") String ontologyBaseUrl,
+            @Value("${app.mcp.weather.enabled:false}") boolean mcpWeatherEnabled,
+            @Value("${app.mcp.weather.url:http://localhost:8766/mcp}") String mcpWeatherUrl) throws Exception {
 
         // key 未配置时返回 null（注册为 NullBean），问答接口返回明确错误，不影响其余功能
         if (apiKey == null || apiKey.isBlank()) {
@@ -83,6 +88,12 @@ public class AgentScopeConfig {
                 : ontologyBaseUrl.trim().replaceAll("/+$", "");
         toolkit.registerTool(new HttpProxyTool(llmBaseUrl));
 
+        // MCP 外接工具（可选）：Toolkit 原生 registerMcpClient 注册，工具 isMcp=true，
+        // 追踪/Studio 自动识别 tool_source=mcp；MCP 服务未启动时降级告警，不阻断主服务
+        if (mcpWeatherEnabled) {
+            registerMcpWeather(toolkit, mcpWeatherUrl);
+        }
+        
         HarnessAgent.Builder builder = HarnessAgent.builder()
                 .name("ontology-assistant")
                 .description(title + "问答助手")
@@ -122,5 +133,54 @@ public class AgentScopeConfig {
             }
         }
         return agent;
+    }
+
+    /**
+     * 注册 weather MCP 客户端：优先 Streamable HTTP（官方主推），
+     * 失败退回 SSE（weather-mcp 同端口暴露 legacy /sse 端点）。
+     * 任何失败仅降级告警，不阻断主服务。
+     */
+    private static void registerMcpWeather(Toolkit toolkit, String url) {
+        McpClientWrapper streamable = null;
+        try {
+            streamable = McpClientBuilder.create("weather")
+                    .streamableHttpTransport(url)
+                    .timeout(Duration.ofSeconds(15))
+                    .buildSync();
+        } catch (Exception e) {
+            log.warn("MCP 客户端 [weather] Streamable 构建失败：{}", e.getMessage());
+        }
+        if (streamable != null && registerMcp(toolkit, streamable, url)) {
+            return;
+        }
+        // SSE 兜底：base url = 去掉 /mcp 后缀
+        String base = url.replaceAll("(?i)/mcp/?$", "");
+        try {
+            McpClientWrapper sse = McpClientBuilder.create("weather")
+                    .sseTransport(base)
+                    .timeout(Duration.ofSeconds(15))
+                    .buildSync();
+            registerMcp(toolkit, sse, base);
+        } catch (Exception e) {
+            log.warn("MCP 客户端 [weather] SSE 兜底也失败，本次运行不提供 MCP 工具：{}", e.getMessage());
+        }
+    }
+
+    /** 执行 initialize 握手并注册远端工具；成功打日志并挂关闭钩子，失败关连接返回 false。 */
+    private static boolean registerMcp(Toolkit toolkit, McpClientWrapper wrapper, String url) {
+        try {
+            toolkit.registerMcpClient(wrapper).block(Duration.ofSeconds(20));
+            log.info("MCP 客户端 [weather] 已注册（url={}），工具清单：{}", url, toolkit.getToolNames());
+            Runtime.getRuntime().addShutdownHook(new Thread(wrapper::close));
+            return true;
+        } catch (Exception e) {
+            log.warn("MCP 客户端 [weather] 注册失败（url={}）：{}", url, e.getMessage());
+            try {
+                wrapper.close();
+            } catch (Exception ignore) {
+                // 忽略关闭异常
+            }
+            return false;
+        }
     }
 }

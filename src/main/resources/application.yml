@@ -70,6 +70,12 @@ app:
     skills-dir: skills
     # AgentScope Studio 可视化对接地址（留空 = 不启用）；Studio 未启动时降级告警，不阻断主服务
     studio-url: ${STUDIO_URL:http://localhost:3000}
+  # MCP 外接工具（Toolkit 原生 registerMcpClient 注册，追踪自动标记 tool_source=mcp）
+  # weather-mcp 项目：C:\me\kaiyuan\github\weather-mcp（端口 8766，工具 query_weather）
+  mcp:
+    weather:
+      enabled: true
+      url: http://localhost:8766/mcp
 
 neo4j:
   uri: bolt://localhost:7687
