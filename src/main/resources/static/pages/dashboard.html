@@ -12,13 +12,14 @@
 #daily-svg { display: block; background: #fff; }
 #daily-legend { font-size: 12px; color: #6b7280; display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; }
 #daily-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
-.bar-wrap { display: inline-flex; align-items: center; gap: 6px; }
-.bar-track { background: #f3f4f6; border-radius: 4px; height: 12px; width: 110px; }
-.bar-fill { height: 12px; border-radius: 4px; background: #3b82f6; }
 #view-banner { display: none; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 8px; padding: 10px 16px; font-size: 14px; margin-bottom: 14px; }
 #dash-sessions tr { cursor: pointer; }
+/* 最近活动列：不换行，日期时间保持一行并收紧列宽 */
+#dash-sessions td:nth-child(2), #dash-sessions th:nth-child(2) { white-space: nowrap; }
 #dash-sessions a.session-link { color: #2563eb; text-decoration: none; }
 #dash-sessions a.session-link:hover { text-decoration: underline; }
+.pager { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.pager .cur { background: #2563eb; color: #fff; border: 1px solid #2563eb; border-radius: 6px; padding: 4px 10px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -52,6 +53,9 @@
 <script>
 let STATS = null;
 let rangeDays = 7;
+// 会话明细分页（纯前端分页：数据已随 stats 全量返回）
+const SESSION_PAGE_SIZE = 10;
+let sessionPage = 1;
 // URL 带 userId 参数时查看指定用户（管理员入口），否则统计当前登录用户自己
 const viewUserId = new URLSearchParams(location.search).get('userId');
 
@@ -134,18 +138,45 @@ function renderSessions() {
     $('dash-sessions').innerHTML = '<div class="muted">暂无会话数据</div>';
     return;
   }
+  const pages = Math.max(1, Math.ceil(list.length / SESSION_PAGE_SIZE));
+  if (sessionPage > pages) sessionPage = pages;
+  const rows = list.slice((sessionPage - 1) * SESSION_PAGE_SIZE, sessionPage * SESSION_PAGE_SIZE);
   const total = Math.max(1, STATS.summary.totalTokens);
-  $('dash-sessions').innerHTML = table(
+  let html = table(
     ['会话', '最近活动', '轮次', 'LLM 调用', '输入', '输出', '缓存命中', '合计', '占比'],
-    list.map(v => {
+    rows.map(v => {
       const pct = Math.min(100, v.tokens * 100 / total).toFixed(1);
       const href = '/session-detail?sessionId=' + encodeURIComponent(v.sessionId) +
         (viewUserId ? '&userId=' + encodeURIComponent(viewUserId) : '');
       return [`<a class="session-link" href="${href}" target="_blank" title="查看会话详情">${esc(v.title)}</a>`,
         esc(v.lastTime || '-'), fmtNum(v.rounds), fmtNum(v.llmCalls),
         fmtNum(v.inputTokens), fmtNum(v.outputTokens), fmtNum(v.cachedTokens), fmtNum(v.tokens),
-        `<span class="bar-wrap"><span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span><span class="muted">${pct}%</span></span>`];
+        `<span class="muted">${pct}%</span>`];
     }));
+  if (pages > 1) {
+    const win = [];
+    const start = Math.max(1, Math.min(sessionPage - 2, pages - 4));
+    for (let i = start; i <= Math.min(pages, start + 4); i++) win.push(i);
+    const btn = (label, target, dis) =>
+      `<button class="btn sm" ${dis ? 'disabled' : ''} onclick="goSessionsPage(${target})">${label}</button>`;
+    html += `<div style="display:flex; gap:10px; align-items:center; margin-top:10px">`
+      + `<span class="muted">共 ${list.length} 条 / ${pages} 页</span><div class="pager" style="margin-top:0">`
+      + btn('首页', 1, sessionPage === 1) + btn('上一页', sessionPage - 1, sessionPage === 1)
+      + (start > 1 ? '<span class="muted">…</span>' : '')
+      + win.map(i => i === sessionPage ? `<span class="cur">${i}</span>` : btn(i, i, false)).join('')
+      + (start + 4 < pages ? '<span class="muted">…</span>' : '')
+      + btn('下一页', sessionPage + 1, sessionPage === pages) + btn('尾页', pages, sessionPage === pages)
+      + '</div></div>';
+  }
+  $('dash-sessions').innerHTML = html;
+}
+
+function goSessionsPage(n) {
+  const list = STATS.sessions || [];
+  const pages = Math.max(1, Math.ceil(list.length / SESSION_PAGE_SIZE));
+  if (n < 1 || n > pages || n === sessionPage) return;
+  sessionPage = n;
+  renderSessions();
 }
 
 // 整行点击跳会话详情（点链接本身走默认新标签行为，避免开两个）
