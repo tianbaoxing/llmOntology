@@ -22,6 +22,10 @@ import io.opentelemetry.api.common.AttributeKey;
 
 public class AgentScopeIncubatingAttributes {
 
+        //conca 自定义 user和session信息
+    static final AttributeKey<String> AGENTSCOPE_SESSION_ID = stringKey("agentscope.session.id");
+    static final AttributeKey<String> AGENTSCOPE_USER_ID = stringKey("agentscope.user.id");
+
     static final AttributeKey<String> AGENTSCOPE_FUNCTION_NAME =
             stringKey("agentscope.function.name");
 

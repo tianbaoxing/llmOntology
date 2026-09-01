@@ -17,6 +17,8 @@
 package io.agentscope.core.tracing.telemetry;
 
 import static io.agentscope.core.tracing.telemetry.AgentScopeIncubatingAttributes.AGENTSCOPE_FUNCTION_NAME;
+import static io.agentscope.core.tracing.telemetry.AgentScopeIncubatingAttributes.AGENTSCOPE_SESSION_ID;
+import static io.agentscope.core.tracing.telemetry.AgentScopeIncubatingAttributes.AGENTSCOPE_USER_ID;
 import static io.agentscope.core.tracing.telemetry.AgentScopeIncubatingAttributes.GenAiOperationNameAgentScopeIncubatingValues.FORMAT;
 import static io.agentscope.core.tracing.telemetry.AttributesExtractors.getAgentRequestAttributes;
 import static io.agentscope.core.tracing.telemetry.AttributesExtractors.getAgentResponseAttributes;
@@ -34,6 +36,7 @@ import static io.agentscope.core.tracing.telemetry.GenAiIncubatingAttributes.Gen
 
 import io.agentscope.core.Version;
 import io.agentscope.core.agent.AgentBase;
+import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.formatter.AbstractBaseFormatter;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.ToolResultBlock;
@@ -95,7 +98,12 @@ public class TelemetryTracer implements Tracer {
                     spanBuilder.setAllAttributes(getCommonAttributes());
                     spanBuilder.setAttribute(
                             AGENTSCOPE_FUNCTION_NAME, getFunctionName(instance, "callAgent"));
-
+//conca 自定义 user和session信息
+                    RuntimeContext runtimeContext = instance.getRuntimeContext();
+                    if(runtimeContext!=null){
+                        spanBuilder.setAttribute(AGENTSCOPE_SESSION_ID, runtimeContext.getSessionId());
+                        spanBuilder.setAttribute(AGENTSCOPE_USER_ID, runtimeContext.getUserId());
+                    }
                     Span span = spanBuilder.startSpan();
                     Context otelContext = span.storeInContext(parentContext);
 
