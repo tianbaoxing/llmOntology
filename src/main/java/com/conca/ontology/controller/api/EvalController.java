@@ -111,7 +111,7 @@ public class EvalController {
         return ApiResponse.ok(evalService.deleteSample(name, seq));
     }
 
-    @GetMapping("/samples/from-chat")
+    @GetMapping("/samples/fromchat")
     @Operation(summary = "聊天记录沉淀", description = "提取指定会话第 msgIndex 条 AI 回答及其对应提问，"
             + "预填评测样本表单（不落盘；仅自己创建的会话，期望回答由人工补齐后走新增样本接口）")
     @Parameter(name = "sessionId", description = "会话 ID", example = "s-20260901-101530-abc")

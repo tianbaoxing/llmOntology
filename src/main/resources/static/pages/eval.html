@@ -1174,7 +1174,7 @@ loadRuns().catch(e => {
   history.replaceState(null, '', '/eval'); // 立即清除参数，避免刷新/分享时重复预填
   let d;
   try {
-    d = await api('GET', '/api/eval/samples/from-chat?sessionId=' + encodeURIComponent(sid)
+    d = await api('GET', '/api/eval/samples/fromchat?sessionId=' + encodeURIComponent(sid)
       + '&msgIndex=' + encodeURIComponent(mi));
   } catch (e) { showMsg('聊天记录提取失败：' + e.message, false); return; }
   if (!dsTabLoaded) { // 数据集 Tab 惰性加载：先初始化再切换（switchTab 内已加载则跳过）
