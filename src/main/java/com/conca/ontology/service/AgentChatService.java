@@ -1,5 +1,6 @@
 package com.conca.ontology.service;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -38,6 +39,7 @@ import io.agentscope.core.event.ToolResultDataDeltaEvent;
 import io.agentscope.core.event.ToolResultEndEvent;
 import io.agentscope.core.event.ToolResultStartEvent;
 import io.agentscope.core.event.ToolResultTextDeltaEvent;
+import io.agentscope.core.ReActAgent;
 import io.agentscope.core.model.ChatUsage;
 import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.Msg;
@@ -70,6 +72,12 @@ public class AgentChatService {
     private final ObjectProvider<HarnessAgent> agentProvider;
     private final Set<String> runningSessions = ConcurrentHashMap.newKeySet();
 
+    /** 进行中会话的所属用户（sessionId → userId），供停止接口校验归属并作用域中断 */
+    private final Map<String, String> sessionOwners = new ConcurrentHashMap<>();
+
+    /** 反射缓存：HarnessAgent 持有的底层 ReActAgent（interrupt 需按其会话作用域触发） */
+    private volatile ReActAgent delegateRef;
+
     public AgentChatService(ObjectProvider<HarnessAgent> agentProvider) {
         this.agentProvider = agentProvider;
     }
@@ -82,6 +90,60 @@ public class AgentChatService {
     /** 会话是否有流式请求进行中（供历史会话删除前互斥检查） */
     public boolean isRunning(String sessionId) {
         return sessionId != null && runningSessions.contains(sessionId);
+    }
+
+    /**
+     * 优雅停止某会话进行中的回答：向框架触发该会话作用域的 USER 中断（而非拆断连接），
+     * 框架在 handleInterrupt 时调用 saveStateToSession，把「用户问题 + 已生成的部分回答」落盘，
+     * 随后该轮流正常收尾（因此刷新后问题不再消失）。
+     * 仅允许该会话的发起用户操作；无进行中的回答返回 false。
+     */
+    public boolean stop(String sessionId, String userId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return false;
+        }
+        // 非当前用户发起的会话或已无进行中的流 → 拒绝
+        String owner = sessionOwners.get(sessionId);
+        if (owner == null || !owner.equals(userId)) {
+            return false;
+        }
+        if (!runningSessions.contains(sessionId)) {
+            return false;
+        }
+        ReActAgent delegate = delegate();
+        if (delegate == null) {
+            log.warn("无法获取底层 ReActAgent，停止功能不可用（session={}）", sessionId);
+            return false;
+        }
+        // 作用域到 (userId, sessionId) 的 USER 源中断；当前进行中的流观察到后走 handleInterrupt → 落盘
+        delegate.interrupt(userId, sessionId, null);
+        return true;
+    }
+
+    /** 反射读取 HarnessAgent 持有的底层 ReActAgent（结果缓存，agent 为单例） */
+    private ReActAgent delegate() {
+        ReActAgent d = delegateRef;
+        if (d == null) {
+            synchronized (this) {
+                d = delegateRef;
+                if (d == null) {
+                    HarnessAgent agent = agentProvider.getIfAvailable();
+                    if (agent == null) {
+                        return null;
+                    }
+                    try {
+                        Field f = HarnessAgent.class.getDeclaredField("delegate");
+                        f.setAccessible(true);
+                        d = (ReActAgent) f.get(agent);
+                        delegateRef = d;
+                    } catch (Exception e) {
+                        log.warn("反射读取 HarnessAgent.delegate 失败：{}", e.getMessage());
+                        return null;
+                    }
+                }
+            }
+        }
+        return d;
     }
 
     /** 对外提示未配置 key 时的错误文案 */
@@ -160,6 +222,7 @@ public class AgentChatService {
             emitter.complete();
             return emitter;
         }
+        sessionOwners.put(session, userId);
 
         send(emitter, "session", Map.of("sessionId", session));
 
@@ -179,6 +242,7 @@ public class AgentChatService {
         emitter.onTimeout(emitter::complete);
         emitter.onCompletion(() -> {
             runningSessions.remove(session);
+            sessionOwners.remove(session);
             heartbeat.shutdownNow();
         });
 
@@ -191,6 +255,7 @@ public class AgentChatService {
         Disposable disposable = agent.streamEvents(userMsg, ctx)
                 .doFinally(signal -> {
                     runningSessions.remove(session);
+                    sessionOwners.remove(session);
                     heartbeat.shutdownNow();
                     emitter.complete();
                 })

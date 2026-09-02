@@ -106,6 +106,17 @@ public class AgentChatController {
         return ApiResponse.ok(agentSessionService.delete(currentUserId(session), id));
     }
 
+    /** 优雅停止某会话进行中的回答：触发框架 USER 中断（落盘用户问题 + 部分回答），而非拆断连接 */
+    @PostMapping("/sessions/{id}/stop")
+    public ApiResponse<Map<String, Object>> stop(@PathVariable String id, HttpSession session) {
+        String userId = currentUserId(session);
+        boolean stopped = agentChatService.stop(id, userId);
+        if (!stopped) {
+            throw new ApiException(409, "该会话当前没有进行中的回答");
+        }
+        return ApiResponse.ok(Map.of("stopped", true));
+    }
+
     /** 拦截器已保证登录；此处兜底防御性校验 */
     private static String currentUserId(HttpSession session) {
         SessionUser u = SessionUser.of(session);

@@ -186,6 +186,8 @@ let sessionId = localStorage.getItem(SS_KEY); // 先完成声明再调 newSessio
 if (!sessionId) newSessionId();
 let streaming = false;
 let aborter = null;
+// 是否点过「停止」：触发服务端优雅中断（保留问题+部分回答），流正常收尾后提示「已停止」
+let stopRequested = false;
 // 消息渲染序号：与 GET /api/agent/sessions/{id}/messages 返回数组下标对齐（供聊天记录沉淀定位）
 let msgSeq = 0;
 let isAdminUser = false;
@@ -712,6 +714,8 @@ async function send() {
     }
     if (buf.trim()) handleSseBlock(buf, st);
     if (st.ui) st.ui.setDone(null); // 流结束兜底（round end 已处理则幂等）
+    if (stopRequested && st.ui) st.ui.answer.textContent += '\n\n（已停止）';
+    stopRequested = false;
   } catch (e) {
     if (e.name === 'AbortError') {
       if (st.ui) {
@@ -956,7 +960,16 @@ async function deleteSession(id) {
 }
 
 btnSend.addEventListener('click', send);
-btnStop.addEventListener('click', () => { if (aborter) aborter.abort(); });
+// 停止：调用服务端优雅中断（保留问题+部分回答并落盘），保持 SSE 连接由服务端正常收尾
+btnStop.addEventListener('click', async () => {
+  stopRequested = true;
+  try {
+    await fetch('/api/agent/sessions/' + encodeURIComponent(sessionId) + '/stop', { method: 'POST' });
+  } catch (e) {
+    // 停止接口异常时回退到拆断连接（该轮可能无法落盘）
+    if (aborter) aborter.abort();
+  }
+});
 inputEl.addEventListener('keydown', e => {
   if (slashOpen()) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
