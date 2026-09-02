@@ -68,18 +68,6 @@ body { display: flex; flex-direction: column; }
 .mem-toggle.on { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
 .mem-toggle input { accent-color: #2563eb; margin: 0; cursor: pointer; }
 .mem-toggle .tip { left: auto; right: 0; }
-.tools-toggle { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 16px; background: #f9fafb; color: #374151; font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; }
-.tools-toggle:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
-.tools-toggle .panel { display: none; position: absolute; bottom: calc(100% + 8px); right: 0; width: 420px; max-width: 90vw; padding: 10px 12px; background: #1f2937; color: #f9fafb; border-radius: 8px; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
-.tools-toggle:hover .panel { display: block; }
-/* 桥接按钮与面板间的 8px 间隙：鼠标穿过时保持 hover，面板不闪烁消失 */
-.tools-toggle .panel::after { content: ''; position: absolute; left: 0; right: 0; bottom: -8px; height: 8px; }
-.panel-title { font-size: 12px; color: #9ca3af; margin-bottom: 6px; }
-.panel-body { max-height: 320px; overflow-y: auto; }
-.tool-item { margin-bottom: 8px; }
-.tool-item:last-child { margin-bottom: 0; }
-.tool-item .tname2 { font-family: Consolas, monospace; color: #93c5fd; font-size: 13px; }
-.tool-item .tdesc { font-size: 12px; color: #d1d5db; line-height: 1.5; margin-top: 2px; white-space: normal; word-break: break-word; }
 .input-row { display: flex; gap: 10px; align-items: flex-end; max-width: 900px; margin: 0 auto; }
 textarea { flex: 1; width: 100%; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5; }
 textarea:focus { outline: none; border-color: #2563eb; }
@@ -125,10 +113,6 @@ textarea:focus { outline: none; border-color: #2563eb; }
           <span>记忆工具</span>
           <span class="tip" id="mem-tip"></span>
         </label>
-        <div class="tools-toggle" id="tools-toggle" style="display:none;">
-          <span>🧰 工具列表</span>
-          <div class="panel" id="tools-panel"></div>
-        </div>
       </div>
       <div class="input-row">
         <div class="slash-wrap">
@@ -322,7 +306,7 @@ memCheck.addEventListener('change', async () => {
     const j = await res.json();
     if (res.ok && j && j.code === 0 && j.data) {
       syncMemToggle(j.data);
-      loadTools(); // 记忆工具增减后刷新工具列表面板
+      loadTools(); // 记忆工具增减后刷新工具清单缓存
       return;
     }
     throw new Error((j && j.msg) || ('HTTP ' + res.status));
@@ -332,56 +316,24 @@ memCheck.addEventListener('change', async () => {
   }
 });
 
-// ---------- 工具列表面板 ----------
-// 数据来自 Toolkit 实时存活集（GET /api/agent/tools），页面展示 = 模型实际可用；
-// 悬停按钮弹出面板、移开消失（纯 CSS hover），agent 未装配或拉取失败时按钮整体隐藏；
-// 拉取结果同时缓存到 toolCache，供输入框 "/" 快捷菜单过滤使用
-const toolsToggle = $('tools-toggle');
-const toolsPanel = $('tools-panel');
+// ---------- 工具清单拉取 ----------
+// 数据来自 Toolkit 实时存活集（GET /api/agent/tools），缓存到 toolCache，
+// 供输入框 "/" 快捷菜单过滤使用
 let toolCache = [];
 
 function loadTools() {
   fetch('/api/agent/tools').then(r => r.json()).then(j => {
     if (j && j.code === 0 && j.data && j.data.agentAvailable) {
       toolCache = j.data.tools || [];
-      renderTools(j.data.tools);
     }
-  }).catch(() => { /* 拉取失败不显示按钮 */ });
-}
-
-function renderTools(tools) {
-  if (!toolsToggle || !tools || !tools.length) return; // 无工具时按钮保持隐藏
-  toolsPanel.innerHTML = '';
-  const title = document.createElement('div');
-  title.className = 'panel-title';
-  title.textContent = '可用工具 ' + tools.length + ' 个';
-  toolsPanel.appendChild(title);
-  const body = document.createElement('div');
-  body.className = 'panel-body';
-  for (const t of tools) {
-    const item = document.createElement('div');
-    item.className = 'tool-item';
-    const name = document.createElement('div');
-    name.className = 'tname2';
-    name.textContent = t.name;
-    const desc = document.createElement('div');
-    desc.className = 'tdesc';
-    desc.textContent = t.description || '（无说明）';
-    item.appendChild(name);
-    item.appendChild(desc);
-    body.appendChild(item);
-  }
-  toolsPanel.appendChild(body);
-  toolsToggle.style.display = '';
+  }).catch(() => { /* 拉取失败保持空列表 */ });
 }
 
 loadTools();
-// 悬停即拉取最新工具清单（无前端缓存）：记忆开关等一切 Toolkit 变化后，面板始终显示实时状态
-toolsToggle.addEventListener('mouseenter', loadTools);
 
 // ---------- “/” 工具快捷菜单 ----------
 // 输入框中键入 / （或 /前缀）时在输入框上方弹出工具清单，点击或 Enter 选中后
-// 将 /工具名 写回光标处；数据与「工具列表」面板同源（toolCache）
+// 将 /工具名 写回光标处；数据来自 toolCache
 const slashMenu = $('slash-menu');
 let slashItems = [];   // 当前过滤后的候选工具
 let slashActive = 0;   // 当前高亮项索引
