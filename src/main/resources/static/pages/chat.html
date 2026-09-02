@@ -151,6 +151,34 @@ const inputEl = $('input');
 const btnSend = $('btn-send');
 const btnStop = $('btn-stop');
 
+// ---------- 聊天音效（Web Audio 合成，无外部资源） ----------
+// 发送时「叮」、回答完毕（聊天终止）时「叮—当」，让用户感知回答开始与结束
+let _actx = null;
+function getCtx() {
+  if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+  return _actx;
+}
+// 合成一次"叮/当"：一个正弦音 + 指数衰减包络（清脆收尾）
+function playTone(freq, dur, delay) {
+  const ctx = getCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+  const t0 = ctx.currentTime + (delay || 0);
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.5, t0 + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.02);
+}
+// 发送音：高音短促（叮）
+const playSendSound = () => playTone(880, 0.18);
+// 完成音：低高双音（叮—当）
+const playDoneSound = () => { playTone(660, 0.35); playTone(880, 0.28, 0.12); };
+
 const SS_KEY = 'agent-chat-session';
 // 会话级 token 累计：最后一条 assistant 记录额外展示总计
 let sessionTotals = { in: 0, out: 0, lastUi: null };
@@ -650,6 +678,7 @@ async function send() {
   autoGrow();
 
   addUserMsg(text);
+  playSendSound(); // 发送即响「叮」，提示回答已开始
   const st = { ui: null }; // 当前轮次块：round start 时创建，一轮一个气泡（与历史渲染一致）
   aborter = new AbortController();
 
@@ -699,6 +728,7 @@ async function send() {
     btnStop.style.display = 'none';
     inputEl.focus();
     loadSessions(); // 本轮落盘后刷新列表（标题/时间/排序）
+    playDoneSound(); // 聊天终止（正常/出错/停止）统一响「叮—当」
   }
 }
 
