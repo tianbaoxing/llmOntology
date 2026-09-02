@@ -66,7 +66,7 @@ async function loadOverview() {
 
 // ---------------- 概念图 ----------------
 const CG_W = 1100, CG_H = 560;
-const CG = { nodes: [], edges: [], sim: 0, dragging: null };
+const CG = { nodes: [], edges: [], sim: 0, dragging: null, wasDrag: false, press: null  };
 
 async function loadConceptGraph() {
   if (!classSummaries.length) classSummaries = await api('GET', '/api/schema/classes');
@@ -176,18 +176,30 @@ function cgPoint(ev) {
 $('cg-svg').addEventListener('mousedown', ev => {
   const g = ev.target.closest('.cg-node');
   if (!g) return;
+  CG.wasDrag = false;
+  CG.press = { x: ev.clientX, y: ev.clientY };
   CG.dragging = CG.nodes.find(n => n.id === g.dataset.id);
   cancelAnimationFrame(CG.sim);
   ev.preventDefault();
 });
 document.addEventListener('mousemove', ev => {
   if (!CG.dragging) return;
+  if (!CG.wasDrag && CG.press &&
+    (Math.abs(ev.clientX - CG.press.x) > 3 || Math.abs(ev.clientY - CG.press.y) > 3))
+  CG.wasDrag = true;
   const p = cgPoint(ev);
   CG.dragging.x = p.x; CG.dragging.y = p.y; CG.dragging.vx = CG.dragging.vy = 0;
   renderConceptGraph();
 });
 document.addEventListener('mouseup', () => {
   if (CG.dragging) { CG.dragging = null; runConceptSim(); }
+});
+
+$('cg-svg').addEventListener('click', ev => {
+  const g = ev.target.closest('.cg-node');
+  if (g && !CG.wasDrag) {
+    location.href = '/instances?label=' + encodeURIComponent(g.dataset.id);
+  }
 });
 
 // ---------------- init ----------------
