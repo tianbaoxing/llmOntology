@@ -81,18 +81,7 @@ const CF = (() => {
     document.body.insertAdjacentHTML('afterbegin', `
 <div class="header">
   <div class="logo-group">
-    <svg class="logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="logo">
-      <rect x="9" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
-      <rect x="34" y="3" width="5" height="9" rx="1.5" fill="#e3b04b"/>
-      <path d="M5 11 h38 l-4.5 21 h-29 Z" fill="#e3b04b"/>
-      <path d="M14 19 L24 15.5 L34 19 L24 27.5 Z" stroke="#8a5a18" stroke-width="1.8" fill="none" opacity=".7"/>
-      <circle cx="14" cy="19" r="3" fill="#38bdf8"/>
-      <circle cx="34" cy="19" r="3" fill="#38bdf8"/>
-      <circle cx="24" cy="15.5" r="3" fill="#f8fafc"/>
-      <circle cx="24" cy="27.5" r="3" fill="#38bdf8"/>
-      <path d="M12 32 l-3 13 h6 l1.5 -13 Z" fill="#e3b04b"/>
-      <path d="M36 32 l3 13 h-6 l-1.5 -13 Z" fill="#e3b04b"/>
-    </svg>
+    <img class="logo" src="/logo.png" alt="logo"/>
     <h1 id="app-title">管理控制台</h1>
   </div>
   ${opts.extra || ''}
