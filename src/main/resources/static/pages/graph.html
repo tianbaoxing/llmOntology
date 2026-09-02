@@ -37,9 +37,22 @@ h3 { font-size: 13px; color: #6b7280; margin: 12px 0 8px; }
 .node-summary .val { flex: 1; min-width: 0; padding: 7px 12px; word-break: break-all; align-self: center; }
 .node-summary code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
 th, td { padding: 8px 10px; }
-tr.grp { cursor: pointer; }
-tr.grp:hover td { background: #f9fafb; }
-tr.grp.hl td { background: #fef3c7; }
+/* 邻居分组：与当前节点信息卡同风格的行式列表 */
+.grp-list { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+.grp { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; cursor: pointer; border-top: 1px solid #f1f5f9; background: #fff; }
+.grp:first-child { border-top: none; }
+.grp:hover { background: #f8fafc; }
+.grp.hl { background: #fef3c7; box-shadow: inset 3px 0 0 #f59e0b; }
+.g-rel { flex: 1; min-width: 0; }
+.g-rel b { display: block; font-size: 13px; color: #1f2937; font-weight: 600; line-height: 1.5; }
+.g-rel .g-dir { display: inline-block; width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; font-size: 11px; font-weight: 600; margin-right: 6px; vertical-align: -3px; }
+.g-dir.out { color: #1d4ed8; background: #dbeafe; }
+.g-dir.in { color: #047857; background: #d1fae5; }
+.g-rel code { font-size: 11px; color: #94a3b8; }
+.g-other { flex: none; display: flex; align-items: center; gap: 8px; }
+.g-node { font-size: 13px; color: #475569; }
+.g-node i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.g-cnt { min-width: 20px; text-align: center; padding: 1px 9px; border-radius: 10px; background: #eff6ff; color: #1d4ed8; font-weight: 600; font-size: 12px; }
 /* 邻居分组过滤 */
 .funnel { border: 1px solid #d1d5db; background: #fff; border-radius: 4px; cursor: pointer; padding: 1px 7px; font-size: 12px; color: #6b7280; margin-left: 6px; vertical-align: 1px; }
 .funnel:hover { border-color: #2563eb; color: #2563eb; }
@@ -349,13 +362,12 @@ function renderGroups() {
   if (cur.filter) { renderFilterSummary(); return; }
   const groups = (cur.groups || []);
   const rows = groups.map((g, i) =>
-    `<tr class="grp" data-dir="${g.dir}" data-type="${esc(g.relType)}" data-label="${esc(g.otherLabel)}" onclick="toggleHl(this)">` +
-    `<td>${g.dir === 'out' ? '出' : '入'}</td>` +
-    `<td>${esc(relCn[g.relType] || g.relType)}<div class="muted"><code>${esc(g.relType)}</code></div></td>` +
-    `<td>${esc(cnOf(g.otherLabel))}<div class="muted"><code>${esc(g.otherLabel)}</code></div></td>` +
-    `<td><b>${g.count}</b><button class="funnel" title="按此分组过滤" onclick="openPanel(event, ${i})">⊘</button></td></tr>`).join('');
+    `<div class="grp" data-dir="${g.dir}" data-type="${esc(g.relType)}" data-label="${esc(g.otherLabel)}" onclick="toggleHl(this)">` +
+    `<div class="g-rel"><b><span class="g-dir ${g.dir}">${g.dir === 'out' ? '出' : '入'}</span>${esc(relCn[g.relType] || g.relType)}</b><code>${esc(g.relType)}</code></div>` +
+    `<div class="g-other"><span class="g-node"><i style="background:${colorOf(g.otherLabel)}"></i>${esc(cnOf(g.otherLabel))}</span>` +
+    `<span class="g-cnt">${g.count}</span><button class="funnel" title="按此分组过滤" onclick="openPanel(event, ${i})">⊘</button></div></div>`).join('');
   $('groups').innerHTML = rows
-    ? `<table><tr><th>向</th><th>关系</th><th>对端类型</th><th>数量</th></tr>${rows}</table>` +
+    ? `<div class="grp-list">${rows}</div>` +
       `<div class="muted" style="margin-top:8px">点击分组高亮，⊘ 打开属性过滤（数量为全局统计）</div>`
     : '<div class="empty">该节点暂无关联关系</div>';
 }
@@ -364,7 +376,7 @@ function toggleHl(tr) {
   const d = tr.dataset;
   if (G.hl && G.hl.dir === d.dir && G.hl.type === d.type && G.hl.label === d.label) G.hl = null;
   else G.hl = { dir: d.dir, type: d.type, label: d.label };
-  document.querySelectorAll('tr.grp').forEach(r => r.classList.toggle('hl', r === tr && !!G.hl));
+  document.querySelectorAll('.grp').forEach(r => r.classList.toggle('hl', r === tr && !!G.hl));
   renderGraph();
 }
 
@@ -374,7 +386,7 @@ function openPanel(ev, i) {
   const g = (cur.groups || [])[i];
   if (!g) return;
   G.hl = null;
-  document.querySelectorAll('tr.grp').forEach(r => r.classList.remove('hl'));
+  document.querySelectorAll('.grp').forEach(r => r.classList.remove('hl'));
   panel = { dir: g.dir, relType: g.relType, otherLabel: g.otherLabel };
   renderGroups();
   renderGraph();
