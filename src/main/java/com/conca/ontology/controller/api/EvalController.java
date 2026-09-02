@@ -26,6 +26,7 @@ import com.conca.ontology.dto.request.EvalCustomGraderTestRequest;
 import com.conca.ontology.dto.request.EvalDatasetRequest;
 import com.conca.ontology.dto.request.EvalRunRequest;
 import com.conca.ontology.dto.request.EvalSampleRequest;
+import com.conca.ontology.dto.result.FromChatSampleResult;
 import com.conca.ontology.eval.EvalService;
 import com.conca.ontology.exception.ApiException;
 
@@ -108,6 +109,20 @@ public class EvalController {
     @Parameter(name = "seq", description = "非空行序号（从 1 起）", example = "1")
     public ApiResponse<Map<String, Object>> deleteSample(@PathVariable String name, @PathVariable int seq) {
         return ApiResponse.ok(evalService.deleteSample(name, seq));
+    }
+
+    @GetMapping("/samples/from-chat")
+    @Operation(summary = "聊天记录沉淀", description = "提取指定会话第 msgIndex 条 AI 回答及其对应提问，"
+            + "预填评测样本表单（不落盘；仅自己创建的会话，期望回答由人工补齐后走新增样本接口）")
+    @Parameter(name = "sessionId", description = "会话 ID", example = "s-20260901-101530-abc")
+    @Parameter(name = "msgIndex", description = "AI 回答在消息数组中的下标（从 0 起）", example = "5")
+    public ApiResponse<FromChatSampleResult> sampleFromChat(@RequestParam String sessionId,
+            @RequestParam int msgIndex, HttpSession session) {
+        SessionUser user = SessionUser.of(session);
+        if (user == null) {
+            throw new ApiException(401, "未登录或会话已过期");
+        }
+        return ApiResponse.ok(evalService.sampleFromChat(user.userId(), sessionId, msgIndex));
     }
 
     @GetMapping("/graders")

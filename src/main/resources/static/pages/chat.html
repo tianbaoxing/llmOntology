@@ -49,6 +49,11 @@ body { display: flex; flex-direction: column; }
 .err-text { color: #b91c1c; white-space: pre-wrap; }
 .usage { color: #9ca3af; font-size: 12px; margin-top: 8px; }
 .usage-total { color: #6b7280; }
+/* usage 行右侧挂「存为评测样本」入口（仅 ADMIN）：行变 flex，按钮靠右 */
+.usage.has-eval { display: flex; align-items: center; }
+.usage.has-eval .to-eval { margin-left: auto; }
+.to-eval { flex: none; border: 1px solid #e5e7eb; background: #f9fafb; color: #6b7280; font-size: 12px; padding: 2px 10px; border-radius: 12px; cursor: pointer; }
+.to-eval:hover { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
 .caret { display: inline-block; width: 7px; height: 15px; background: #2563eb; vertical-align: -2px; animation: blink .9s infinite; margin-left: 2px; }
 @keyframes blink { 50% { opacity: 0; } }
 .input-area { background: #fff; border-top: 1px solid #e5e7eb; padding: 14px 24px; }
@@ -153,6 +158,9 @@ let sessionId = localStorage.getItem(SS_KEY); // 先完成声明再调 newSessio
 if (!sessionId) newSessionId();
 let streaming = false;
 let aborter = null;
+// 消息渲染序号：与 GET /api/agent/sessions/{id}/messages 返回数组下标对齐（供聊天记录沉淀定位）
+let msgSeq = 0;
+let isAdminUser = false;
 
 // 标题与提示语中的图谱名均取自 app.title（/api/app），失败保留默认文案
 let appTitle = '';
@@ -177,7 +185,41 @@ fetch('/api/app').then(r => r.json()).then(j => {
 
 // 会话控制（header 渲染 + 登录校验 + 管理菜单显隐）由 common.js 提供
 CF.renderHeader();
-CF.initUser();
+// ADMIN 登录后为已完成回答补挂「存为评测样本」入口（历史消息可能先于用户信息返回渲染）
+CF.initUser(me => {
+  if (me && me.role === 'ADMIN') {
+    isAdminUser = true;
+    retroEvalBtns();
+  }
+});
+
+// ---------- 聊天记录沉淀（仅 ADMIN） ----------
+/** 已完成回答的 usage 行右侧挂「存为评测样本」按钮：跳转 /eval 预填新增样本表单 */
+function addEvalBtn(root) {
+  if (!isAdminUser || !root || root.querySelector('.to-eval')) return;
+  const idx = root.dataset.msgIndex;
+  if (idx == null) return;
+  let row = root.querySelector('.usage:not(.usage-total)');
+  if (!row) { // 无时间/tokens 信息的消息也保留入口（空行仅含按钮）
+    row = document.createElement('div');
+    row.className = 'usage';
+    root.appendChild(row);
+  }
+  const btn = document.createElement('button');
+  btn.className = 'to-eval';
+  btn.textContent = '存为评测样本';
+  btn.title = '沉淀到评测中心：预填问题与回答，期望回答需人工补齐';
+  btn.addEventListener('click', () => {
+    location.href = '/eval?fromChat=' + encodeURIComponent(sessionId) + '&msgIndex=' + encodeURIComponent(idx);
+  });
+  row.classList.add('has-eval');
+  row.appendChild(btn);
+}
+
+/** 角色信息晚于消息渲染到达时，回溯为全部已完成回答补挂入口 */
+function retroEvalBtns() {
+  document.querySelectorAll('.msg-agent').forEach(n => addEvalBtn(n));
+}
 
 // ---------- 技能快捷插入 ----------
 // 技能清单来自 HarnessAgent 已装配的技能仓库（/api/agent/skills），
@@ -425,6 +467,7 @@ function addNode(html) {
 
 function addUserMsg(text) {
   addNode('<div class="msg-user"></div>').textContent = text;
+  msgSeq++;
 }
 
 function addAgentMsg() {
@@ -435,6 +478,7 @@ function addAgentMsg() {
       '<div class="answer"></div>' +
       '<span class="caret" style="display:none;"></span>' +
     '</div>');
+  node.dataset.msgIndex = String(msgSeq++); // 与 /messages 数组下标对齐（user/assistant 顺序计数）
   return {
     root: node,
     thinkBox: node.querySelector('.think-box'),
@@ -452,7 +496,7 @@ function addAgentMsg() {
       this.caret.style.display = 'none';
       const timeStr = fmtTime(ts || this.startTime);
       const hasUsage = usage && (usage.promptTokens != null || usage.completionTokens != null);
-      if (!timeStr && !hasUsage) return;
+      if (!timeStr && !hasUsage && !isAdminUser) return;
       const u = document.createElement('div');
       u.className = 'usage';
       let text = timeStr;
@@ -460,8 +504,9 @@ function addAgentMsg() {
         const tok = 'tokens: 输入 ' + (usage.promptTokens || 0) + ' / 输出 ' + (usage.completionTokens || 0);
         text = text ? text + ' · ' + tok : tok;
       }
-      u.textContent = text;
+      if (text) u.textContent = text;
       this.root.appendChild(u);
+      addEvalBtn(this.root); // 「存为评测样本」挂 usage 行右侧（非 ADMIN 自动跳过）
     },
     setError(msg) {
       this.caret.style.display = 'none';
@@ -797,6 +842,7 @@ async function switchSession(id) {
 
 async function loadMessages() {
   messagesEl.innerHTML = '';
+  msgSeq = 0; // 与 /messages 数组下标重新对齐（user/assistant 渲染顺序计数）
   let msgs = null;
   try {
     const res = await fetch('/api/agent/sessions/' + encodeURIComponent(sessionId) + '/messages');

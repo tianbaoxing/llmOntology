@@ -244,6 +244,11 @@ tr.diff-imp td { background: #f0fdf4; }
       <div class="modal-head"><h2 id="sm-title">新增记录</h2></div>
       <div class="modal-body">
         <div class="field">
+          <label>数据集<span class="req">*</span></label>
+          <select id="sm-dataset" onchange="onSmDatasetChange()"></select>
+          <div class="hint" id="sm-dataset-hint">保存落到所选数据集；编辑记录时不可切换</div>
+        </div>
+        <div class="field">
           <label>id</label>
           <input type="text" id="sm-id" placeholder="留空自动生成">
         </div>
@@ -277,6 +282,7 @@ tr.diff-imp td { background: #f0fdf4; }
           <div class="hint">非空则评测时跳过 agent 直接判分</div>
         </div>
         <div class="muted" id="sm-raw-hint" style="display:none"></div>
+        <div id="sm-from-chat-hint" style="display:none;background:#eff6ff;color:#1d4ed8;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.6"></div>
       </div>
       <div class="modal-foot">
         <button class="btn ghost" onclick="closeSampleModal()">取消</button>
@@ -736,18 +742,27 @@ async function initDsTab() {
   if (dsState.name) await loadSamples(1); else renderSamples([]);
 }
 
+const DS_LAST_KEY = 'eval-dataset-last'; // 记住上次使用的数据集（弹窗选择 + 沉淀预填沿用）
+
 async function loadDsSelector(keep) {
   const d = await api('GET', '/api/eval/datasets');
   const sel = $('ds-name');
   sel.innerHTML = d.datasets.length
     ? d.datasets.map(ds => `<option value="${esc(ds.name)}">${esc(ds.name)}（${ds.count} 条）</option>`).join('')
     : '<option value="">（无数据集，请先新建）</option>';
-  if (keep && d.datasets.some(x => x.name === keep)) sel.value = keep;
+  // 选中优先级：显式 keep > 上次使用（localStorage）> 列表第一项
+  let target = keep || localStorage.getItem(DS_LAST_KEY) || '';
+  if (!d.datasets.some(x => x.name === target)) {
+    target = d.datasets.length ? d.datasets[0].name : '';
+  }
+  if (target) sel.value = target;
   dsState.name = sel.value || null;
+  if (dsState.name) localStorage.setItem(DS_LAST_KEY, dsState.name);
 }
 
 function onDsChange() {
   dsState.name = $('ds-name').value || null;
+  if (dsState.name) localStorage.setItem(DS_LAST_KEY, dsState.name);
   loadSamples(1).catch(e => showMsg('加载失败：' + e.message, false));
 }
 
@@ -831,15 +846,33 @@ function detectRefType(v) {
   return 'string';
 }
 
+/** 弹窗数据集选择变化：同步标题；新增时切换目标数据集（保存落到所选数据集） */
+function onSmDatasetChange() {
+  const name = $('sm-dataset').value;
+  if (smModal.mode === 'add') {
+    $('sm-title').textContent = '新增记录（' + name + '）';
+  } else {
+    $('sm-title').textContent = '编辑第 ' + smModal.seq + ' 条（' + name + '）';
+  }
+}
+
 function openSampleModal(mode, seq) {
   if (!dsState.name) return showMsg('请先选择数据集', false);
   smModal = { mode, seq: seq || 0 };
-  $('sm-title').textContent = mode === 'add' ? '新增记录（' + dsState.name + '）' : '编辑第 ' + seq + ' 条（' + dsState.name + '）';
+  // 弹窗内数据集下拉：与外部下拉同源；新增可选任意数据集，编辑锁定当前（seq 按数据集内序号定位）
+  const selDs = $('sm-dataset');
+  const opts = [...$('ds-name').options].map(o => o.outerHTML).join('');
+  selDs.innerHTML = opts || '<option value="">（无数据集）</option>';
+  selDs.value = dsState.name;
+  selDs.disabled = mode === 'edit';
+  onSmDatasetChange();
   $('sm-id').value = ''; $('sm-query').value = '';
   $('sm-reftype').value = ''; $('sm-reftext').value = '';
   $('sm-tolerance').value = ''; $('sm-response').value = '';
   $('sm-raw-hint').style.display = 'none';
   $('sm-raw-hint').textContent = '';
+  $('sm-from-chat-hint').style.display = 'none';
+  $('sm-from-chat-hint').textContent = '';
   if (mode === 'edit') {
     // 取当前页数据回填（列表刚加载，内存一致）
     api('GET', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples?page=' + dsState.page
@@ -867,7 +900,9 @@ function openSampleModal(mode, seq) {
 function closeSampleModal() { $('sm-modal').style.display = 'none'; }
 
 async function saveSample() {
-  if (!dsState.name) return;
+  // 目标数据集以弹窗内选择为准（新增可切换；编辑锁定为当前数据集）
+  const target = smModal.mode === 'add' ? $('sm-dataset').value : dsState.name;
+  if (!target) return showMsg('请选择数据集', false);
   const query = $('sm-query').value.trim();
   if (!query) return showMsg('query 不能为空', false);
   const refType = $('sm-reftype').value;
@@ -885,11 +920,13 @@ async function saveSample() {
   if (tol !== '' && isNaN(body.tolerance)) return showMsg('容差须为数字', false);
   try {
     if (smModal.mode === 'add') {
-      await api('POST', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples', body);
-      showMsg('已新增（文件现 ' + await lastTotal() + ' 条）', true);
+      await api('POST', '/api/eval/datasets/' + encodeURIComponent(target) + '/samples', body);
+      showMsg('已新增到 ' + target + '（文件现 ' + await lastTotal(target) + ' 条）', true);
+      // 目标数据集非当前展示时切换过去（外部下拉 + 记忆同步），跳到最后一页
+      if (target !== dsState.name) await loadDsSelector(target);
       await loadSamples(999999); // 越界自动收敛到最后一页
     } else {
-      await api('PUT', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples/' + smModal.seq, body);
+      await api('PUT', '/api/eval/datasets/' + encodeURIComponent(target) + '/samples/' + smModal.seq, body);
       showMsg('已保存', true);
       await loadSamples(dsState.page);
     }
@@ -898,8 +935,8 @@ async function saveSample() {
   } catch (e) { showMsg('保存失败：' + e.message, false); }
 }
 
-async function lastTotal() {
-  const d = await api('GET', '/api/eval/datasets/' + encodeURIComponent(dsState.name)
+async function lastTotal(name) {
+  const d = await api('GET', '/api/eval/datasets/' + encodeURIComponent(name)
     + '/samples?page=1&pageSize=1');
   return d.total;
 }
@@ -1126,6 +1163,35 @@ loadRuns().catch(e => {
   $('ev-runs').innerHTML = '<div class="msg err">历史评测加载失败：' + esc(e.message)
     + '｜可直开 <a href="/api/eval/runs" target="_blank">/api/eval/runs</a> 核对原始返回</div>';
 });
+
+// ---------------- 聊天记录沉淀（chat 页「存为评测样本」带参跳转进入） ----------------
+// URL: /eval?fromChat={sessionId}&msgIndex={n} → 提取问答对 → 切数据集 Tab 预填新增样本表单
+(async () => {
+  const qs = new URLSearchParams(location.search);
+  const sid = qs.get('fromChat');
+  const mi = qs.get('msgIndex');
+  if (!sid || mi === null) return;
+  history.replaceState(null, '', '/eval'); // 立即清除参数，避免刷新/分享时重复预填
+  let d;
+  try {
+    d = await api('GET', '/api/eval/samples/from-chat?sessionId=' + encodeURIComponent(sid)
+      + '&msgIndex=' + encodeURIComponent(mi));
+  } catch (e) { showMsg('聊天记录提取失败：' + e.message, false); return; }
+  if (!dsTabLoaded) { // 数据集 Tab 惰性加载：先初始化再切换（switchTab 内已加载则跳过）
+    dsTabLoaded = true;
+    try { await initDsTab(); } catch (e) { showMsg('数据集加载失败：' + e.message, false); return; }
+  }
+  switchTab('ds');
+  if (!dsState.name) { showMsg('尚无数据集，请先新建数据集再沉淀', false); return; }
+  openSampleModal('add');
+  $('sm-query').value = d.query || '';
+  $('sm-response').value = d.answer || ''; // 预填预置回答：评测时跳过 agent 直接判分（省成本）
+  const hint = $('sm-from-chat-hint');
+  hint.style.display = '';
+  hint.textContent = '来自会话 ' + (sid.length > 8 ? sid.slice(0, 8) + '…' : sid) + ' 第 ' + d.turnIndex + ' 问：已预填问题与预置回答。'
+    + '请补「期望回答」。若问题含指代（如“它/这件”），请改写为独立问题，或清空预置回答改为 agent 现场作答';
+  $('sm-reftext').focus();
+})();
 </script>
 </body>
 </html>

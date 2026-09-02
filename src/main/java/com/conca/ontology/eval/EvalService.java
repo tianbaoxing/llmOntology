@@ -31,8 +31,10 @@ import org.springframework.stereotype.Service;
 import com.conca.ontology.dto.request.EvalCustomGraderRequest;
 import com.conca.ontology.dto.request.EvalCustomGraderTestRequest;
 import com.conca.ontology.dto.request.EvalSampleRequest;
+import com.conca.ontology.dto.result.FromChatSampleResult;
 import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
 import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.service.AgentSessionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -107,6 +109,7 @@ public class EvalService {
     private final ObjectMapper mapper;
     private final JudgeClient judgeClient;
     private final AgenticJudgeHolder agenticJudgeHolder;
+    private final AgentSessionService agentSessionService;
     private final Map<String, Grader> graders = new TreeMap<>();
 
     @Value("${app.eval.dataset-dir:data/eval/datasets}")
@@ -128,11 +131,13 @@ public class EvalService {
 
     public EvalService(ObjectProvider<HarnessAgent> agentProvider,
             ObjectMapper mapper, JudgeClient judgeClient, AgenticJudgeHolder agenticJudgeHolder,
+            AgentSessionService agentSessionService,
             List<Grader> graderBeans, CustomGraderStore customGraderStore) {
         this.agentProvider = agentProvider;
         this.mapper = mapper;
         this.judgeClient = judgeClient;
         this.agenticJudgeHolder = agenticJudgeHolder;
+        this.agentSessionService = agentSessionService;
         this.customGraderStore = customGraderStore;
         for (Grader g : graderBeans) {
             graders.put(g.name(), g);
@@ -218,6 +223,42 @@ public class EvalService {
         m.put("pages", pages);
         m.put("samples", new ArrayList<>(slice));
         return m;
+    }
+
+    /**
+     * 聊天记录沉淀：提取指定会话第 msgIndex 条 AI 回答及其对应提问（预填样本表单，不落盘）。
+     * 复用 AgentSessionService.messages 的会话隔离（越权/不存在 404）；期望回答由人工补齐后走 addSample。
+     */
+    @SuppressWarnings("unchecked")
+    public FromChatSampleResult sampleFromChat(String userId, String sessionId, int msgIndex) {
+        Map<String, Object> data = agentSessionService.messages(userId, sessionId);
+        List<Map<String, Object>> msgs = (List<Map<String, Object>>) data.get("messages");
+        if (msgs == null || msgIndex < 0 || msgIndex >= msgs.size()) {
+            throw new ApiException(400, "msgIndex 越界（会话共 " + (msgs == null ? 0 : msgs.size()) + " 条消息）");
+        }
+        Map<String, Object> target = msgs.get(msgIndex);
+        if (!"assistant".equals(target.get("role"))) {
+            throw new ApiException(400, "msgIndex 必须指向 AI 回答消息");
+        }
+        String answer = target.get("answer") == null ? "" : String.valueOf(target.get("answer"));
+        if (answer.isBlank()) {
+            throw new ApiException(400, "该消息无回答内容，无法沉淀");
+        }
+        // 最近一条 user 消息即提问；turnIndex = 该回答之前的 user 消息数（第几问）
+        String query = null;
+        int turnIndex = 0;
+        for (int i = 0; i < msgIndex; i++) {
+            Map<String, Object> m = msgs.get(i);
+            if ("user".equals(m.get("role"))) {
+                turnIndex++;
+                query = m.get("content") == null ? "" : String.valueOf(m.get("content"));
+            }
+        }
+        if (query == null || query.isBlank()) {
+            throw new ApiException(400, "未找到对应的提问");
+        }
+        String ts = target.get("ts") == null ? "" : String.valueOf(target.get("ts"));
+        return new FromChatSampleResult(sessionId, msgIndex, query, answer, ts, turnIndex, msgs.size());
     }
 
     /** 新增一条样本（校验后追加一行） */
