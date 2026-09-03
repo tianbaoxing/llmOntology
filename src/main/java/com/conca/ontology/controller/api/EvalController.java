@@ -221,7 +221,7 @@ public class EvalController {
         return ApiResponse.ok(evalService.progress(id));
     }
 
-    @PostMapping("/runs/{id}/human-scores")
+    @PostMapping("/runs/{id}/humanscores")
     @Operation(summary = "人工评分", description = "对含 human_review 评测器的任务逐样本打分（1-5 星，可跳过）；"
             + "打分写回结果文件并重算汇总，全部样本评完任务状态翻转 success；可重复提交覆盖修改（留 grader/scoredAt 留痕）")
     @Parameter(name = "id", description = "任务 id（eval-时间-随机码）", example = "eval-20260902-100000-a1b")

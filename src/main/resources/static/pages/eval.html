@@ -584,7 +584,7 @@ async function submitHumanScore(skip) {
   const body = { sampleId: s.id, skip: !!skip };
   if (!skip) { body.rawScore = st.draft.star; body.comment = st.draft.comment; }
   try {
-    await api('POST', '/api/eval/runs/' + encodeURIComponent(st.taskId) + '/human-scores', body);
+    await api('POST', '/api/eval/runs/' + encodeURIComponent(st.taskId) + '/humanscores', body);
     showMsg(skip ? '已跳过' : '已评分 ' + st.draft.star + '/5', true);
     const p = await api('GET', '/api/eval/runs/' + encodeURIComponent(st.taskId));
     if (p.result) {
