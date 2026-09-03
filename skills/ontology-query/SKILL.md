@@ -12,7 +12,7 @@ description: "Queries ontology schema first, then generates read-only Cypher and
 - 文件兜底：当图谱无结果或证据不足时，从已上传文件中搜索补充证据
 - 构建背景：当问题属于构建背景且图谱无法回答时，可回查 `ontology-profile.json`
 
-默认服务地址：`http://localhost:9876`。如用户提供了别的地址，优先使用用户给定地址；也可用环境变量 `ONTOLOGY_BASE_URL` 覆盖。
+默认服务地址不写死：运行 `scripts/env.py` 获取默认服务地址。如用户提供了别的地址，优先使用用户给定地址；也可用环境变量 `ONTOLOGY_BASE_URL` 覆盖。
 
 ## Step 0 通道探测（最先执行）
 
