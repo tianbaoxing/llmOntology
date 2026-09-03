@@ -401,6 +401,9 @@ function renderSlashMenu() {
     const desc = document.createElement('div');
     desc.className = 's-desc';
     desc.textContent = t.description || '（无说明）';
+    if(t.type){
+      desc.textContent =  '(' + t.type + ')' + ' ' + desc.textContent;
+    }
     item.appendChild(name);
     item.appendChild(desc);
     // mousedown 阻止默认，避免点击瞬间失焦导致菜单先被 blur 收起；

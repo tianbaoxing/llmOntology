@@ -47,6 +47,7 @@ import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ToolResultState;
 import io.agentscope.core.tool.AgentTool;
+import io.agentscope.core.tool.ToolBase;
 import io.agentscope.harness.agent.HarnessAgent;
 import reactor.core.Disposable;
 
@@ -170,11 +171,37 @@ public class AgentChatService {
                 continue;
             }
             String desc = tool.getDescription();
+            String type = "";
+            if (tool instanceof ToolBase toolBase) {
+                if (toolBase.isMcp()) {
+                    type = "mcp";
+                } else {
+                    type = isFrameworkTool(tool) ? "内置工具" : "自定义工具";
+                }
+            }
+
             tools.add(Map.of(
                     "name", name,
-                    "description", desc == null ? "" : desc));
+                    "description", desc == null ? "" : desc,
+                    "type",type));
         }
         return tools;
+    }
+
+    /** 被包装的工具对象是否来自框架自身包（io.agentscope.*） */
+    private static boolean isFrameworkTool(AgentTool tool) {
+        try {
+            java.lang.reflect.Method m = tool.getClass().getDeclaredMethod("getToolObject");
+            m.setAccessible(true); // 包私有方法，跨包反射必须显式开放
+            Object target = m.invoke(tool);
+            return target == null || target.getClass().getName().startsWith("io.agentscope.");
+        } catch (NoSuchMethodException e) {
+            // 非 ReflectiveFunctionTool 包装（直接继承 ToolBase 的类），按自身类名判断
+            return tool.getClass().getName().startsWith("io.agentscope.");
+        } catch (Exception e) {
+            // 反射失败时保守视为框架工具，避免误标自定义
+            return true;
+        }
     }
 
     /**
