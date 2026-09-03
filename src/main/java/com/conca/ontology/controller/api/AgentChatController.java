@@ -73,6 +73,14 @@ public class AgentChatController {
                 "tools", agentChatService.listTools()));
     }
 
+    /** 子 Agent 清单（注册表模板数，不实例化）；agent 未装配时为空列表 */
+    @GetMapping("/subagents")
+    public ApiResponse<Map<String, Object>> subagents() {
+        return ApiResponse.ok(Map.of(
+                "agentAvailable", agentChatService.isAvailable(),
+                "subagents", agentChatService.listSubagents()));
+    }
+
     /** 记忆工具开关状态；activeTools 为 Toolkit 实际存活集（与开关值对账，前端以它为准） */
     @GetMapping("/memory-tools")
     public ApiResponse<Map<String, Object>> memoryTools() {

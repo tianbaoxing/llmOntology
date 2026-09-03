@@ -204,6 +204,36 @@ public class AgentChatService {
     }
 
     /**
+     * 子 Agent 清单：从 HarnessAgent 的 SubagentManager 注册表实时读取，
+     * 仅读已注册的子 agent 模板（不实例化）。chat 页并入技能行做展示。
+     */
+    public List<Map<String, String>> listSubagents() {
+        List<Map<String, String>> subs = new ArrayList<>();
+        HarnessAgent agent = agentProvider.getIfAvailable();
+        if (agent == null) {
+            return subs;
+        }
+        var manager = agent.getSubagentAgentManager();
+        if (manager == null) {
+            return subs;
+        }
+        List<String> ids = new ArrayList<>(manager.getAgentFactories().keySet());
+        Collections.sort(ids);
+        for (String id : ids) {
+            Map<String, String> m = new LinkedHashMap<>();
+            m.put("agentId", id);
+            manager.getDeclaration(id).ifPresent(d -> {
+                if (d.getDescription() != null) m.put("description", d.getDescription());
+                if (d.getModel() != null) m.put("model", d.getModel());
+                if (d.getMode() != null) m.put("mode", d.getMode().name());
+            });
+            subs.add(m);
+        }
+        return subs;
+    }
+
+
+    /**
      * 流式问答：订阅 streamEvents 并逐事件转发到 SseEmitter。
      * userId 为当前登录用户（会话/记忆按用户隔离，落盘在 workspace/{userId}/ 下）。
      */

@@ -58,7 +58,7 @@ body { display: flex; flex-direction: column; }
 @keyframes blink { 50% { opacity: 0; } }
 .input-area { background: #fff; border-top: 1px solid #e5e7eb; padding: 14px 24px; }
 .tools-bar { display: flex; align-items: center; gap: 8px; max-width: 900px; margin: 0 auto 10px; }
-.skills-row { display: none; gap: 8px; flex: 1; overflow-x: auto; padding-bottom: 2px; }
+.skills-row { display: none; gap: 8px; flex: 1; flex-wrap: wrap; padding-bottom: 2px; }
 .skills-row.show { display: flex; }
 .skill-chip { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 16px; background: #f9fafb; color: #374151; font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; }
 .skill-chip:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
@@ -268,6 +268,27 @@ function insertSkill(name) {
   inputEl.selectionStart = inputEl.selectionEnd = pos + tag.length;
   inputEl.focus();
   autoGrow();
+}
+
+// ---------- 子 Agent 数量（并入技能行） ----------
+// 数量来自 HarnessAgent SubagentManager 注册表（/api/agent/subagents），纯展示不实例化；
+// 仅当存在子 agent 时渲染（>0），避免出现「子Agent 0」噪音
+fetch('/api/agent/subagents').then(r => r.json()).then(j => {
+  if (j && j.code === 0) renderSubagents(j.data && j.data.subagents);
+}).catch(() => { /* 拉取失败不显示，不影响聊天 */ });
+
+function renderSubagents(subagents) {
+  const row = $('skills-row');
+  if (!row || !Array.isArray(subagents) || !subagents.length) return;
+  const chip = document.createElement('span');
+  chip.className = 'skill-chip';
+  chip.textContent = '🤖 子Agent ' + subagents.length;
+  const tip = document.createElement('span');
+  tip.className = 'tip';
+  tip.textContent = subagents.map(s => s.agentId).join('、');
+  chip.appendChild(tip);
+  row.appendChild(chip);
+  if (!row.classList.contains('show')) row.classList.add('show');
 }
 
 // ---------- 记忆工具开关 ----------
