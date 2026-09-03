@@ -64,6 +64,12 @@ details.static-item > summary:hover { background: #f9fafb; border-radius: 8px; }
 .tool-name { font-weight: 600; }
 #sd-messages .muted { font-size: 13px; }
 
+/* 子 Agent 调用 */
+.sub-link { font-size: 12px; color: #1d4ed8; text-decoration: none; }
+.sub-link:hover { text-decoration: underline; }
+#sd-usage details .sub-link { display: inline-block; margin: 8px 0 4px; }
+details.static-item .role-chip.tool { flex-shrink: 0; }
+
 /* 调用统计 */
 .usage-h { font-size: 14px; font-weight: 600; color: #374151; margin: 0 0 8px; }
 .usage-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13px; }
@@ -113,7 +119,7 @@ details.static-item > summary:hover { background: #f9fafb; border-radius: 8px; }
   </div>
   <div class="card">
     <h2>工具调用与技能加载</h2>
-    <div class="muted" style="margin-bottom:10px">从会话消息中汇总：各工具的调用次数，以及通过 load_skill 加载的技能</div>
+    <div class="muted" style="margin-bottom:10px">从会话消息中汇总：各工具的调用次数、子 Agent 的调用（agent_spawn 等），以及通过 load_skill 加载的技能</div>
     <div id="sd-usage"></div>
   </div>
   <div class="card">
@@ -275,13 +281,32 @@ function renderStatic(d) {
   el.innerHTML = html || '<div class="muted">无静态上下文</div>';
 }
 
-/** 工具调用与技能加载：从消息的工具调用记录汇总（load_skill* 调用额外解析技能名与描述） */
+/** 工具调用与技能加载：从消息的工具调用记录汇总（load_skill* 解析技能，agent_* 解析子 Agent 调用） */
 function renderUsage(d) {
   const el = $('sd-usage');
   const counts = new Map();
   const skills = new Map();
+  const subagentCalls = [];
   (d.messages || []).forEach(m => (m.tools || []).forEach(t => {
     counts.set(t.name, (counts.get(t.name) || 0) + 1);
+    
+    if (/^agent_s/.test(t.name || '')) {
+      let input = {};
+      try { input = JSON.parse(t.input || '{}'); } catch (e) {}
+      const out = t.output || '';
+      const pick = re => ((re.exec(out) || [])[1] || '').trim();
+      subagentCalls.push({
+        tool: t.name,
+        task: input.task || '',
+        agentId: String(input.agent_id || '').trim() || pick(/^agent_id:\s*(.+)$/m),
+        subSessionId: pick(/^session_id:\s*(.+)$/m),
+        status: pick(/^status:\s*(.+)$/m),
+        reply: out.indexOf('reply:') >= 0 ? out.slice(out.indexOf('reply:') + 6).trim() : '',
+        outFirstLine: out.split('\n')[0] || ''
+      });
+    }
+
+
     if (/^load_skill/.test(t.name || '')) {
       const out = t.output || '';
       let id = (/Successfully loaded skill:\s*(.+)/.exec(out) || [])[1] || '';
@@ -309,6 +334,28 @@ function renderUsage(d) {
       '<span class="usage-num">' + n + ' 次</span></div>').join('');
   } else {
     html += '<div class="usage-h">工具调用</div><div class="muted">本会话无工具调用</div>';
+  }
+  html += '<div class="usage-h" style="margin-top:14px">子 Agent 调用（共 ' + subagentCalls.length + ' 次）</div>';
+  if (subagentCalls.length) {
+    html += subagentCalls.map(c => `
+      <details class="static-item" style="margin-top:8px">
+        <summary>
+          <span class="role-chip tool">子 Agent</span><span class="static-name">${code(c.tool)}</span>
+          ${c.agentId ? '<span class="tok-chip">' + esc(c.agentId) + '</span>' : ''}
+          ${c.status ? '<span class="tok-chip' + (c.status === 'ok' ? ' real' : '') + '">' + esc(c.status) + '</span>' : ''}
+          <span class="static-desc">${esc((c.task || c.outFirstLine).slice(0, 60))}</span>
+        </summary>
+        <div class="static-body">
+          ${c.task ? '<div class="io-label">任务</div><pre>' + esc(c.task) + '</pre>' : ''}
+          ${c.agentId ? '<div class="io-label" style="margin-top:8px">Agent ID</div><pre>' + esc(c.agentId) + '</pre>' : ''}
+          ${c.subSessionId ? '<div class="io-label" style="margin-top:8px">子会话 ID</div><pre>' + esc(c.subSessionId) + '</pre>' +
+            '<a class="sub-link" href="/session-detail?sessionId=' + encodeURIComponent(c.subSessionId) + (viewUserId ? '&amp;userId=' + encodeURIComponent(viewUserId) : '') + '">查看子会话详情 →</a>' : ''}
+          ${c.reply ? '<div class="io-label" style="margin-top:8px">回复</div><pre>' + esc(c.reply) + '</pre>' : ''}
+          ${!c.task && !c.agentId && !c.reply ? '<pre>' + esc(c.outFirstLine) + '</pre>' : ''}
+        </div>
+      </details>`).join('');
+  } else {
+    html += '<div class="muted">本会话未调用子 Agent</div>';
   }
   const skillList = [...skills.values()];
   html += '<div class="usage-h" style="margin-top:14px">技能加载（' + skillList.length + ' 个）</div>';
