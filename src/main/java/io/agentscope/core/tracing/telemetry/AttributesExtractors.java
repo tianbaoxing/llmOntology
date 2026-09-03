@@ -258,10 +258,16 @@ final class AttributesExtractors {
                 internalSet(builder, GEN_AI_TOOL_DESCRIPTION, tool.getDescription());
                  // 工具来源标记（MCP / 嵌入式），供 Studio 工具监控页 tool_source 列使用
                 if (tool instanceof ToolBase toolBase) {
+                    String type = "";
+                    if (toolBase.isMcp()) {
+                        type = "mcp";
+                    } else {
+                        type = isFrameworkTool(tool) ? "builtin" : "external";
+                    }
                     internalSet(
                             builder,
                             GEN_AI_TOOL_TYPE,
-                            toolBase.isMcp() ? "mcp" : toolBase.isExternalTool() ? "external" : "builtin");
+                            type);
                 }
             }
         }
@@ -270,6 +276,22 @@ final class AttributesExtractors {
         parameters.put("param", toolUseBlock);
         internalSet(builder, AGENTSCOPE_FUNCTION_INPUT, serializeToStr(parameters));
         return builder.build();
+    }
+
+    /** 被包装的工具对象是否来自框架自身包（io.agentscope.*） */
+    private static boolean isFrameworkTool(AgentTool tool) {
+        try {
+            java.lang.reflect.Method m = tool.getClass().getDeclaredMethod("getToolObject");
+            m.setAccessible(true); // 包私有方法，跨包反射必须显式开放
+            Object target = m.invoke(tool);
+            return target == null || target.getClass().getName().startsWith("io.agentscope.");
+        } catch (NoSuchMethodException e) {
+            // 非 ReflectiveFunctionTool 包装（直接继承 ToolBase 的类），按自身类名判断
+            return tool.getClass().getName().startsWith("io.agentscope.");
+        } catch (Exception e) {
+            // 反射失败时保守视为框架工具，避免误标自定义
+            return true;
+        }
     }
 
     /**
