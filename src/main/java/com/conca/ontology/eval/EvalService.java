@@ -687,10 +687,11 @@ public class EvalService {
         if (saved == null) {
             throw new ApiException(404, "task not found: " + taskId);
         }
+        boolean awaiting = "awaiting_human".equals(saved.get("status"));
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("taskId", taskId);
-        m.put("status", "success");
-        m.put("detail", "历史任务（从结果文件读取）");
+        m.put("status", saved.get("status") == null ? "success" : saved.get("status"));
+        m.put("detail", awaiting ? "人工评分待完成（从结果文件读取）" : "历史任务（从结果文件读取）");
         m.put("percent", 100);
         m.put("error", null);
         m.put("resultFile", taskId + ".json");
@@ -717,6 +718,7 @@ public class EvalService {
                     Map<String, Object> saved = mapper.readValue(p.toFile(), Map.class);
                     m.put("dataset", saved.get("dataset"));
                     m.put("finishedAt", saved.get("finishedAt"));
+                    m.put("status", saved.get("status") == null ? "success" : saved.get("status"));
                     m.put("summary", saved.get("summary"));
                 } catch (Exception e) {
                     m.put("error", "结果文件解析失败: " + e.getMessage());
@@ -742,6 +744,121 @@ public class EvalService {
             throw new ApiException(404, "评测结果不存在: " + taskId);
         }
         return p;
+    }
+
+    // ---------------- 人工评分（human_review 评测器） ----------------
+
+    /**
+     * 人工评分：定位样本的 human_review 占位分并原地替换为真实分（或标记跳过），
+     * 重算 summary 并原子写回结果文件（文件是唯一真源，服务重启后仍可打分）。
+     * 全部样本已评/已跳过 → 任务状态翻转 success；内存 Task 同步更新（若仍在）。
+     * 同一任务可重复打分（覆盖修改，metadata.human.scoredAt 更新留痕）。
+     */
+    public synchronized Map<String, Object> humanScore(String taskId, String sampleId,
+            Integer rawScore, String comment, Boolean skip, String userId) {
+        Map<String, Object> result = requireResult(taskId);
+        if (!graderNames(result).contains("human_review")) {
+            throw new ApiException(400, "该任务未启用人工评测器（human_review），无需人工评分");
+        }
+        boolean doSkip = Boolean.TRUE.equals(skip);
+        if (!doSkip) {
+            if (rawScore == null || rawScore < 1 || rawScore > 5) {
+                throw new ApiException(400, "rawScore 须在 1-5 之间（1 星最低，5 星最高）");
+            }
+        }
+        List<Map<String, Object>> samples = (List<Map<String, Object>>) result.get("samples");
+        Map<String, Object> row = null;
+        for (Map<String, Object> r : samples) {
+            if (sampleId.equals(String.valueOf(r.get("id")))) {
+                row = r;
+                break;
+            }
+        }
+        if (row == null) {
+            throw new ApiException(404, "样本不存在: " + sampleId);
+        }
+        List<Map<String, Object>> scores = (List<Map<String, Object>>) row.get("scores");
+        int idx = -1;
+        for (int i = 0; i < scores.size(); i++) {
+            if ("human_review".equals(scores.get(i).get("name"))) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx < 0) {
+            throw new ApiException(400, "该样本未包含人工评测器占位分");
+        }
+        String text = comment == null ? "" : comment.trim();
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("grader", userId);
+        meta.put("scoredAt", LocalDateTime.now().toString());
+        meta.put("comment", text);
+        Map<String, Object> hs = new LinkedHashMap<>();
+        hs.put("name", "human_review");
+        hs.put("error", false);
+        hs.put("pending", false);
+        if (doSkip) {
+            hs.put("score", null);
+            hs.put("reason", "人工跳过" + (text.isEmpty() ? "" : "：" + text));
+            hs.put("skipped", true);
+            meta.put("skipped", true);
+        } else {
+            double score = (rawScore - 1) / 4.0;
+            hs.put("score", score);
+            hs.put("reason", "人工评分 " + rawScore + "/5" + (text.isEmpty() ? "" : "：" + text));
+            meta.put("rawScore", rawScore);
+        }
+        hs.put("metadata", Map.of("human", meta));
+        scores.set(idx, hs);
+
+        // 重算 summary（duration/tokens/judge 打分不改变，沿用旧值；人工分计入均值）
+        Map<String, Object> os = result.get("summary") instanceof Map<?, ?> mm
+                ? (Map<String, Object>) mm : Map.of();
+        int total = (int) num(os.get("total"));
+        Map<String, Object> ns = summarize(samples,
+                (long) (num(os.get("avgDurationMs")) * total),
+                num(os.get("promptTokens")), num(os.get("completionTokens")));
+        ns.put("avgDurationMs", os.get("avgDurationMs"));
+        ns.put("promptTokens", os.get("promptTokens"));
+        ns.put("completionTokens", os.get("completionTokens"));
+        ns.put("judge", os.get("judge"));
+        result.put("summary", ns);
+        String st = num(ns.get("humanPending")) == 0 ? "success" : "awaiting_human";
+        result.put("status", st);
+        persistResult(taskId, result);
+
+        Task t = current.get();
+        if (t != null && t.id.equals(taskId)) {
+            t.result = result;
+            t.resultFile = taskId + ".json";
+            t.status = st;
+            t.detail = "success".equals(st) ? "人工评分完成" : "人工评分待完成";
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("taskId", taskId);
+        m.put("sampleId", sampleId);
+        m.put("status", st);
+        m.put("humanPending", ns.get("humanPending"));
+        m.put("humanScored", ns.get("humanScored"));
+        m.put("humanSkipped", ns.get("humanSkipped"));
+        return m;
+    }
+
+    /** 人工打分写回（与 writeResult 同构：tmp + rename 原子替换，半成品不进列表） */
+    private void persistResult(String taskId, Map<String, Object> result) {
+        try {
+            Path dir = Files.createDirectories(resultPath());
+            Path tmp = dir.resolve(taskId + ".json.tmp");
+            Path fin = dir.resolve(taskId + ".json");
+            try {
+                mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), result);
+                Files.move(tmp, fin, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } finally {
+                Files.deleteIfExists(tmp);
+            }
+        } catch (IOException e) {
+            throw new ApiException(500, "写入评测结果失败: " + e.getMessage());
+        }
     }
 
     // ---------------- 评测执行 ----------------
@@ -826,6 +943,10 @@ public class EvalService {
             task.detail = "汇总结果并落盘";
             Map<String, Object> summary = summarize(sampleResults, totalDuration,
                     totalPromptTokens, totalCompletionTokens);
+            // 含人工评测器时任务进入「待人工评分」阶段（判分由人在页面完成，完成后翻转 success）
+            boolean hasHuman = task.graderNames.stream()
+                    .anyMatch(n -> "human".equals(graders.get(n).type()));
+            String status = hasHuman ? "awaiting_human" : "success";
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("id", task.id);
             result.put("dataset", task.dataset);
@@ -834,15 +955,16 @@ public class EvalService {
             result.put("judgeRuns", task.judgeRuns);
             result.put("startedAt", task.startedAt.toString());
             result.put("finishedAt", LocalDateTime.now().toString());
+            result.put("status", status);
             result.put("summary", summary);
             result.put("samples", sampleResults);
             writeResult(task, result);
 
             task.result = result;
             task.resultFile = task.id + ".json";
-            task.detail = "评测完成";
+            task.detail = hasHuman ? "评测完成，待人工评分" : "评测完成";
             task.percent = 100;
-            task.status = "success";
+            task.status = status;
             log.info("eval finished: {} passRate={} avgScore={}",
                     task.id, summary.get("passRate"), summary.get("avgScore"));
         } catch (Exception e) {
@@ -888,6 +1010,10 @@ public class EvalService {
             m.put("reason", score.reason());
             m.put("error", score.error());
             m.put("metadata", score.metadata());
+            // 人工评测器占位分：顶层 pending 标记（统计/展示/打分写回定位用）
+            if (score.metadata() != null && Boolean.TRUE.equals(score.metadata().get("pending"))) {
+                m.put("pending", true);
+            }
             scores.add(m);
         }
         return scores;
@@ -906,12 +1032,27 @@ public class EvalService {
         long judgeCompletionTokens = 0;
         int judgeCalls = 0;
         String judgeModel = null;
+        int humanPending = 0, humanScored = 0, humanSkipped = 0;
         for (Map<String, Object> row : sampleResults) {
             List<Map<String, Object>> scores = (List<Map<String, Object>>) row.get("scores");
             double rowSum = 0;
             int rowCount = 0;
             boolean rowError = false;
             for (Map<String, Object> s : scores) {
+                // 人工评测器进度统计（占位/已评/跳过）
+                if ("human_review".equals(s.get("name"))) {
+                    if (Boolean.TRUE.equals(s.get("pending"))) {
+                        humanPending++;
+                    } else if (Boolean.TRUE.equals(s.get("skipped"))) {
+                        humanSkipped++;
+                    } else {
+                        humanScored++;
+                    }
+                }
+                // 人工未评分样本不计入任何得分统计（已打分/已跳过则正常计入）
+                if (Boolean.TRUE.equals(s.get("pending"))) {
+                    continue;
+                }
                 if (s.get("metadata") instanceof Map<?, ?> mm && mm.get("judge") instanceof Map<?, ?> j) {
                     judgePromptTokens += num(j.get("promptTokens"));
                     judgeCompletionTokens += num(j.get("completionTokens"));
@@ -924,8 +1065,10 @@ public class EvalService {
                     rowError = true;
                     continue;
                 }
-                rowSum += ((Number) s.get("score")).doubleValue();
-                rowCount++;
+                if (s.get("score") instanceof Number n) {
+                    rowSum += n.doubleValue();
+                    rowCount++;
+                }
             }
             if (rowError) {
                 errorSamples++;
@@ -954,6 +1097,9 @@ public class EvalService {
         m.put("promptTokens", totalPromptTokens);
         m.put("completionTokens", totalCompletionTokens);
         m.put("judge", judge);
+        m.put("humanPending", humanPending);
+        m.put("humanScored", humanScored);
+        m.put("humanSkipped", humanSkipped);
         return m;
     }
 
@@ -1121,10 +1267,13 @@ public class EvalService {
                     targetCnt++;
                 }
                 boolean bp = graderPass(bs), tp = graderPass(ts);
-                if (bp && !tp) {
-                    passToFail++;
-                } else if (!bp && tp) {
-                    failToPass++;
+                // 人工未评分（pending）不参与翻转统计（视为该维度暂无分，避免假翻转）
+                if (!pending(bs) && !pending(ts)) {
+                    if (bp && !tp) {
+                        passToFail++;
+                    } else if (!bp && tp) {
+                        failToPass++;
+                    }
                 }
             }
             r.put("baseAvg", baseCnt == 0 ? null : round3(baseSum / baseCnt));
@@ -1198,10 +1347,13 @@ public class EvalService {
                 boolean berr = Boolean.TRUE.equals(b.get("error"));
                 boolean terr = Boolean.TRUE.equals(t.get("error"));
                 String flip = null;
-                if (graderPass(b) && !graderPass(t)) {
-                    flip = "pass_to_fail";
-                } else if (!graderPass(b) && graderPass(t)) {
-                    flip = "fail_to_pass";
+                // 人工未评分（pending）不参与翻转判定
+                if (!pending(b) && !pending(t)) {
+                    if (graderPass(b) && !graderPass(t)) {
+                        flip = "pass_to_fail";
+                    } else if (!graderPass(b) && graderPass(t)) {
+                        flip = "fail_to_pass";
+                    }
                 }
                 boolean diffScore = berr != terr
                         || (scoreVal(b) == null) != (scoreVal(t) == null)
@@ -1289,9 +1441,16 @@ public class EvalService {
         boolean err = false;
         if (row.get("scores") instanceof List<?> list) {
             for (Object o : list) {
-                if (o instanceof Map<?, ?> s && Boolean.TRUE.equals(s.get("error"))) {
+                if (!(o instanceof Map<?, ?> s)) {
+                    continue;
+                }
+                // 人工未评分不计入任何统计（样本均分只含已打分评测器，pass 由其余评测器决定）
+                if (pending((Map<String, Object>) s)) {
+                    continue;
+                }
+                if (Boolean.TRUE.equals(s.get("error"))) {
                     err = true;
-                } else if (o instanceof Map<?, ?> s && s.get("score") instanceof Number n) {
+                } else if (s.get("score") instanceof Number n) {
                     sum += n.doubleValue();
                     cnt++;
                 }
@@ -1310,7 +1469,15 @@ public class EvalService {
                 && score.get("score") instanceof Number n && n.doubleValue() >= passThreshold;
     }
 
+    /** 人工未评分标记（占位分） */
+    private static boolean pending(Map<String, Object> score) {
+        return score != null && Boolean.TRUE.equals(score.get("pending"));
+    }
+
     private static Double scoreVal(Map<String, Object> score) {
+        if (pending(score)) {
+            return null;
+        }
         return score.get("score") instanceof Number n ? n.doubleValue() : null;
     }
 

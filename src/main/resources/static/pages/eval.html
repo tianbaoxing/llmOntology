@@ -10,6 +10,15 @@
 .score { display:inline-block; min-width:3.2em; padding:1px 8px; border-radius:10px; font-size:12px; text-align:center; color:#fff; margin:1px 2px; }
 .score.hi { background:#16a34a; } .score.mid { background:#d97706; } .score.lo { background:#dc2626; }
 .score.err { background:#6b7280; }
+.score.pending { background:#94a3b8; }
+.score.skip { background:#cbd5e1; }
+/* 人工评分面板 */
+.human-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:10px 0; }
+.human-card { border:1px solid #e5e7eb; border-radius:8px; padding:12px 14px; background:#fafbfc; }
+.human-card .stars { font-size:26px; letter-spacing:4px; cursor:pointer; user-select:none; }
+.human-card .stars span { color:#d1d5db; }
+.human-card .stars span.on { color:#f59e0b; }
+.human-nav { display:flex; gap:8px; align-items:center; }
 /* 评测器分组卡片 */
 .grader-groups { display:grid; grid-template-columns:repeat(auto-fit, minmax(430px, 1fr)); gap:10px; align-items:start; }
 .ggroup { border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; background:#fff; }
@@ -18,11 +27,14 @@
 .ggroup.rule .ggroup-head { background:#eff7fb; border-bottom:1px solid #dbeaf3; }
 .ggroup.llm { border-color:#ded4f4; }
 .ggroup.llm .ggroup-head { background:#f7f4fd; border-bottom:1px solid #e5dcf8; }
+.ggroup.human { border-color:#f0d9a8; }
+.ggroup.human .ggroup-head { background:#fdf6e7; border-bottom:1px solid #f3e3c0; }
 .ggroup-title { font-weight:600; font-size:13px; color:#1f2937; }
 .ggroup-cnt { font-size:12px; color:#94a3b8; }
 .channel-tag { display:inline-block; padding:1px 9px; border-radius:10px; font-size:11px; flex:none; font-weight:600; }
 .channel-tag.rule { background:#cfe6f2; color:#0c5a78; }
 .channel-tag.llm { background:#e6dcfa; color:#5b21b6; }
+.channel-tag.human { background:#f5e6c8; color:#92600a; }
 .g-toggle { margin-left:auto; font-size:12px; color:#2563eb; cursor:pointer; background:none; border:none; padding:2px 6px; border-radius:4px; }
 .g-toggle:hover { background:#eff6ff; }
 .ggroup-body { padding:8px 12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:2px 14px; }
@@ -119,6 +131,10 @@ tr.diff-imp td { background: #f0fdf4; }
     <h2 id="ev-result-title">结果明细</h2>
     <div id="ev-summary"></div>
     <div id="ev-samples" style="margin-top:12px"></div>
+    <div id="ev-human-wrap" style="display:none; margin-top:16px; border-top:2px solid #f3e3c0; padding-top:10px">
+      <h2>人工评分</h2>
+      <div id="ev-human-body"></div>
+    </div>
   </div>
 
   <div class="card" id="ev-diff-card" style="display:none">
@@ -352,9 +368,16 @@ function pollEval() {
     $('ev-detail').textContent = p.detail + '（' + p.percent + '%）';
     if (p.status === 'running') { setTimeout(pollEval, 1000); return; }
     $('ev-btn').disabled = false;
-    if (p.status === 'success') {
-      showMsg('评测完成', true);
+    if (p.status === 'success' || p.status === 'awaiting_human') {
+      if (p.status === 'success') {
+        showMsg('评测完成', true);
+      } else {
+        const h = (p.result && p.result.summary) || {};
+        const done = (h.humanScored || 0) + (h.humanSkipped || 0);
+        showMsg('评测完成，待人工评分（已评 ' + done + '/' + (h.total || 0) + '）', true);
+      }
       renderResult(p.result);
+      if (p.status === 'awaiting_human') renderHumanPanel(p.result);
       loadRuns().catch(() => {});
     } else {
       showMsg('评测失败：' + (p.error || '未知错误'), false);
@@ -367,12 +390,19 @@ function pollEval() {
 
 // ---------------- 结果渲染 ----------------
 function scoreBadge(s) {
+  if (s.pending) return `<span class="score pending" title="待人工评分">${esc(s.name)}:待评</span>`;
+  if (s.skipped) {
+    const hm = (s.metadata && s.metadata.human) || {};
+    return `<span class="score skip" title="人工跳过${hm.comment ? '：' + esc(hm.comment) : ''}">${esc(s.name)}:跳过</span>`;
+  }
   if (s.error) return `<span class="score err" title="${esc(s.reason || '')}">${esc(s.name)}:错误</span>`;
   const v = Number(s.score);
   const cls = v >= 0.8 ? 'hi' : v >= 0.5 ? 'mid' : 'lo';
   let raw = '';
-  if (s.metadata && s.metadata.rawScore != null) {
-    // 多次判分取平均时 rawScore 为数组（B8），展示为 4.0/5.0→(4.0/5) 与 (4.5/5 平均)
+  const hm = (s.metadata && s.metadata.human) || {};
+  if (hm.rawScore != null) {
+    raw = `(${hm.rawScore}/5)`;
+  } else if (s.metadata && s.metadata.rawScore != null) {
     const rs = s.metadata.rawScore;
     raw = Array.isArray(rs) ? `(${rs.map(x => Number(x).toFixed(1)).join('/')}/5)` : `(${rs}/5)`;
   }
@@ -386,10 +416,18 @@ function fmtDuration(ms) {
 
 function renderResult(result) {
   if (!result) return;
+  currentResult = result;
   $('ev-result-card').style.display = '';
   $('ev-result-title').textContent = '结果明细：' + result.id + '（' + result.dataset + '）'
     + (result.judgeRuns > 1 ? '，LLM 判分 ×' + result.judgeRuns : '');
   const s = result.summary || {};
+  const hasHuman = (result.graders || []).includes('human_review');
+  const humanDone = (s.humanScored || 0) + (s.humanSkipped || 0);
+  const humanHtml = hasHuman
+    ? `<div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+        <button class="btn" style="background:#b45309" onclick="renderHumanPanel(currentResult)">人工评分（${humanDone}/${s.total || 0}）</button>
+        <span class="muted">${(s.humanPending || 0) > 0 ? '待评 ' + s.humanPending + ' 条（打分或跳过均可）' : '已全部评分'}</span>
+      </div>` : '';
   $('ev-summary').innerHTML = '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
     statCard(s.total ?? '-', '样本总数') +
     statCard((s.passCount ?? '-') + '/' + (s.total ?? '-'), '通过数（均分≥0.8）') +
@@ -398,7 +436,7 @@ function renderResult(result) {
     statCard(s.errorCount ?? '-', '异常样本数') +
     statCard(s.avgDurationMs ? fmtDuration(s.avgDurationMs) : '-', '平均耗时') +
     statCard((s.promptTokens ?? 0) + '/' + (s.completionTokens ?? 0), 'tokens(入/出)') +
-    '</div>';
+    '</div>' + humanHtml;
   const rows = (result.samples || []).map(sm => {
     const scores = sm.scores || [];
     const toolCalls = sm.toolCalls || [];
@@ -450,6 +488,113 @@ function renderResult(result) {
   $('ev-result-card').scrollIntoView({ behavior: 'smooth' });
 }
 
+// ---------------- 人工评分面板 ----------------
+let humanState = { taskId: null, samples: [], idx: 0, draft: { star: 0, comment: '' } };
+
+/** 打开人工评分面板：从当前结果解析样本清单与已评状态，并定位到第一条待评样本 */
+function renderHumanPanel(result) {
+  if (!result) return;
+  const samples = (result.samples || []).map(sm => {
+    const hs = (sm.scores || []).find(x => x.name === 'human_review') || { pending: true };
+    return {
+      id: sm.id, query: sm.query || '', reference: sm.referenceResponse,
+      answer: sm.answer || '', toolCalls: sm.toolCalls || [], hs
+    };
+  });
+  if (!samples.length) return showMsg('该任务无样本可评', false);
+  let idx = humanState.taskId === result.id ? humanState.idx : 0;
+  const firstPending = samples.findIndex(s => s.hs.pending);
+  if (firstPending >= 0) idx = firstPending;
+  humanState = { taskId: result.id, samples, idx, draft: { star: 0, comment: '' } };
+  loadHumanDraft();
+  $('ev-human-wrap').style.display = 'block';
+  renderHumanSample();
+  $('ev-human-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/** 从当前样本已评状态载入草稿（切换样本时调用；星级/评语交互不重置草稿） */
+function loadHumanDraft() {
+  const s = humanState.samples[humanState.idx];
+  const hm = (s.hs.metadata && s.hs.metadata.human) || {};
+  humanState.draft.star = !s.hs.pending && !s.hs.skipped ? (hm.rawScore || 0) : 0;
+  humanState.draft.comment = hm.comment || '';
+}
+
+function humanGoto(i) {
+  if (i < 0 || i >= humanState.samples.length) return;
+  humanState.idx = i;
+  loadHumanDraft();
+  renderHumanSample();
+}
+
+function renderHumanSample() {
+  const st = humanState;
+  if (!st.samples.length) return;
+  const s = st.samples[st.idx];
+  const refText = s.reference == null ? '（无）'
+    : typeof s.reference === 'string' ? s.reference : JSON.stringify(s.reference);
+  const stars = [1, 2, 3, 4, 5].map(n =>
+    `<span class="${n <= st.draft.star ? 'on' : ''}" data-star="${n}">★</span>`).join('');
+  const stateBadge = s.hs.pending ? '<span class="score pending">待评</span>'
+    : s.hs.skipped ? '<span class="score skip">已跳过</span>'
+    : `<span class="score ${st.draft.star >= 4 ? 'hi' : st.draft.star >= 3 ? 'mid' : 'lo'}">已评 ${st.draft.star}/5</span>`;
+  const chips = st.samples.map((x, i) =>
+    `<button type="button" class="btn ${i === st.idx ? 'sm' : 'sm ghost'}" style="padding:1px 8px;font-size:12px"
+      onclick="humanGoto(${i})" title="${esc(x.query)}">${i + 1}${x.hs.pending ? '' : (x.hs.skipped ? '✗' : '✓')}</button>`).join('');
+  $('ev-human-body').innerHTML = `
+    <div class="human-toolbar">
+      <span class="muted">进度 ${st.samples.filter(x => !x.hs.pending).length}/${st.samples.length}</span>
+      <div class="human-nav">${chips}</div>
+    </div>
+    <div class="human-card">
+      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap">
+        <b>样本 ${st.idx + 1}/${st.samples.length}：${esc(s.id)}</b>${stateBadge}
+      </div>
+      <div style="margin-top:6px"><b>问题：</b>${esc(s.query)}</div>
+      <div class="muted" style="font-size:12px;margin-top:3px"><b>期望回答：</b>${esc(refText)}</div>
+      <details class="eval-detail" style="margin-top:6px"><summary>回答与轨迹</summary><pre>${esc(s.answer || '（空）')}
+${s.toolCalls.length ? '\n—— 工具调用轨迹 ——\n' + s.toolCalls.map(t => `#${t.name} [${t.state}] args: ${t.args}\n  result: ${t.result}`).join('\n') : ''}</pre></details>
+      <div style="margin-top:10px">
+        <span style="font-weight:600">评分：</span>
+        <span class="stars" id="human-stars">${stars}</span>
+        <span class="muted" style="font-size:12px" id="human-star-tip">${st.draft.star ? st.draft.star + ' 星（归一化 ' + ((st.draft.star - 1) / 4).toFixed(3) + '）' : '点击星星设置（1-5）'}</span>
+      </div>
+      <div style="margin-top:8px"><label style="font-weight:600">评语（可选）</label>
+        <input type="text" id="human-comment" value="${esc(st.draft.comment)}" placeholder="如：回答准确，但缺少出处" style="width:100%;margin-top:4px">
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap">
+        <button type="button" class="btn" onclick="submitHumanScore(false)">提交评分</button>
+        <button type="button" class="btn ghost" onclick="submitHumanScore(true)">跳过该样本</button>
+        <button type="button" class="btn ghost" onclick="humanGoto(${Math.max(0, st.idx - 1)})" ${st.idx === 0 ? 'disabled' : ''}>上一条</button>
+        <button type="button" class="btn ghost" onclick="humanGoto(${Math.min(st.samples.length - 1, st.idx + 1)})" ${st.idx === st.samples.length - 1 ? 'disabled' : ''}>下一条</button>
+      </div>
+    </div>`;
+  document.querySelectorAll('#human-stars span').forEach(sp => {
+    sp.onclick = () => { st.draft.star = Number(sp.dataset.star); renderHumanSample(); };
+  });
+  const ci = $('human-comment');
+  if (ci) ci.addEventListener('input', e => { st.draft.comment = e.target.value; });
+}
+
+/** 提交打分/跳过：成功后重新拉取最新结果刷新结果卡与评分面板 */
+async function submitHumanScore(skip) {
+  const st = humanState;
+  const s = st.samples[st.idx];
+  if (!st.draft.star && !skip) return showMsg('请先选择星级（1-5）', false);
+  const body = { sampleId: s.id, skip: !!skip };
+  if (!skip) { body.rawScore = st.draft.star; body.comment = st.draft.comment; }
+  try {
+    await api('POST', '/api/eval/runs/' + encodeURIComponent(st.taskId) + '/human-scores', body);
+    showMsg(skip ? '已跳过' : '已评分 ' + st.draft.star + '/5', true);
+    const p = await api('GET', '/api/eval/runs/' + encodeURIComponent(st.taskId));
+    if (p.result) {
+      renderResult(p.result);
+      renderHumanPanel(p.result);
+    }
+    if (p.status === 'success') showMsg('人工评分全部完成，任务已归档', true);
+  } catch (e) { showMsg('评分提交失败：' + e.message, false); }
+}
+
 // ---------------- 历史 / 初始化 ----------------
 async function loadRuns() {
   const d = await api('GET', '/api/eval/runs');
@@ -469,8 +614,10 @@ function renderRunsPage() {
   const slice = runsCache.slice((page - 1) * size, page * size);
   const rows = slice.map(r => {
     const s = r.summary || {};
+    const stBadge = r.status === 'awaiting_human'
+      ? `<span class="score pending" title="待人工评分">待评</span>` : '-';
     return [
-      code(r.id), esc(r.dataset || '-'),
+      code(r.id), esc(r.dataset || '-'), stBadge,
       s.passRate != null ? (s.passRate * 100).toFixed(1) + '%' : '-',
       s.avgScore != null ? s.avgScore.toFixed(3) : '-',
       s.total ?? '-', s.errorCount ?? '-',
@@ -478,7 +625,7 @@ function renderRunsPage() {
       `<a class="btn sm" href="/api/eval/runs/${encodeURIComponent(r.id)}/file">下载</a>`
     ];
   });
-  let html = table(['任务 id', '数据集', '通过率', '平均分', '样本数', '异常', '操作'], rows);
+  let html = table(['任务 id', '数据集', '状态', '通过率', '平均分', '样本数', '异常', '操作'], rows);
   html += '<div style="display:flex; gap:10px; align-items:center; margin-top:10px">'
     + `<span class="muted">共 ${total} 条 / ${pages} 页</span><div class="pager" id="runs-pager" style="margin-top:0"></div></div>`;
   $('ev-runs').innerHTML = html;
@@ -512,6 +659,7 @@ async function viewRun(encId) {
 // ---------------- 回归对比（Run Diff） ----------------
 let runsCache = [];
 let currentResultId = null;
+let currentResult = null;
 let diffShowAll = false;
 
 /** 基线下拉：历史 run（排除当前目标 run），显示数据集与通过率便于选择 */
@@ -668,7 +816,7 @@ async function previewDataset(name) {
 
 let graderCache = [];
 /** 分组展示元数据（group = 后端 graders 包路径后缀，新增评测器自动归组；未知组按通道兜底） */
-const GROUP_ORDER = ['rule.match', 'rule.text', 'rule.tool', 'llm.answer', 'llm.dialogue', 'llm.tool', 'agent', 'custom'];
+const GROUP_ORDER = ['rule.match', 'rule.text', 'rule.tool', 'llm.answer', 'llm.dialogue', 'llm.tool', 'agent', 'custom', 'human'];
 const GROUP_META = {
   'rule.match':  { title: '精确匹配', channel: '规则', cls: 'rule' },
   'rule.text':   { title: '文本统计', channel: '规则', cls: 'rule' },
@@ -678,6 +826,7 @@ const GROUP_META = {
   'llm.tool':    { title: '工具轨迹', channel: 'LLM', cls: 'llm' },
   'agent':       { title: '图谱取证（Agentic）', channel: 'Agentic', cls: 'llm' },
   'custom':      { title: '自定义（用户提示词）', channel: 'LLM', cls: 'llm' },
+  'human':       { title: '人工评分', channel: '人工', cls: 'human' },
 };
 
 async function loadGraders() {
