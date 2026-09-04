@@ -95,7 +95,7 @@ details.static-item .role-chip.tool { flex-shrink: 0; }
   <div class="stats-row" id="sd-stats"></div>
   <div class="card">
     <h2>LLM 上下文构成</h2>
-    <div class="muted" style="margin-bottom:10px">口径：最后一次 LLM 调用实际输入的构成（System Prompt / Tool Schemas / 各类消息）</div>
+    <div class="muted" style="margin-bottom:10px">口径：最后一次 LLM 调用实际输入的构成（System Prompt / Tool Schemas / 各类消息）。最后一条助手消息是本次调用的输出、不计入输入，故条目数比下方「消息明细」少 1 条</div>
     <div class="charts-row">
       <div class="chart-cell"><h3>条目数</h3><svg id="items-svg"></svg></div>
       <div class="chart-cell"><h3>Token 与占比</h3><svg id="tokens-svg"></svg></div>
