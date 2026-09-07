@@ -80,6 +80,45 @@ tr.diff-reg td { background: #fef2f2; }
 tr.diff-imp td { background: #f0fdf4; }
 .pager { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .pager .cur { background: #2563eb; color: #fff; border: 1px solid #2563eb; border-radius: 6px; padding: 4px 10px; font-weight: 600; }
+/* Skills 管理表格 */
+.sk-table-wrap { overflow-x: auto; }
+.sk-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; }
+.sk-table th { background: #f8fafc; color: #374151; font-weight: 600; padding: 10px 12px; text-align: left; font-size: 13px; border-bottom: 1px solid #eef0f3; white-space: nowrap; }
+.sk-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
+.sk-table tbody tr:last-child td { border-bottom: none; }
+.sk-table tbody tr:hover { background: #f8fafc; }
+.sk-table .sk-col-name { min-width: 130px; }
+.sk-table .sk-col-key { min-width: 220px; }
+.sk-table .sk-col-script { min-width: 200px; }
+.sk-table .sk-col-stats { min-width: 210px; white-space: nowrap; }
+.sk-table .sk-col-time { min-width: 150px; white-space: nowrap; color: #6b7280; font-size: 12px; }
+.sk-table .sk-col-op { min-width: 170px; white-space: nowrap; }
+.sk-name { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; background: #eef2f7; color: #1e40af; padding: 2px 8px; border-radius: 4px; }
+.sk-untested { color: #94a3b8; }
+.sk-table .btn + .btn { margin-left: 6px; }
+.sk-key { width: 100%; min-width: 190px; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 12px; color: #374151; background: #fff; box-sizing: border-box; }
+.sk-key:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.15); }
+/* 执行脚本列：脚本文件小标签 */
+.sk-script { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; background: #ecfdf5; color: #047857; border: 1px solid #d1fae5; padding: 2px 8px; border-radius: 4px; margin: 1px 3px 1px 0; }
+/* 检测结果列：三组统计徽章 */
+.sk-stat { display: inline-flex; align-items: baseline; gap: 2px; background: #f8fafc; border: 1px solid #e5e7eb; color: #475569; border-radius: 5px; padding: 2px 8px; font-size: 12px; margin-right: 5px; }
+.sk-stat b { color: #1e40af; }
+/* 详情页删除（忽略）按钮：检测项徽章上的小 × */
+.sk-del { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+  margin-left: 5px; border-radius: 50%; background: #fee2e2; color: #b91c1c; font-size: 12px;
+  line-height: 1; cursor: pointer; text-decoration: none; vertical-align: middle; }
+.sk-del:hover { background: #fecaca; }
+.sk-del:active { background: #fca5a5; }
+/* API 清单行：路径 + 删除按钮 */
+.sk-api-row { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 3px 0; border-bottom: 1px dashed #f1f5f9; }
+.sk-api-row:last-child { border-bottom: none; }
+.sk-api-row code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+/* 已忽略提示 */
+.sk-hidden-note { margin-top: 8px; font-size: 12px; color: #9ca3af; }
+/* stale 顶部提示条：文件变更后滑入提醒重新检测 */
+#sk-stale-banner { position: sticky; top: 0; z-index: 50; display: none; align-items: center; gap: 8px; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; animation: skSlideDown .3s ease; }
+@keyframes skSlideDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
 </style>
 </head>
 <body>
@@ -90,6 +129,7 @@ tr.diff-imp td { background: #f0fdf4; }
     <a class="ptab active" data-tab="run" onclick="switchTab('run')">运行评测</a>
     <a class="ptab" data-tab="ds" onclick="switchTab('ds')">数据集管理</a>
     <a class="ptab" data-tab="cg" onclick="switchTab('cg')">自定义评测器</a>
+    <a class="ptab" data-tab="sk" onclick="switchTab('sk')">Skills 管理</a>
   </div>
 
   <!-- Tab 1：运行评测 -->
@@ -181,6 +221,28 @@ tr.diff-imp td { background: #f0fdf4; }
         <span class="muted" id="cg-count"></span>
       </div>
       <div id="cg-table"></div>
+    </div>
+  </div>
+
+  <!-- Tab 4：Skills 管理（列表视图 + 详情视图） -->
+  <div id="tab-sk" style="display:none">
+    <div id="sk-stale-banner"></div>
+    <div class="card" id="sk-list">
+      <h2>Skills 管理</h2>
+      <div class="muted" style="margin-bottom:10px">展示系统已装配的技能：<b>识别关键词</b>由你填写该 skill 被真实执行时的特征词（逗号分隔），供后续判断 LLM 是否真正执行了它；<b>执行脚本</b>列出技能目录下可执行脚本（如 tongshu_query.py）；<b>检测结果</b>为工具（系统工具反向比对）/ API / Shell 命令统计，检测为手动触发并落盘 <code>data/skill-analysis.json</code>。技能文件变更后检测按钮变红并顶部提示，需重新检测。详情页中太常见的工具 / API / Shell 命令可点击 × <b>删除（忽略）</b>，忽略项跨重新检测保留并自动保存</div>
+      <div class="toolbar" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px">
+        <button class="btn" onclick="loadSkills()">刷新</button>
+        <span class="muted" id="sk-count"></span>
+      </div>
+      <div id="sk-table"></div>
+    </div>
+
+    <div class="card" id="sk-detail" style="display:none">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+        <button class="btn ghost" onclick="backSkillList()">← 返回列表</button>
+        <h2 id="skd-title" style="margin:0"></h2>
+      </div>
+      <div id="skd-content" style="margin-top:12px"></div>
     </div>
   </div>
 
@@ -876,6 +938,7 @@ function switchTab(name) {
   $('tab-run').style.display = name === 'run' ? '' : 'none';
   $('tab-ds').style.display = name === 'ds' ? '' : 'none';
   $('tab-cg').style.display = name === 'cg' ? '' : 'none';
+  $('tab-sk').style.display = name === 'sk' ? '' : 'none';
   if (name === 'ds' && !dsTabLoaded) {
     dsTabLoaded = true;
     initDsTab().catch(e => showMsg('数据集加载失败：' + e.message, false));
@@ -883,6 +946,10 @@ function switchTab(name) {
   if (name === 'cg' && !cgTabLoaded) {
     cgTabLoaded = true;
     loadCustomGraders().catch(e => showMsg('自定义评测器加载失败：' + e.message, false));
+  }
+  if (name === 'sk' && !skTabLoaded) {
+    skTabLoaded = true;
+    loadSkills().catch(e => showMsg('Skills 加载失败：' + e.message, false));
   }
 }
 
@@ -1292,6 +1359,218 @@ async function runCgTest() {
     $('cgt-result').innerHTML = `<div class="msg err">试跑失败：${esc(e.message)}</div>`;
   }
   $('cgt-btn').disabled = false;
+}
+
+// ---------------- Skills 管理 ----------------
+let skTabLoaded = false;
+let skCurrent = null; // 当前详情技能名
+
+async function loadSkills() {
+  const list = await api('GET', '/api/skills') || [];
+  $('sk-count').textContent = '共 ' + list.length + ' 个技能';
+  if (!list.length) {
+    $('sk-table').innerHTML = '<div class="muted">系统未装配任何技能（检查 skills 目录与 agent 配置）</div>';
+    return;
+  }
+  const rows = list.map(s => {
+    const sm = s.summary;
+    const analyzed = sm && sm.contentHash;
+    const hiddenCnt = (sm ? (sm.hiddenTools || []).length + (sm.hiddenApis || []).length + (sm.hiddenShellCommands || []).length : 0);
+    const stats = analyzed
+      ? `<span class="sk-stat">工具 <b>${sm.tools.used.length}</b><span class="sk-untested">/${sm.tools.used.length + sm.tools.notUsed.length}</span></span>` +
+        `<span class="sk-stat">API <b>${sm.apis.length}</b></span>` +
+        `<span class="sk-stat">Shell <b>${sm.shellCommands.length}</b></span>` +
+        (hiddenCnt ? `<span class="sk-stat" title="已删除（忽略）${hiddenCnt} 个检测项，详情页可查看">忽略 <b>${hiddenCnt}</b></span>` : '')
+      : '<span class="sk-untested">未检测</span>';
+    const at = analyzed ? sm.analyzedAt.replace('T', ' ').substring(0, 19) : '<span class="sk-untested">未检测</span>';
+    const scripts = s.scripts && s.scripts.length
+      ? s.scripts.map(x => `<span class="sk-script" title="${esc(x)}">${esc(x)}</span>`).join(' ')
+      : '<span class="sk-untested">-</span>';
+    const keyInput = `<input class="sk-key" value="${esc((s.keyInfo || []).join(', '))}" placeholder="如 Cypher, schema" title="填识别该 skill 被真实执行的关键词（逗号分隔），供后续判断 LLM 是否真用了它；失焦自动保存" onchange="saveSkillKeyInfo('${esc(s.name)}', this.value)">`;
+    const analyzeBtn = s.stale
+      ? `<button class="btn sm danger" onclick="analyzeSkill('${esc(s.name)}')" title="技能文件已变更，检测结果过期，请重新检测">重新检测</button>`
+      : `<button class="btn sm" onclick="analyzeSkill('${esc(s.name)}')">检测</button>`;
+    return `<tr>` +
+      `<td class="sk-col-name"><span class="sk-name">${esc(s.name)}</span></td>` +
+      `<td class="sk-col-key">${keyInput}</td>` +
+      `<td class="sk-col-script">${scripts}</td>` +
+      `<td class="sk-col-stats">${stats}</td>` +
+      `<td class="sk-col-time">${at}</td>` +
+      `<td class="sk-col-op">${analyzeBtn}` +
+      `<button class="btn sm ghost" onclick="openSkillDetail('${esc(s.name)}')">详情</button>` +
+      `</td></tr>`;
+  }).join('');
+  $('sk-table').innerHTML = `<div class="sk-table-wrap"><table class="sk-table"><thead><tr>` +
+    `<th class="sk-col-name">名称</th>` +
+    `<th class="sk-col-key">识别关键词</th>` +
+    `<th class="sk-col-script">执行脚本</th>` +
+    `<th class="sk-col-stats">检测结果</th>` +
+    `<th class="sk-col-time">分析时间</th><th class="sk-col-op">操作</th>` +
+    `</tr></thead><tbody>${rows}</tbody></table></div>`;
+  // contentHash 变更检测：文件已变 → 顶部滑入提示重新检测
+  const staleSkills = list.filter(s => s.stale).map(s => s.name);
+  if (staleSkills.length) showSkStaleBanner(staleSkills); else hideSkStaleBanner();
+}
+
+/** 保存识别关键词（失焦触发）：逗号/中文逗号分隔，去空白去重后落盘 */
+async function saveSkillKeyInfo(name, raw) {
+  const keywords = (raw || '').split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  try {
+    const r = await api('PUT', '/api/skills/' + encodeURIComponent(name) + '/keyinfo', { keywords });
+    showMsg('已保存 ' + name + ' 识别关键词 ' + r.keyInfo.length + ' 个', true);
+  } catch (e) { showMsg('关键词保存失败：' + e.message, false); }
+}
+
+function showSkStaleBanner(names) {
+  const b = $('sk-stale-banner');
+  b.innerHTML = '⚠ 以下技能文件已变更，检测结果可能过期，请重新检测：' + names.map(esc).join('、') +
+    ' <button class="btn sm ghost" style="margin-left:auto" onclick="hideSkStaleBanner()">知道了</button>';
+  b.style.display = 'flex';
+  clearTimeout(b._t);
+  b._t = setTimeout(() => { b.style.display = 'none'; }, 6000);
+}
+
+function hideSkStaleBanner() {
+  const b = $('sk-stale-banner');
+  clearTimeout(b._t);
+  b.style.display = 'none';
+}
+
+async function analyzeSkill(name) {
+  try {
+    const r = await api('POST', '/api/skills/' + encodeURIComponent(name) + '/analyze');
+    showMsg('已检测 ' + name + '：命中工具 ' + r.summary.tools.used.length + ' 个 / API ' + r.summary.apis.length
+      + ' 个 / Shell 命令 ' + r.summary.shellCommands.length + ' 个', true);
+    await loadSkills();
+  } catch (e) { showMsg('检测失败：' + e.message, false); }
+}
+
+async function openSkillDetail(name) {
+  skCurrent = name;
+  $('sk-list').style.display = 'none';
+  $('sk-detail').style.display = '';
+  $('skd-title').textContent = '技能详情：' + name;
+  $('skd-content').innerHTML = '<div class="muted">加载中…</div>';
+  try {
+    renderSkillDetail(await api('GET', '/api/skills/' + encodeURIComponent(name)));
+  } catch (e) { showMsg('详情加载失败：' + e.message, false); }
+}
+
+function backSkillList() {
+  skCurrent = null;
+  $('sk-detail').style.display = 'none';
+  $('sk-list').style.display = '';
+}
+
+function renderSkillDetail(d) {
+  const sm = d.summary;
+  let html = '';
+  if (d.stale) {
+    html += '<div class="msg err" style="margin-bottom:10px">⚠ 技能文件已变更，当前检测结果可能过期，请点下方「重新检测」刷新</div>';
+  }
+  html += `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;background:#fff;margin-bottom:10px">` +
+    `<table>` +
+    `<tr><th>名称</th><td>${code(d.name)}</td></tr>` +
+    `<tr><th>描述</th><td class="wrap">${esc(d.description || '')}</td></tr>` +
+    `<tr><th>目录</th><td>${code(d.dir || '')}</td></tr>` +
+    `<tr><th>文件数</th><td>${d.files.length}</td></tr>` +
+    `<tr><th>分析时间</th><td>${sm ? sm.analyzedAt.replace('T', ' ').substring(0, 19) : '未检测'}</td></tr>` +
+    `</table>` +
+    `<button class="btn sm" style="margin-top:8px" onclick="analyzeSkill('${esc(d.name)}')">重新检测</button>` +
+    `</div>`;
+  html += renderToolCard(d, sm);
+  html += renderApiCard(d, sm);
+  html += renderCmdCard(d, sm);
+  html += renderFilesCard(d);
+  $('skd-content').innerHTML = html;
+}
+
+/** 工具检测卡片：系统工具（实时取自 agent Toolkit）按「已使用/未使用」分组标记；已使用项可 × 删除（忽略） */
+function renderToolCard(d, sm) {
+  const hidden = (sm && sm.hiddenTools) || [];
+  const total = sm ? sm.tools.used.length + sm.tools.notUsed.length : 0;
+  let body;
+  if (!sm) {
+    body = '<div class="muted">未检测，请先点击「检测」</div>';
+  } else if (total === 0) {
+    body = '<div class="muted">agent 未装配或系统无可用工具，无法比对（检查 OPENROUTER_API_KEY 与 Toolkit 配置）</div>';
+  } else {
+    const used = sm.tools.used.map(t => {
+      const cb = t.inCodeBlock ? ' <span class="badge llm" title="出现在代码块内">代码块</span>' : '';
+      return `<span class="badge rule" title="全文出现 ${t.count} 次">${esc(t.name)} ×${t.count}${cb}` +
+        `<a class="sk-del" title="删除（忽略）该工具，自动保存" data-v="${encodeURIComponent(t.name)}" onclick="hideSkillItem(this,'${esc(d.name)}','tool')">×</a></span>`;
+    }).join(' ') || '<span class="muted">无</span>';
+    const notUsed = sm.tools.notUsed.length
+      ? sm.tools.notUsed.map(t => `<span style="display:inline-block;background:#f1f5f9;color:#6b7280;border-radius:4px;padding:0 6px;font-size:12px;margin:1px 2px">${esc(t)}</span>`).join(' ')
+      : '<span class="muted">全部使用</span>';
+    body = `<div style="margin-bottom:6px"><b>已使用（${sm.tools.used.length} / ${total}）</b>　${used}</div>` +
+      `<div><b>未使用（${sm.tools.notUsed.length} / ${total}）</b>　${notUsed}</div>` +
+      (hidden.length ? `<div class="sk-hidden-note">已忽略 ${hidden.length} 个：${hidden.map(esc).join('、')}</div>` : '');
+  }
+  return `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;background:#fff;margin-bottom:10px">` +
+    `<div style="font-weight:600;font-size:13px;margin-bottom:6px">工具检测 <span class="muted">（系统工具 ${total} 个，反向比对技能全文；点击 × 删除太常见的工具）</span></div>${body}</div>`;
+}
+
+function renderApiCard(d, sm) {
+  const hidden = (sm && sm.hiddenApis) || [];
+  const items = sm && sm.apis.length
+    ? sm.apis.map(a =>
+        `<div class="sk-api-row"><code>${esc(a)}</code>` +
+        `<a class="sk-del" title="删除（忽略）该 API，自动保存" data-v="${encodeURIComponent(a)}" onclick="hideSkillItem(this,'${esc(d.name)}','api')">×</a></div>`).join('')
+    : '<div class="muted">未提取到 /api/ 路径</div>';
+  const body = !sm ? '<div class="muted">未检测</div>'
+    : items + (hidden.length ? `<div class="sk-hidden-note">已忽略 ${hidden.length} 个：${hidden.map(esc).join('、')}</div>` : '');
+  return `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;background:#fff;margin-bottom:10px">` +
+    `<div style="font-weight:600;font-size:13px;margin-bottom:6px">API 清单 <span class="muted">（${sm ? sm.apis.length : 0} 个，去重；点击 × 删除太常见的 API）</span></div>${body}</div>`;
+}
+
+function renderCmdCard(d, sm) {
+  const hidden = (sm && sm.hiddenShellCommands) || [];
+  const cmds = sm && sm.shellCommands.length
+    ? sm.shellCommands.map(c =>
+        `<span class="badge rule" title="出现 ${c.count} 次">${esc(c.command)} ×${c.count}` +
+        `<a class="sk-del" title="删除（忽略）该命令，自动保存" data-v="${encodeURIComponent(c.command)}" onclick="hideSkillItem(this,'${esc(d.name)}','shell')">×</a></span>`).join(' ')
+    : '<div class="muted">未提取到 shell 命令</div>';
+  const body = !sm ? '<div class="muted">未检测</div>'
+    : cmds + (hidden.length ? `<div class="sk-hidden-note">已忽略 ${hidden.length} 个：${hidden.map(esc).join('、')}</div>` : '');
+  return `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;background:#fff;margin-bottom:10px">` +
+    `<div style="font-weight:600;font-size:13px;margin-bottom:6px">Shell 命令 <span class="muted">（${sm ? sm.shellCommands.length : 0} 个；点击 × 删除太常见的命令）</span></div>${body}</div>`;
+}
+
+/** 删除（忽略）检测项：value 经 data-v 传递（encodeURIComponent 防注入），加入忽略清单自动保存，忽略项跨重新检测保留 */
+async function hideSkillItem(el, name, kind) {
+  const value = decodeURIComponent(el.dataset.v);
+  const body = { tools: [], apis: [], shellCommands: [] };
+  if (kind === 'tool') body.tools = [value];
+  else if (kind === 'api') body.apis = [value];
+  else body.shellCommands = [value];
+  try {
+    await api('POST', '/api/skills/' + encodeURIComponent(name) + '/hide', body);
+    showMsg('已删除 ' + value, true);
+    renderSkillDetail(await api('GET', '/api/skills/' + encodeURIComponent(name)));
+    await loadSkills();
+  } catch (e) { showMsg('删除失败：' + e.message, false); }
+}
+
+function renderFilesCard(d) {
+  const items = d.files.map(f =>
+    `<button class="btn sm" style="margin:2px" onclick="loadSkillResource('${esc(f.path)}')">${esc(f.path)}（${fmtSize(f.size)}）</button>`).join('');
+  return `<div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;background:#fff">` +
+    `<div style="font-weight:600;font-size:13px;margin-bottom:6px">技能文件 <span class="muted">（点击查看内容，SKILL.md 即完整指令）</span></div>` +
+    `<div>${items || '<span class="muted">无可读文件</span>'}</div>` +
+    `<div id="skd-file" style="display:none;margin-top:10px">` +
+    `<div style="font-weight:600;font-size:13px" id="skd-file-title"></div>` +
+    `<pre style="background:#f1f5f9;padding:8px;border-radius:5px;font-size:12px;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow:auto">` +
+    `<code id="skd-file-content"></code></pre></div></div>`;
+}
+
+async function loadSkillResource(path) {
+  try {
+    const r = await api('GET', '/api/skills/' + encodeURIComponent(skCurrent) + '/resources?path=' + encodeURIComponent(path));
+    $('skd-file-title').textContent = r.path + '（' + fmtSize(r.size) + '）';
+    $('skd-file-content').textContent = r.content;
+    $('skd-file').style.display = '';
+  } catch (e) { showMsg('文件读取失败：' + e.message, false); }
 }
 
 // ---------------- init ----------------

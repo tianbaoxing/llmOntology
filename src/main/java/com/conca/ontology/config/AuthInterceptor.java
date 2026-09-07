@@ -70,8 +70,9 @@ public class AuthInterceptor implements HandlerInterceptor {
                 return false;
             }
             // /api/dashboard 已放开为登录即可（统计当前用户自己的用量）；
-            // /api/eval 评测中心整体仅 ADMIN（页面与接口一致）
-            boolean adminOnly = uri.startsWith("/api/users") || uri.startsWith("/api/eval");
+            // /api/eval 评测中心整体仅 ADMIN（页面与接口一致）；/api/skills Skills 管理同样仅 ADMIN
+            boolean adminOnly = uri.startsWith("/api/users") || uri.startsWith("/api/eval")
+                    || uri.startsWith("/api/skills");
             if (!adminOnly && !isReadMethod(method)
                     && !uri.startsWith("/api/agent")) {
                 adminOnly = true;
