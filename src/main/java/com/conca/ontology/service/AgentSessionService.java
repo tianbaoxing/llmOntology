@@ -1,16 +1,26 @@
 package com.conca.ontology.service;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import com.conca.ontology.exception.ApiException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.agentscope.core.message.ContentBlock;
@@ -20,14 +30,18 @@ import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.core.message.ToolResultBlock;
 import io.agentscope.core.message.ToolUseBlock;
+import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.model.ChatUsage;
 import io.agentscope.core.state.AgentState;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.harness.agent.HarnessAgent;
+import io.agentscope.harness.agent.workspace.WorkspaceManager;
 
 /**
  * 历史会话服务：复用框架 agent-state 持久化（HarnessAgent 轮末自动落盘），
  * 只读 + 删除，全部经 AgentStateStore 官方 API，不解析 state 文件本身。
+ * 会话被 Compaction 压缩后 state 仅存 [摘要+保留尾部]，压缩前消息经
+ * workspace 侧 log.jsonl（append-only 全量转录）双源合并补全展示。
  * 会话按登录用户隔离（userId 由 Controller 从登录态传入，与 AgentChatService 一致）。
  * 删除仅清 agent 记忆（stateStore.delete）；workspace 侧 jsonl 日志为无害残留，不清理。
  */
@@ -40,6 +54,22 @@ public class AgentSessionService {
     private static final Pattern SESSION_ID = Pattern.compile("^[a-zA-Z0-9_\\-.]+$");
     private static final int TITLE_MAX = 30;
     private static final int TOOL_SUMMARY_MAX = 300;
+    /** 框架写入 workspace 的 agent 名（AgentScopeConfig 固定 .name("ontology-assistant")） */
+    private static final String AGENT_ID = "ontology-assistant";
+    /** 框架压缩摘要消息的 name 标记（state 中识别用） */
+    private static final String COMPACTION_SUMMARY_NAME = "__compaction_summary__";
+    /** 摘要消息固定文案开头（转录行无 name 字段，按内容前缀识别链式压缩的历史摘要） */
+    private static final String COMPACTION_TEXT_PREFIX = "You are in the middle of a conversation";
+    /** 转录行内联工具调用/结果文本格式 */
+    private static final Pattern TOOL_CALL_RE =
+            Pattern.compile("^\\[tool_call:\\s*([A-Za-z0-9_]+)\\((.*)\\)\\]$");
+    private static final Pattern TOOL_RESULT_RE =
+            Pattern.compile("^\\[tool_result:\\s*([A-Za-z0-9_]+)\\]\\s*(.*)$", Pattern.DOTALL);
+    /** 转录行时间戳（epoch 秒）→ 与 state 一致的本地时间字符串格式 */
+    private static final DateTimeFormatter TRANSCRIPT_TS_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+
+    private static final Logger log = LoggerFactory.getLogger(AgentSessionService.class);
 
     private final ObjectProvider<HarnessAgent> agentProvider;
     private final AgentChatService agentChatService;
@@ -74,14 +104,14 @@ public class AgentSessionService {
         return Map.of("sessions", sessions);
     }
 
-    /** 单会话全部消息，映射为前端可直接渲染的结构 */
+    /** 单会话全部消息：未压缩会话直接渲染 state；被压缩会话双源合并（转录前缀+摘要卡片+保留尾部） */
     public Map<String, Object> messages(String userId, String sessionId) {
         String id = validate(sessionId);
         AgentState state = requireStore().get(userId, id, STATE_KEY, AgentState.class)
                 .orElseThrow(() -> new ApiException(404, "会话不存在"));
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sessionId", id);
-        result.put("messages", mapMessages(state));
+        result.put("messages", mergedMessages(userId, id, state));
         return result;
     }
 
@@ -121,11 +151,12 @@ public class AgentSessionService {
         return sessionId;
     }
 
-    /** 会话标题（首条非空 USER 消息截断；驾驶舱统计复用） */
+    /** 会话标题（首条非空 USER 消息截断，跳过压缩摘要；驾驶舱统计复用） */
     static String titleOf(AgentState state) {
         if (state.getContext() != null) {
             for (Msg msg : state.getContext()) {
-                if (msg.getRole() == MsgRole.USER) {
+                if (msg.getRole() == MsgRole.USER
+                        && !COMPACTION_SUMMARY_NAME.equals(msg.getName())) {
                     String text = textOf(msg).strip();
                     if (!text.isEmpty()) {
                         return text.length() > TITLE_MAX ? text.substring(0, TITLE_MAX) + "…" : text;
@@ -166,6 +197,9 @@ public class AgentSessionService {
             return result;
         }
         for (Msg msg : state.getContext()) {
+            if (COMPACTION_SUMMARY_NAME.equals(msg.getName())) {
+                continue; // 压缩摘要由摘要卡片渲染，不再作为 USER 气泡
+            }
             if (msg.getRole() == MsgRole.USER) {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("role", "user");
@@ -214,6 +248,207 @@ public class AgentSessionService {
             }
         }
         return result;
+    }
+
+    // ---------------- 压缩历史双源合并 ----------------
+
+    /**
+     * 双源合并渲染：state 被 CompactionMiddleware 压缩后仅含 [摘要+保留尾部]，
+     * 压缩前消息只存于 workspace 侧 log.jsonl（append-only 全量转录）。
+     * 以保留尾部首条消息 id 为切割线读取转录前缀，拼装 [前缀, 摘要卡片, 尾部]。
+     * 未压缩 / 转录不可用 / 切割线找不到 → 摘要卡片 + 纯 state 渲染（降级不报错）。
+     */
+    private List<Map<String, Object>> mergedMessages(String userId, String sessionId, AgentState state) {
+        List<Msg> context = state.getContext();
+        int summaryIdx = indexOfCompactionSummary(context);
+        if (summaryIdx < 0) {
+            return mapMessages(state);
+        }
+        String tailStartId = summaryIdx + 1 < context.size() ? context.get(summaryIdx + 1).getId() : null;
+        TranscriptPrefix prefix = transcriptPrefix(userId, sessionId, tailStartId);
+        List<Map<String, Object>> merged = new ArrayList<>();
+        if (prefix != null) {
+            merged.addAll(prefix.messages());
+        }
+        merged.add(compactionCard(context.get(summaryIdx),
+                prefix == null ? null : prefix.logPath(),
+                prefix == null ? 0 : prefix.messages().size()));
+        merged.addAll(mapMessages(state));
+        return merged;
+    }
+
+    /** 定位最早的压缩摘要消息下标；未压缩返回 -1 */
+    private static int indexOfCompactionSummary(List<Msg> context) {
+        if (context == null) {
+            return -1;
+        }
+        for (int i = 0; i < context.size(); i++) {
+            if (COMPACTION_SUMMARY_NAME.equals(context.get(i).getName())) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** 转录前缀读取结果：扁平消息列表 + 转录文件展示路径（供摘要卡片引用） */
+    private record TranscriptPrefix(List<Map<String, Object>> messages, String logPath) {}
+
+    /**
+     * 读取 log.jsonl 中切割线（保留尾部首条消息 id）之前的消息并扁平映射。
+     * 注意：尾部消息在转录中位于摘要行之前，按摘要行切割会与 state 重复，必须按尾部首条 id 切。
+     * 文件缺失 / 未出现切割线 / agent 未装配 → null（调用方降级）。
+     */
+    private TranscriptPrefix transcriptPrefix(String userId, String sessionId, String tailStartId) {
+        if (tailStartId == null || tailStartId.isBlank()) {
+            return null;
+        }
+        HarnessAgent agent = agentProvider.getIfAvailable();
+        if (agent == null) {
+            return null;
+        }
+        try {
+            WorkspaceManager wm = agent.workspaceFor(userId, sessionId);
+            RuntimeContext rc = RuntimeContext.builder().userId(userId).sessionId(sessionId).build();
+            Path logPath = wm.resolveSessionLogFile(rc, AGENT_ID, sessionId);
+            if (logPath == null || !Files.isRegularFile(logPath)) {
+                return null;
+            }
+            List<Map<String, Object>> flat = new ArrayList<>();
+            // 归属映射：ASSISTANT 行 id → 自身消息；TOOL 行 id → 解析后的归属 assistant
+            // （转录 parentId 为链式：TOOL 行指向前一条 TOOL/ASSISTANT 行，需传递解析）
+            Map<String, Map<String, Object>> ownerById = new LinkedHashMap<>();
+            for (String line : Files.readAllLines(logPath, StandardCharsets.UTF_8)) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                JsonNode n;
+                try {
+                    n = mapper.readTree(line);
+                } catch (Exception e) {
+                    continue; // 单行畸形跳过，不中断整体加载
+                }
+                if (!"message".equals(n.path("type").asText())) {
+                    continue; // 未知条目类型（compaction/summary 等）跳过
+                }
+                if (tailStartId.equals(n.path("id").asText(null))) {
+                    return new TranscriptPrefix(flat, displayPath(wm, logPath));
+                }
+                appendFlatEntry(flat, ownerById, n);
+            }
+            return null; // 转录走完未出现切割线（格式不符）→ 降级
+        } catch (Exception e) {
+            log.warn("读取会话转录失败 session={}: {}", sessionId, e.getMessage());
+            return null;
+        }
+    }
+
+    /** 单条转录行 → 前端扁平消息（压缩前记录：无 thinking/usage，工具调用按内联文本提取） */
+    private static void appendFlatEntry(List<Map<String, Object>> out,
+            Map<String, Map<String, Object>> ownerById, JsonNode n) {
+        String role = n.path("role").asText("");
+        String ts = fmtTranscriptTs(n.path("timestamp"));
+        String content = n.path("content").asText("");
+        String id = n.path("id").asText(null);
+        if ("USER".equals(role)) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("role", content.startsWith(COMPACTION_TEXT_PREFIX) ? "compaction" : "user");
+            m.put("content", content);
+            m.put("ts", ts);
+            m.put("flat", true);
+            out.add(m);
+        } else if ("ASSISTANT".equals(role)) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("role", "assistant");
+            m.put("ts", ts);
+            m.put("flat", true);
+            List<Map<String, Object>> tools = new ArrayList<>();
+            StringBuilder answer = new StringBuilder();
+            for (String seg : content.split("\n", -1)) {
+                Matcher mc = TOOL_CALL_RE.matcher(seg.strip());
+                if (mc.matches()) {
+                    Map<String, Object> t = new LinkedHashMap<>();
+                    t.put("name", mc.group(1));
+                    t.put("input", truncate(mc.group(2)));
+                    tools.add(t);
+                } else if (!seg.isBlank()) {
+                    answer.append(seg).append('\n');
+                }
+            }
+            m.put("answer", answer.toString().strip());
+            m.put("tools", tools);
+            out.add(m);
+            if (id != null) {
+                ownerById.put(id, m);
+            }
+        } else if ("TOOL".equals(role)) {
+            Map<String, Object> owner = ownerById.get(n.path("parentId").asText(null));
+            if (owner != null) {
+                attachToolResult(owner, content);
+                if (id != null) {
+                    ownerById.put(id, owner); // 链式 parent：后续 TOOL 行经此映射归到同一 assistant
+                }
+            }
+        }
+    }
+
+    /** 工具结果回填到归属 assistant 消息，优先同名工具（兜底首个未回填项） */
+    @SuppressWarnings("unchecked")
+    private static void attachToolResult(Map<String, Object> target, String content) {
+        Matcher mr = TOOL_RESULT_RE.matcher(content.strip());
+        String name = mr.matches() ? mr.group(1) : null;
+        String output = mr.matches() ? mr.group(2) : content;
+        List<Map<String, Object>> tools = (List<Map<String, Object>>) target.get("tools");
+        for (Map<String, Object> t : tools) {
+            if (t.get("output") == null && (name == null || name.equals(t.get("name")))) {
+                t.put("output", truncate(output));
+                return;
+            }
+        }
+        for (Map<String, Object> t : tools) {
+            if (t.get("output") == null) {
+                t.put("output", truncate(output));
+                return;
+            }
+        }
+    }
+
+    /** 转录行时间戳（epoch 秒，数值）→ 与 state 一致的本地时间字符串；非数值原样返回 */
+    private static String fmtTranscriptTs(JsonNode n) {
+        if (!n.isNumber()) {
+            String s = n.asText(null);
+            return s == null || s.isBlank() ? null : s;
+        }
+        try {
+            return TRANSCRIPT_TS_FMT.format(Instant.ofEpochMilli((long) (n.asDouble() * 1000))
+                    .atZone(ZoneId.systemDefault()));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 压缩摘要卡片（前端渲染为「记忆压缩」折叠卡片，替代原 USER 气泡） */
+    private static Map<String, Object> compactionCard(Msg summary, String logPath, int count) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("role", "compaction");
+        m.put("ts", summary.getTimestamp());
+        m.put("content", textOf(summary));
+        m.put("logFile", logPath);
+        m.put("count", count);
+        return m;
+    }
+
+    /** 转录文件展示路径：workspace 配置路径 + 相对路径（统一正斜杠）；relativize 失败回退绝对路径 */
+    private static String displayPath(WorkspaceManager wm, Path logPath) {
+        try {
+            Path rel = wm.getWorkspace().toAbsolutePath()
+                    .relativize(logPath.toAbsolutePath());
+            if (!rel.startsWith("..")) {
+                return (wm.getWorkspace() + "/" + rel).replace('\\', '/');
+            }
+        } catch (Exception ignored) {
+            // 回退到绝对路径
+        }
+        return logPath.toString().replace('\\', '/');
     }
 
     private String summarizeObject(Object input) {

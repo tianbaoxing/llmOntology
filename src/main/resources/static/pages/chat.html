@@ -49,6 +49,15 @@ body { display: flex; flex-direction: column; }
 .err-text { color: #b91c1c; white-space: pre-wrap; }
 .usage { color: #9ca3af; font-size: 12px; margin-top: 8px; }
 .usage-total { color: #6b7280; }
+/* 记忆压缩卡片与会话转录恢复的「压缩前记录」角标 */
+.compaction-card { align-self: stretch; border: 1px dashed #c4b5fd; border-radius: 8px; background: #f5f3ff; font-size: 13px; }
+.compaction-card summary { cursor: pointer; padding: 6px 12px; color: #6d28d9; user-select: none; }
+.compaction-card .cc-inner { padding: 4px 12px 10px; color: #6b7280; max-height: 300px; overflow-y: auto; line-height: 1.6; }
+.compaction-card .cc-text { white-space: pre-wrap; word-break: break-word; }
+.compaction-card .cc-file { margin-top: 6px; font-family: Consolas, monospace; font-size: 12px; color: #6d28d9; word-break: break-all; }
+.compaction-card .cc-ts { margin-top: 4px; font-size: 12px; color: #9ca3af; }
+.flat-tag { display: inline-block; font-size: 11px; line-height: 1.5; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 0 8px; margin-bottom: 6px; cursor: default; }
+.msg-user .flat-tag { color: #fff; background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.4); }
 /* usage 行右侧挂「存为评测样本」入口（仅 ADMIN）：行变 flex，按钮靠右 */
 .usage.has-eval { display: flex; align-items: center; }
 .usage.has-eval .to-eval { margin-left: auto; }
@@ -471,8 +480,18 @@ function addNode(html) {
   return node;
 }
 
-function addUserMsg(text) {
-  addNode('<div class="msg-user"></div>').textContent = text;
+function addUserMsg(text, flat) {
+  const el = addNode('<div class="msg-user"></div>');
+  if (flat) { // 压缩前记录（从会话转录恢复）：附角标提示
+    const b = document.createElement('span');
+    b.className = 'flat-tag';
+    b.title = '压缩前记录：从会话转录恢复，无 token 统计';
+    b.textContent = '压缩前';
+    el.appendChild(b);
+    el.appendChild(document.createTextNode(text));
+  } else {
+    el.textContent = text;
+  }
   msgSeq++;
 }
 
@@ -866,7 +885,8 @@ async function loadMessages() {
   }
   sessionTotals = { in: 0, out: 0, lastUi: null };
   for (const m of msgs) {
-    if (m.role === 'user') addUserMsg(m.content);
+    if (m.role === 'user') addUserMsg(m.content, m.flat);
+    else if (m.role === 'compaction') addCompactionCard(m);
     else {
       const ui = addStaticAgentMsg(m);
       sessionTotals.lastUi = ui;
@@ -881,6 +901,13 @@ async function loadMessages() {
 /** 历史回看：静态渲染 assistant 消息（折叠区默认展开、无光标） */
 function addStaticAgentMsg(m) {
   const ui = addAgentMsg();
+  if (m.flat) { // 压缩前记录（从会话转录恢复）：附角标提示
+    const b = document.createElement('span');
+    b.className = 'flat-tag';
+    b.title = '压缩前记录：从会话转录恢复，无思考过程与 token 统计';
+    b.textContent = '压缩前';
+    ui.root.insertBefore(b, ui.root.firstChild);
+  }
   if (m.thinking) {
     ui.thinkBox.style.display = '';
     ui.thinkBox.open = true;
@@ -915,6 +942,39 @@ function addStaticAgentMsg(m) {
   ui.answer.textContent = m.answer || '';
   ui.setDone(m, m.ts);
   return ui;
+}
+
+/**
+ * 记忆压缩卡片：压缩点标记（默认折叠）+ 模型侧摘要全文 + 转录文件路径。
+ * 计入 msgSeq 保持与 /messages 数组下标对齐（评测样本 msgIndex 按数组取数）。
+ */
+function addCompactionCard(m) {
+  const head = m.flat
+    ? '🧠 更早的记忆压缩点（点击展开摘要）'
+    : (m.count
+        ? '🧠 记忆压缩点：上方 ' + m.count + ' 条记录已从会话转录恢复（点击展开模型侧摘要）'
+        : '🧠 记忆压缩点：会话转录不可用，压缩前记录缺失（点击展开模型侧摘要）');
+  const card = addNode(
+    '<details class="compaction-card"><summary></summary><div class="cc-inner"></div></details>');
+  card.querySelector('summary').textContent = head;
+  const inner = card.querySelector('.cc-inner');
+  const body = document.createElement('div');
+  body.className = 'cc-text';
+  body.textContent = m.content || '';
+  inner.appendChild(body);
+  if (m.logFile) {
+    const f = document.createElement('div');
+    f.className = 'cc-file';
+    f.textContent = '完整转录文件：' + m.logFile;
+    inner.appendChild(f);
+  }
+  if (m.ts) {
+    const t = document.createElement('div');
+    t.className = 'cc-ts';
+    t.textContent = fmtTime(m.ts);
+    inner.appendChild(t);
+  }
+  msgSeq++;
 }
 
 async function deleteSession(id) {
