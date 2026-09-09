@@ -43,10 +43,13 @@ public class SessionDetailService {
     private static final Pattern SESSION_ID = Pattern.compile("^[a-zA-Z0-9_\\-.]+$");
 
     private final ObjectProvider<HarnessAgent> agentProvider;
+    private final AgentSessionService agentSessionService;
     private final ObjectMapper mapper;
 
-    public SessionDetailService(ObjectProvider<HarnessAgent> agentProvider, ObjectMapper mapper) {
+    public SessionDetailService(ObjectProvider<HarnessAgent> agentProvider,
+            AgentSessionService agentSessionService, ObjectMapper mapper) {
         this.agentProvider = agentProvider;
+        this.agentSessionService = agentSessionService;
         this.mapper = mapper;
     }
 
@@ -104,6 +107,9 @@ public class SessionDetailService {
 
         for (int i = 0; i < context.size(); i++) {
             Msg msg = context.get(i);
+            if (AgentSessionService.COMPACTION_SUMMARY_NAME.equals(msg.getName())) {
+                continue; // 压缩摘要由摘要卡片渲染，不作为 USER 气泡（与 chat 历史一致）
+            }
             boolean beforeLastCall = lastUsageIdx < 0 || i < lastUsageIdx;
             if (msg.getTimestamp() != null && !msg.getTimestamp().isBlank()) {
                 lastTime = msg.getTimestamp();
@@ -218,9 +224,23 @@ public class SessionDetailService {
         long toolResultTok = Math.round(toolResultEst * calibration);
         long tokTotal = sysTok + schemasTok + userTok + assistantTok + injectedTok + toolResultTok;
 
-        // 明细消息估算值统一按同一系数校准，与图表口径一致
+        // ---- 压缩历史合并（参照 chat 历史）：state 仅存 [摘要+尾部]，
+        // 压缩前消息从会话转录恢复，拼装 [前缀, 摘要卡片, state 尾部] ----
+        AgentSessionService.CompactionHistory history =
+                agentSessionService.compactionHistory(userId, id, state);
+        if (history != null) {
+            List<Map<String, Object>> merged = new ArrayList<>(history.prefix());
+            merged.add(history.card());
+            merged.addAll(messages);
+            messages = merged;
+        }
+
+        // 明细消息估算值统一按同一系数校准，与图表口径一致（转录恢复的 flat 消息无估算值，跳过）
         for (Map<String, Object> m : messages) {
-            m.put("estTokens", Math.round(((Number) m.get("estTokens")).longValue() * calibration));
+            Number est = (Number) m.get("estTokens");
+            if (est != null) {
+                m.put("estTokens", Math.round(est.longValue() * calibration));
+            }
         }
         for (Map<String, Object> t : toolSchemas) {
             t.put("estTokens", Math.round(((Number) t.get("estTokens")).longValue() * calibration));

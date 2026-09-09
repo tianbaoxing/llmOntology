@@ -64,6 +64,19 @@ details.static-item > summary:hover { background: #f9fafb; border-radius: 8px; }
 .tool-name { font-weight: 600; }
 #sd-messages .muted { font-size: 13px; }
 
+/* 记忆压缩卡片与压缩前记录角标（与 chat 页一致的双源合并展示） */
+.compaction-item { border: 1px dashed #c4b5fd; border-radius: 8px; margin-bottom: 14px; background: #f5f3ff; }
+.compaction-item > summary { cursor: pointer; padding: 8px 14px; font-size: 13px; color: #6d28d9;
+  user-select: none; list-style: none; }
+.compaction-item > summary::-webkit-details-marker { display: none; }
+.compaction-item > summary::before { content: '▸'; margin-right: 8px; font-size: 11px; transition: transform .15s; }
+.compaction-item[open] > summary::before { transform: rotate(90deg); }
+.compaction-item .cc-file { margin-top: 8px; font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px; color: #6d28d9; word-break: break-all; }
+.compaction-item .cc-ts { margin-top: 4px; font-size: 12px; color: #9ca3af; }
+.flat-tag { display: inline-block; font-size: 11px; line-height: 1.5; color: #b45309; background: #fffbeb;
+  border: 1px solid #fde68a; border-radius: 10px; padding: 0 8px; cursor: default; }
+
 /* 子 Agent 调用 */
 .sub-link { font-size: 12px; color: #1d4ed8; text-decoration: none; }
 .sub-link:hover { text-decoration: underline; }
@@ -124,7 +137,7 @@ details.static-item .role-chip.tool { flex-shrink: 0; }
   </div>
   <div class="card">
     <h2>消息明细</h2>
-    <div class="muted" style="margin-bottom:10px">完整消息内容（含思考过程与工具调用，不截断）</div>
+    <div class="muted" style="margin-bottom:10px">完整消息内容（含思考过程与工具调用，不截断）；发生记忆压缩时，压缩前的记录从会话转录恢复（带「压缩前」角标，无思考过程与 token 统计）</div>
     <div id="sd-messages"></div>
   </div>
 </div>
@@ -375,13 +388,35 @@ function renderMessages(list) {
     $('sd-messages').innerHTML = '<div class="muted">暂无消息</div>';
     return;
   }
-  $('sd-messages').innerHTML = list.map(m => m.role === 'user' ? userItem(m) : assistantItem(m)).join('');
+  $('sd-messages').innerHTML = list.map(m => {
+    if (m.role === 'compaction') return compactionItem(m);
+    return m.role === 'user' ? userItem(m) : assistantItem(m);
+  }).join('');
+}
+
+/** 压缩前记录角标：从会话转录恢复，无思考过程与 token 统计（与 chat 页一致） */
+function flatTag(m) {
+  return m.flat ? '<span class="flat-tag" title="压缩前记录：从会话转录恢复，无思考过程与 token 统计">压缩前</span>' : '';
+}
+
+/** 记忆压缩卡片（与 chat 页一致）：压缩点标记 + 模型侧摘要全文 + 转录文件路径 */
+function compactionItem(m) {
+  const head = m.flat
+    ? '🧠 更早的记忆压缩点（点击展开摘要）'
+    : (m.count
+        ? '🧠 记忆压缩点：上方 ' + m.count + ' 条记录已从会话转录恢复（点击展开模型侧摘要）'
+        : '🧠 记忆压缩点：会话转录不可用，压缩前记录缺失（点击展开模型侧摘要）');
+  return `<details class="compaction-item"><summary>${esc(head)}</summary>
+    <div class="static-body"><pre>${esc(m.content || '')}</pre>
+      ${m.logFile ? `<div class="cc-file">完整转录文件：${esc(m.logFile)}</div>` : ''}
+      ${m.ts ? `<div class="cc-ts">${esc(m.ts)}</div>` : ''}
+    </div></details>`;
 }
 
 function userItem(m) {
   return `<div class="msg-item user">
     <div class="msg-head"><span class="role-chip user">用户</span><span class="muted">${esc(m.ts || '')}</span>
-      <span class="tok-chip">≈ ${fmtNum(m.estTokens)} tokens</span></div>
+      ${flatTag(m)}${m.estTokens != null ? `<span class="tok-chip">≈ ${fmtNum(m.estTokens)} tokens</span>` : ''}</div>
     <div class="msg-body">${esc(m.content || '')}</div>
   </div>`;
 }
@@ -395,7 +430,7 @@ function assistantItem(m) {
     inner += `<div class="tool-block"><div class="msg-head" style="margin-bottom:0">
         <span class="role-chip tool">工具调用</span><span class="tool-name">${code(t.name)}</span></div>
       <div class="tool-io"><div class="io-label">输入</div><pre>${esc(t.input || '(空)')}</pre></div>
-      <div class="tool-io"><div class="io-label output">输出（≈ ${fmtNum(t.outputTokens)} tokens）</div><pre>${esc(t.output || '(空)')}</pre></div>
+      <div class="tool-io"><div class="io-label output">输出${t.outputTokens != null ? '（≈ ' + fmtNum(t.outputTokens) + ' tokens）' : ''}</div><pre>${esc(t.output || '(空)')}</pre></div>
     </div>`;
   });
   if (m.answer) {
@@ -405,7 +440,7 @@ function assistantItem(m) {
     ? `<span class="tok-chip real">实际 输入 ${fmtNum(m.promptTokens)} / 输出 ${fmtNum(m.completionTokens)}${m.cachedTokens ? ' / 缓存 ' + fmtNum(m.cachedTokens) : ''}</span>` : '';
   return `<div class="msg-item assistant">
     <div class="msg-head"><span class="role-chip assistant">助手</span><span class="muted">${esc(m.ts || '')}</span>
-      <span class="tok-chip">≈ ${fmtNum(m.estTokens)} tokens</span>${real}</div>
+      ${flatTag(m)}${m.estTokens != null ? `<span class="tok-chip">≈ ${fmtNum(m.estTokens)} tokens</span>` : ''}${real}</div>
     ${inner || '<div class="muted">（无内容）</div>'}
   </div>`;
 }

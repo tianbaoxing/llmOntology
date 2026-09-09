@@ -56,8 +56,8 @@ public class AgentSessionService {
     private static final int TOOL_SUMMARY_MAX = 300;
     /** 框架写入 workspace 的 agent 名（AgentScopeConfig 固定 .name("ontology-assistant")） */
     private static final String AGENT_ID = "ontology-assistant";
-    /** 框架压缩摘要消息的 name 标记（state 中识别用） */
-    private static final String COMPACTION_SUMMARY_NAME = "__compaction_summary__";
+    /** 框架压缩摘要消息的 name 标记（state 中识别用，SessionDetailService 跳过渲染时复用） */
+    static final String COMPACTION_SUMMARY_NAME = "__compaction_summary__";
     /** 摘要消息固定文案开头（转录行无 name 字段，按内容前缀识别链式压缩的历史摘要） */
     private static final String COMPACTION_TEXT_PREFIX = "You are in the middle of a conversation";
     /** 转录行内联工具调用/结果文本格式 */
@@ -259,22 +259,34 @@ public class AgentSessionService {
      * 未压缩 / 转录不可用 / 切割线找不到 → 摘要卡片 + 纯 state 渲染（降级不报错）。
      */
     private List<Map<String, Object>> mergedMessages(String userId, String sessionId, AgentState state) {
+        CompactionHistory h = compactionHistory(userId, sessionId, state);
+        if (h == null) {
+            return mapMessages(state);
+        }
+        List<Map<String, Object>> merged = new ArrayList<>(h.prefix());
+        merged.add(h.card());
+        merged.addAll(mapMessages(state));
+        return merged;
+    }
+
+    /** 压缩历史合并素材：压缩前消息前缀（转录恢复，flat）+ 摘要卡片；未压缩返回 null */
+    public record CompactionHistory(List<Map<String, Object>> prefix, Map<String, Object> card) {}
+
+    /**
+     * 读取压缩历史素材（state 定位摘要 + 转录读取前缀），供 chat 历史与 session-detail
+     * 消息明细共用：调用方自行拼接 [prefix, card, 自身渲染的 state 尾部]。
+     */
+    public CompactionHistory compactionHistory(String userId, String sessionId, AgentState state) {
         List<Msg> context = state.getContext();
         int summaryIdx = indexOfCompactionSummary(context);
         if (summaryIdx < 0) {
-            return mapMessages(state);
+            return null;
         }
         String tailStartId = summaryIdx + 1 < context.size() ? context.get(summaryIdx + 1).getId() : null;
         TranscriptPrefix prefix = transcriptPrefix(userId, sessionId, tailStartId);
-        List<Map<String, Object>> merged = new ArrayList<>();
-        if (prefix != null) {
-            merged.addAll(prefix.messages());
-        }
-        merged.add(compactionCard(context.get(summaryIdx),
-                prefix == null ? null : prefix.logPath(),
-                prefix == null ? 0 : prefix.messages().size()));
-        merged.addAll(mapMessages(state));
-        return merged;
+        List<Map<String, Object>> prefixMsgs = prefix == null ? List.of() : prefix.messages();
+        return new CompactionHistory(prefixMsgs, compactionCard(context.get(summaryIdx),
+                prefix == null ? null : prefix.logPath(), prefixMsgs.size()));
     }
 
     /** 定位最早的压缩摘要消息下标；未压缩返回 -1 */
