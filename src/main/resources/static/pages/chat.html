@@ -28,6 +28,15 @@ body { display: flex; flex-direction: column; }
 .sess-del { display: none; position: absolute; right: 8px; top: 10px; color: #9ca3af; font-size: 12px; cursor: pointer; padding: 2px 4px; }
 .sess-item:hover .sess-del { display: block; }
 .sess-del:hover { color: #dc2626; }
+/* 会话标题搜索框（按标题即时过滤会话列表） */
+.side-search { padding: 0 14px 10px; }
+.side-search input { width: 100%; box-sizing: border-box; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; color: #1f2937; background: #f9fafb; }
+.side-search input:focus { outline: none; border-color: #2563eb; background: #fff; }
+.side-search input::placeholder { color: #9ca3af; }
+.sess-empty { padding: 24px 14px; text-align: center; color: #9ca3af; font-size: 13px; }
+/* 双击重命名的内联编辑输入框 */
+.sess-title input.rename { width: 100%; box-sizing: border-box; padding: 2px 6px; border: 1px solid #2563eb; border-radius: 4px; font-size: 13px; color: #1f2937; }
+.sess-title input.rename:focus { outline: none; }
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .chat-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; max-width: 900px; width: 100%; margin: 0 auto; }
 .messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
@@ -103,6 +112,7 @@ textarea:focus { outline: none; border-color: #2563eb; }
   <div class="sidebar">
     <div class="side-head"><button class="btn" id="btn-new">+ 新会话</button></div>
     <div class="side-title">历史会话</div>
+    <div class="side-search"><input type="text" id="sess-search" placeholder="搜索会话标题" autocomplete="off"></div>
     <div class="sess-list" id="sess-list"></div>
   </div>
   <div class="main">
@@ -738,6 +748,8 @@ function autoGrow() {
 
 // ---------- 历史会话 ----------
 let sessions = [];
+// 双击重命名检测状态（模块级：单击切换会话重建列表 DOM 后仍保持，见 renderSessions 内说明）
+let lastClick = { id: null, ts: 0 };
 
 async function loadSessions() {
   try {
@@ -751,12 +763,19 @@ async function loadSessions() {
   renderSessions();
 }
 
+/** 当前搜索关键词（去空白转小写）；空串 = 未过滤 */
+function searchKw() {
+  const el = $('sess-search');
+  return el ? el.value.trim().toLowerCase() : '';
+}
+
 function renderSessions() {
   const list = $('sess-list');
   list.innerHTML = '';
+  const kw = searchKw();
   // 当前会话尚未在后端落盘（刚点【新会话】或恢复到已失效 id）→ 顶部显示占位项并高亮，
-  // 首条消息落盘后占位项自动被真实会话条目替代
-  if (!sessions.some(s => s.sessionId === sessionId)) {
+  // 首条消息落盘后占位项自动被真实会话条目替代；搜索态隐藏占位项避免干扰匹配
+  if (!kw && !sessions.some(s => s.sessionId === sessionId)) {
     const ph = document.createElement('div');
     ph.className = 'sess-item active';
     ph.title = '新会话';
@@ -766,7 +785,10 @@ function renderSessions() {
     ph.appendChild(t);
     list.appendChild(ph);
   }
+  let shown = 0;
   for (const s of sessions) {
+    if (kw && !(s.title || '').toLowerCase().includes(kw)) continue; // 按标题即时过滤
+    shown++;
     const item = document.createElement('div');
     item.className = 'sess-item' + (s.sessionId === sessionId ? ' active' : '');
     const title = document.createElement('div');
@@ -777,7 +799,18 @@ function renderSessions() {
     time.textContent = relTime(s.updateTime);
     item.appendChild(title);
     item.appendChild(time);
-    item.addEventListener('click', () => switchSession(s.sessionId));
+    // 双击进入重命名：自实现 400ms 双击检测。首次单击切换会话会重建列表 DOM，
+    // 原生 dblclick 的两击落在不同节点上不触发；模块级 lastClick 跨重建仍有效
+    item.addEventListener('click', () => {
+      const now = Date.now();
+      if (lastClick.id === s.sessionId && now - lastClick.ts < 400) {
+        lastClick = { id: null, ts: 0 };
+        beginRename(title, s);
+        return; // 第二击进编辑态；首击已完成切换
+      }
+      lastClick = { id: s.sessionId, ts: now };
+      switchSession(s.sessionId);
+    });
     const del = document.createElement('span');
     del.className = 'sess-del';
     del.textContent = '✕';
@@ -786,7 +819,58 @@ function renderSessions() {
     item.appendChild(del);
     list.appendChild(item);
   }
+  if (kw && !shown) {
+    const empty = document.createElement('div');
+    empty.className = 'sess-empty';
+    empty.textContent = '无匹配会话';
+    list.appendChild(empty);
+  }
   updateChatHead();
+}
+
+/** 双击标题进入内联重命名：Enter/失焦保存，Escape 取消，空值视为取消 */
+function beginRename(titleEl, s) {
+  if (titleEl.querySelector('input.rename')) return;
+  const input = document.createElement('input');
+  input.className = 'rename';
+  input.maxLength = 50; // 与后端 SessionTitleState.TITLE_MAX 对齐
+  input.value = s.title || '';
+  titleEl.textContent = '';
+  titleEl.appendChild(input);
+  input.focus();
+  input.select();
+  let done = false; // Enter 触发后 blur 仍会到达，只收尾一次
+  const finish = save => {
+    if (done) return;
+    done = true;
+    const val = input.value.trim();
+    if (save && val && val !== s.title) saveRename(s, val);
+    else renderSessions(); // 取消/空值/未变化：恢复原标题
+  };
+  input.addEventListener('click', e => e.stopPropagation());
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
+/** 保存重命名：PUT title；成功更新本地缓存后重渲染（当前会话头部随 updateChatHead 联动），失败弹错恢复 */
+async function saveRename(s, title) {
+  try {
+    const res = await fetch('/api/agent/sessions/' + encodeURIComponent(s.sessionId) + '/title', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    });
+    if (res.status === 401) { location.href = '/login'; return; }
+    const j = await res.json();
+    if (!res.ok || j.code !== 0) throw new Error((j && j.msg) || ('HTTP ' + res.status));
+    s.title = title;
+  } catch (e) {
+    alert('重命名失败：' + (e.message || '网络异常'));
+  }
+  renderSessions();
 }
 
 /** 头部当前会话标题：落盘会话取列表标题，未落盘显示“新会话” */
@@ -1026,6 +1110,14 @@ inputEl.addEventListener('keydown', e => {
 inputEl.addEventListener('input', () => { autoGrow(); showSlashMenu(); });
 inputEl.addEventListener('blur', () => setTimeout(hideSlashMenu, 150));
 $('btn-new').addEventListener('click', startNewSession);
+// 搜索框：输入即时过滤；Esc 清空恢复（过滤逻辑集中在 renderSessions 统一执行）
+const searchInput = $('sess-search');
+if (searchInput) {
+  searchInput.addEventListener('input', renderSessions);
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { searchInput.value = ''; renderSessions(); }
+  });
+}
 
 // 初始化：加载会话列表；当前会话有记录则回看，并提示“已恢复旧会话”（await 后插横幅，避免被 loadMessages 清空）
 inputEl.focus();

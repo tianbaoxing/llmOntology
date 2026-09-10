@@ -95,7 +95,7 @@ public class DashboardService {
 
             Map<String, Object> s = new LinkedHashMap<>();
             s.put("sessionId", id);
-            s.put("title", AgentSessionService.titleOf(state));
+            s.put("title", AgentSessionService.effectiveTitle(store, userId, id, state));
             s.put("lastTime", lastTime);
             s.put("rounds", rounds);
             s.put("llmCalls", llmCalls);

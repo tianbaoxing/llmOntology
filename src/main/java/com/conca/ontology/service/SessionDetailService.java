@@ -272,7 +272,7 @@ public class SessionDetailService {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sessionId", id);
-        result.put("title", AgentSessionService.titleOf(state));
+        result.put("title", AgentSessionService.effectiveTitle(agent.getStateStore(), userId, id, state));
         result.put("lastTime", lastTime);
         result.put("summary", summary);
         result.put("breakdown", breakdown);

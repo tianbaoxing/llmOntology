@@ -39,7 +39,9 @@ import io.agentscope.harness.agent.workspace.WorkspaceManager;
 
 /**
  * 历史会话服务：复用框架 agent-state 持久化（HarnessAgent 轮末自动落盘），
- * 只读 + 删除，全部经 AgentStateStore 官方 API，不解析 state 文件本身。
+ * 只读 + 删除 + 重命名，全部经 AgentStateStore 官方 API，不解析 state 文件本身。
+ * 会话标题：手工重命名存独立 key（session_title.json，与 agent_state.json 同目录互不干扰，
+ * 删除会话时随目录整体清理）；未手工命名时回退首条用户消息派生标题。
  * 会话被 Compaction 压缩后 state 仅存 [摘要+保留尾部]，压缩前消息经
  * workspace 侧 log.jsonl（append-only 全量转录）双源合并补全展示。
  * 会话按登录用户隔离（userId 由 Controller 从登录态传入，与 AgentChatService 一致）。
@@ -93,7 +95,7 @@ public class AgentSessionService {
             store.get(userId, id, STATE_KEY, AgentState.class).ifPresent(state -> {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("sessionId", id);
-                m.put("title", titleOf(state));
+                m.put("title", effectiveTitle(store, userId, id, state));
                 m.put("updateTime", updateTimeOf(state));
                 m.put("messageCount", state.getContext() == null ? 0 : state.getContext().size());
                 sessions.add(m);
@@ -127,6 +129,27 @@ public class AgentSessionService {
         }
         store.delete(userId, id);
         return Map.of("deleted", id);
+    }
+
+    /**
+     * 重命名会话标题：校验会话存在（agent_state 落盘过）后写入自定义标题。
+     * 标题存独立 key（session_title.json），与 agent_state.json 互不干扰，
+     * 流式回答进行中也可安全重命名；删除会话时随会话目录整体清理。
+     */
+    public Map<String, Object> rename(String userId, String sessionId, String title) {
+        String id = validate(sessionId);
+        String t = title == null ? "" : title.strip();
+        if (t.isEmpty()) {
+            throw new ApiException(400, "标题不能为空");
+        }
+        if (t.length() > SessionTitleState.TITLE_MAX) {
+            throw new ApiException(400, "标题长度不能超过 " + SessionTitleState.TITLE_MAX + " 字");
+        }
+        AgentStateStore store = requireStore();
+        store.get(userId, id, STATE_KEY, AgentState.class)
+                .orElseThrow(() -> new ApiException(404, "会话不存在"));
+        store.save(userId, id, SessionTitleState.STORE_KEY, SessionTitleState.of(t));
+        return Map.of("sessionId", id, "title", t);
     }
 
     // ---------------- 内部 ----------------
@@ -165,6 +188,21 @@ public class AgentSessionService {
             }
         }
         return "(空会话)";
+    }
+
+    /** 会话生效标题：手工重命名（session_title）优先，未设置回退派生标题；标题文件异常不阻断、降级派生 */
+    static String effectiveTitle(AgentStateStore store, String userId, String sessionId, AgentState state) {
+        try {
+            SessionTitleState t = store
+                    .get(userId, sessionId, SessionTitleState.STORE_KEY, SessionTitleState.class)
+                    .orElse(null);
+            if (t != null && t.title() != null && !t.title().isBlank()) {
+                return t.title();
+            }
+        } catch (Exception e) {
+            // session_title 单文件畸形/读取失败：回退派生标题，不报错
+        }
+        return titleOf(state);
     }
 
     private static String updateTimeOf(AgentState state) {

@@ -17,6 +17,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.conca.ontology.auth.SessionUser;
 import com.conca.ontology.dto.request.AgentChatRequest;
 import com.conca.ontology.dto.request.MemoryToolsRequest;
+import com.conca.ontology.dto.request.SessionTitleRequest;
 import com.conca.ontology.dto.ApiResponse;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.service.AgentChatService;
@@ -33,6 +34,7 @@ import jakarta.validation.Valid;
  * → thinking / tool / answer → done 或 error。
  * GET  /api/agent/sessions                 → 会话列表（updateTime 倒序）
  * GET  /api/agent/sessions/{id}/messages   → 单会话消息
+ * PUT  /api/agent/sessions/{id}/title      → 重命名会话标题（session_title 独立落盘）
  * DELETE /api/agent/sessions/{id}          → 删除会话（含 AI 记忆）
  * GET  /api/agent/skills                   → 技能清单（chat 页输入区快捷插入）
  * GET  /api/agent/tools                    → 工具清单（chat 页「工具列表」悬停面板）
@@ -107,6 +109,13 @@ public class AgentChatController {
     @GetMapping("/sessions/{id}/messages")
     public ApiResponse<Map<String, Object>> messages(@PathVariable String id, HttpSession session) {
         return ApiResponse.ok(agentSessionService.messages(currentUserId(session), id));
+    }
+
+    /** 重命名会话标题（侧边栏双击触发）；写独立 session_title，流式回答进行中也可安全调用 */
+    @PutMapping("/sessions/{id}/title")
+    public ApiResponse<Map<String, Object>> rename(@PathVariable String id,
+            @Valid @RequestBody SessionTitleRequest request, HttpSession session) {
+        return ApiResponse.ok(agentSessionService.rename(currentUserId(session), id, request.title()));
     }
 
     @DeleteMapping("/sessions/{id}")
