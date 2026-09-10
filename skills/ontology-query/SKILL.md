@@ -185,7 +185,6 @@ echo %OS%
 
 补充约束：
 
-- 本 skill 默认不走 `/api/llm/ontology-query/ask`
 - 必须按 `schema -> cypher -> query` 的显式流程执行
 - 图谱结果为空、无命中或证据不足时，才进入文件兜底
 
