@@ -124,12 +124,18 @@ public class SessionDetailService {
                     userItems++;
                     userEst += est;
                 }
+
+                
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("role", "user");
                 m.put("ts", msg.getTimestamp());
                 m.put("content", content);
                 m.put("estTokens", est);
                 messages.add(m);
+
+                if (trace != null) {
+                    messages.add(rewriteCard(trace, msg.getTimestamp()));
+                }
             } else if (msg.getRole() == MsgRole.ASSISTANT) {
                 llmCalls++;
                 StringBuilder thinking = new StringBuilder();
@@ -314,6 +320,30 @@ public class SessionDetailService {
     private static boolean isCjk(char c) {
         return (c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF)
                 || (c >= 0x3000 && c <= 0x303F) || (c >= 0xFF00 && c <= 0xFFEF);
+    }
+
+        /**
+     * 改写轮虚拟消息（assistant 形态）：thinking = traceToText（与实时 thinking 同源）、
+     * 无 answer 无工具，tokens 取各步聚合。压缩历史转录不含 metadata，改写过程在压缩后记录中缺失。
+     */
+    private static Map<String, Object> rewriteCard(RewriteConfigService.RewriteTrace trace, String ts) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("role", "assistant");
+        m.put("ts", ts);
+        m.put("thinking", RewriteConfigService.traceToText(trace));
+        m.put("answer", "");
+        m.put("tools", List.of());
+        long in = 0;
+        long out = 0;
+        if (trace.steps() != null) {
+            for (RewriteConfigService.PipelineStep s : trace.steps()) {
+                in += s.promptTokens();
+                out += s.completionTokens();
+            }
+        }
+        m.put("promptTokens", in);
+        m.put("completionTokens", out);
+        return m;
     }
 
     private static Map<String, Object> category(String key, String name, long items, long tokens, long total) {
