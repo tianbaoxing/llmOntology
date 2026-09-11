@@ -32,6 +32,15 @@ app:
   forbidden-words:
     homophone-enabled: true
     homophone-tone-match: false
+  # 语义改写（/data 页「语义改写配置」Tab）：4 项功能配置文件 + 调用参数
+  rewrite:
+    config-file: data/rewrite-config.json
+    # 单次改写 LLM 调用超时与输出上限（独立 rewrite agent 与单项测试共用）
+    timeout-seconds: 30
+    max-output-tokens: 1000
+    # 独立 rewrite agent 的工作区与会话留痕目录（每次改写独立会话，可回查完整 prompt 与输出）
+    workspace-dir: data/rewrite-workspace
+    state-dir: data/rewrite-state
   # 备份：zip 存放目录（相对 cwd，可用绝对路径覆盖）；文件名编码统计信息（backup-时间-n节点-r关系-f文件-v版本.zip）
   backup-dir: backups
   # 评测 LLM judge（二期）：base-url/api-key/model 缺省复用 app.agent 同名配置

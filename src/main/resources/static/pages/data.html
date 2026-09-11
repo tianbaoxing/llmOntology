@@ -43,6 +43,18 @@
 .fw-test-result { margin-top: 8px; }
 .fw-conflict { color: #b91c1c; font-weight: 600; }
 .fw-ok { color: #15803d; font-weight: 600; }
+
+/* 语义改写 Tab 专属 */
+.rw-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.rw-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.rw-head h2 { font-size: 15px; margin: 0; color: #1f2937; border-left: 3px solid #2563eb; padding-left: 10px; }
+.rw-switch { font-weight: 600; color: #374151; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.rw-field { margin: 14px 0 0; }
+.rw-field-label { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.rw-field-label b { color: #374151; font-weight: 600; font-size: 13px; white-space: nowrap; }
+.rw-field-label .rw-hint { color: #9ca3af; font-size: 12px; white-space: nowrap; }
+.rw-out { background: #f9fafb; color: #6b7280; }
+
 </style>
 </head>
 <body>
@@ -54,6 +66,7 @@
     <a class="ptab" data-tab="schema" onclick="switchTab('schema')">概念层</a>
     <a class="ptab" data-tab="disjoint" onclick="switchTab('disjoint')">互斥约束</a>
     <a class="ptab" data-tab="forbidden" onclick="switchTab('forbidden')">禁用词管理</a>
+    <a class="ptab" data-tab="rewrite" onclick="switchTab('rewrite')">语义改写配置</a>
   </div>
 
   <!-- Tab 1：图数据 -->
@@ -212,6 +225,22 @@
       <div id="fw-list"></div>
     </div>
   </div>
+
+  <!-- Tab 5：语义改写配置 -->
+  <div id="tab-rewrite" style="display:none">
+    <div class="card">
+      <h2>语义改写配置</h2>
+      <div class="muted" style="margin:8px 0 4px">
+        作用：用户发送聊天消息时，先由独立改写 agent 按固定管道顺序改写（过程在聊天页以「思考过程」实时展示），再送入 AI 思考；
+        未启用的功能自动跳过，单项改写失败自动放行原文（不阻断聊天）。
+        管道顺序：<code>错别字 → 术语 → 上下文 → 语义</code>（上下文改写会自动携带会话最近历史）。
+      </div>
+      <div class="toolbar" style="margin:8px 0 12px">
+        <span class="muted" id="rw-version">版本：-</span>
+      </div>
+      <div id="rw-cards"></div>
+    </div>
+  </div>
 </div>
 
 <script src="/pages/common.js"></script>
@@ -221,8 +250,10 @@ let classSummaries = [];
 let schemaTabLoaded = false;
 let disjointTabLoaded = false;
 let forbiddenTabLoaded = false;
+let rewriteTabLoaded = false;
 let disjointData = null;   // {version, rules}
 let forbiddenData = null;  // {version, words}
+let rewriteData = null;    // {version, pipeline, features}
 let djEditingId = null;    // 正在编辑的 id；null = 新增
 
 // ---------------- Tab 切换 ----------------
@@ -232,6 +263,7 @@ function switchTab(name) {
   $('tab-schema').style.display = name === 'schema' ? '' : 'none';
   $('tab-disjoint').style.display = name === 'disjoint' ? '' : 'none';
   $('tab-forbidden').style.display = name === 'forbidden' ? '' : 'none';
+  $('tab-rewrite').style.display = name === 'rewrite' ? '' : 'none';
   if (name === 'schema' && !schemaTabLoaded) {
     schemaTabLoaded = true;
     loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
@@ -243,6 +275,10 @@ function switchTab(name) {
   if (name === 'forbidden' && !forbiddenTabLoaded) {
     forbiddenTabLoaded = true;
     loadForbiddenPanel().catch(e => showMsg('加载失败：' + e.message, false));
+  }
+  if (name === 'rewrite' && !rewriteTabLoaded) {
+    rewriteTabLoaded = true;
+    loadRewritePanel().catch(e => showMsg('加载失败：' + e.message, false));
   }
 }
 
@@ -634,6 +670,64 @@ async function runForbiddenTest() {
   } else {
     $('fw-test-result').innerHTML = `<div class="fw-ok">✔ 未检测到禁用词</div>`;
   }
+}
+
+// ---------------- 语义改写配置 ----------------
+const RW_META = {
+  semantic: { label: '语义改写', desc: '理解用户真实意图，将口语化表达转换为标准查询格式（管道末环）' },
+  typo:     { label: '错别字改写', desc: '识别并纠正同音字、形近字、拼音输入等错别字，不改变原句语义（管道首环）' },
+  term:     { label: '术语改写', desc: '将口语化表达和非标准术语替换为标准术语，只动术语词汇（管道次环）' },
+  context:  { label: '上下文改写', desc: '结合会话最近历史，把省略式/指代式表达补全为独立无歧义查询（自动携带对话历史）' }
+};
+const RW_ORDER = ['semantic', 'typo', 'term', 'context'];
+
+async function loadRewritePanel() {
+  rewriteData = await api('GET', '/api/rewrite-config');
+  renderRewriteCards();
+}
+
+function renderRewriteCards() {
+  if (!rewriteData) return;
+  $('rw-version').textContent = '版本：' + rewriteData.version;
+  const enabledCount = RW_ORDER.filter(t => rewriteData.features[t]?.enabled).length;
+  $('rw-version').textContent += `（已启用 ${enabledCount}/4 项）`;
+  $('rw-cards').innerHTML = RW_ORDER.map(t => {
+    const f = rewriteData.features[t] || {};
+    const meta = RW_META[t];
+    return `<div class="rw-card">
+      <div class="rw-head">
+        <h2>${meta.label}</h2>
+        <label class="rw-switch"><input type="checkbox" id="rw-enabled-${t}" ${f.enabled ? 'checked' : ''}> 启用</label>
+      </div>
+      <div class="muted">${meta.desc}</div>
+      <div class="rw-field">
+        <div class="rw-field-label"><b>提示词</b><span class="rw-hint">可修改，保存后热生效</span></div>
+        <textarea id="rw-prompt-${t}" rows="5">${esc(f.prompt || '')}</textarea>
+      </div>
+      <div class="rw-field">
+        <div class="rw-field-label"><b>输出格式提示词</b><span class="rw-hint">只读（后端常量，不可修改）</span></div>
+        <textarea id="rw-out-${t}" class="rw-out" rows="4" readonly>${esc(f.outputFormat || '')}</textarea>
+      </div>
+      <div class="toolbar" style="margin:16px 0 0">
+        <button class="btn" onclick="saveRewrite('${t}')">保存</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function saveRewrite(t) {
+  const prompt = ($('rw-prompt-' + t).value || '').trim();
+  if (!prompt) return showMsg('提示词不能为空', false);
+  doAction(async () => {
+    const body = { features: { [t]: {
+      enabled: $('rw-enabled-' + t).checked,
+      prompt
+    } } };
+    const r = await api('PUT', '/api/rewrite-config', body);
+    rewriteData = r;
+    renderRewriteCards();
+    return { saved: RW_META[t].label, version: r.version };
+  });
 }
 
 // ---------------- init ----------------
