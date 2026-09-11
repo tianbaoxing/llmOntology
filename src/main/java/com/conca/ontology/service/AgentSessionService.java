@@ -174,13 +174,14 @@ public class AgentSessionService {
         return sessionId;
     }
 
-    /** 会话标题（首条非空 USER 消息截断，跳过压缩摘要；驾驶舱统计复用） */
+    /** 会话标题（首条非空 USER 消息截断，跳过压缩摘要；带改写 trace 时取用户原句；驾驶舱统计复用） */
     static String titleOf(AgentState state) {
         if (state.getContext() != null) {
             for (Msg msg : state.getContext()) {
                 if (msg.getRole() == MsgRole.USER
                         && !COMPACTION_SUMMARY_NAME.equals(msg.getName())) {
-                    String text = textOf(msg).strip();
+                    RewriteConfigService.RewriteTrace trace = RewriteConfigService.traceOf(msg);
+                    String text = (trace != null ? trace.original() : textOf(msg)).strip();
                     if (!text.isEmpty()) {
                         return text.length() > TITLE_MAX ? text.substring(0, TITLE_MAX) + "…" : text;
                     }
@@ -239,11 +240,17 @@ public class AgentSessionService {
                 continue; // 压缩摘要由摘要卡片渲染，不再作为 USER 气泡
             }
             if (msg.getRole() == MsgRole.USER) {
+                RewriteConfigService.RewriteTrace trace = RewriteConfigService.traceOf(msg);
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("role", "user");
-                m.put("content", textOf(msg));
+                // 带改写 trace 的消息：state 存的是改写后文本，气泡还原用户原句
+                m.put("content", trace != null ? trace.original() : textOf(msg));
                 m.put("ts", msg.getTimestamp());
                 result.add(m);
+                if (trace != null) {
+                    // 改写过程 → 虚拟 assistant 消息（thinking 展示改写轮，与实时渲染同源同形态）
+                    result.add(rewriteCard(trace, msg.getTimestamp()));
+                }
             } else if (msg.getRole() == MsgRole.ASSISTANT) {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("role", "assistant");
@@ -286,6 +293,31 @@ public class AgentSessionService {
             }
         }
         return result;
+    }
+
+    /**
+     * 改写轮虚拟消息（assistant 形态）：thinking = traceToText（与实时 thinking 同源）、
+     * 无 answer 无工具，tokens 取各步聚合（改写轮成本随轮展示）。压缩历史（log.jsonl 转录）
+     * 不含 metadata，改写过程在压缩后记录中缺失，仅保留改写后文本。
+     */
+    private static Map<String, Object> rewriteCard(RewriteConfigService.RewriteTrace trace, String ts) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("role", "assistant");
+        m.put("ts", ts);
+        m.put("thinking", RewriteConfigService.traceToText(trace));
+        m.put("answer", "");
+        m.put("tools", List.of());
+        long in = 0;
+        long out = 0;
+        if (trace.steps() != null) {
+            for (RewriteConfigService.PipelineStep s : trace.steps()) {
+                in += s.promptTokens();
+                out += s.completionTokens();
+            }
+        }
+        m.put("promptTokens", in);
+        m.put("completionTokens", out);
+        return m;
     }
 
     // ---------------- 压缩历史双源合并 ----------------

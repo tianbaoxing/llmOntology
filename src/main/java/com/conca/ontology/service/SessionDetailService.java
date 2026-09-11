@@ -116,7 +116,9 @@ public class SessionDetailService {
             }
             if (msg.getRole() == MsgRole.USER) {
                 rounds++;
-                String content = textOf(msg);
+                // 带改写 trace 的消息：state 存改写后文本，明细还原用户原句（与 chat 历史一致）
+                RewriteConfigService.RewriteTrace trace = RewriteConfigService.traceOf(msg);
+                String content = trace != null ? trace.original() : textOf(msg);
                 long est = estimateTokens(content);
                 if (beforeLastCall) {
                     userItems++;

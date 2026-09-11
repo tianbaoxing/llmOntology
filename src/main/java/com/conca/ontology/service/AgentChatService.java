@@ -21,6 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.conca.ontology.config.AgentScopeConfig;
+import com.conca.ontology.model.RewriteConfigFile;
+import com.conca.ontology.service.RewriteConfigService.PipelineStep;
+import com.conca.ontology.service.RewriteConfigService.RewriteTrace;
+import com.conca.ontology.service.RewriteConfigService.StepResult;
 
 import io.agentscope.core.skill.AgentSkill;
 import io.agentscope.core.skill.repository.AgentSkillRepository;
@@ -46,10 +50,13 @@ import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ToolResultState;
+import io.agentscope.core.state.AgentState;
 import io.agentscope.core.tool.AgentTool;
 import io.agentscope.core.tool.ToolBase;
 import io.agentscope.harness.agent.HarnessAgent;
 import reactor.core.Disposable;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * AI 问答服务：把 HarnessAgent 的 AgentEvent 流映射为 SSE 事件推给页面。
@@ -62,6 +69,10 @@ import reactor.core.Disposable;
  * result-delta 为结果文本增量，result-end 携带 state（success/error 等），
  * id 全程用于配对同一次调用）；
  * answer → 正文增量；done → 结束；error → 错误。
+ *
+ * 语义改写：启用后主 agent 启动前先执行「改写轮」（独立 rewrite agent 管道），
+ * 以同样的 round/thinking 事件把改写过程模拟为思考过程推送（前端零改动）；
+ * 改写后文本替换用户消息送入 ReAct，trace 存 USER 消息 metadata 供历史回放。
  */
 @Service
 public class AgentChatService {
@@ -79,8 +90,14 @@ public class AgentChatService {
     /** 反射缓存：HarnessAgent 持有的底层 ReActAgent（interrupt 需按其会话作用域触发） */
     private volatile ReActAgent delegateRef;
 
-    public AgentChatService(ObjectProvider<HarnessAgent> agentProvider) {
+    private final ForbiddenWordService forbiddenWordService;
+    private final RewriteConfigService rewriteConfigService;
+
+    public AgentChatService(ObjectProvider<HarnessAgent> agentProvider,
+            ForbiddenWordService forbiddenWordService, RewriteConfigService rewriteConfigService) {
         this.agentProvider = agentProvider;
+        this.forbiddenWordService = forbiddenWordService;
+        this.rewriteConfigService = rewriteConfigService;
     }
 
     /** agent 是否已装配（OPENROUTER_API_KEY 已配置） */
@@ -303,13 +320,17 @@ public class AgentChatService {
             heartbeat.shutdownNow();
         });
 
-        Msg userMsg = Msg.builder().role(MsgRole.USER).textContent(message).build();
         RuntimeContext ctx = RuntimeContext.builder()
                 .userId(userId)
                 .sessionId(session)
                 .build();
 
-        Disposable disposable = agent.streamEvents(userMsg, ctx)
+        // 语义改写轮在主 agent 之前执行（LLM 阻塞调用 → boundedElastic 线程池，不占 servlet 线程）：
+        // 过程以 round/thinking 模拟思考事件实时推送，改写后文本替换用户消息送入 ReAct；
+        // 完整 trace 存 USER 消息 metadata（刷新后 AgentSessionService 还原原句并渲染改写卡片）
+        Disposable disposable = Mono.fromCallable(() -> prepareUserMsg(emitter, session, userId, message))
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMapMany(userMsg -> agent.streamEvents(userMsg, ctx))
                 .doFinally(signal -> {
                     runningSessions.remove(session);
                     sessionOwners.remove(session);
@@ -324,6 +345,154 @@ public class AgentChatService {
                         });
         emitter.onError(t -> disposable.dispose());
         return emitter;
+    }
+
+    // ---------------- 聊天前置改写编排 ----------------
+
+    /**
+     * 构建送入主 agent 的用户消息：
+     * - 禁用词命中 → 返回原文（由 ForbiddenWordMiddleware 拦截提示并落盘，省改写调用）；
+     * - 未启用任何改写功能 → 返回原文（零开销，行为与无改写配置完全一致）；
+     * - 启用 → 独立 rewrite agent 按管道执行（过程实时推 thinking），改写后文本入 ReAct，
+     *   trace 存消息 metadata；任何编排异常降级用原文，绝不阻断聊天。
+     */
+    private Msg prepareUserMsg(SseEmitter emitter, String session, String userId, String message) {
+        Msg original = Msg.builder().role(MsgRole.USER).textContent(message).build();
+        try {
+            if (!forbiddenWordService.check(message).isEmpty()) {
+                return original;
+            }
+            RewriteConfigFile cfg = rewriteConfigService.loadAll();
+            boolean anyEnabled = cfg.features().values().stream().anyMatch(RewriteConfigFile.Feature::enabled);
+            if (!anyEnabled) {
+                return original;
+            }
+            return rewriteWithThinking(emitter, session, userId, cfg, message);
+        } catch (Exception e) {
+            log.warn("聊天改写编排异常，使用原文继续：{}", e.getMessage());
+            return original;
+        }
+    }
+
+    /**
+     * 执行改写管道并把过程推给前端（改写虚拟轮）：
+     * round start → thinking「原句」→ 每步完成即推该步行（skipped 步瞬时推）→
+     * thinking「送入 AI：最终文本」→ round end（携带该轮聚合 tokens）。
+     * 展示行与历史回放共用 RewriteConfigService.stepLine（刷新前后形态一致）。
+     */
+    private Msg rewriteWithThinking(SseEmitter emitter, String session, String userId,
+            RewriteConfigFile cfg, String message) {
+        List<String> history = historyForRewrite(userId, session, cfg);
+        String replyId = "rewrite-" + UUID.randomUUID().toString().substring(0, 8);
+        long inTokens = 0;
+        long outTokens = 0;
+        String current = message;
+        List<PipelineStep> steps = new ArrayList<>();
+
+        send(emitter, "round", Map.of("phase", "start", "replyId", replyId));
+        sendThinking(emitter, "原句：" + message + "\n");
+        for (String type : RewriteConfigService.PIPELINE_ORDER) {
+            RewriteConfigFile.Feature f = cfg.features().get(type);
+            PipelineStep step;
+            if (f == null || !f.enabled()) {
+                step = new PipelineStep(type, RewriteConfigService.STATUS_SKIPPED, null, null, null, 0, 0);
+            } else {
+                try {
+                    StepResult r = rewriteConfigService.executeStep(cfg.version(), type, f, current, history);
+                    step = r.step();
+                    inTokens += r.promptTokens();
+                    outTokens += r.completionTokens();
+                    if (step.rewrittenText() != null && !step.rewrittenText().isBlank()) {
+                        current = step.rewrittenText();
+                    }
+                } catch (Exception e) {
+                    log.warn("聊天改写步骤 [{}] 失败，沿用当前文本：{}", type, e.getMessage());
+                    step = new PipelineStep(type, RewriteConfigService.STATUS_ERROR, null, null,
+                            e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(), 0, 0);
+                }
+            }
+            steps.add(step);
+            sendThinking(emitter, RewriteConfigService.stepLine(step) + "\n");
+        }
+        sendThinking(emitter, "送入 AI：" + current);
+        send(emitter, "round", Map.of(
+                "phase", "end", "replyId", replyId,
+                "promptTokens", inTokens, "completionTokens", outTokens));
+
+        String applied = steps.stream()
+                .filter(s -> RewriteConfigService.STATUS_APPLIED.equals(s.status()))
+                .map(PipelineStep::type)
+                .reduce((a, b) -> a + "," + b)
+                .orElse("");
+        if (!applied.isEmpty()) {
+            log.info("聊天语义改写生效（功能=[{}]）：{} → {}", applied, brief(message), brief(current));
+        }
+        String traceJson = RewriteConfigService.traceJson(new RewriteTrace(message, current, steps));
+        if (traceJson == null) {
+            return Msg.builder().role(MsgRole.USER).textContent(current).build();
+        }
+        return Msg.builder()
+                .role(MsgRole.USER)
+                .textContent(current)
+                .metadata(Map.of(RewriteConfigService.META_REWRITE_TRACE, traceJson))
+                .build();
+    }
+
+    /** 上下文改写启用时读取会话最近历史（USER 行还原改写前原句，保持真实对话） */
+    private List<String> historyForRewrite(String userId, String session, RewriteConfigFile cfg) {
+        RewriteConfigFile.Feature f = cfg.features().get(RewriteConfigService.TYPE_CONTEXT);
+        if (f == null || !f.enabled()) {
+            return List.of();
+        }
+        try {
+            ReActAgent delegate = delegate();
+            if (delegate == null) {
+                return List.of();
+            }
+            AgentState state = delegate.getAgentState(userId, session);
+            List<Msg> context = state.getContext();
+            List<String> lines = new ArrayList<>();
+            for (int i = context.size() - 1; i >= 0 && lines.size() < 10; i--) {
+                Msg m = context.get(i);
+                String role = m.getRole() == MsgRole.USER ? "用户"
+                        : m.getRole() == MsgRole.ASSISTANT ? "助手" : null;
+                if (role == null) {
+                    continue;
+                }
+                String text = textOf(m);
+                if (MsgRole.USER == m.getRole()) {
+                    RewriteTrace trace = RewriteConfigService.traceOf(m);
+                    if (trace != null && trace.original() != null) {
+                        text = trace.original();
+                    }
+                }
+                if (text != null && !text.isBlank()) {
+                    lines.add(0, role + "：" + text.trim());
+                }
+            }
+            return lines;
+        } catch (Exception e) {
+            log.warn("读取会话历史失败（上下文改写将缺少历史）：{}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private void sendThinking(SseEmitter emitter, String delta) {
+        send(emitter, "thinking", Map.of("delta", delta));
+    }
+
+    private static String textOf(Msg msg) {
+        StringBuilder sb = new StringBuilder();
+        for (ContentBlock b : msg.getContent()) {
+            if (b instanceof TextBlock tb) {
+                sb.append(tb.getText());
+            }
+        }
+        return sb.toString().trim();
+    }
+
+    private static String brief(String s) {
+        return s.length() <= 80 ? s : s.substring(0, 80) + "…";
     }
 
     private void handleEvent(SseEmitter emitter, AgentEvent event) {
