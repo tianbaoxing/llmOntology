@@ -23,16 +23,21 @@ async function api(method, url, body) {
 }
 
 function showMsg(text, ok) {
-  let m = $('msg');
-  if (!m) { // 页面未放置 #msg 时自动补到内容区顶部
+  let m = $('__toast_msg__');
+  if (!m) {
     m = document.createElement('div');
-    m.id = 'msg';
-    (document.querySelector('.container') || document.body).insertAdjacentElement('afterbegin', m);
+    m.id = '__toast_msg__';
+    document.body.appendChild(m);
   }
   m.textContent = text;
   m.className = 'msg ' + (ok ? 'ok' : 'err');
+  void m.offsetWidth;
+  m.classList.add('show');
   clearTimeout(m._t);
-  m._t = setTimeout(() => m.className = 'msg', 4000);
+  m._t = setTimeout(() => {
+    m.classList.remove('show');
+    setTimeout(() => { m.className = 'msg'; }, 260);
+  }, 3000);
 }
 
 function doAction(fn) {
