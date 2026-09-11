@@ -10,7 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.conca.ontology.agent.DisjointRulesTool;
 import com.conca.ontology.agent.HttpProxyTool;
+import com.conca.ontology.service.DisjointRuleService;
 
 import io.agentscope.core.state.JsonFileAgentStateStore;
 import io.agentscope.core.studio.StudioManager;
@@ -48,7 +50,8 @@ public class AgentScopeConfig {
             @Value("${server.port:9876}") int serverPort,
             @Value("${app.agent.ontology-base-url:${ONTOLOGY_BASE_URL:}}") String ontologyBaseUrl,
             @Value("${app.mcp.weather.enabled:false}") boolean mcpWeatherEnabled,
-            @Value("${app.mcp.weather.url:http://localhost:8766/mcp}") String mcpWeatherUrl) throws Exception {
+            @Value("${app.mcp.weather.url:http://localhost:8766/mcp}") String mcpWeatherUrl,
+            DisjointRuleService disjointRuleService) throws Exception {
 
         // key 未配置时返回 null（注册为 NullBean），问答接口返回明确错误，不影响其余功能
         if (apiKey == null || apiKey.isBlank()) {
@@ -87,6 +90,10 @@ public class AgentScopeConfig {
                 ? "http://127.0.0.1:" + serverPort
                 : ontologyBaseUrl.trim().replaceAll("/+$", "");
         toolkit.registerTool(new HttpProxyTool(llmBaseUrl));
+        // 互斥约束词典工具：agent 侧幻觉抑制。有 tool 就优先调工具；工具不可用时走
+        // /api/llm/disjoint-rules HTTP 通道兜底。
+        toolkit.registerTool(new DisjointRulesTool(disjointRuleService));
+        log.info("AgentScope Toolkit 已注册：{}", toolkit.getToolNames());
 
         // MCP 外接工具（可选）：Toolkit 原生 registerMcpClient 注册，工具 isMcp=true，
         // 追踪/Studio 自动识别 tool_source=mcp；MCP 服务未启动时降级告警，不阻断主服务
