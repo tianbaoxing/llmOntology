@@ -29,6 +29,9 @@ app:
   upload-allowed-ext: pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx
   metadata-file: data/file-metadata.json
   forbidden-words-file: data/forbidden-words.json
+  forbidden-words:
+    homophone-enabled: true
+    homophone-tone-match: false
   # 备份：zip 存放目录（相对 cwd，可用绝对路径覆盖）；文件名编码统计信息（backup-时间-n节点-r关系-f文件-v版本.zip）
   backup-dir: backups
   # 评测 LLM judge（二期）：base-url/api-key/model 缺省复用 app.agent 同名配置

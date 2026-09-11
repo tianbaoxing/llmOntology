@@ -21,6 +21,8 @@ import io.agentscope.core.tool.mcp.McpClientBuilder;
 import io.agentscope.core.tool.mcp.McpClientWrapper;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
+import com.conca.ontology.agent.ForbiddenWordMiddleware;
+import com.conca.ontology.service.ForbiddenWordService;
 
 /**
  * AgentScope 2.0 Harness 装配：
@@ -51,7 +53,8 @@ public class AgentScopeConfig {
             @Value("${app.agent.ontology-base-url:${ONTOLOGY_BASE_URL:}}") String ontologyBaseUrl,
             @Value("${app.mcp.weather.enabled:false}") boolean mcpWeatherEnabled,
             @Value("${app.mcp.weather.url:http://localhost:8766/mcp}") String mcpWeatherUrl,
-            DisjointRuleService disjointRuleService) throws Exception {
+            DisjointRuleService disjointRuleService,
+            ForbiddenWordService forbiddenWordService) throws Exception {
 
         // key 未配置时返回 null（注册为 NullBean），问答接口返回明确错误，不影响其余功能
         if (apiKey == null || apiKey.isBlank()) {
@@ -109,7 +112,8 @@ public class AgentScopeConfig {
                 .workspace(Path.of(workspaceDir))
                 .stateStore(new JsonFileAgentStateStore(Path.of(stateDir)))
                 .maxIters(6)
-                .toolkit(toolkit);
+                .toolkit(toolkit)
+                .middleware(new ForbiddenWordMiddleware(forbiddenWordService));
                 // 最小化开放面：禁用 harness 内置高危/无关能力
                 // .disableShellTool()
                 // .disableFilesystemTools()

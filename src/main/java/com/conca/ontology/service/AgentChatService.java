@@ -71,7 +71,6 @@ public class AgentChatService {
     private static final long HEARTBEAT_SECONDS = 15;
 
     private final ObjectProvider<HarnessAgent> agentProvider;
-    private final ForbiddenWordService forbiddenWordService;
     private final Set<String> runningSessions = ConcurrentHashMap.newKeySet();
 
     /** 进行中会话的所属用户（sessionId → userId），供停止接口校验归属并作用域中断 */
@@ -80,10 +79,8 @@ public class AgentChatService {
     /** 反射缓存：HarnessAgent 持有的底层 ReActAgent（interrupt 需按其会话作用域触发） */
     private volatile ReActAgent delegateRef;
 
-    public AgentChatService(ObjectProvider<HarnessAgent> agentProvider,
-            ForbiddenWordService forbiddenWordService) {
+    public AgentChatService(ObjectProvider<HarnessAgent> agentProvider) {
         this.agentProvider = agentProvider;
-        this.forbiddenWordService = forbiddenWordService;
     }
 
     /** agent 是否已装配（OPENROUTER_API_KEY 已配置） */
@@ -270,14 +267,6 @@ public class AgentChatService {
     public SseEmitter chat(String sessionId, String message, String userId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         String session = (sessionId == null || sessionId.isBlank()) ? UUID.randomUUID().toString() : sessionId;
-
-        List<String> forbiddenHits = forbiddenWordService.check(message);
-        if (!forbiddenHits.isEmpty()) {
-            String tip = "⚠ 您的消息包含禁用词：" + String.join("、", forbiddenHits) + "，请修改后重新发送";
-            send(emitter, "error", Map.of("message", tip));
-            emitter.complete();
-            return emitter;
-        }
 
         HarnessAgent agent = agentProvider.getIfAvailable();
         if (agent == null) {
