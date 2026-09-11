@@ -7,10 +7,42 @@
 <link rel="icon" type="image/png" href="/logo.png">
 <link rel="stylesheet" href="/pages/common.css">
 <style>
-/* 页内 Tab（图数据 / 概念层） */
 .page-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
 .ptab { padding: 8px 22px; border-radius: 6px; cursor: pointer; background: #fff; color: #6b7280; border: 1px solid #e5e7eb; user-select: none; }
 .ptab.active { background: #2563eb; color: #fff; font-weight: 600; border-color: #2563eb; }
+
+/* 互斥约束 Tab 专属（极简版） */
+.dj-rule-row { border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; background: #fff; }
+.dj-rule-row .row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.dj-rule-row .row-head .id { font-weight: 600; color: #1e40af; }
+.dj-rule-row .row-text { color: #111827; line-height: 1.6; }
+.dj-rule-row .row-text b { color: #b91c1c; }
+.dj-rule-row .row-items { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.dj-chip { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; border-radius: 14px; padding: 2px 10px; font-size: 12px; }
+.dj-test-area { background: #fffbeb; border: 1px dashed #fbbf24; border-radius: 6px; padding: 12px 16px; margin-bottom: 18px; }
+.dj-test-result { margin-top: 8px; }
+.dj-conflict { color: #b91c1c; font-weight: 600; }
+.dj-ok { color: #15803d; font-weight: 600; }
+.dj-editor { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.dj-editor h2 { font-size: 15px; margin-bottom: 14px; color: #1f2937; border-left: 3px solid #2563eb; padding-left: 10px; }
+.dj-editor .form-row { margin-bottom: 12px; }
+.dj-editor .form-row > b { display: block; color: #374151; font-weight: 600; margin-bottom: 6px; font-size: 13px; }
+.dj-editor .form-row .hint { color: #9ca3af; font-size: 12px; margin-left: 8px; font-weight: normal; }
+.dj-editor .form-actions { margin-top: 4px; }
+
+/* 禁用词 Tab 专属 */
+.fw-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.fw-card h2 { font-size: 15px; margin-bottom: 14px; color: #1f2937; border-left: 3px solid #2563eb; padding-left: 10px; }
+.fw-word-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 8px; background: #fff; }
+.fw-word { font-weight: 600; color: #b91c1c; }
+.fw-list-empty { color: #9ca3af; text-align: center; padding: 20px; }
+.fw-tag { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 14px; padding: 2px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; margin: 4px; }
+.fw-tag .fw-del { cursor: pointer; color: #dc2626; font-weight: bold; }
+.fw-tag .fw-del:hover { color: #991b1b; }
+.fw-test-area { background: #fffbeb; border: 1px dashed #fbbf24; border-radius: 6px; padding: 12px 16px; margin-bottom: 18px; }
+.fw-test-result { margin-top: 8px; }
+.fw-conflict { color: #b91c1c; font-weight: 600; }
+.fw-ok { color: #15803d; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -20,6 +52,8 @@
   <div class="page-tabs">
     <a class="ptab active" data-tab="data" onclick="switchTab('data')">图数据</a>
     <a class="ptab" data-tab="schema" onclick="switchTab('schema')">概念层</a>
+    <a class="ptab" data-tab="disjoint" onclick="switchTab('disjoint')">互斥约束</a>
+    <a class="ptab" data-tab="forbidden" onclick="switchTab('forbidden')">禁用词管理</a>
   </div>
 
   <!-- Tab 1：图数据 -->
@@ -99,21 +133,116 @@
       </div>
     </div>
   </div>
+
+  <!-- Tab 3：互斥约束（极简版） -->
+  <div id="tab-disjoint" style="display:none">
+    <div class="card">
+      <h2>互斥约束词典</h2>
+      <div class="muted" style="margin:8px 0 12px">
+        作用：CRM-ACA 建模层抑制 LLM 幻觉。约定：候选项用【】包裹，同一条内任意 2 个候选项不能同时出现在 LLM 输出中。
+        例：<code>材质互斥：一件器物主体不能同时是【青铜】且【瓷】</code>
+      </div>
+
+      <div class="dj-editor">
+        <h2 id="dj-editor-title">新增规则</h2>
+        <div class="form-row">
+          <b>ID<span class="hint">新增时自动填充，也可自定义</span></b>
+          <input type="text" id="dj-id" style="width:160px" placeholder="如 R001">
+        </div>
+        <div class="form-row">
+          <b>规则内容<span class="hint">用【】包裹候选项，至少 2 个；例：材质互斥：一件器物主体不能同时是【青铜】且【瓷】</span></b>
+          <textarea id="dj-text" rows="2" placeholder="材质互斥：一件器物主体不能同时是【青铜】且【瓷】"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn" onclick="saveRule()">保存</button>
+          <button class="btn ghost" onclick="resetEditor()">取消/清空</button>
+        </div>
+      </div>
+
+      <div class="dj-test-area">
+        <b>快速自测</b>
+        <div class="toolbar" style="margin-top:6px">
+          <input type="text" id="dj-test-text" style="flex:1" placeholder="如：这件器物是唐代青铜青花瓷">
+          <button class="btn" onclick="runDisjointTest()">检测冲突</button>
+        </div>
+        <div class="dj-test-result" id="dj-test-result"></div>
+      </div>
+
+      <div class="toolbar" style="margin-bottom:10px">
+        <span class="muted" id="dj-version">版本：-</span>
+        <span class="muted" id="dj-count"></span>
+      </div>
+      <div id="dj-list"></div>
+    </div>
+  </div>
+
+  <!-- Tab 4：禁用词管理 -->
+  <div id="tab-forbidden" style="display:none">
+    <div class="fw-card">
+      <h2>禁用词列表</h2>
+      <div class="muted" style="margin:8px 0 12px">
+        作用：用户发送聊天信息时，若信息中包含禁用词（会自动去除空格和特殊字符匹配），则直接提示用户，不进入 LLM 思考流程。
+      </div>
+
+      <div class="dj-editor">
+        <h2>新增禁用词</h2>
+        <div class="form-row">
+          <b>禁用词<span class="hint">输入后回车或点添加；匹配时会去掉空格和特殊字符</span></b>
+          <input type="text" id="fw-word" style="width:100%;box-sizing:border-box" placeholder="如：广告 或 加微信">
+        </div>
+        <div class="form-actions">
+          <button class="btn" onclick="addForbiddenWord()">添加</button>
+          <button class="btn ghost" onclick="$('fw-word').value='';$('fw-word').focus()">清空</button>
+        </div>
+      </div>
+
+      <div class="fw-test-area">
+        <b>快速自测</b>
+        <div class="toolbar" style="margin-top:6px">
+          <input type="text" id="fw-test-text" style="flex:1" placeholder="如：我想要 加 微 信 看更多">
+          <button class="btn" onclick="runForbiddenTest()">检测禁用词</button>
+        </div>
+        <div class="fw-test-result" id="fw-test-result"></div>
+      </div>
+
+      <div class="toolbar" style="margin-bottom:10px">
+        <span class="muted" id="fw-version">版本：-</span>
+        <span class="muted" id="fw-count"></span>
+      </div>
+      <div id="fw-list"></div>
+    </div>
+  </div>
 </div>
+
 <script src="/pages/common.js"></script>
 <script>
-let schemaCache = null;      // { classes:[...], relations:[...] }，两 Tab 共用
+let schemaCache = null;
 let classSummaries = [];
-let schemaTabLoaded = false; // 概念层 Tab 惰性加载标记
+let schemaTabLoaded = false;
+let disjointTabLoaded = false;
+let forbiddenTabLoaded = false;
+let disjointData = null;   // {version, rules}
+let forbiddenData = null;  // {version, words}
+let djEditingId = null;    // 正在编辑的 id；null = 新增
 
 // ---------------- Tab 切换 ----------------
 function switchTab(name) {
   document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   $('tab-data').style.display = name === 'data' ? '' : 'none';
   $('tab-schema').style.display = name === 'schema' ? '' : 'none';
+  $('tab-disjoint').style.display = name === 'disjoint' ? '' : 'none';
+  $('tab-forbidden').style.display = name === 'forbidden' ? '' : 'none';
   if (name === 'schema' && !schemaTabLoaded) {
     schemaTabLoaded = true;
     loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
+  }
+  if (name === 'disjoint' && !disjointTabLoaded) {
+    disjointTabLoaded = true;
+    loadDisjointPanel().catch(e => showMsg('加载失败：' + e.message, false));
+  }
+  if (name === 'forbidden' && !forbiddenTabLoaded) {
+    forbiddenTabLoaded = true;
+    loadForbiddenPanel().catch(e => showMsg('加载失败：' + e.message, false));
   }
 }
 
@@ -213,7 +342,7 @@ async function loadSchemaPanel() {
       `<button class="btn sm ghost" onclick="editClass('${esc(c.name)}')">编辑</button>` +
       `<button class="btn sm danger" onclick="removeClass('${esc(c.name)}')">删除</button>`
     ]));
-  refreshDataSelectors();   // 概念层变更后联动刷新图数据下拉框
+  refreshDataSelectors();
 }
 
 async function showClassDetail(name) {
@@ -292,6 +421,219 @@ function removeClass(name) {
     $('sc-detail-card').style.display = 'none';
     return r;
   });
+}
+
+// ---------------- 互斥约束（极简版） ----------------
+async function loadDisjointPanel() {
+  disjointData = await api('GET', '/api/disjoint-rules');
+  $('dj-version').textContent = '版本：' + disjointData.version;
+  renderDisjointList();
+  if (!djEditingId) {
+    const nextId = await api('GET', '/api/disjoint-rules/next-id');
+    $('dj-id').value = nextId;
+  }
+}
+
+/** 从文本中解析【】包裹的候选项 */
+function parseBrackets(text) {
+  const out = [];
+  if (!text) return out;
+  const re = /【([^】]+)】/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const s = m[1].trim();
+    if (s && !out.includes(s)) out.push(s);
+  }
+  return out;
+}
+
+/** 把文本中的【xxx】渲染为加粗高亮；非括号部分原样输出 */
+function highlightText(text) {
+  if (!text) return '';
+  return esc(text).replace(/【([^】]+)】/g, '【<b>$1</b>】');
+}
+
+function renderDisjointList() {
+  if (!disjointData) return;
+  const rules = disjointData.rules || [];
+  $('dj-count').textContent = `共 ${rules.length} 条规则`;
+  if (!rules.length) {
+    $('dj-list').innerHTML = `<div class="muted">暂无规则，请在上方输入框新增</div>`;
+    return;
+  }
+  $('dj-list').innerHTML = rules.map(r => {
+    const items = parseBrackets(r.text);
+    const chips = items.length
+      ? `<div class="row-items">${items.map(it => `<span class="dj-chip">${esc(it)}</span>`).join('')}</div>`
+      : `<div class="muted" style="margin-top:6px">⚠ 未检测到【】候选项，请编辑</div>`;
+    return `<div class="dj-rule-row">
+      <div class="row-head">
+        <div><span class="id">${esc(r.id)}</span> · ${items.length} 个候选项</div>
+        <div>
+          <button class="btn sm" onclick="editRule('${esc(r.id)}')">编辑</button>
+          <button class="btn sm danger" onclick="deleteRule('${esc(r.id)}')">删除</button>
+        </div>
+      </div>
+      <div class="row-text">${highlightText(r.text)}</div>
+      ${chips}
+    </div>`;
+  }).join('');
+}
+
+function editRule(id) {
+  const r = (disjointData?.rules || []).find(x => x.id === id);
+  if (!r) return showMsg('规则不存在', false);
+  djEditingId = id;
+  $('dj-editor-title').textContent = '编辑规则';
+  $('dj-id').value = r.id;
+  $('dj-id').disabled = true;
+  $('dj-text').value = r.text;
+  document.querySelector('#tab-disjoint .dj-editor').scrollIntoView({ behavior: 'smooth' });
+}
+
+function resetEditor() {
+  djEditingId = null;
+  $('dj-editor-title').textContent = '新增规则';
+  $('dj-text').value = '';
+  $('dj-id').disabled = false;
+  api('GET', '/api/disjoint-rules/next-id').then(id => { $('dj-id').value = id; }).catch(() => {});
+}
+
+function saveRule() {
+  const id = $('dj-id').value.trim();
+  const text = $('dj-text').value.trim();
+  if (!id) return showMsg('ID 不能为空', false);
+  if (!text) return showMsg('规则内容不能为空', false);
+  const items = parseBrackets(text);
+  if (items.length < 2) return showMsg('规则至少需要 2 个候选项（用【】包裹，如【青铜】【瓷】）', false);
+  doAction(async () => {
+    const r = await api('POST', '/api/disjoint-rules', { id, text });
+    disjointData = r;
+    $('dj-version').textContent = '版本：' + r.version;
+    resetEditor();
+    renderDisjointList();
+    return { saved: id, items };
+  });
+}
+
+function deleteRule(id) {
+  if (!confirm('确认删除规则 ' + id + '？')) return;
+  doAction(async () => {
+    const r = await api('DELETE', '/api/disjoint-rules/' + encodeURIComponent(id));
+    disjointData = r;
+    $('dj-version').textContent = '版本：' + r.version;
+    if (djEditingId === id) resetEditor();
+    renderDisjointList();
+    return r;
+  });
+}
+
+// ---------- 快速自测 ----------
+function runDisjointTest() {
+  const t = ($('dj-test-text').value || '').trim();
+  if (!t) return showMsg('请输入测试文本', false);
+  if (!disjointData) { $('dj-test-result').innerHTML = '<span class="dj-conflict">数据未加载</span>'; return; }
+  const hits = [];
+  for (const r of (disjointData.rules || [])) {
+    const items = parseBrackets(r.text);
+    if (items.length < 2) continue;
+    const matched = items.filter(it => t.includes(it));
+    if (matched.length >= 2) {
+      hits.push({ id: r.id, text: r.text, values: matched });
+    }
+  }
+  if (hits.length) {
+    const rows = hits.map(h => `<tr>
+      <td>${code(h.id)}</td>
+      <td>${highlightText(h.text)}</td>
+      <td class="dj-conflict">冲突：${h.values.map(v => esc(v)).join(' + ')}</td>
+    </tr>`).join('');
+    $('dj-test-result').innerHTML =
+      `<div class="dj-conflict">⚠ 检测到 ${hits.length} 处互斥冲突（Agent 将驳回）：</div>
+       <table style="margin-top:6px"><tr><th>规则</th><th>原文</th><th>命中候选项</th></tr>${rows}</table>`;
+  } else {
+    $('dj-test-result').innerHTML = `<div class="dj-ok">✔ 未检测到互斥冲突</div>`;
+  }
+}
+
+// ---------------- 禁用词管理 ----------------
+async function loadForbiddenPanel() {
+  forbiddenData = await api('GET', '/api/forbidden-words');
+  $('fw-version').textContent = '版本：' + forbiddenData.version;
+  renderForbiddenList();
+}
+
+function renderForbiddenList() {
+  if (!forbiddenData) return;
+  const words = forbiddenData.words || [];
+  $('fw-count').textContent = `共 ${words.length} 个禁用词`;
+  if (!words.length) {
+    $('fw-list').innerHTML = `<div class="fw-list-empty">暂无禁用词，请在上方输入框新增</div>`;
+    return;
+  }
+  $('fw-list').innerHTML = words.map(w =>
+    `<span class="fw-tag">${esc(w)}<span class="fw-del" title="删除" onclick="deleteForbiddenWord('${encodeURIComponent(w)}')">✕</span></span>`
+  ).join('');
+}
+
+function addForbiddenWord() {
+  const w = $('fw-word').value.trim();
+  if (!w) return showMsg('请输入禁用词', false);
+  doAction(async () => {
+    const r = await api('POST', '/api/forbidden-words', { word: w });
+    forbiddenData = r;
+    $('fw-version').textContent = '版本：' + r.version;
+    $('fw-word').value = '';
+    $('fw-word').focus();
+    renderForbiddenList();
+    return { added: w };
+  });
+}
+
+function deleteForbiddenWord(wordEnc) {
+  const w = decodeURIComponent(wordEnc);
+  if (!confirm('确认删除禁用词：' + w + '？')) return;
+  doAction(async () => {
+    const r = await api('DELETE', '/api/forbidden-words/' + wordEnc);
+    forbiddenData = r;
+    $('fw-version').textContent = '版本：' + r.version;
+    renderForbiddenList();
+    return r;
+  });
+}
+
+// Enter 键快捷添加
+document.addEventListener('DOMContentLoaded', () => {
+  const fwInput = $('fw-word');
+  if (fwInput) fwInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addForbiddenWord(); }
+  });
+});
+
+// ---------- 禁用词快速自测（前端本地模拟去空格特殊字符逻辑） ----------
+function normalizeText(text) {
+  return (text || '').replace(/[\s\p{P}\p{S}\p{C}]+/gu, '').toLowerCase();
+}
+
+async function runForbiddenTest() {
+  const t = ($('fw-test-text').value || '').trim();
+  if (!t) return showMsg('请输入测试文本', false);
+  let hits = [];
+  try {
+    hits = await api('POST', '/api/forbidden-words/check', { text: t });
+  } catch (e) {
+    // 接口失败时前端本地兜底判断
+    const nt = normalizeText(t);
+    hits = (forbiddenData?.words || []).filter(w => nt.includes(normalizeText(w)));
+  }
+  if (hits && hits.length) {
+    $('fw-test-result').innerHTML =
+      `<div class="fw-conflict">⚠ 命中 ${hits.length} 个禁用词（聊天将被拦截）：` +
+      hits.map(v => `<span class="fw-tag" style="margin-left:6px">${esc(v)}</span>`).join('') +
+      `</div>`;
+  } else {
+    $('fw-test-result').innerHTML = `<div class="fw-ok">✔ 未检测到禁用词</div>`;
+  }
 }
 
 // ---------------- init ----------------
