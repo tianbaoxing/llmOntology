@@ -23,6 +23,35 @@ description: "Queries ontology schema first, then generates read-only Cypher and
 
 判定条件是 `http_request_ontology_query` 的存在性，优先级高于 execute 的存在性。探测无需任何工具调用，直接读自己的工具清单即可。
 
+## Step 0.5 互斥约束（幻觉抑制红线，最终输出前必须执行）
+
+**工具优先级**（本步骤必须执行一次）：检查你的工具清单：
+- 存在原生工具 `disjoint_rules_list` → **优先直接调用它**（无参数）。它返回的文本内含详细判定规则，直接按其内部的"LLM 必须遵守的判定规则"执行即可。
+- 没有 `disjoint_rules_list` → 走通道 A/B，从端点速查表调用 `GET /api/llm/disjoint-rules` 读取规则，按下面 §§ 判定规则自判。
+
+### LLM 自行判定的严格流程（两条通道都要执行）
+
+1. **拿到规则列表后**，逐条阅读规则，把每条规则中【】括号里的内容提取成候选项集合 S_i（第 i 条规则对应集合 S_i）。
+2. 在你准备输出"最终事实性结论"（也就是按「回答组织」章节拼成完整文本**之前**），先在脑子里/草稿区把即将输出的那段最终文本写好 —— 记为 T。
+3. 逐条校验：对每条规则 i，检查集合 S_i 中是否有 ≥2 个候选项（或它们的同义词/近义表达）同时出现在 T 里。
+   - 例：S_i = {青铜, 瓷}，T = "这件器物是唐代青铜青花瓷" → "青铜" 与 "瓷（青花瓷中的瓷）" 同时出现 → 命中冲突。
+4. **只要有任何一条规则命中冲突，你必须立即终止本次回答，不再继续生成结论/证据。** 严禁改写、严禁拆分输出、严禁用含糊措辞绕过。
+
+### 冲突终止话术模板（必须严格使用）
+
+```text
+⚠ 检测到互斥冲突（CRM-ACA 幻觉抑制红线），输出终止。
+冲突点：
+  1. 规则 [R001]：材质互斥：一件器物主体不能同时是【青铜】且【瓷】
+     候选集合 S = {青铜、瓷}；你的拟输出文本同时命中：青铜 + 瓷（青花瓷）
+  2. （如还有其他规则逐条列出，每条对应 1 行）
+请修正事实后再提问，或联系管理员在后台「图谱管理 → 互斥约束」中调整规则。
+```
+
+### 无冲突（所有规则 S_i 在 T 中命中数 < 2）
+
+正常执行「固定执行主线（共享）」并按「回答组织」输出最终答案。
+
 ## 端点速查表（通道 A/B 共用）
 
 | 业务动作 | HTTP | 端点 | 请求体/参数 |
@@ -33,10 +62,13 @@ description: "Queries ontology schema first, then generates read-only Cypher and
 | 执行只读 Cypher | POST | /api/llm/ontology-query/query | {question, cypher, params} |
 | 上传文件列表 | GET | /api/llm/files | - |
 | 构建背景 | GET | /api/llm/profile | - |
+| 互斥约束词典（只读） | GET | /api/llm/disjoint-rules | - |
 
 ## 通道 A：http_request_ontology_query 调用规范
 
 工具清单里有 `http_request_ontology_query` 时使用本通道。工具是无业务语义的 HTTP 管道：base-url 服务端固定，只需传端点速查表中的 path。
+
+另外如果工具清单里有原生工具 `disjoint_rules_list`，**互斥约束这一步**优先直接调用这个原生工具（无参数），不走 HTTP 管道；其余本体查询仍通过 http_request_ontology_query。原生工具返回的文本里已内置「LLM 必须遵守的判定规则」章节，按其流程执行即可。
 
 参数：
 
