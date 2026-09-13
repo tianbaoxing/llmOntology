@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.conca.ontology.agent.ChartPluginTool;
 import com.conca.ontology.agent.DisjointRulesTool;
 import com.conca.ontology.agent.HttpProxyTool;
 import com.conca.ontology.service.DisjointRuleService;
@@ -96,6 +97,7 @@ public class AgentScopeConfig {
         // 互斥约束词典工具：agent 侧幻觉抑制。有 tool 就优先调工具；工具不可用时走
         // /api/llm/disjoint-rules HTTP 通道兜底。
         toolkit.registerTool(new DisjointRulesTool(disjointRuleService));
+        toolkit.registerTool(new ChartPluginTool());
         log.info("AgentScope Toolkit 已注册：{}", toolkit.getToolNames());
 
         // MCP 外接工具（可选）：Toolkit 原生 registerMcpClient 注册，工具 isMcp=true，

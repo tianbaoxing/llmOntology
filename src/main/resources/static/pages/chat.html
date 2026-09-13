@@ -105,6 +105,23 @@ textarea:focus { outline: none; border-color: #2563eb; }
 .resume-tip .btn { padding: 4px 12px; font-size: 12px; }
 .chat-head .chat-label { font-size: 12px; color: #9ca3af; flex-shrink: 0; }
 .chat-head .chat-title { font-size: 13px; color: #374151; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ---------- 图表与表格渲染样式 ---------- */
+.msg-agent .chart-container { width: 100%; height: 280px; margin: 10px 0; }
+.msg-agent table { border-collapse: collapse; margin: 10px 0; font-size: 13px; width: 100%; }
+.msg-agent table th { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; padding: 6px 10px; text-align: left; font-weight: 600; }
+.msg-agent table td { border: 1px solid #e5e7eb; padding: 6px 10px; color: #374151; }
+.msg-agent table tbody tr:nth-child(even) td { background: #f9fafb; }
+.msg-agent pre { background: #f3f4f6; padding: 8px 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+.msg-agent code { font-family: Consolas, monospace; font-size: 12px; }
+.msg-agent :not(pre) > code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; color: #b45309; }
+.msg-agent blockquote { border-left: 3px solid #bfdbfe; color: #6b7280; margin: 8px 0; padding: 2px 12px; }
+.msg-agent p { margin: 4px 0; }
+.msg-agent ul, .msg-agent ol { padding-left: 22px; margin: 4px 0; }
+.msg-agent h1, .msg-agent h2, .msg-agent h3, .msg-agent h4 { margin: 10px 0 6px; color: #1f2937; }
+.msg-agent hr { border: none; border-top: 1px solid #e5e7eb; margin: 12px 0; }
+.msg-agent a { color: #2563eb; text-decoration: none; }
+.msg-agent a:hover { text-decoration: underline; }
+.stopped-tag { display: inline-block; margin-top: 8px; color: #9ca3af; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -147,12 +164,159 @@ textarea:focus { outline: none; border-color: #2563eb; }
   </div>
 </div>
 
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/purify.min.js"></script>
+<script src="/vendor/echarts.min.js"></script>
 <script src="/pages/common.js"></script>
 <script>
 const messagesEl = $('messages');
 const inputEl = $('input');
 const btnSend = $('btn-send');
 const btnStop = $('btn-stop');
+
+// ---------- ECharts 实例生命周期管理 ----------
+const _chartInstances = new Set();
+function disposeAllCharts() {
+  if (!window.echarts) return;
+  for (const inst of _chartInstances) {
+    try { inst.dispose(); } catch (e) {}
+  }
+  _chartInstances.clear();
+}
+window.addEventListener('resize', () => {
+  if (!window.echarts) return;
+  for (const inst of _chartInstances) {
+    try { inst.resize(); } catch (e) {}
+  }
+});
+
+// ---------- Markdown + 图表渲染管线 ----------
+/**
+ * 1. 取 answer.textContent 完整文本
+ * 2. marked 解析 → HTML（表格、代码块）
+ * 3. 提取 <code class="language-chart"> 块 → JSON.parse
+ *    → 替换为图表容器 div（失败则保留原文本块，不中断）
+ * 4. DOMPurify 清洗 → answer.innerHTML
+ * 5. 遍历图表容器 → echarts.init + setOption（按 type 映射）
+ */
+function renderAnswerContent(answerEl) {
+  if (!answerEl) return;
+  const raw = answerEl.textContent || '';
+  if (!raw) return;
+
+  // ---- 2. marked 解析 ----
+  let html;
+  try {
+    const mdOpt = { gfm: true, breaks: true };
+    if (window.marked.parse) html = window.marked.parse(raw, mdOpt);
+    else html = window.marked(raw, mdOpt);
+  } catch (e) {
+    // marked 异常：兜底回退纯文本（转义）展示
+    answerEl.textContent = raw;
+    return;
+  }
+
+  // ---- 3. 提取 chart 代码块，替换为容器 ----
+  // marked 的代码块围栏 ```chart 生成 <code class="language-chart">
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const chartCodes = tmp.querySelectorAll('code.language-chart, code[class*="language-chart"]');
+  const chartContainers = []; // { div, json }
+  chartCodes.forEach(code => {
+    const jsonStr = (code.textContent || '').trim();
+    let chartCfg = null;
+    try { chartCfg = JSON.parse(jsonStr); } catch (e) {}
+    const pre = code.parentElement;
+    const holder = document.createElement('div');
+    if (chartCfg && window.echarts) {
+      holder.className = 'chart-container';
+      holder.dataset.chartCfg = jsonStr;
+      chartContainers.push(holder);
+    } else {
+      // 解析失败或未加载 echarts：保留原始 JSON 作为代码块展示
+      holder.className = 'chart-parse-failed';
+      const p = document.createElement('pre');
+      const c = document.createElement('code');
+      c.className = 'language-text';
+      c.textContent = jsonStr || '（空图表数据）';
+      p.appendChild(c);
+      holder.appendChild(p);
+    }
+    if (pre && pre.tagName === 'PRE') pre.replaceWith(holder);
+    else code.replaceWith(holder);
+  });
+  html = tmp.innerHTML;
+
+  // ---- 4. DOMPurify 清洗后写入 ----
+  let cleanHtml;
+  try {
+    cleanHtml = window.DOMPurify.sanitize(html, {
+      ADD_ATTR: ['target', 'data-chart-cfg'],
+      ADD_TAGS: ['svg', 'path', 'circle', 'rect', 'line', 'text', 'g', 'polygon', 'polyline', 'defs', 'linearGradient', 'stop', 'filter']
+    });
+  } catch (e) {
+    answerEl.textContent = raw;
+    return;
+  }
+  answerEl.innerHTML = cleanHtml;
+
+  // ---- 5. 初始化 ECharts（从 answerEl 查询真实 DOM，不要用 tmp 中已失效的 holder 引用） ----
+  const realChartDivs = answerEl.querySelectorAll('.chart-container');
+  if (!window.echarts || !realChartDivs.length) return;
+  realChartDivs.forEach(div => {
+    let cfg;
+    try { cfg = JSON.parse(div.dataset.chartCfg || ''); } catch (e) { cfg = null; }
+    if (!cfg) return;
+    // 防重复 init
+    const exist = window.echarts.getInstanceByDom(div);
+    if (exist) { try { exist.dispose(); } catch (e) {} }
+    let inst;
+    try { inst = window.echarts.init(div); } catch (e) { return; }
+    _chartInstances.add(inst);
+    const option = buildEChartsOption(cfg);
+    try { inst.setOption(option); } catch (e) {}
+  });
+}
+
+/** 按 build_chart 标准 JSON 映射到 ECharts option */
+function buildEChartsOption(cfg) {
+  const type = cfg.type || 'line';
+  const title = cfg.title || '';
+  const xAxis = Array.isArray(cfg.xAxis) ? cfg.xAxis : [];
+  const series = Array.isArray(cfg.series) ? cfg.series : [];
+  const yAxisName = cfg.yAxisName || '';
+
+  if (type === 'pie') {
+    const data = [];
+    const s0 = series[0] && Array.isArray(series[0].data) ? series[0].data : [];
+    for (let i = 0; i < xAxis.length && i < s0.length; i++) {
+      data.push({ name: String(xAxis[i]), value: Number(s0[i]) });
+    }
+    return {
+      title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+      legend: { bottom: 0, type: 'scroll' },
+      series: [{ type: 'pie', radius: ['35%', '65%'], center: ['50%', '48%'], data: data, label: { formatter: '{b}\n{d}%' } }]
+    };
+  }
+
+  // line / bar
+  return {
+    title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'axis' },
+    legend: { bottom: 0, type: 'scroll' },
+    grid: { left: 50, right: 24, top: 48, bottom: 40 },
+    xAxis: { type: 'category', data: xAxis, axisLabel: { interval: 0, rotate: xAxis.length > 6 ? 30 : 0 } },
+    yAxis: { type: 'value', name: yAxisName, nameTextStyle: { color: '#6b7280' } },
+    series: series.map(s => ({
+      name: s.name || '',
+      type: type,
+      data: Array.isArray(s.data) ? s.data.map(v => Number(v)) : [],
+      smooth: type === 'line',
+      barMaxWidth: 40
+    }))
+  };
+}
 
 // ---------- 聊天音效（Web Audio 合成，无外部资源） ----------
 // 发送时「叮」、回答完毕（聊天终止）时「叮—当」，让用户感知回答开始与结束
@@ -526,9 +690,11 @@ function addAgentMsg() {
     startTime: new Date(),
     isDone: false,
     setDone(usage, ts) {
-      if (this.isDone) return; // done 事件与流结束兜底可能先后触发，只追加一次
+      if (this.isDone) return; // done 事件与流结束兜底可能先后触发，只追加一次 + 只渲染一次
       this.isDone = true;
       this.caret.style.display = 'none';
+      // 完成态首次置位：执行 Markdown + 图表渲染（之后禁止再改 textContent）
+      try { renderAnswerContent(this.answer); } catch (e) {}
       const timeStr = fmtTime(ts || this.startTime);
       const hasUsage = usage && (usage.promptTokens != null || usage.completionTokens != null);
       if (!timeStr && !hasUsage && !isAdminUser) return;
@@ -719,13 +885,21 @@ async function send() {
     }
     if (buf.trim()) handleSseBlock(buf, st);
     if (st.ui) st.ui.setDone(null); // 流结束兜底（round end 已处理则幂等）
-    if (stopRequested && st.ui) st.ui.answer.textContent += '\n\n（已停止）';
+    if (stopRequested && st.ui) {
+      const s = document.createElement('span');
+      s.className = 'stopped-tag';
+      s.textContent = '\n\n（已停止）';
+      st.ui.answer.appendChild(s);
+    }
     stopRequested = false;
   } catch (e) {
     if (e.name === 'AbortError') {
       if (st.ui) {
-        st.ui.answer.textContent += '\n\n（已停止）';
-        st.ui.setDone(null);
+        if (!st.ui.isDone) st.ui.setDone(null);
+        const s = document.createElement('span');
+        s.className = 'stopped-tag';
+        s.textContent = '\n\n（已停止）';
+        st.ui.answer.appendChild(s);
       }
     } else {
       ensureRound(st).setError(e.message || '网络异常');
@@ -885,6 +1059,7 @@ function updateChatHead() {
 /** 开启新会话：换新 id、清空消息区、刷新列表（新会话按钮/恢复横幅共用） */
 function startNewSession() {
   if (streaming && aborter) aborter.abort();
+  disposeAllCharts();
   newSessionId();
   messagesEl.innerHTML = emptyTipHtml('已开启新会话');
   renderSessions();
@@ -954,6 +1129,7 @@ async function switchSession(id) {
 }
 
 async function loadMessages() {
+  disposeAllCharts(); // 清空 DOM 前先销毁所有图表实例，防泄漏
   messagesEl.innerHTML = '';
   msgSeq = 0; // 与 /messages 数组下标重新对齐（user/assistant 渲染顺序计数）
   let msgs = null;
@@ -1023,7 +1199,7 @@ function addStaticAgentMsg(m) {
       ui.toolInner.appendChild(line);
     }
   }
-  ui.answer.textContent = m.answer || '';
+  ui.answer.textContent = (m.answer != null && m.answer !== '') ? m.answer : (m.content || '');
   ui.setDone(m, m.ts);
   return ui;
 }
@@ -1074,6 +1250,7 @@ async function deleteSession(id) {
   }
   if (id === sessionId) {
     newSessionId();
+    disposeAllCharts();
     messagesEl.innerHTML = emptyTipHtml('已开启新会话');
   }
   await loadSessions();
