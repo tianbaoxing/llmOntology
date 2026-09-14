@@ -21,6 +21,9 @@
         <java.version>17</java.version>
         <neo4j-driver.version>5.14.0</neo4j-driver.version>
         <agentscope.version>2.0.0</agentscope.version>
+        <!-- 知识库二进制文件（pdf/word/excel）自动转 Markdown -->
+        <tika.version>2.9.2</tika.version>
+        <flexmark.version>0.64.8</flexmark.version>
         <!-- 覆盖 Boot 3.2.5 管理的 opentelemetry 1.31.0：内嵌 studio 源码按 otel 1.61.0 编译，
              1.61 的 exporter 需要 sdk-common 1.61 的 StandardComponentId$ExporterType（1.31 无此类） -->
         <opentelemetry.version>1.61.0</opentelemetry.version>
@@ -85,6 +88,35 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>2.3.0</version>
+        </dependency>
+        <!-- 知识库文件转 Markdown：Tika 解析 pdf/doc/docx/xls/xlsx → XHTML，
+             flexmark-html2md-converter 把 XHTML（含表格/标题/列表）转成 GFM Markdown -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>${tika.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parser-pdf-module</artifactId>
+            <version>${tika.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parser-microsoft-module</artifactId>
+            <version>${tika.version}</version>
+        </dependency>
+        <!-- Tika zip 容器探测（docx/pdf 内嵌资源解析）用到 commons-io 2.15+ 的 ChecksumInputStream，
+             但 tika 相关模块均未传递声明，缺失时运行期 NoClassDefFoundError，需显式引入 -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.16.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark-html2md-converter</artifactId>
+            <version>${flexmark.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

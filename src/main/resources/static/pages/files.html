@@ -21,11 +21,11 @@
       <input type="text" id="fm-desc" placeholder="文件说明（选填）">
       <button class="btn" onclick="uploadFile()">上传</button>
     </div>
-    <div class="muted">支持 pdf / txt / csv / md / json / xml / doc / docx / xls / xlsx（≤50MB），不支持视频、音频、图片；同名文件覆盖</div>
+    <div class="muted">支持 pdf / txt / csv / md / json / xml / doc / docx / xls / xlsx（≤50MB），不支持视频、音频、图片；同名覆盖；pdf/word/excel 自动转 MD（LLM 只读 MD）</div>
   </div>
   <div class="card">
     <h2>文件列表</h2>
-    <div class="muted" style="margin-bottom:10px">列表与 files/ 目录自动对账；说明可编辑；删除连带元数据记录</div>
+    <div class="muted" style="margin-bottom:10px">列表与 files/ 目录自动对账；说明可编辑；删除连带元数据记录与 MD；LLM 读取 files-md/ 下的 MD（转换失败不可见）</div>
     <div id="fm-list"></div>
   </div>
 </div>
@@ -35,12 +35,21 @@
 // 路径逐段编码：name 可能含 '/'（子目录文件）与中文，'/' 不能编码（Tomcat 拒绝 %2F）
 function fmPath(name) { return name.split('/').map(encodeURIComponent).join('/'); }
 
+// MD 转换状态列：SUCCESS 显示产物名；FAILED 悬停显示原因 + 重试按钮；NONE（文本类）显示 —
+function fmMdCell(f) {
+  if (f.convertStatus === 'SUCCESS') return `<span title="${esc(f.mdName || '')}">✅ 已转MD</span>`;
+  if (f.convertStatus === 'FAILED')
+    return `<span title="${esc(f.convertMsg || '转换失败')}">❌ 转换失败</span>` +
+           `<button class="btn sm" onclick="reconvertFile('${encodeURIComponent(f.name)}')">重试</button>`;
+  return '—';
+}
+
 async function loadFiles() {
   const d = await api('GET', '/api/files');
   $('fm-list').innerHTML = table(
-    ['文件名', '类型', '大小', '说明', '上传时间', '操作'],
+    ['文件名', '类型', 'MD', '大小', '说明', '上传时间', '操作'],
     d.files.map(f => [
-      esc(f.name), code(f.ext), fmtSize(f.size),
+      esc(f.name), code(f.ext), fmMdCell(f), fmtSize(f.size),
       `<input type="text" class="fm-desc-input" id="fm-desc-${esc(f.name).replace(/[^a-zA-Z0-9_-]/g, '_')}" value="${esc(f.description)}">`,
       esc(f.uploadedAt),
       `<button class="btn sm" onclick="saveFileDesc('${encodeURIComponent(f.name)}')">保存说明</button>` +
@@ -57,10 +66,26 @@ async function uploadFile() {
   const res = await fetch('/api/files', { method: 'POST', body: fd });
   const json = await res.json();
   if (json.code !== 0) { showMsg('上传失败：' + json.msg, false); return; }
-  showMsg('上传成功：' + json.data.file.name, true);
+  const f = json.data.file;
+  let tip = '上传成功：' + f.name;
+  if (f.convertStatus === 'SUCCESS') tip += '（已转换为 MD）';
+  else if (f.convertStatus === 'FAILED') tip += '（MD 转换失败：' + (f.convertMsg || '未知原因') + '）';
+  showMsg(tip, f.convertStatus !== 'FAILED');
   input.value = '';
   $('fm-desc').value = '';
   loadFiles().catch(e => showMsg('列表刷新失败：' + e.message, false));
+}
+
+async function reconvertFile(encName) {
+  const name = decodeURIComponent(encName);
+  try {
+    const d = await api('POST', '/api/files/reconvert?name=' + encodeURIComponent(name));
+    const f = d.file || {};
+    showMsg(f.convertStatus === 'SUCCESS'
+      ? '转换成功：' + (f.mdName || f.name)
+      : '转换失败：' + (f.convertMsg || '未知原因'), f.convertStatus === 'SUCCESS');
+    loadFiles().catch(() => {});
+  } catch (e) { showMsg('失败：' + e.message, false); }
 }
 
 async function saveFileDesc(encName) {

@@ -28,6 +28,13 @@ app:
   upload-dir: files
   upload-allowed-ext: pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx
   metadata-file: data/file-metadata.json
+  # 二进制文件自动转 Markdown（LLM 只读 MD，不读原件）：
+  # md-dir 为 MD 输出目录（镜像 upload-dir 相对路径，命名 <原文件全名>.md）；
+  # convert-ext 为触发转换的扩展名；convert-min-chars 为空结果检测阈值
+  # （正文有效字符低于该值判 FAILED，典型场景：扫描件 PDF 无文本层）
+  md-dir: files-md
+  convert-ext: pdf,doc,docx,xls,xlsx
+  convert-min-chars: 50
   forbidden-words-file: data/forbidden-words.json
   forbidden-words:
     homophone-enabled: true

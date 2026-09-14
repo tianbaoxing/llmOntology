@@ -64,11 +64,19 @@ public class FileController {
         return ApiResponse.ok(storageService.updateDescription(stripSlash(name), req.description()));
     }
 
-    @Operation(summary = "删除文件", description = "文件实体 + 元数据记录一并移除。")
+    @Operation(summary = "删除文件", description = "文件实体 + 对应 MD + 元数据记录一并移除。")
     @DeleteMapping("/{*name}")
     public ApiResponse<FileDeleteResult> delete(
             @Parameter(description = "文件名（可含子目录路径）", example = "artifact.csv") @PathVariable String name) {
         return ApiResponse.ok(storageService.delete(stripSlash(name)));
+    }
+
+    @Operation(summary = "重试 MD 转换", description = "对 pdf/word/excel 强制重转（先删旧 MD）；"
+            + "转换失败（如扫描件）修复后手动触发。name 为查询参数（可含子目录路径）。")
+    @PostMapping("/reconvert")
+    public ApiResponse<FileUpdateResult> reconvert(
+            @Parameter(description = "文件名（可含子目录路径）", example = "报告.docx") @RequestParam("name") String name) {
+        return ApiResponse.ok(storageService.reconvert(name));
     }
 
     private static String stripSlash(String name) {
