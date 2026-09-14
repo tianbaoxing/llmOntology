@@ -92,6 +92,17 @@ details.static-item .role-chip.tool { flex-shrink: 0; }
 .usage-bar i { display: block; height: 100%; background: #f59e0b; border-radius: 4px; }
 .usage-num { color: #6b7280; flex-shrink: 0; }
 .usage-desc { color: #9ca3af; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 技能使用判定 */
+.verdict-chip { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.verdict-chip.ok { background: #f0fdf4; color: #15803d; }
+.verdict-chip.bad { background: #fef2f2; color: #b91c1c; }
+.verdict-chip.warn { background: #f3f4f6; color: #6b7280; }
+.ev-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; flex-wrap: wrap; }
+.ev-type { display: inline-block; padding: 0 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
+  background: #eff6ff; color: #1d4ed8; flex-shrink: 0; }
+.ev-match { font-family: Consolas, 'Courier New', monospace; color: #111827; word-break: break-all; }
+.ev-meta { color: #9ca3af; }
 </style>
 </head>
 <body>
@@ -132,7 +143,7 @@ details.static-item .role-chip.tool { flex-shrink: 0; }
   </div>
   <div class="card">
     <h2>工具调用与技能加载</h2>
-    <div class="muted" style="margin-bottom:10px">从会话消息中汇总：各工具的调用次数、子 Agent 的调用（agent_spawn 等），以及通过 load_skill 加载的技能</div>
+    <div class="muted" style="margin-bottom:10px">从会话消息中汇总：各工具的调用次数、子 Agent 的调用（agent_spawn 等），以及通过 load_skill 加载的技能及其是否被正确使用（依据技能特征指纹匹配加载后的步骤）</div>
     <div id="sd-usage"></div>
   </div>
   <div class="card">
@@ -150,6 +161,9 @@ const viewUserId = params.get('userId'); // 管理员查看指定用户时携带
 function fmtNum(n) { return Number(n || 0).toLocaleString('zh-CN'); }
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#22c55e', '#f59e0b', '#ec4899', '#64748b'];
+
+/** 技能使用判定证据通道中文名 */
+const EV_TYPES = { api: 'API', shell: 'Shell', script: '脚本', keyword: '关键词' };
 
 async function load() {
   if (!sessionId) throw new Error('缺少 sessionId 参数');
@@ -371,16 +385,58 @@ function renderUsage(d) {
     html += '<div class="muted">本会话未调用子 Agent</div>';
   }
   const skillList = [...skills.values()];
-  html += '<div class="usage-h" style="margin-top:14px">技能加载（' + skillList.length + ' 个）</div>';
-  if (skillList.length) {
-    html += skillList.map(s =>
-      '<div class="usage-row"><span class="usage-name">' + esc(s.id) + '</span>' +
-      '<span class="usage-num">' + s.times + ' 次</span>' +
-      '<span class="usage-desc">' + esc(s.desc) + '</span></div>').join('');
+  const usage = d.skillUsage; // 后端判定结果；null/undefined（异常降级）时退回仅统计加载
+  const judged = usage != null;
+  html += '<div class="usage-h" style="margin-top:14px">技能加载' + (judged ? '与使用判定' : '') +
+    '（' + (judged ? usage.length : skillList.length) + ' 个）</div>';
+  if (!judged) {
+    if (skillList.length) {
+      html += skillList.map(s =>
+        '<div class="usage-row"><span class="usage-name">' + esc(s.id) + '</span>' +
+        '<span class="usage-num">' + s.times + ' 次</span>' +
+        '<span class="usage-desc">' + esc(s.desc) + '</span></div>').join('');
+    } else {
+      html += '<div class="muted">本会话未加载技能</div>';
+    }
+  } else if (usage.length) {
+    html += usage.map(skillUsageRow).join('');
+    html += '<div class="muted" style="margin-top:6px">判定口径：首次成功加载后至会话结束，' +
+      '匹配技能特征指纹（API / Shell / 脚本 / 关键词），任一命中即「已使用」；' +
+      '加载后前 2 步内首命中标「即时遵循」。特征来自 /eval → Skills 管理的检测结果与识别关键词</div>';
+  } else if (skillList.length) {
+    html += '<div class="muted">本会话未成功加载技能（加载调用未返回 Successfully loaded）</div>';
   } else {
     html += '<div class="muted">本会话未加载技能</div>';
   }
   el.innerHTML = html;
+}
+
+/** 单个已加载技能的判定行：徽章（已使用/未检测到使用/无法判定）+ 可展开证据明细 */
+function skillUsageRow(s) {
+  const badge = s.verdict === 'used'
+    ? '<span class="verdict-chip ok">✓ 已使用' + (s.immediateFollow ? ' · 即时遵循' : '') + '</span>'
+    : s.verdict === 'unused'
+      ? '<span class="verdict-chip bad">✗ 未检测到使用</span>'
+      : '<span class="verdict-chip warn">？ 无法判定</span>';
+  const reasonText = {
+    no_analysis: '该技能无检测数据（/eval → Skills 管理 → 触发检测后再看）',
+    no_fingerprint: '无可用特征（API / Shell / 脚本 / 关键词均为空，无法判定）',
+    no_steps: '加载后无后续步骤'
+  }[s.reason] || '';
+  const ev = s.evidence || [];
+  let body = '';
+  if (ev.length) {
+    body = ev.map(e => '<div class="ev-row"><span class="ev-type">' + esc(EV_TYPES[e.type] || e.type) + '</span>' +
+      '<span class="ev-match">' + code(e.match) + (e.fingerprint && e.fingerprint !== e.match ? ' ↔ ' + code(e.fingerprint) : '') + '</span>' +
+      '<span class="ev-meta">' + esc(e.tool || '') + ' · 加载后第 ' + e.step + ' 步' + (e.count > 1 ? ' × ' + e.count + ' 次' : '') + '</span></div>').join('');
+  } else {
+    body = '<div class="muted">' + esc(reasonText || '加载后各步骤未命中任何特征指纹') + '</div>';
+  }
+  return '<details class="static-item" style="margin-top:8px"><summary>' +
+    '<span class="usage-name">' + esc(s.name) + '</span>' + badge +
+    '<span class="usage-num">' + s.loadTimes + ' 次</span>' +
+    '<span class="usage-desc">' + esc(s.desc || '') + '</span></summary>' +
+    '<div class="static-body">' + body + '</div></details>';
 }
 
 function renderMessages(list) {

@@ -11,6 +11,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.skill.SkillUsageJudge;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.agentscope.core.message.ContentBlock;
@@ -45,12 +46,15 @@ public class SessionDetailService {
     private final ObjectProvider<HarnessAgent> agentProvider;
     private final AgentSessionService agentSessionService;
     private final ObjectMapper mapper;
+    private final SkillUsageJudge skillUsageJudge;
 
     public SessionDetailService(ObjectProvider<HarnessAgent> agentProvider,
-            AgentSessionService agentSessionService, ObjectMapper mapper) {
+            AgentSessionService agentSessionService, ObjectMapper mapper,
+            SkillUsageJudge skillUsageJudge) {
         this.agentProvider = agentProvider;
         this.agentSessionService = agentSessionService;
         this.mapper = mapper;
+        this.skillUsageJudge = skillUsageJudge;
     }
 
     /** 单会话详情：summary 全会话累计 / breakdown 最后一次调用输入构成 / messages 全量明细 */
@@ -289,6 +293,8 @@ public class SessionDetailService {
         result.put("systemPromptTokens", Math.round(sysEst * calibration));
         result.put("toolSchemas", toolSchemas);
         result.put("messages", messages);
+        // 技能正确使用判定：加载 ≠ 使用，按 skill-analysis.json 特征指纹匹配首次加载后的步骤
+        result.put("skillUsage", skillUsageJudge.judge(messages));
         return result;
     }
 
