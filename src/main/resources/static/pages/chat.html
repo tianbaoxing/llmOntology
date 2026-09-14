@@ -16,8 +16,13 @@ body { display: flex; flex-direction: column; }
 .btn.stop:hover { background: #b91c1c; }
 .layout { flex: 1; display: flex; min-height: 0; }
 .sidebar { width: 250px; flex-shrink: 0; background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; min-height: 0; }
-.side-head { padding: 12px 14px; border-bottom: 1px solid #e5e7eb; }
-.side-head .btn { width: 100%; }
+.side-head { padding: 12px 14px; border-bottom: 1px solid #e5e7eb; display: flex; gap: 8px; }
+/* 侧边栏操作按钮：并排等宽；新会话为主操作（实心蓝），提示词为次操作（描边中性） */
+.side-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 8px 4px; border-radius: 8px; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; border: 1px solid transparent; }
+.side-btn.new { background: #2563eb; color: #fff; }
+.side-btn.new:hover { background: #1d4ed8; }
+.side-btn.pmt { background: #fff; color: #374151; border-color: #d1d5db; }
+.side-btn.pmt:hover { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
 .side-title { font-size: 12px; color: #9ca3af; padding: 10px 16px 6px; }
 .sess-list { flex: 1; overflow-y: auto; }
 .sess-item { position: relative; padding: 10px 14px 10px 17px; cursor: pointer; border-bottom: 1px solid #f3f4f6; }
@@ -122,12 +127,41 @@ textarea:focus { outline: none; border-color: #2563eb; }
 .msg-agent a { color: #2563eb; text-decoration: none; }
 .msg-agent a:hover { text-decoration: underline; }
 .stopped-tag { display: inline-block; margin-top: 8px; color: #9ca3af; font-size: 13px; }
+/* ---------- 用户提示词 ---------- */
+/* 用户消息气泡 hover 出「存为提示词」入口（悬浮气泡右上角） */
+.msg-user { position: relative; }
+.to-prompt { display: none; position: absolute; right: 8px; top: -9px; border: 1px solid rgba(255,255,255,.55); background: #2563eb; color: #fff; font-size: 11px; line-height: 1.6; padding: 1px 8px; border-radius: 10px; cursor: pointer; white-space: nowrap; z-index: 5; }
+.msg-user:hover .to-prompt { display: inline-block; }
+.to-prompt:hover { background: #1d4ed8; }
+/* 提示词管理弹窗 */
+.modal-mask { display: none; position: fixed; inset: 0; background: rgba(17,24,39,.45); z-index: 100; align-items: center; justify-content: center; }
+.modal-mask.show { display: flex; }
+.modal-box { background: #fff; border-radius: 10px; width: 760px; max-width: 94vw; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+.modal-head { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #1f2937; }
+.modal-head .m-close { margin-left: auto; color: #9ca3af; cursor: pointer; font-size: 16px; padding: 2px 6px; }
+.modal-head .m-close:hover { color: #dc2626; }
+.modal-body { padding: 14px 18px; overflow-y: auto; }
+.modal-body .toolbar { margin-bottom: 10px; }
+.pf-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.pf-field .pf-label { font-size: 13px; color: #374151; }
+.pf-field input[type=text] { width: 100%; box-sizing: border-box; }
+.pf-form textarea { min-height: 130px; max-height: 260px; height: auto; resize: vertical; font-size: 13px; }
+.pf-actions { display: flex; gap: 8px; align-items: center; }
+.pf-err { color: #b91c1c; font-size: 12px; }
+.pf-empty { text-align: center; color: #9ca3af; font-size: 13px; padding: 24px 0; }
+.p-op { cursor: pointer; color: #2563eb; margin-right: 10px; font-size: 13px; }
+.p-op:hover { text-decoration: underline; }
+.p-op.del { color: #dc2626; }
+.p-content { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #6b7280; }
 </style>
 </head>
 <body>
 <div class="layout">
   <div class="sidebar">
-    <div class="side-head"><button class="btn" id="btn-new">+ 新会话</button></div>
+    <div class="side-head">
+      <button class="side-btn new" id="btn-new">+ 新会话</button>
+      <button class="side-btn pmt" id="btn-prompts">提示词</button>
+    </div>
     <div class="side-title">历史会话</div>
     <div class="side-search"><input type="text" id="sess-search" placeholder="搜索会话标题" autocomplete="off"></div>
     <div class="sess-list" id="sess-list"></div>
@@ -152,14 +186,44 @@ textarea:focus { outline: none; border-color: #2563eb; }
       </div>
       <div class="input-row">
         <div class="slash-wrap">
-          <textarea id="input" placeholder="输入问题，Enter 发送，Shift+Enter 换行；输入 / 唤起工具" rows="1"></textarea>
+          <textarea id="input" placeholder="输入问题，Enter 发送，Shift+Enter 换行；输入 / 唤起工具，# 唤起提示词" rows="1"></textarea>
           <div class="slash-menu" id="slash-menu"></div>
+          <div class="slash-menu" id="prompt-menu"></div>
         </div>
         <button class="btn" id="btn-send">发送</button>
         <button class="btn stop" id="btn-stop" style="display:none;">停止</button>
       </div>
       <div class="hint" id="ai-hint"></div>
     </div>
+    </div>
+  </div>
+</div>
+
+<!-- 用户提示词管理弹窗 -->
+<div class="modal-mask" id="prompt-modal">
+  <div class="modal-box">
+    <div class="modal-head"><span>提示词管理</span><span class="m-close" id="pm-close" title="关闭">✕</span></div>
+    <div class="modal-body">
+      <div class="toolbar" id="pm-list-view">
+        <button class="btn sm" id="pm-add">+ 新增提示词</button>
+        <span class="muted" id="pm-count"></span>
+      </div>
+      <div id="pm-table"></div>
+      <div class="pf-form" id="pm-form" style="display:none;">
+        <div class="pf-field">
+          <div class="pf-label">标题（# 菜单展示与过滤，最长 50 字）</div>
+          <input type="text" id="pm-title" maxlength="50" placeholder="如：文物年代查询">
+        </div>
+        <div class="pf-field">
+          <div class="pf-label">内容（选中后填充到输入框，最长 5000 字）</div>
+          <textarea id="pm-content" placeholder="提示词全文"></textarea>
+        </div>
+        <div class="pf-actions">
+          <button class="btn sm" id="pm-save">保存</button>
+          <button class="btn sm ghost" id="pm-cancel">取消</button>
+          <span class="pf-err" id="pm-err"></span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -620,6 +684,238 @@ function pickSlashTool(i) {
   autoGrow();
 }
 
+// ---------- 用户提示词（# 快捷菜单 + 管理弹窗） ----------
+// 提示词按登录用户隔离（后端 data/prompts/{userId}.json），进入页面拉取缓存，
+// 管理弹窗保存/删除后重新拉取，供 "#" 菜单过滤使用
+let promptCache = [];
+
+function loadPrompts() {
+  fetch('/api/prompts').then(r => r.json()).then(j => {
+    if (j && j.code === 0) promptCache = (j.data && j.data.prompts) || [];
+  }).catch(() => { /* 拉取失败保持空列表，不影响聊天 */ });
+}
+
+// ---------- “#” 提示词快捷菜单 ----------
+// 与 "/" 工具菜单同构：光标前为 "#xxx"（须前邻空格或行首）时弹出当前用户提示词，
+// 点击或 Enter 选中后将 # 标记整体替换为提示词全文
+const promptMenu = $('prompt-menu');
+let pmItems = [];    // 当前过滤后的候选提示词
+let pmActive = 0;    // 当前高亮项索引
+let pmStart = -1;    // 触发 "#" 标记在输入框中的起始下标
+const promptOpen = () => promptMenu.style.display === 'block';
+
+/** 取光标前正在输入的 "#xxx" 标记（须前邻空格或行首），无则返回 null */
+function currentHashToken() {
+  const pos = inputEl.selectionStart;
+  if (pos == null) return null;
+  const m = inputEl.value.slice(0, pos).match(/(?:^|\s)(#[^\s]*)$/);
+  return m ? { start: pos - m[1].length, token: m[1] } : null;
+}
+
+function hidePromptMenu() {
+  promptMenu.style.display = 'none';
+  promptMenu.innerHTML = '';
+  pmItems = [];
+  pmActive = 0;
+  pmStart = -1;
+}
+
+function showPromptMenu() {
+  const cur = currentHashToken();
+  if (!cur || !promptCache.length) { hidePromptMenu(); return; }
+  const kw = cur.token.slice(1).toLowerCase();
+  const list = kw ? promptCache.filter(p =>
+      (p.title || '').toLowerCase().includes(kw) || (p.content || '').toLowerCase().includes(kw)) : promptCache;
+  if (!list.length) { hidePromptMenu(); return; }
+  pmItems = list;
+  pmStart = cur.start;
+  pmActive = 0;
+  renderPromptMenu();
+  promptMenu.style.display = 'block';
+}
+
+/** 内容首行摘要（空白折叠，截断 40 字） */
+function pmSummary(text) {
+  const s = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  return s.length > 40 ? s.slice(0, 40) + '…' : (s || '（无内容）');
+}
+
+function renderPromptMenu() {
+  promptMenu.innerHTML = '';
+  pmItems.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 's-item' + (i === pmActive ? ' active' : '');
+    const name = document.createElement('div');
+    name.className = 's-name';
+    name.textContent = '# ' + (p.title || '');
+    const desc = document.createElement('div');
+    desc.className = 's-desc';
+    desc.textContent = pmSummary(p.content);
+    item.appendChild(name);
+    item.appendChild(desc);
+    // mousedown 阻止默认避免点击瞬间失焦先收起菜单（与 "/" 菜单一致）
+    item.addEventListener('mousedown', e => { e.preventDefault(); pickPrompt(i); });
+    item.addEventListener('click', () => pickPrompt(i));
+    item.addEventListener('mousemove', () => setPromptActive(i));
+    promptMenu.appendChild(item);
+  });
+}
+
+/** 切换高亮到第 i 项（仅更新 class，不动 DOM 结构） */
+function setPromptActive(i) {
+  if (i === pmActive) return;
+  pmActive = i;
+  const items = promptMenu.children;
+  for (let k = 0; k < items.length; k++) items[k].classList.toggle('active', k === i);
+}
+
+/** 选中第 i 个候选：用提示词全文替换光标前的 "#xxx" 标记 */
+function pickPrompt(i) {
+  const p = pmItems[i];
+  if (!p) return;
+  const pos = inputEl.selectionStart;
+  const val = p.content || '';
+  inputEl.value = inputEl.value.slice(0, pmStart) + val + inputEl.value.slice(pos);
+  const c = pmStart + val.length;
+  inputEl.selectionStart = inputEl.selectionEnd = c;
+  hidePromptMenu();
+  inputEl.focus();
+  autoGrow();
+}
+
+// ---------- 提示词管理弹窗 ----------
+const pmModal = $('prompt-modal');
+let pmEditingId = null; // 正在编辑的提示词 id（null = 新增）
+
+/** 打开弹窗（左侧「提示词」按钮）：拉取最新列表进入列表模式 */
+function openPromptModal() {
+  pmModal.classList.add('show');
+  showPmList();
+}
+
+function closePromptModal() {
+  pmModal.classList.remove('show');
+}
+
+/** 列表模式：刷新提示词表格并同步 # 菜单缓存 */
+async function showPmList() {
+  $('pm-list-view').style.display = '';
+  $('pm-table').style.display = '';
+  $('pm-form').style.display = 'none';
+  const box = $('pm-table');
+  box.innerHTML = '';
+  let prompts = [];
+  try {
+    const res = await fetch('/api/prompts');
+    if (res.status === 401) { location.href = '/login'; return; }
+    const j = await res.json();
+    if (!res.ok || j.code !== 0) throw new Error(j.msg || ('HTTP ' + res.status));
+    prompts = (j.data && j.data.prompts) || [];
+  } catch (e) {
+    box.innerHTML = '<div class="pf-empty">加载失败：' + esc(e.message || '网络异常') + '</div>';
+    return;
+  }
+  promptCache = prompts;
+  $('pm-count').textContent = '共 ' + prompts.length + ' 条';
+  if (!prompts.length) {
+    box.innerHTML = '<div class="pf-empty">暂无提示词；新增后可在输入框键入 # 唤起<br>聊天记录中的问题也可悬停后一键存为提示词</div>';
+    return;
+  }
+  const tbl = document.createElement('table');
+  const thead = document.createElement('tr');
+  for (const h of ['标题', '内容', '更新时间', '操作']) {
+    const th = document.createElement('th');
+    th.textContent = h;
+    thead.appendChild(th);
+  }
+  tbl.appendChild(thead);
+  for (const p of prompts) {
+    const tr = document.createElement('tr');
+    const tdTitle = document.createElement('td');
+    tdTitle.textContent = p.title || '';
+    const tdContent = document.createElement('td');
+    tdContent.className = 'p-content';
+    tdContent.textContent = p.content || '';
+    tdContent.title = p.content || '';
+    const tdTime = document.createElement('td');
+    tdTime.className = 'muted';
+    tdTime.textContent = p.updatedAt || '';
+    const tdOp = document.createElement('td');
+    const edit = document.createElement('span');
+    edit.className = 'p-op';
+    edit.textContent = '编辑';
+    edit.addEventListener('click', () => openPmForm(p));
+    const del = document.createElement('span');
+    del.className = 'p-op del';
+    del.textContent = '删除';
+    del.addEventListener('click', () => deletePm(p));
+    tdOp.appendChild(edit);
+    tdOp.appendChild(del);
+    tr.appendChild(tdTitle);
+    tr.appendChild(tdContent);
+    tr.appendChild(tdTime);
+    tr.appendChild(tdOp);
+    tbl.appendChild(tr);
+  }
+  box.appendChild(tbl);
+}
+
+/** 表单模式：p 为已存在条目（编辑）；prefill 为预填（聊天问题转存） */
+function openPmForm(p, prefill) {
+  pmEditingId = p ? p.id : null;
+  pmModal.classList.add('show');
+  $('pm-list-view').style.display = 'none';
+  $('pm-table').style.display = 'none';
+  $('pm-form').style.display = '';
+  $('pm-title').value = p ? (p.title || '') : ((prefill && prefill.title) || '');
+  $('pm-content').value = p ? (p.content || '') : ((prefill && prefill.content) || '');
+  $('pm-err').textContent = '';
+  $('pm-title').focus();
+}
+
+async function savePmForm() {
+  const title = $('pm-title').value.trim();
+  const content = $('pm-content').value.trim();
+  const err = $('pm-err');
+  err.textContent = '';
+  if (!title) { err.textContent = '标题不能为空'; return; }
+  if (!content) { err.textContent = '内容不能为空'; return; }
+  try {
+    const res = await fetch(pmEditingId ? '/api/prompts/' + encodeURIComponent(pmEditingId) : '/api/prompts', {
+      method: pmEditingId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, content })
+    });
+    if (res.status === 401) { location.href = '/login'; return; }
+    const j = await res.json();
+    if (!res.ok || j.code !== 0) throw new Error(j.msg || ('HTTP ' + res.status));
+    showPmList(); // 内部同步刷新 promptCache
+  } catch (e) {
+    err.textContent = '保存失败：' + (e.message || '网络异常');
+  }
+}
+
+async function deletePm(p) {
+  if (!confirm('删除提示词「' + (p.title || '') + '」？')) return;
+  try {
+    const res = await fetch('/api/prompts/' + encodeURIComponent(p.id), { method: 'DELETE' });
+    if (res.status === 401) { location.href = '/login'; return; }
+    const j = await res.json();
+    if (!res.ok || j.code !== 0) throw new Error(j.msg || ('HTTP ' + res.status));
+    showPmList();
+  } catch (e) {
+    alert('删除失败：' + (e.message || '网络异常'));
+  }
+}
+
+$('btn-prompts').addEventListener('click', openPromptModal);
+$('pm-close').addEventListener('click', closePromptModal);
+// 点击遮罩空白处关闭（表单未保存内容不提示，简单关闭）
+pmModal.addEventListener('click', e => { if (e.target === pmModal) closePromptModal(); });
+$('pm-add').addEventListener('click', () => openPmForm(null));
+$('pm-cancel').addEventListener('click', showPmList);
+$('pm-save').addEventListener('click', savePmForm);
+
 function emptyTipHtml(firstLine) {
   return '<div class="empty-tip" id="empty-tip"><div class="big">' + firstLine +
       '</div><div>向 AI 助手提问' + esc(appTitle) + '相关问题</div></div>';
@@ -666,6 +962,16 @@ function addUserMsg(text, flat) {
   } else {
     el.textContent = text;
   }
+  // 存为提示词入口（hover 显示）：预填标题/内容打开新增表单
+  const star = document.createElement('span');
+  star.className = 'to-prompt';
+  star.textContent = '⭐ 存为提示词';
+  star.title = '将本问题保存为用户提示词（输入框键入 # 可唤起）';
+  star.addEventListener('click', () => openPmForm(null, {
+    title: text.replace(/\s+/g, ' ').trim().slice(0, 30),
+    content: text
+  }));
+  el.appendChild(star);
   msgSeq++;
 }
 
@@ -848,6 +1154,7 @@ async function send() {
   btnStop.style.display = '';
   inputEl.value = '';
   hideSlashMenu(); // JS 清空不触发 input 事件，菜单需手动收起
+  hidePromptMenu();
   autoGrow();
 
   addUserMsg(text);
@@ -1282,10 +1589,24 @@ inputEl.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pickSlashTool(slashActive); return; }
     if (e.key === 'Escape') { e.preventDefault(); hideSlashMenu(); return; }
   }
+  if (promptOpen()) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIdx = pmActive;
+      pmActive = (pmActive + (e.key === 'ArrowDown' ? 1 : pmItems.length - 1)) % pmItems.length;
+      if (promptMenu.children[prevIdx]) promptMenu.children[prevIdx].classList.remove('active');
+      if (promptMenu.children[pmActive]) promptMenu.children[pmActive].classList.add('active');
+      const act = promptMenu.children[pmActive];
+      if (act) act.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pickPrompt(pmActive); return; }
+    if (e.key === 'Escape') { e.preventDefault(); hidePromptMenu(); return; }
+  }
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
-inputEl.addEventListener('input', () => { autoGrow(); showSlashMenu(); });
-inputEl.addEventListener('blur', () => setTimeout(hideSlashMenu, 150));
+inputEl.addEventListener('input', () => { autoGrow(); showSlashMenu(); showPromptMenu(); });
+inputEl.addEventListener('blur', () => { setTimeout(hideSlashMenu, 150); setTimeout(hidePromptMenu, 150); });
 $('btn-new').addEventListener('click', startNewSession);
 // 搜索框：输入即时过滤；Esc 清空恢复（过滤逻辑集中在 renderSessions 统一执行）
 const searchInput = $('sess-search');
@@ -1296,8 +1617,9 @@ if (searchInput) {
   });
 }
 
-// 初始化：加载会话列表；当前会话有记录则回看，并提示“已恢复旧会话”（await 后插横幅，避免被 loadMessages 清空）
+// 初始化：加载会话列表与用户提示词缓存；当前会话有记录则回看，并提示“已恢复旧会话”（await 后插横幅，避免被 loadMessages 清空）
 inputEl.focus();
+loadPrompts();
 loadSessions().then(async () => {
   const cur = sessions.find(s => s.sessionId === sessionId);
   if (cur) {
