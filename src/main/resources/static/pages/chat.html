@@ -153,6 +153,13 @@ textarea:focus { outline: none; border-color: #2563eb; }
 .p-op:hover { text-decoration: underline; }
 .p-op.del { color: #dc2626; }
 .p-content { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #6b7280; }
+/* 提示词 → skill */
+.p-op.skill { color: #059669; }
+.ps-tag { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; padding: 1px 8px; border-radius: 10px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-size: 11px; cursor: pointer; }
+.ps-tag:hover { background: #d1fae5; }
+.ps-tag .x { font-weight: 700; }
+.pf-preview { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; font-size: 13px; white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow-y: auto; color: #374151; }
+.ps-tip { font-size: 12px; color: #9ca3af; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -223,6 +230,26 @@ textarea:focus { outline: none; border-color: #2563eb; }
           <button class="btn sm ghost" id="pm-cancel">取消</button>
           <span class="pf-err" id="pm-err"></span>
         </div>
+      </div>
+      <div class="pf-form" id="pm-skill-form" style="display:none;">
+        <div class="pf-field">
+          <div class="pf-label">skill 名（小写字母、数字、连字符；默认自动生成，可改为语义名）</div>
+          <input type="text" id="ps-name" maxlength="64" placeholder="如 user-bronze-age">
+        </div>
+        <div class="pf-field">
+          <div class="pf-label">description（告诉 LLM 何时应用本技能，最长 1024 字）</div>
+          <textarea id="ps-desc" maxlength="1024" style="min-height:64px;"></textarea>
+        </div>
+        <div class="pf-field">
+          <div class="pf-label">SKILL.md 正文预览（只读，由提示词生成）</div>
+          <div class="pf-preview" id="ps-preview"></div>
+        </div>
+        <div class="pf-actions">
+          <button class="btn sm" id="ps-save">转为 skill</button>
+          <button class="btn sm ghost" id="ps-cancel">取消</button>
+          <span class="pf-err" id="ps-err"></span>
+        </div>
+        <div class="ps-tip">转换写入项目 skills 目录，新会话即刻生效；可在新会话问「你有哪些技能」验证</div>
       </div>
     </div>
   </div>
@@ -485,13 +512,24 @@ function retroEvalBtns() {
 // ---------- 技能快捷插入 ----------
 // 技能清单来自 HarnessAgent 已装配的技能仓库（/api/agent/skills），
 // 悬停 chip 显示 description，点击在光标处插入 /技能名
-fetch('/api/agent/skills').then(r => r.json()).then(j => {
-  if (j && j.code === 0) renderSkills(j.data && j.data.skills);
-}).catch(() => { /* 拉取失败时整行隐藏，不影响聊天 */ });
+loadSkills();
+
+/** 拉取技能清单并重渲染；转换/删除 skill 后调用，保证输入区 chip 与实际一致 */
+function loadSkills() {
+  fetch('/api/agent/skills').then(r => r.json()).then(j => {
+    if (j && j.code === 0) renderSkills(j.data && j.data.skills);
+  }).catch(() => { /* 拉取失败时整行隐藏，不影响聊天 */ });
+}
 
 function renderSkills(skills) {
   const row = $('skills-row');
-  if (!row || !skills || !skills.length) return; // 无技能时整行隐藏
+  if (!row) return;
+  // 重复调用先清掉旧技能 chip（子Agent 汇总 chip 带 sub-chip 标记，保留）
+  row.querySelectorAll('.skill-chip:not(.sub-chip)').forEach(n => n.remove());
+  if (!skills || !skills.length) {
+    if (!row.querySelector('.skill-chip')) row.classList.remove('show'); // 无技能且无子Agent 时整行隐藏
+    return;
+  }
   for (const s of skills) {
     const chip = document.createElement('span');
     chip.className = 'skill-chip';
@@ -528,7 +566,7 @@ function renderSubagents(subagents) {
   const row = $('skills-row');
   if (!row || !Array.isArray(subagents) || !subagents.length) return;
   const chip = document.createElement('span');
-  chip.className = 'skill-chip';
+  chip.className = 'skill-chip sub-chip'; // sub-chip 标记：技能 chip 刷新时保留
   chip.textContent = '🤖 子Agent ' + subagents.length;
   const tip = document.createElement('span');
   tip.className = 'tip';
@@ -802,6 +840,7 @@ async function showPmList() {
   $('pm-list-view').style.display = '';
   $('pm-table').style.display = '';
   $('pm-form').style.display = 'none';
+  $('pm-skill-form').style.display = 'none';
   const box = $('pm-table');
   box.innerHTML = '';
   let prompts = [];
@@ -833,6 +872,20 @@ async function showPmList() {
     const tr = document.createElement('tr');
     const tdTitle = document.createElement('td');
     tdTitle.textContent = p.title || '';
+    // 已转 skill 标记：点击弹确认删除对应 skill（提示词本体保留）
+    for (const sn of (p.skillNames || [])) {
+      const tag = document.createElement('span');
+      tag.className = 'ps-tag';
+      tag.title = '点击删除该 skill（提示词本体保留）';
+      tag.appendChild(document.createTextNode('skill: ' + sn + ' '));
+      const x = document.createElement('span');
+      x.className = 'x';
+      x.textContent = '×';
+      tag.appendChild(x);
+      tag.addEventListener('click', () => deletePsSkill(sn));
+      tdTitle.appendChild(document.createElement('br'));
+      tdTitle.appendChild(tag);
+    }
     const tdContent = document.createElement('td');
     tdContent.className = 'p-content';
     tdContent.textContent = p.content || '';
@@ -845,11 +898,17 @@ async function showPmList() {
     edit.className = 'p-op';
     edit.textContent = '编辑';
     edit.addEventListener('click', () => openPmForm(p));
+    const toSkill = document.createElement('span');
+    toSkill.className = 'p-op skill';
+    toSkill.textContent = '转 Skill';
+    toSkill.title = '沉淀为 skill（项目 skills 目录，新会话即生效）';
+    toSkill.addEventListener('click', () => openPsForm(p));
     const del = document.createElement('span');
     del.className = 'p-op del';
     del.textContent = '删除';
     del.addEventListener('click', () => deletePm(p));
     tdOp.appendChild(edit);
+    tdOp.appendChild(toSkill);
     tdOp.appendChild(del);
     tr.appendChild(tdTitle);
     tr.appendChild(tdContent);
@@ -866,6 +925,7 @@ function openPmForm(p, prefill) {
   pmModal.classList.add('show');
   $('pm-list-view').style.display = 'none';
   $('pm-table').style.display = 'none';
+  $('pm-skill-form').style.display = 'none';
   $('pm-form').style.display = '';
   $('pm-title').value = p ? (p.title || '') : ((prefill && prefill.title) || '');
   $('pm-content').value = p ? (p.content || '') : ((prefill && prefill.content) || '');
@@ -915,6 +975,75 @@ pmModal.addEventListener('click', e => { if (e.target === pmModal) closePromptMo
 $('pm-add').addEventListener('click', () => openPmForm(null));
 $('pm-cancel').addEventListener('click', showPmList);
 $('pm-save').addEventListener('click', savePmForm);
+
+// ---------- 提示词 → skill ----------
+let psPromptId = null; // 正在转换的提示词 id
+
+/** 本地生成默认 skill 名（与后端同规则兜底）：user-<6 位小写短码> */
+function randomSkillName() {
+  const cs = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let s = '';
+  for (let i = 0; i < 6; i++) s += cs[Math.floor(Math.random() * cs.length)];
+  return 'user-' + s;
+}
+
+/** 打开转换表单：预填 name/description/正文预览 */
+function openPsForm(p) {
+  psPromptId = p.id;
+  pmModal.classList.add('show');
+  $('pm-list-view').style.display = 'none';
+  $('pm-table').style.display = 'none';
+  $('pm-form').style.display = 'none';
+  $('pm-skill-form').style.display = '';
+  $('ps-name').value = randomSkillName();
+  $('ps-desc').value = '用户沉淀的提示词技能「' + (p.title || '') + '」。当用户的问题与「' + (p.title || '') + '」相关时，遵循本技能中的指引作答。';
+  $('ps-preview').textContent = '# ' + (p.title || '') + '\n\n' + (p.content || '');
+  $('ps-err').textContent = '';
+  $('ps-name').focus();
+}
+
+async function savePsForm() {
+  const err = $('ps-err');
+  err.textContent = '';
+  const name = $('ps-name').value.trim();
+  const desc = $('ps-desc').value.trim();
+  if (name && !/^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/.test(name)) {
+    err.textContent = 'skill 名只能包含小写字母、数字、连字符，且不能以连字符开头或结尾';
+    return;
+  }
+  try {
+    const res = await fetch('/api/prompts/' + encodeURIComponent(psPromptId) + '/to-skill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name || null, description: desc || null })
+    });
+    if (res.status === 401) { location.href = '/login'; return; }
+    const j = await res.json();
+    if (!res.ok || j.code !== 0) throw new Error(j.msg || ('HTTP ' + res.status));
+    loadSkills(); // 同步刷新输入区技能 chip（新转的 skill 即刻出现）
+    showPmList();
+  } catch (e) {
+    err.textContent = '转换失败：' + (e.message || '网络异常');
+  }
+}
+
+/** 删除本人转换的 skill（标题列标签点击；提示词本体保留） */
+async function deletePsSkill(name) {
+  if (!confirm('删除 skill「' + name + '」？（提示词本体保留，# 菜单不受影响）')) return;
+  try {
+    const res = await fetch('/api/prompts/skills/' + encodeURIComponent(name), { method: 'DELETE' });
+    if (res.status === 401) { location.href = '/login'; return; }
+    const j = await res.json();
+    if (!res.ok || j.code !== 0) throw new Error(j.msg || ('HTTP ' + res.status));
+    loadSkills(); // 同步刷新输入区技能 chip（删除的 skill 即刻消失）
+    showPmList();
+  } catch (e) {
+    alert('删除失败：' + (e.message || '网络异常'));
+  }
+}
+
+$('ps-save').addEventListener('click', savePsForm);
+$('ps-cancel').addEventListener('click', showPmList);
 
 function emptyTipHtml(firstLine) {
   return '<div class="empty-tip" id="empty-tip"><div class="big">' + firstLine +
