@@ -96,19 +96,20 @@ docker compose -f docker\docker-compose.yml up -d
 ### 2. 配置环境
 
 ```powershell
-Copy-Item .env.example .env
-# 编辑 .env 填入 OPENROUTER_API_KEY（https://openrouter.ai/keys）
+Copy-Item ontology-server\.env.example ontology-server\.env
+# 编辑 ontology-server\.env 填入 OPENROUTER_API_KEY（https://openrouter.ai/keys）
 ```
 
-Neo4j 连接、端口等在 `src/main/resources/application.yml` 中配置（默认 bolt://localhost:7687，服务端口 9876）。
+Neo4j 连接、端口等在 `ontology-server/src/main/resources/application.yml` 中配置（默认 bolt://localhost:7687，服务端口 9876）。
 
 ### 3. 构建并启动
 
 ```powershell
-.\mvnw.cmd spring-boot:run          # 开发
-# 或
 .\mvnw.cmd clean package "-DskipTests"
-java -jar target\ontology-0.1.0-SNAPSHOT.jar
+# jar 方式（工作目录须为 ontology-server，data/files/skills/.env 相对 cwd 解析）
+cd ontology-server; java -jar target\ontology-server-0.1.0-SNAPSHOT.jar
+# 或开发模式（studio 模块变更后先 .\mvnw.cmd -pl ontology-agentscope-studio -am install "-DskipTests"）
+cd ..; .\mvnw.cmd -pl ontology-server spring-boot:run
 ```
 
 ### 4. 初始化

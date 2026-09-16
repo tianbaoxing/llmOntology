@@ -46,20 +46,27 @@ docker exec -i Neo4j cypher-shell -u neo4j -p guobo2026 "RETURN 1 AS ok;"
 ```powershell
 cd c:\me\kaiyuan\history\llmOntology
 
-# 构建（首次较慢，依赖在项目内 .m2\repo）
+# 构建（首次较慢，依赖在项目内 .m2\repo；多模块聚合，一次构建全部）
 .\mvnw.cmd clean package "-DskipTests" -q
 
 # 启动方式一：Maven Wrapper 直接启动（开发常用，无需先构建）
-.\mvnw.cmd spring-boot:run
-.\mvnw.cmd spring-boot:run "-Dspring-boot.run.arguments=--app.agent.studio-url=http://127.0.0.1:3000"
-.\mvnw.cmd spring-boot:run "-Dspring-boot.run.arguments=--app.agent.studio-url=http://127.0.0.1:12080"
+# 注意：studio 模块首次或变更后需先装入本地仓库（-am 连父 POM 一起装入，
+# 否则解析 studio 的 pom 时找不到 ontology-parent）：
+#   .\mvnw.cmd -pl ontology-agentscope-studio -am install "-DskipTests" -q
+.\mvnw.cmd -pl ontology-server spring-boot:run
+.\mvnw.cmd -pl ontology-server spring-boot:run "-Dspring-boot.run.arguments=--app.agent.studio-url=http://127.0.0.1:3000"
+.\mvnw.cmd -pl ontology-server spring-boot:run "-Dspring-boot.run.arguments=--app.agent.studio-url=http://127.0.0.1:12080"
 
 # 启动方式二：构建后运行 jar（后台运行，启动时自动创建 8 个唯一约束）
-java -jar target\ontology-0.1.0-SNAPSHOT.jar
+cd ontology-server
+java -jar target\ontology-server-0.1.0-SNAPSHOT.jar
 
 # 健康检查
 curl http://localhost:9876/api/graph/stats
 ```
+
+运行时工作目录约定：`spring-boot:run` 以 `ontology-server/` 为 cwd，jar 方式也必须在该目录启动；
+所有相对路径（`data/`、`files/`、`files-md/`、`skills/`、`backups/`、`.env`）均在 `ontology-server/` 下解析。
 
 停止服务：在运行窗口 Ctrl+C，或 `Get-Process java | Stop-Process`（会杀掉所有 java 进程，注意甄别）。
 
