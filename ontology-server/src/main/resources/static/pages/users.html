@@ -32,6 +32,14 @@
 .mem-section .sec-head { background: #f8fafc; padding: 6px 12px; font-size: 12px; color: #475569; border-bottom: 1px solid #e5e7eb; font-family: Consolas, monospace; }
 .mem-section .sec-body { padding: 10px 12px; font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; color: #1f2937; }
 .mem-empty { color: #9ca3af; text-align: center; padding: 40px 0; font-size: 13px; }
+/* 角色权限面板 */
+.perm-group { margin-bottom: 14px; }
+.perm-group-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+.perm-items { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.perm-item { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: #1f2937; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 5px; padding: 4px 8px; cursor: pointer; user-select: none; }
+.perm-item:hover { border-color: #93c5fd; background: #eff6ff; }
+.perm-item input { cursor: pointer; margin: 0; }
+.perm-item code { font-size: 12px; color: #475569; }
 </style>
 </head>
 <body>
@@ -49,6 +57,20 @@
       <span class="muted">注册用户需审核通过后才能登录；密码以 PBKDF2 加密存储于 data/users.json</span>
     </div>
     <div id="user-list"></div>
+  </div>
+  <div class="card">
+    <h2>角色权限</h2>
+    <div class="toolbar">
+      <select id="perm-role">
+        <option value="USER">普通用户（USER）</option>
+      </select>
+      <span class="muted">黑名单模式：勾选即对该角色禁用，保存后立即生效；ADMIN 固定全量放行，不可配置</span>
+    </div>
+    <div id="perm-grid" class="muted" style="padding:12px 0">加载中…</div>
+    <div class="toolbar">
+      <button class="btn" onclick="savePermissions()">保存权限</button>
+      <span class="muted">技能从模型可见清单隐藏；工具/子代理调用被拦截并向模型返回无权限提示</span>
+    </div>
   </div>
   <div class="card">
     <h2>修改我的密码</h2>
@@ -162,6 +184,62 @@ function changeMyPassword() {
     .catch(e => showMsg('失败：' + e.message, false));
 }
 
+// ---------------- 角色权限 ----------------
+// 资源全集缓存（/api/agent/* 为当前登录 admin 视角 = 全集）
+let permCatalog = { tools: [], skills: [], subagents: [] };
+
+async function loadPermissions() {
+  try {
+    const [perm, tools, skills, subs] = await Promise.all([
+      api('GET', '/api/admin/role-permissions'),
+      api('GET', '/api/agent/tools'),
+      api('GET', '/api/agent/skills'),
+      api('GET', '/api/agent/subagents')
+    ]);
+    permCatalog = {
+      tools: tools.tools || [],
+      skills: skills.skills || [],
+      subagents: subs.subagents || []
+    };
+    renderPermissions(perm.roles || {});
+  } catch (e) {
+    $('perm-grid').innerHTML = '<span class="muted">加载失败：' + esc(e.message) + '</span>';
+  }
+}
+
+function permSection(title, items, denied, nameKey) {
+  if (!items.length) return '';
+  const boxes = items.map(it => {
+    const name = it[nameKey] || '';
+    return '<label class="perm-item"><input type="checkbox" data-type="' + esc(title) +
+      '" value="' + esc(name) + '"' + (denied.includes(name) ? ' checked' : '') + '>' +
+      '<code>' + esc(name) + '</code></label>';
+  }).join('');
+  return '<div class="perm-group"><div class="perm-group-title">' + esc(title) +
+    '（勾选 = 禁用，共 ' + items.length + ' 项）</div><div class="perm-items">' + boxes + '</div></div>';
+}
+
+function renderPermissions(roles) {
+  const rule = roles[$('perm-role').value] || {};
+  $('perm-grid').innerHTML =
+    permSection('工具', permCatalog.tools, rule.deniedTools || [], 'name') +
+    permSection('技能', permCatalog.skills, rule.deniedSkills || [], 'name') +
+    permSection('子代理', permCatalog.subagents, rule.deniedSubagents || [], 'agentId') ||
+    '<span class="muted">暂无可用资源（agent 未装配或未配置 key）</span>';
+}
+
+function savePermissions() {
+  const role = $('perm-role').value;
+  const collect = type => Array.from(document.querySelectorAll(
+    '#perm-grid input[data-type="' + type + '"]:checked')).map(el => el.value);
+  api('PUT', '/api/admin/role-permissions/' + encodeURIComponent(role), {
+    deniedTools: collect('工具'),
+    deniedSkills: collect('技能'),
+    deniedSubagents: collect('子代理')
+  }).then(() => showMsg('角色权限已保存，立即生效', true))
+    .catch(e => showMsg('保存失败：' + e.message, false));
+}
+
 // ---------------- 记忆查看 ----------------
 let memUserId = null;
 
@@ -224,12 +302,14 @@ async function loadMemFile(name) {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMemory(); });
 
 $('filter-status').onchange = () => loadUsers().catch(e => showMsg('加载失败：' + e.message, false));
+$('perm-role').onchange = () => loadPermissions().catch(e => showMsg('角色权限加载失败：' + e.message, false));
 
 // init：header 渲染 + 登录校验由 common.js 提供（拦截器已保证仅 ADMIN 可达此页）
 CF.renderHeader();
 CF.initUser(m => {
   me = m;
   loadUsers().catch(e => showMsg('用户列表加载失败：' + e.message, false));
+  loadPermissions().catch(e => showMsg('角色权限加载失败：' + e.message, false));
 });
 </script>
 </body>

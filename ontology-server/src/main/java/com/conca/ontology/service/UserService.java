@@ -88,6 +88,16 @@ public class UserService {
         return load().users().stream().anyMatch(u -> u.userId().equals(userId));
     }
 
+    /** 按 userId 查询用户（聊天链路取角色等场景；不存在返回 null） */
+    public synchronized UserEntry findByUserId(String userId) {
+        if (userId == null) {
+            return null;
+        }
+        return load().users().stream()
+                .filter(u -> u.userId().equals(userId))
+                .findFirst().orElse(null);
+    }
+
     // ---------------- 初始化 / 注册 / 登录 ----------------
 
     /** 系统初始化：创建 admin（仅当不存在任何 ADMIN 时可用，防重复初始化重置系统） */
