@@ -166,6 +166,10 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
         if (TOOL_LOAD_SKILL.equals(name)) {
             return rolePermissionService.isDeniedSkillId(role, stringArg(call, "skillId"));
         }
+
+        if (TOOL_LOAD_SKILL.equals(name)) {
+            return rolePermissionService.isDeniedSkillId(role, stringArg(call, "skillid"));
+        }
         return false;
     }
 
