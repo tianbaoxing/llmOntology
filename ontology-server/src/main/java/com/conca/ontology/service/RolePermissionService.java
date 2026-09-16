@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,15 +76,40 @@ public class RolePermissionService {
 
     /** skillId 匹配：等于被禁技能名，或以「被禁技能名_」开头（SkillCatalog 键为 name_source） */
     public boolean isDeniedSkillId(String role, String skillId) {
+        return matchesDeniedSkill(ruleOf(role).deniedSkills(), skillId);
+    }
+
+    /** skillId 纯匹配（无 IO，供中间件逐调用判定，避免循环内重复读文件） */
+    public static boolean matchesDeniedSkill(List<String> deniedSkills, String skillId) {
         if (skillId == null || skillId.isBlank()) {
             return false;
         }
-        for (String denied : ruleOf(role).deniedSkills()) {
+        for (String denied : deniedSkills) {
             if (skillId.equals(denied) || skillId.startsWith(denied + "_")) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * 被禁文件路径树（小写、无尾斜杠的工作区相对路径），由黑名单自动推导：
+     * 技能 → skills/{name}（整目录，含 SKILL.md 及附属文件）；
+     * 子代理 → subagents/{agentId}.md（人格定义文件）。
+     * 与中间件文件工具路径拦截联动，封堵"绕过技能入口直接读文件"的泄露链。
+     */
+    public static List<String> deriveDeniedPaths(RoleRule rule) {
+        if (rule == null || rule.isEmpty()) {
+            return List.of();
+        }
+        List<String> paths = new ArrayList<>(rule.deniedSkills().size() + rule.deniedSubagents().size());
+        for (String skill : rule.deniedSkills()) {
+            paths.add(("skills/" + skill).toLowerCase());
+        }
+        for (String sub : rule.deniedSubagents()) {
+            paths.add(("subagents/" + sub + ".md").toLowerCase());
+        }
+        return paths;
     }
 
     // ---------------- 更新（ADMIN） ----------------

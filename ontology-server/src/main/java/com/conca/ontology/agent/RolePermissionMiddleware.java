@@ -1,8 +1,12 @@
 package com.conca.ontology.agent;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -56,6 +60,12 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
 
     private static final String TOOL_AGENT_SPAWN = "agent_spawn";
     private static final String TOOL_LOAD_SKILL = "load_skill_through_path";
+    private static final String TOOL_EXECUTE = "execute";
+
+    /** 文件类工具（path 参数为工作区相对路径）：目标在被禁路径树内一律拒绝——
+     * 读=泄露、写=篡改、列/搜=信息泄露，封堵"绕过技能入口直接读文件"的泄露链 */
+    private static final Set<String> PATH_TOOLS = Set.of(
+            "read_file", "write_file", "edit_file", "list_files", "glob_files", "grep_files");
 
     private final RolePermissionService rolePermissionService;
 
@@ -89,6 +99,8 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
         if (!rule.deniedSubagents().isEmpty()) {
             sb.append("- 禁用子代理：").append(String.join("、", rule.deniedSubagents())).append('\n');
         }
+        sb.append("同样禁止通过任何文件、搜索或终端工具读取、搜索或间接访问")
+          .append("被禁技能与子代理的文件内容，此类调用一律会被系统拒绝。\n");
         sb.append("</role_permissions>");
         return Mono.just(sb.toString());
     }
@@ -104,11 +116,12 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
         if (rule.isEmpty()) {
             return next.apply(input);
         }
+        List<String> deniedPaths = RolePermissionService.deriveDeniedPaths(rule);
 
         List<ToolUseBlock> allowed = new ArrayList<>();
         List<ToolUseBlock> denied = new ArrayList<>();
         for (ToolUseBlock call : input.toolCalls()) {
-            if (isDenied(rule, role, call)) {
+            if (isDenied(rule, deniedPaths, call)) {
                 denied.add(call);
             } else {
                 allowed.add(call);
@@ -151,8 +164,13 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
         return deniedFlux.concatWith(next.apply(new ActingInput(allowed)));
     }
 
-    /** 三类资源判定：工具名直接匹配；agent_spawn 看 agent_id；load_skill_through_path 看 skillId */
-    private boolean isDenied(RoleRule rule, String role, ToolUseBlock call) {
+    /**
+     * 五类资源判定（全部纯内存匹配，规则在 onActing 入口取一次）：
+     * 工具名；agent_spawn 的 agent_id；load_skill_through_path 的 skillId；
+     * 文件类工具的 path 落在被禁路径树内；execute 的 command/working_directory
+     * 含被禁路径片段（终端读文件的兜底）。
+     */
+    private static boolean isDenied(RoleRule rule, List<String> deniedPaths, ToolUseBlock call) {
         String name = call.getName();
         if (name == null) {
             return false;
@@ -164,11 +182,13 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
             return rule.deniedSubagents().contains(stringArg(call, "agent_id"));
         }
         if (TOOL_LOAD_SKILL.equals(name)) {
-            return rolePermissionService.isDeniedSkillId(role, stringArg(call, "skillId"));
+            return RolePermissionService.matchesDeniedSkill(rule.deniedSkills(), stringArg(call, "skillId"));
         }
-
-        if (TOOL_LOAD_SKILL.equals(name)) {
-            return rolePermissionService.isDeniedSkillId(role, stringArg(call, "skillid"));
+        if (PATH_TOOLS.contains(name)) {
+            return inDeniedTree(normalizePath(stringArg(call, "path")), deniedPaths);
+        }
+        if (TOOL_EXECUTE.equals(name)) {
+            return executeTouchesDenied(call, deniedPaths);
         }
         return false;
     }
@@ -183,8 +203,78 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
             return "权限不足：当前用户角色无权使用技能 " + stringArg(call, "skillId")
                     + "，请勿再次尝试。";
         }
+        if (TOOL_EXECUTE.equals(name)) {
+            return "权限不足：当前用户角色无权访问被禁技能/子代理的文件，该命令被拒绝。";
+        }
+        if (PATH_TOOLS.contains(name)) {
+            return "权限不足：当前用户角色无权访问被禁技能/子代理的文件（"
+                    + stringArg(call, "path") + "），请勿通过文件工具绕过权限。";
+        }
         return "权限不足：当前用户角色无权使用工具 " + name
                 + "，请勿再次尝试，直接以文本回答用户。";
+    }
+
+    /**
+     * 工作区相对路径归一化（与 Windows 文件系统大小写语义对齐，防绕过变体）：
+     * trim、\→/、统一小写、去 ./ 与前导 /、. 与 .. 段逻辑消解；
+     * 根部的 .. 段直接丢弃（clamp 到工作区根，防 ../ 前缀逃逸匹配）。
+     */
+    private static String normalizePath(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String p = raw.trim().replace('\\', '/').toLowerCase();
+        Deque<String> stack = new ArrayDeque<>();
+        for (String seg : p.split("/")) {
+            if (seg.isEmpty() || seg.equals(".")) {
+                continue;
+            }
+            if (seg.equals("..")) {
+                if (!stack.isEmpty()) {
+                    stack.pop();
+                }
+                continue;
+            }
+            stack.push(seg);
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Iterator<String> it = stack.descendingIterator(); it.hasNext(); ) {
+            if (sb.length() > 0) {
+                sb.append('/');
+            }
+            sb.append(it.next());
+        }
+        return sb.toString();
+    }
+
+    /** 目标路径是否落在被禁路径树内：等于被禁目录/文件，或位于其下（denied/… 前缀） */
+    private static boolean inDeniedTree(String path, List<String> deniedPaths) {
+        if (path.isEmpty() || deniedPaths.isEmpty()) {
+            return false;
+        }
+        for (String denied : deniedPaths) {
+            if (path.equals(denied) || path.startsWith(denied + "/")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** execute 兜底：command / working_directory 归一化后包含任一被禁路径片段即拒绝 */
+    private static boolean executeTouchesDenied(ToolUseBlock call, List<String> deniedPaths) {
+        for (String key : List.of("command", "working_directory")) {
+            String raw = stringArg(call, key);
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            String normalized = raw.replace('\\', '/').toLowerCase();
+            for (String denied : deniedPaths) {
+                if (normalized.contains(denied)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** 从工具入参取字符串值（缺参返回 null，不参与匹配） */
