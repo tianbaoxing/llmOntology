@@ -12,10 +12,18 @@
     </parent>
 
     <groupId>com.conca</groupId>
-    <artifactId>ontology</artifactId>
+    <artifactId>ontology-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
-    <name>ontology</name>
-    <description>Neo4j graph service (query + batch import) for local ontology</description>
+    <packaging>pom</packaging>
+    <name>ontology-parent</name>
+    <description>Neo4j graph service (query + batch import) for local ontology — 多模块聚合根</description>
+
+    <modules>
+        <!-- 内嵌 AgentScope Studio 对接源码（studio + tracing/telemetry） -->
+        <module>ontology-agentscope-studio</module>
+        <!-- Spring Boot 主应用 -->
+        <module>ontology-server</module>
+    </modules>
 
     <properties>
         <java.version>17</java.version>
@@ -29,113 +37,14 @@
         <opentelemetry.version>1.61.0</opentelemetry.version>
     </properties>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.neo4j.driver</groupId>
-            <artifactId>neo4j-java-driver</artifactId>
-            <version>${neo4j-driver.version}</version>
-        </dependency>
-        <!-- AgentScope Java 2.0 Harness：ReAct 循环 + 事件流（streamEvents） -->
-        <dependency>
-            <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-harness</artifactId>
-            <version>${agentscope.version}</version>
-        </dependency>
-        <!-- OpenAI 兼容协议模型实现（接 OpenRouter） -->
-        <dependency>
-            <groupId>io.agentscope</groupId>
-            <artifactId>agentscope-extensions-model-openai</artifactId>
-            <version>${agentscope.version}</version>
-        </dependency>
-        <!-- AgentScope Studio 可视化对接（Run 注册 + 消息推送 + OTLP Trace 上报）
-             源码已内嵌至 src/main/java/io/agentscope/core/{studio,tracing}，
-             原依赖 agentscope-extensions-studio 移除，以下为其第三方依赖 -->
-        <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp-jvm</artifactId>
-            <version>5.3.2</version>
-        </dependency>
-        <dependency>
-            <groupId>io.socket</groupId>
-            <artifactId>socket.io-client</artifactId>
-            <version>2.1.2</version>
-        </dependency>
-        <dependency>
-            <groupId>io.opentelemetry</groupId>
-            <artifactId>opentelemetry-api</artifactId>
-            <version>1.61.0</version>
-        </dependency>
-        <dependency>
-            <groupId>io.opentelemetry</groupId>
-            <artifactId>opentelemetry-exporter-otlp</artifactId>
-            <version>1.61.0</version>
-        </dependency>
-        <dependency>
-            <groupId>io.opentelemetry.instrumentation</groupId>
-            <artifactId>opentelemetry-reactor-3.1</artifactId>
-            <version>2.27.0-alpha</version>
-        </dependency>
-        <!-- OpenAPI 3 文档 + Swagger UI（/swagger-ui.html，免登录） -->
-        <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.3.0</version>
-        </dependency>
-        <!-- 知识库文件转 Markdown：Tika 解析 pdf/doc/docx/xls/xlsx → XHTML，
-             flexmark-html2md-converter 把 XHTML（含表格/标题/列表）转成 GFM Markdown -->
-        <dependency>
-            <groupId>org.apache.tika</groupId>
-            <artifactId>tika-core</artifactId>
-            <version>${tika.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.tika</groupId>
-            <artifactId>tika-parser-pdf-module</artifactId>
-            <version>${tika.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.tika</groupId>
-            <artifactId>tika-parser-microsoft-module</artifactId>
-            <version>${tika.version}</version>
-        </dependency>
-        <!-- Tika zip 容器探测（docx/pdf 内嵌资源解析）用到 commons-io 2.15+ 的 ChecksumInputStream，
-             但 tika 相关模块均未传递声明，缺失时运行期 NoClassDefFoundError，需显式引入 -->
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>2.16.1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.vladsch.flexmark</groupId>
-            <artifactId>flexmark-html2md-converter</artifactId>
-            <version>${flexmark.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.belerweb</groupId>
-            <artifactId>pinyin4j</artifactId>
-            <version>2.5.1</version>
-        </dependency>
-    </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
+    <dependencyManagement>
+        <dependencies>
+            <!-- 模块间依赖版本统一管理 -->
+            <dependency>
+                <groupId>com.conca</groupId>
+                <artifactId>ontology-agentscope-studio</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 </project>
