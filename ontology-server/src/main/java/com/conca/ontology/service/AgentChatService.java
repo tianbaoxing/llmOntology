@@ -20,13 +20,16 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.conca.ontology.agent.RolePermissionMiddleware;
 import com.conca.ontology.config.AgentScopeConfig;
 import com.conca.ontology.model.RewriteConfigFile;
+import com.conca.ontology.model.UserEntry;
 import com.conca.ontology.service.RewriteConfigService.PipelineStep;
 import com.conca.ontology.service.RewriteConfigService.RewriteTrace;
 import com.conca.ontology.service.RewriteConfigService.StepResult;
 
 import io.agentscope.core.skill.AgentSkill;
+import io.agentscope.core.skill.SkillFilter;
 import io.agentscope.core.skill.repository.AgentSkillRepository;
 
 import io.agentscope.core.agent.RuntimeContext;
@@ -92,12 +95,17 @@ public class AgentChatService {
 
     private final ForbiddenWordService forbiddenWordService;
     private final RewriteConfigService rewriteConfigService;
+    private final RolePermissionService rolePermissionService;
+    private final UserService userService;
 
     public AgentChatService(ObjectProvider<HarnessAgent> agentProvider,
-            ForbiddenWordService forbiddenWordService, RewriteConfigService rewriteConfigService) {
+            ForbiddenWordService forbiddenWordService, RewriteConfigService rewriteConfigService,
+            RolePermissionService rolePermissionService, UserService userService) {
         this.agentProvider = agentProvider;
         this.forbiddenWordService = forbiddenWordService;
         this.rewriteConfigService = rewriteConfigService;
+        this.rolePermissionService = rolePermissionService;
+        this.userService = userService;
     }
 
     /** agent 是否已装配（OPENROUTER_API_KEY 已配置） */
@@ -276,6 +284,41 @@ public class AgentChatService {
         return subs;
     }
 
+    // ---------------- 清单按角色过滤（体验层；执行层拦截见 RolePermissionMiddleware） ----------------
+
+    /** 工具清单（剔除该角色被禁工具；ADMIN/无角色返回全集） */
+    public List<Map<String, String>> listTools(String role) {
+        List<String> denied = rolePermissionService.ruleOf(role).deniedTools();
+        if (denied.isEmpty()) {
+            return listTools();
+        }
+        return listTools().stream()
+                .filter(t -> !denied.contains(t.get("name")))
+                .toList();
+    }
+
+    /** 技能清单（剔除该角色被禁技能；ADMIN/无角色返回全集） */
+    public List<Map<String, String>> listSkills(String role) {
+        List<String> denied = rolePermissionService.ruleOf(role).deniedSkills();
+        if (denied.isEmpty()) {
+            return listSkills();
+        }
+        return listSkills().stream()
+                .filter(s -> !denied.contains(s.get("name")))
+                .toList();
+    }
+
+    /** 子 Agent 清单（剔除该角色被禁子代理；ADMIN/无角色返回全集） */
+    public List<Map<String, String>> listSubagents(String role) {
+        List<String> denied = rolePermissionService.ruleOf(role).deniedSubagents();
+        if (denied.isEmpty()) {
+            return listSubagents();
+        }
+        return listSubagents().stream()
+                .filter(s -> !denied.contains(s.get("agentId")))
+                .toList();
+    }
+
 
     /**
      * 流式问答：订阅 streamEvents 并逐事件转发到 SseEmitter。
@@ -320,10 +363,7 @@ public class AgentChatService {
             heartbeat.shutdownNow();
         });
 
-        RuntimeContext ctx = RuntimeContext.builder()
-                .userId(userId)
-                .sessionId(session)
-                .build();
+        RuntimeContext ctx = buildContext(userId, session);
 
         // 语义改写轮在主 agent 之前执行（LLM 阻塞调用 → boundedElastic 线程池，不占 servlet 线程）：
         // 过程以 round/thinking 模拟思考事件实时推送，改写后文本替换用户消息送入 ReAct；
@@ -345,6 +385,35 @@ public class AgentChatService {
                         });
         emitter.onError(t -> disposable.dispose());
         return emitter;
+    }
+
+    // ---------------- 角色权限上下文 ----------------
+
+    /**
+     * 构建本次调用的 RuntimeContext，并注入角色权限信息：
+     * - userRole（CTX_ROLE_KEY）：RolePermissionMiddleware 判定 onActing 拦截与
+     *   onSystemPrompt 提示的依据（聊天开始时的角色快照，免中途查库）；
+     * - SkillFilter（被禁技能非空时）：框架 HarnessSkillMiddleware 原生支持，
+     *   从 <available_skills> 清单与 SkillCatalog 中隐藏被禁技能（模型不可见）。
+     */
+    private RuntimeContext buildContext(String userId, String session) {
+        RuntimeContext.Builder builder = RuntimeContext.builder()
+                .userId(userId)
+                .sessionId(session);
+        String role = roleOf(userId);
+        builder.put(RolePermissionMiddleware.CTX_ROLE_KEY, role);
+        List<String> deniedSkills = rolePermissionService.ruleOf(role).deniedSkills();
+        if (!deniedSkills.isEmpty()) {
+            builder.put(SkillFilter.class,
+                    SkillFilter.disable(deniedSkills.toArray(String[]::new)));
+        }
+        return builder.build();
+    }
+
+    /** 当前用户角色；查不到（防御，拦截器已保证登录）按 USER 最小权限 */
+    private String roleOf(String userId) {
+        UserEntry u = userService.findByUserId(userId);
+        return u != null ? u.role() : UserEntry.ROLE_USER;
     }
 
     // ---------------- 聊天前置改写编排 ----------------
