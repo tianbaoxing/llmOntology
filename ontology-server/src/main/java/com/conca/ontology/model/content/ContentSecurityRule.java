@@ -6,5 +6,10 @@ public record ContentSecurityRule(
         ContentSeverity severity,
         ContentDecision action,
         String description,
-        String pattern
-) {}
+        String pattern,
+        Boolean allowlisted
+) {
+    public boolean allowlistedEffective() {
+        return Boolean.TRUE.equals(allowlisted);
+    }
+}
