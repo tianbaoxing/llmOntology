@@ -22,7 +22,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.conca.ontology.exception.ApiException;
-import com.conca.ontology.model.ForbiddenWordFile;
 import com.conca.ontology.model.content.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -31,12 +30,6 @@ import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import jakarta.annotation.PostConstruct;
-import net.sourceforge.pinyin4j.PinyinHelper;
-import net.sourceforge.pinyin4j.format.HanyuPinyinCaseType;
-import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat;
-import net.sourceforge.pinyin4j.format.HanyuPinyinToneType;
-import net.sourceforge.pinyin4j.format.HanyuPinyinVCharType;
-import net.sourceforge.pinyin4j.format.exception.BadHanyuPinyinOutputFormatCombination;
 
 @Service
 public class ContentSecurityService {
@@ -50,9 +43,6 @@ public class ContentSecurityService {
     private static final int MAX_BASE64_TOKENS = 4;
     private static final int MAX_BASE64_LEN = 4096;
 
-    private static final HanyuPinyinOutputFormat WITH_TONE_FORMAT;
-    private static final HanyuPinyinOutputFormat WITHOUT_TONE_FORMAT;
-
     private static final Map<Character, Character> HOMOGLYPH_MAP;
     private static final Pattern NEEDS_NORMALIZE_RE;
     private static final Pattern BASE64_TOKEN_RE;
@@ -62,16 +52,6 @@ public class ContentSecurityService {
     private static final Pattern WHITESPACE_RE;
 
     static {
-        WITH_TONE_FORMAT = new HanyuPinyinOutputFormat();
-        WITH_TONE_FORMAT.setCaseType(HanyuPinyinCaseType.LOWERCASE);
-        WITH_TONE_FORMAT.setToneType(HanyuPinyinToneType.WITH_TONE_NUMBER);
-        WITH_TONE_FORMAT.setVCharType(HanyuPinyinVCharType.WITH_V);
-
-        WITHOUT_TONE_FORMAT = new HanyuPinyinOutputFormat();
-        WITHOUT_TONE_FORMAT.setCaseType(HanyuPinyinCaseType.LOWERCASE);
-        WITHOUT_TONE_FORMAT.setToneType(HanyuPinyinToneType.WITHOUT_TONE);
-        WITHOUT_TONE_FORMAT.setVCharType(HanyuPinyinVCharType.WITH_V);
-
         HOMOGLYPH_MAP = new HashMap<>();
         HOMOGLYPH_MAP.put('а', 'a');
         HOMOGLYPH_MAP.put('е', 'e');
@@ -97,15 +77,6 @@ public class ContentSecurityService {
     @Value("${app.content-security.allowlist-file:data/content-security-allowlist.json}")
     private String allowlistFile;
 
-    @Value("${app.forbidden-words-file:data/forbidden-words.json}")
-    private String forbiddenWordsFile;
-
-    @Value("${app.forbidden-words.homophone-enabled:true}")
-    private boolean homophoneEnabled;
-
-    @Value("${app.forbidden-words.homophone-tone-match:false}")
-    private boolean homophoneToneMatch;
-
     @Value("${app.content-security.block-threshold:0.8}")
     private double blockThreshold;
 
@@ -124,8 +95,6 @@ public class ContentSecurityService {
     private transient Map<String, Pattern> compiledGlobalPatterns;
     private transient List<ContentSecurityRule> allRules;
     private transient Set<String> allowlistedIds;
-    private transient Map<String, String> pinyinCache;
-    private transient ForbiddenWordFile forbiddenWordFile;
 
     public ContentSecurityService(ObjectMapper mapper) {
         this.mapper = mapper;
@@ -133,14 +102,12 @@ public class ContentSecurityService {
         this.compiledGlobalPatterns = new HashMap<>();
         this.allRules = new ArrayList<>();
         this.allowlistedIds = new HashSet<>();
-        this.pinyinCache = new HashMap<>();
     }
 
     @PostConstruct
     public synchronized void reloadAll() {
         loadRulesInternal();
         loadAllowlistInternal();
-        loadForbiddenWordsInternal();
     }
 
     // ========== 文件装载内部方法 ==========
@@ -188,41 +155,9 @@ public class ContentSecurityService {
         log.info("content security allowlist loaded: {} ids", allowlistedIds.size());
     }
 
-    private void loadForbiddenWordsInternal() {
-        Path file = Path.of(forbiddenWordsFile).toAbsolutePath();
-        if (Files.notExists(file)) {
-            forbiddenWordFile = new ForbiddenWordFile(0, List.of());
-        } else {
-            try {
-                forbiddenWordFile = mapper.readValue(file.toFile(), ForbiddenWordFile.class);
-            } catch (Exception e) {
-                throw new IllegalStateException("failed to load forbidden words file: " + file, e);
-            }
-        }
-        rebuildPinyinCache(forbiddenWordFile.words());
-        log.info("forbidden words loaded: {} words", forbiddenWordFile.words().size());
-    }
-
-    private void rebuildPinyinCache(List<String> words) {
-        pinyinCache.clear();
-        for (String w : words) {
-            cachePinyinForWord(w);
-        }
-    }
-
-    private void cachePinyinForWord(String word) {
-        String nw = normalizeForbidden(word);
-        if (nw.isEmpty()) return;
-        String withTone = toPinyin(nw, true);
-        String withoutTone = toPinyin(nw, false);
-        pinyinCache.put(nw + "__t", withTone);
-        pinyinCache.put(nw, withoutTone);
-    }
-
     // ========== 核心检测入口 ==========
 
     public ContentSecurityCheckResult checkUserMessages(List<Msg> msgs) {
-        LinkedHashSet<String> forbiddenHitsAll = new LinkedHashSet<>();
         ContentDecision globalDecision = ContentDecision.ALLOW;
         double maxConfidence = 0.0;
         ContentRiskLevel globalRiskLevel = ContentRiskLevel.LOW;
@@ -233,8 +168,6 @@ public class ContentSecurityService {
             for (Msg msg : msgs) {
                 if (msg.getRole() != MsgRole.USER) continue;
                 String text = textOf(msg);
-                List<String> fwHits = forbiddenWordCheck(text);
-                forbiddenHitsAll.addAll(fwHits);
                 PromptInjectionScanResult injection = promptInjectionCheck(text);
 
                 if (injection.confidence() > maxConfidence) {
@@ -271,11 +204,6 @@ public class ContentSecurityService {
         boolean shouldBlock = false;
         List<String> tipLines = new ArrayList<>();
 
-        if (!forbiddenHitsAll.isEmpty()) {
-            shouldBlock = true;
-            tipLines.add("您的消息包含禁用词：" + String.join("、", forbiddenHitsAll));
-        }
-
         if (combinedInjection.decision() == ContentDecision.BLOCK) {
             shouldBlock = true;
             List<String> shown = combinedInjection.reasons().stream().limit(3)
@@ -306,75 +234,10 @@ public class ContentSecurityService {
         }
 
         return new ContentSecurityCheckResult(
-                new ArrayList<>(forbiddenHitsAll),
                 combinedInjection,
                 shouldBlock,
                 blockTip
         );
-    }
-
-    // ========== 禁用词检测 ==========
-
-    public List<String> forbiddenWordCheck(String text) {
-        List<String> hits = new ArrayList<>();
-        if (text == null || text.isBlank()) return hits;
-        String normalized = normalizeForbidden(text);
-        if (normalized.isEmpty()) return hits;
-
-        String textPinyin = null;
-        if (homophoneEnabled) {
-            textPinyin = toPinyin(normalized, homophoneToneMatch);
-        }
-
-        List<String> words = forbiddenWordFile.words();
-        for (String w : words) {
-            String nw = normalizeForbidden(w);
-            if (!nw.isEmpty() && normalized.contains(nw)) {
-                hits.add(w);
-                continue;
-            }
-            if (homophoneEnabled && textPinyin != null && !textPinyin.isEmpty()) {
-                String cacheKey = homophoneToneMatch ? nw + "__t" : nw;
-                String wp = pinyinCache.get(cacheKey);
-                if (wp == null) {
-                    wp = toPinyin(nw, homophoneToneMatch);
-                    pinyinCache.put(cacheKey, wp);
-                }
-                if (!wp.isEmpty() && textPinyin.contains(wp)) {
-                    hits.add(w);
-                }
-            }
-        }
-        return hits;
-    }
-
-    private static String normalizeForbidden(String text) {
-        if (text == null) return "";
-        return text.replaceAll("[\\s\\p{P}\\p{S}\\p{C}]+", "").toLowerCase();
-    }
-
-    static String toPinyin(String text, boolean withTone) {
-        if (text == null || text.isEmpty()) return "";
-        HanyuPinyinOutputFormat format = withTone ? WITH_TONE_FORMAT : WITHOUT_TONE_FORMAT;
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c <= 127) {
-                sb.append(c);
-                continue;
-            }
-            try {
-                String[] arr = PinyinHelper.toHanyuPinyinStringArray(c, format);
-                if (arr != null && arr.length > 0) {
-                    sb.append(arr[0]);
-                } else {
-                    sb.append(c);
-                }
-            } catch (BadHanyuPinyinOutputFormatCombination e) {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
     }
 
     private static String textOf(Msg msg) {
@@ -704,51 +567,6 @@ public class ContentSecurityService {
         return next;
     }
 
-    public ForbiddenWordFile loadAllForbiddenWords() {
-        Path file = Path.of(forbiddenWordsFile).toAbsolutePath();
-        if (Files.notExists(file)) {
-            return new ForbiddenWordFile(0, List.of());
-        }
-        try {
-            return mapper.readValue(file.toFile(), ForbiddenWordFile.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to read forbidden words file: " + file, e);
-        }
-    }
-
-    public synchronized ForbiddenWordFile addForbiddenWord(String word) {
-        if (word == null || word.isBlank()) {
-            throw new ApiException(400, "禁用词不能为空");
-        }
-        String trimmed = word.trim();
-        Path file = Path.of(forbiddenWordsFile).toAbsolutePath();
-        ForbiddenWordFile pf = Files.exists(file) ? readForbidden(file) : new ForbiddenWordFile(0, List.of());
-        List<String> words = new ArrayList<>(pf.words());
-        if (words.contains(trimmed)) {
-            throw new ApiException(409, "禁用词已存在: " + trimmed);
-        }
-        words.add(trimmed);
-        ForbiddenWordFile next = new ForbiddenWordFile(pf.version() + 1, words);
-        writeForbidden(file, next);
-        reloadAll();
-        return next;
-    }
-
-    public synchronized ForbiddenWordFile deleteForbiddenWord(String word) {
-        if (word == null || word.isBlank()) {
-            throw new ApiException(400, "禁用词不能为空");
-        }
-        Path file = Path.of(forbiddenWordsFile).toAbsolutePath();
-        ForbiddenWordFile pf = Files.exists(file) ? readForbidden(file) : new ForbiddenWordFile(0, List.of());
-        List<String> words = new ArrayList<>(pf.words());
-        boolean removed = words.remove(word);
-        if (!removed) throw new ApiException(404, "禁用词不存在: " + word);
-        ForbiddenWordFile next = new ForbiddenWordFile(pf.version() + 1, words);
-        writeForbidden(file, next);
-        reloadAll();
-        return next;
-    }
-
     // ========== 文件读写辅助方法 ==========
 
     private ContentSecurityRuleFile readRules(Path file) {
@@ -786,25 +604,6 @@ public class ContentSecurityService {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (Exception e) {
             throw new IllegalStateException("failed to save allowlist file: " + file.toAbsolutePath(), e);
-        }
-    }
-
-    private ForbiddenWordFile readForbidden(Path file) {
-        try {
-            return mapper.readValue(file.toFile(), ForbiddenWordFile.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load forbidden words file: " + file.toAbsolutePath(), e);
-        }
-    }
-
-    private void writeForbidden(Path file, ForbiddenWordFile next) {
-        try {
-            Files.createDirectories(file.getParent());
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), next);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to save forbidden words file: " + file.toAbsolutePath(), e);
         }
     }
 }

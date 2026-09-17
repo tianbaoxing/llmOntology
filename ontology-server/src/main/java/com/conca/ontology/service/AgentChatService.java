@@ -420,7 +420,7 @@ public class AgentChatService {
 
     /**
      * 构建送入主 agent 的用户消息：
-     * - 禁用词命中 → 返回原文（由 ContentSecurityMiddleware 拦截提示并落盘，省改写调用）；
+     * - 内容安全检测拦截 → 返回原文（由 ContentSecurityMiddleware 拦截提示并落盘，省改写调用）；
      * - 未启用任何改写功能 → 返回原文（零开销，行为与无改写配置完全一致）；
      * - 启用 → 独立 rewrite agent 按管道执行（过程实时推 thinking），改写后文本入 ReAct，
      *   trace 存消息 metadata；任何编排异常降级用原文，绝不阻断聊天。
@@ -428,7 +428,7 @@ public class AgentChatService {
     private Msg prepareUserMsg(SseEmitter emitter, String session, String userId, String message) {
         Msg original = Msg.builder().role(MsgRole.USER).textContent(message).build();
         try {
-            if (!contentSecurityService.forbiddenWordCheck(message).isEmpty()) {
+            if (contentSecurityService.checkUserMessages(List.of(original)).shouldBlock()) {
                 return original;
             }
             RewriteConfigFile cfg = rewriteConfigService.loadAll();

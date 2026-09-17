@@ -35,10 +35,6 @@ app:
   md-dir: files-md
   convert-ext: pdf,doc,docx,xls,xlsx
   convert-min-chars: 50
-  forbidden-words-file: data/forbidden-words.json
-  forbidden-words:
-    homophone-enabled: true
-    homophone-tone-match: false
   content-security:
     rules-file: data/content-security-rules.json
     allowlist-file: data/content-security-allowlist.json

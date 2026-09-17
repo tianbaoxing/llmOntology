@@ -26,7 +26,7 @@ import io.agentscope.core.model.ChatUsage;
 import io.agentscope.harness.agent.HarnessAgent;
 
 /**
- * 语义改写配置与执行服务（data/rewrite-config.json，读写仿 ForbiddenWordService）。
+ * 语义改写配置与执行服务（data/rewrite-config.json，原子读写 + 版本号）。
  *
  * 4 项功能（页面「语义改写配置」Tab 各一张卡片）：
  * - semantic 语义改写 / typo 错别字改写 / term 术语改写 / context 上下文改写

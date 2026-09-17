@@ -68,9 +68,8 @@ public class ContentSecurityMiddleware implements HarnessRuntimeMiddleware {
             state.contextMutable().add(tipMsg);
             rc.setAgentState(state);
             react.saveAgentState(rc.getUserId(), rc.getSessionId());
-            log.info("内容安全拦截已落盘（session={}，forbidden={}，injectionDecision={}）",
+            log.info("内容安全拦截已落盘（session={}，injectionDecision={}）",
                     rc.getSessionId(),
-                    result.forbiddenWordHits().size(),
                     result.injectionResult().decision());
         } catch (Exception e) {
             log.warn("内容安全拦截落盘失败（session={}）：{}", rc.getSessionId(), e.getMessage());

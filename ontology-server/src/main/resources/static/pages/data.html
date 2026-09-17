@@ -30,20 +30,6 @@
 .dj-editor .form-row .hint { color: #9ca3af; font-size: 12px; margin-left: 8px; font-weight: normal; }
 .dj-editor .form-actions { margin-top: 4px; }
 
-/* 禁用词 Tab 专属 */
-.fw-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-.fw-card h2 { font-size: 15px; margin-bottom: 14px; color: #1f2937; border-left: 3px solid #2563eb; padding-left: 10px; }
-.fw-word-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 8px; background: #fff; }
-.fw-word { font-weight: 600; color: #b91c1c; }
-.fw-list-empty { color: #9ca3af; text-align: center; padding: 20px; }
-.fw-tag { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 14px; padding: 2px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; margin: 4px; }
-.fw-tag .fw-del { cursor: pointer; color: #dc2626; font-weight: bold; }
-.fw-tag .fw-del:hover { color: #991b1b; }
-.fw-test-area { background: #fffbeb; border: 1px dashed #fbbf24; border-radius: 6px; padding: 12px 16px; margin-bottom: 18px; }
-.fw-test-result { margin-top: 8px; }
-.fw-conflict { color: #b91c1c; font-weight: 600; }
-.fw-ok { color: #15803d; font-weight: 600; }
-
 /* 语义改写 Tab 专属 */
 .rw-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 18px 20px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
 .rw-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
@@ -129,7 +115,6 @@
     <a class="ptab active" data-tab="data" onclick="switchTab('data')">图数据</a>
     <a class="ptab" data-tab="schema" onclick="switchTab('schema')">概念层</a>
     <a class="ptab" data-tab="disjoint" onclick="switchTab('disjoint')">互斥约束</a>
-    <a class="ptab" data-tab="forbidden" onclick="switchTab('forbidden')">禁用词管理</a>
     <a class="ptab" data-tab="content-security" onclick="switchTab('content-security')">内容安全</a>
     <a class="ptab" data-tab="rewrite" onclick="switchTab('rewrite')">语义改写配置</a>
   </div>
@@ -254,43 +239,6 @@
     </div>
   </div>
 
-  <!-- Tab 4：禁用词管理 -->
-  <div id="tab-forbidden" style="display:none">
-    <div class="fw-card">
-      <h2>禁用词列表</h2>
-      <div class="muted" style="margin:8px 0 12px">
-        作用：用户发送聊天信息时，若信息中包含禁用词（会自动去除空格和特殊字符匹配），则直接提示用户，不进入 LLM 思考流程。
-      </div>
-
-      <div class="dj-editor">
-        <h2>新增禁用词</h2>
-        <div class="form-row">
-          <b>禁用词<span class="hint">输入后回车或点添加；匹配时会去掉空格和特殊字符</span></b>
-          <input type="text" id="fw-word" style="width:100%;box-sizing:border-box" placeholder="如：广告 或 加微信">
-        </div>
-        <div class="form-actions">
-          <button class="btn" onclick="addForbiddenWord()">添加</button>
-          <button class="btn ghost" onclick="$('fw-word').value='';$('fw-word').focus()">清空</button>
-        </div>
-      </div>
-
-      <div class="fw-test-area">
-        <b>快速自测</b>
-        <div class="toolbar" style="margin-top:6px">
-          <input type="text" id="fw-test-text" style="flex:1" placeholder="如：我想要 加 微 信 看更多">
-          <button class="btn" onclick="runForbiddenTest()">检测禁用词</button>
-        </div>
-        <div class="fw-test-result" id="fw-test-result"></div>
-      </div>
-
-      <div class="toolbar" style="margin-bottom:10px">
-        <span class="muted" id="fw-version">版本：-</span>
-        <span class="muted" id="fw-count"></span>
-      </div>
-      <div id="fw-list"></div>
-    </div>
-  </div>
-
   <!-- Tab：内容安全一体化 -->
   <div id="tab-content-security" style="display:none">
     <div class="cs-subtabs">
@@ -402,7 +350,7 @@
       <div class="cs-card">
         <h2>一体化扫描测试</h2>
         <div class="muted" style="margin-bottom:12px">
-          等价于聊天发送前 <code>ContentSecurityMiddleware</code> 的完整检测（禁用词 + 28 条 Prompt 注入 + 混淆对抗层）。
+          等价于聊天发送前 <code>ContentSecurityMiddleware</code> 的完整检测（Prompt 注入规则 + 混淆对抗层）。
           建议逐条验证设计文档 §9.1~§9.4 用例。
         </div>
         <div class="cs-test-area">
@@ -447,11 +395,9 @@ let schemaCache = null;
 let classSummaries = [];
 let schemaTabLoaded = false;
 let disjointTabLoaded = false;
-let forbiddenTabLoaded = false;
 let rewriteTabLoaded = false;
 let contentSecurityTabLoaded = false;
 let disjointData = null;   // {version, rules}
-let forbiddenData = null;  // {version, words}
 let rewriteData = null;    // {version, pipeline, features}
 let djEditingId = null;    // 正在编辑的 id；null = 新增
 let csRulesData = null;    // {version, rules}
@@ -463,7 +409,6 @@ function switchTab(name) {
   $('tab-data').style.display = name === 'data' ? '' : 'none';
   $('tab-schema').style.display = name === 'schema' ? '' : 'none';
   $('tab-disjoint').style.display = name === 'disjoint' ? '' : 'none';
-  $('tab-forbidden').style.display = name === 'forbidden' ? '' : 'none';
   $('tab-content-security').style.display = name === 'content-security' ? '' : 'none';
   $('tab-rewrite').style.display = name === 'rewrite' ? '' : 'none';
   if (name === 'schema' && !schemaTabLoaded) {
@@ -473,10 +418,6 @@ function switchTab(name) {
   if (name === 'disjoint' && !disjointTabLoaded) {
     disjointTabLoaded = true;
     loadDisjointPanel().catch(e => showMsg('加载失败：' + e.message, false));
-  }
-  if (name === 'forbidden' && !forbiddenTabLoaded) {
-    forbiddenTabLoaded = true;
-    loadForbiddenPanel().catch(e => showMsg('加载失败：' + e.message, false));
   }
   if (name === 'content-security' && !contentSecurityTabLoaded) {
     contentSecurityTabLoaded = true;
@@ -798,86 +739,6 @@ function runDisjointTest() {
   }
 }
 
-// ---------------- 禁用词管理 ----------------
-async function loadForbiddenPanel() {
-  forbiddenData = await api('GET', '/api/forbidden-words');
-  $('fw-version').textContent = '版本：' + forbiddenData.version;
-  renderForbiddenList();
-}
-
-function renderForbiddenList() {
-  if (!forbiddenData) return;
-  const words = forbiddenData.words || [];
-  $('fw-count').textContent = `共 ${words.length} 个禁用词`;
-  if (!words.length) {
-    $('fw-list').innerHTML = `<div class="fw-list-empty">暂无禁用词，请在上方输入框新增</div>`;
-    return;
-  }
-  $('fw-list').innerHTML = words.map(w =>
-    `<span class="fw-tag">${esc(w)}<span class="fw-del" title="删除" onclick="deleteForbiddenWord('${encodeURIComponent(w)}')">✕</span></span>`
-  ).join('');
-}
-
-function addForbiddenWord() {
-  const w = $('fw-word').value.trim();
-  if (!w) return showMsg('请输入禁用词', false);
-  doAction(async () => {
-    const r = await api('POST', '/api/forbidden-words', { word: w });
-    forbiddenData = r;
-    $('fw-version').textContent = '版本：' + r.version;
-    $('fw-word').value = '';
-    $('fw-word').focus();
-    renderForbiddenList();
-    return { added: w };
-  });
-}
-
-function deleteForbiddenWord(wordEnc) {
-  const w = decodeURIComponent(wordEnc);
-  if (!confirm('确认删除禁用词：' + w + '？')) return;
-  doAction(async () => {
-    const r = await api('DELETE', '/api/forbidden-words/' + wordEnc);
-    forbiddenData = r;
-    $('fw-version').textContent = '版本：' + r.version;
-    renderForbiddenList();
-    return r;
-  });
-}
-
-// Enter 键快捷添加
-document.addEventListener('DOMContentLoaded', () => {
-  const fwInput = $('fw-word');
-  if (fwInput) fwInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); addForbiddenWord(); }
-  });
-});
-
-// ---------- 禁用词快速自测（前端本地模拟去空格特殊字符逻辑） ----------
-function normalizeText(text) {
-  return (text || '').replace(/[\s\p{P}\p{S}\p{C}]+/gu, '').toLowerCase();
-}
-
-async function runForbiddenTest() {
-  const t = ($('fw-test-text').value || '').trim();
-  if (!t) return showMsg('请输入测试文本', false);
-  let hits = [];
-  try {
-    hits = await api('POST', '/api/forbidden-words/check', { text: t });
-  } catch (e) {
-    // 接口失败时前端本地兜底判断
-    const nt = normalizeText(t);
-    hits = (forbiddenData?.words || []).filter(w => nt.includes(normalizeText(w)));
-  }
-  if (hits && hits.length) {
-    $('fw-test-result').innerHTML =
-      `<div class="fw-conflict">⚠ 命中 ${hits.length} 个禁用词（聊天将被拦截）：` +
-      hits.map(v => `<span class="fw-tag" style="margin-left:6px">${esc(v)}</span>`).join('') +
-      `</div>`;
-  } else {
-    $('fw-test-result').innerHTML = `<div class="fw-ok">✔ 未检测到禁用词</div>`;
-  }
-}
-
 // ---------------- 语义改写配置 ----------------
 const RW_META = {
   semantic: { label: '语义改写', desc: '理解用户真实意图，将口语化表达转换为标准查询格式（管道末环）' },
@@ -1154,7 +1015,6 @@ function csRunTest() {
 }
 
 function csFormatResult(r) {
-  const fw = r.forbiddenWordHits || [];
   const ir = r.injectionResult || {};
   const reasons = ir.reasons || [];
   const alwHits = ir.allowlistedHits || [];
@@ -1164,15 +1024,10 @@ function csFormatResult(r) {
       <span class="dec-badge dec-${ir.decision}">decision: ${esc(ir.decision)}</span>
       <span class="risk-badge risk-${ir.riskLevel}">风险: ${esc(ir.riskLevel)}</span>
       <span class="muted">置信度：<b>${(ir.confidence*100).toFixed(1)}%</b>（阈值 REVIEW≥${(reviewThresholdDisplay||50)}%，BLOCK≥${(blockThresholdDisplay||80)}%）</span>
-      <span class="muted">禁用词命中：<b>${fw.length}</b> 个 · 注入规则命中：<b>${reasons.length}</b> 条 · Allowlist 命中：<b>${alwHits.length}</b> 条</span>
+      <span class="muted">注入规则命中：<b>${reasons.length}</b> 条 · Allowlist 命中：<b>${alwHits.length}</b> 条</span>
     </div>`;
 
   const tip = r.blockTip ? `<div class="cs-tip">🛡 拦截提示（blockTip）：\n${esc(r.blockTip)}</div>` : '';
-
-  const fwBlock = fw.length
-    ? `<div style="margin-top:12px"><b style="color:#b91c1c">🚫 禁用词命中（${fw.length}）：</b>
-       <div style="margin-top:4px">${fw.map(w => `<span class="fw-tag">${esc(w)}</span>`).join('')}</div></div>`
-    : '';
 
   const reasonsBlock = reasons.length
     ? `<div style="margin-top:14px"><b style="color:#c2410c">⚠ 注入规则命中（计入分数，${reasons.length}）：</b>
@@ -1202,7 +1057,7 @@ function csFormatResult(r) {
     ? `<div style="margin-top:10px;color:#a16207;font-size:12px">⚠ warnings：${esc(ir.warnings.join('；'))}</div>`
     : '';
 
-  return head + tip + fwBlock + reasonsBlock + alwBlock + warn;
+  return head + tip + reasonsBlock + alwBlock + warn;
 }
 
 const reviewThresholdDisplay = 50;
