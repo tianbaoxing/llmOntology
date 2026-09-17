@@ -26,22 +26,25 @@
 .human-nav { display:flex; gap:8px; align-items:center; }
 /* 评测器分组卡片 */
 .grader-groups { display:grid; grid-template-columns:repeat(auto-fit, minmax(430px, 1fr)); gap:10px; align-items:start; }
-.ggroup { border-radius:10px; overflow:hidden; background:#fff; transition:box-shadow .2s ease, transform .15s ease; border:1px solid transparent; }
-.ggroup:hover { box-shadow:0 6px 18px rgba(15,23,42,.10); transform:translateY(-1px); }
+.ggroup { border-radius:10px; background:#fff; transition:box-shadow .2s ease, transform .15s ease; border:1px solid transparent; position:relative; z-index:1; }
+.ggroup:hover { box-shadow:0 6px 18px rgba(15,23,42,.10); transform:translateY(-1px); z-index:20; }
 .ggroup.rule { border-color:#bfdbfe; box-shadow:0 1px 2px rgba(37,99,235,.08); }
 .ggroup.rule .ggroup-head {
   background:linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
   border-bottom:1px solid #bfdbfe;
+  border-top-left-radius:9px; border-top-right-radius:9px;
 }
 .ggroup.llm { border-color:#ddd6fe; box-shadow:0 1px 2px rgba(139,92,246,.08); }
 .ggroup.llm .ggroup-head {
   background:linear-gradient(135deg, #ede9fe 0%, #f5f3ff 100%);
   border-bottom:1px solid #ddd6fe;
+  border-top-left-radius:9px; border-top-right-radius:9px;
 }
 .ggroup.human { border-color:#fde68a; box-shadow:0 1px 2px rgba(245,158,11,.08); }
 .ggroup.human .ggroup-head {
   background:linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
   border-bottom:1px solid #fde68a;
+  border-top-left-radius:9px; border-top-right-radius:9px;
 }
 .ggroup-head {
   display:flex; align-items:center; gap:8px; padding:7px 12px; flex-wrap:wrap;
@@ -104,6 +107,7 @@
   grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
   gap:4px 10px;
   background:#fafbfc;
+  border-bottom-left-radius:9px; border-bottom-right-radius:9px;
 }
 .ggroup-body label {
   display:flex; align-items:flex-start; gap:6px;
@@ -1055,7 +1059,7 @@ async function loadGraders() {
     .concat(Object.keys(buckets).filter(k => !GROUP_ORDER.includes(k)));
   const chip = g => {
     const desc = g.description ? `<span class="grader-chip-desc">${esc(g.description)}</span>` : '';
-    return `<label title="${esc(g.description || g.name)}">
+    return `<label>
       <input type="checkbox" value="${esc(g.name)}" onchange="refreshGroupToggle('${esc(g.group || grp)}')">
       <span class="grader-chip-wrap">
         <span class="grader-chip">${esc(g.name)}</span>
