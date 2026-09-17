@@ -39,6 +39,13 @@ app:
   forbidden-words:
     homophone-enabled: true
     homophone-tone-match: false
+  content-security:
+    rules-file: data/content-security-rules.json
+    allowlist-file: data/content-security-allowlist.json
+    block-threshold: 0.8
+    review-threshold: 0.5
+    review-strategy: block
+    variant-layer-enabled: true
   # 语义改写（/data 页「语义改写配置」Tab）：4 项功能配置文件 + 调用参数
   rewrite:
     config-file: data/rewrite-config.json

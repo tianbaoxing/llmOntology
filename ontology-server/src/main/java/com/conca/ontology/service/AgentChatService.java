@@ -93,16 +93,16 @@ public class AgentChatService {
     /** 反射缓存：HarnessAgent 持有的底层 ReActAgent（interrupt 需按其会话作用域触发） */
     private volatile ReActAgent delegateRef;
 
-    private final ForbiddenWordService forbiddenWordService;
+    private final ContentSecurityService contentSecurityService;
     private final RewriteConfigService rewriteConfigService;
     private final RolePermissionService rolePermissionService;
     private final UserService userService;
 
     public AgentChatService(ObjectProvider<HarnessAgent> agentProvider,
-            ForbiddenWordService forbiddenWordService, RewriteConfigService rewriteConfigService,
+            ContentSecurityService contentSecurityService, RewriteConfigService rewriteConfigService,
             RolePermissionService rolePermissionService, UserService userService) {
         this.agentProvider = agentProvider;
-        this.forbiddenWordService = forbiddenWordService;
+        this.contentSecurityService = contentSecurityService;
         this.rewriteConfigService = rewriteConfigService;
         this.rolePermissionService = rolePermissionService;
         this.userService = userService;
@@ -420,7 +420,7 @@ public class AgentChatService {
 
     /**
      * 构建送入主 agent 的用户消息：
-     * - 禁用词命中 → 返回原文（由 ForbiddenWordMiddleware 拦截提示并落盘，省改写调用）；
+     * - 禁用词命中 → 返回原文（由 ContentSecurityMiddleware 拦截提示并落盘，省改写调用）；
      * - 未启用任何改写功能 → 返回原文（零开销，行为与无改写配置完全一致）；
      * - 启用 → 独立 rewrite agent 按管道执行（过程实时推 thinking），改写后文本入 ReAct，
      *   trace 存消息 metadata；任何编排异常降级用原文，绝不阻断聊天。
@@ -428,7 +428,7 @@ public class AgentChatService {
     private Msg prepareUserMsg(SseEmitter emitter, String session, String userId, String message) {
         Msg original = Msg.builder().role(MsgRole.USER).textContent(message).build();
         try {
-            if (!forbiddenWordService.check(message).isEmpty()) {
+            if (!contentSecurityService.forbiddenWordCheck(message).isEmpty()) {
                 return original;
             }
             RewriteConfigFile cfg = rewriteConfigService.loadAll();

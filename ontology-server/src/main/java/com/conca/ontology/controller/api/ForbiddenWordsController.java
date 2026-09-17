@@ -13,43 +13,48 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.dto.ApiResponse;
 import com.conca.ontology.model.ForbiddenWordFile;
-import com.conca.ontology.service.ForbiddenWordService;
+import com.conca.ontology.service.ContentSecurityService;
 
+import io.agentscope.core.message.Msg;
+import io.agentscope.core.message.MsgRole;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "Admin-ForbiddenWords", description = "禁用词管理（简化版）：用户输入禁用词列表，聊天消息命中则直接提示，不进入 LLM 思考")
+@Deprecated(since = "内容安全一体化 v1")
+@Tag(name = "Admin-ForbiddenWords", description = "【已迁移】请使用 /api/content-security/* 新端点，本 Controller 仅保留兼容")
 @RestController
 @RequestMapping("/api/forbidden-words")
 public class ForbiddenWordsController {
 
-    private final ForbiddenWordService service;
+    private final ContentSecurityService securityService;
 
-    public ForbiddenWordsController(ForbiddenWordService service) {
-        this.service = service;
+    public ForbiddenWordsController(ContentSecurityService securityService) {
+        this.securityService = securityService;
     }
 
-    @Operation(summary = "全量禁用词（含 version）", description = "读取完整 forbidden-words.json")
+    @Operation(summary = "全量禁用词（含 version）", description = "【兼容代理】转发到 /api/content-security/forbidden-words")
     @GetMapping
     public ApiResponse<ForbiddenWordFile> getAll() {
-        return ApiResponse.ok(service.loadAll());
+        return ApiResponse.ok(securityService.loadAllForbiddenWords());
     }
 
-    @Operation(summary = "新增禁用词", description = "词唯一；已存在返回 409。body: { \"word\": \"禁用词\" }")
+    @Operation(summary = "新增禁用词", description = "【兼容代理】转发到 /api/content-security/forbidden-words POST")
     @PostMapping
     public ApiResponse<ForbiddenWordFile> add(@RequestBody Map<String, String> body) {
-        return ApiResponse.ok(service.add(body.get("word")));
+        return ApiResponse.ok(securityService.addForbiddenWord(body.get("word")));
     }
 
-    @Operation(summary = "删除禁用词")
+    @Operation(summary = "删除禁用词", description = "【兼容代理】转发到 /api/content-security/forbidden-words DELETE")
     @DeleteMapping("/{word}")
     public ApiResponse<ForbiddenWordFile> delete(@PathVariable String word) {
-        return ApiResponse.ok(service.delete(word));
+        return ApiResponse.ok(securityService.deleteForbiddenWord(word));
     }
 
-    @Operation(summary = "测试某段文本命中的禁用词", description = "用于前端自测，返回命中的禁用词列表")
+    @Operation(summary = "测试某段文本命中的禁用词", description = "【兼容代理】走新 Service 一体化检测后提取禁用词命中")
     @PostMapping("/check")
     public ApiResponse<List<String>> check(@RequestBody Map<String, String> body) {
-        return ApiResponse.ok(service.check(body.get("text")));
+        return ApiResponse.ok(securityService.checkUserMessages(
+                List.of(Msg.builder().role(MsgRole.USER).textContent(body.get("text")).build())
+        ).forbiddenWordHits());
     }
 }
