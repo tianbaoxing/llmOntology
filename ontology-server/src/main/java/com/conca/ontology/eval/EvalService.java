@@ -38,6 +38,7 @@ import com.conca.ontology.service.AgentSessionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.agentscope.core.agent.RuntimeContext;
@@ -352,15 +353,20 @@ public class EvalService {
             row.put("id", node.path("id").asText("line-" + seq));
             JsonNode turnsNode = node.path("turns");
             if (turnsNode.isArray() && turnsNode.size() >= 2) {
-                // 多轮样本：query 展示为各轮串联（编辑器暂不支持 turns，编辑保存将转为单轮）
+                // 多轮样本：列表展示为压缩串，编辑回填使用完整 turns 数组。
                 StringBuilder q = new StringBuilder("【多轮 " + turnsNode.size() + " 轮】");
                 for (int i = 0; i < turnsNode.size(); i++) {
                     q.append(" 轮").append(i + 1).append("：").append(turnsNode.get(i).path("query").asText(""));
                 }
+                row.put("sampleType", "multi");
                 row.put("query", q.toString());
-                row.put("turns", turnsNode.size());
+                row.put("turnsCount", turnsNode.size());
+                row.put("turns", mapper.convertValue(turnsNode, List.class));
             } else {
+                row.put("sampleType", "single");
                 row.put("query", node.path("query").asText(""));
+                row.put("turnsCount", 0);
+                row.put("turns", List.of());
             }
             row.put("response", node.path("response").asText(null));
             JsonNode ref = node.path("reference_response");
@@ -378,9 +384,6 @@ public class EvalService {
 
     /** 构建并校验一行样本 JSON（query 必填；ref 按类型解析；id 须唯一；样本不含评测器字段） */
     private String buildSampleLine(EvalSampleRequest req, Path p, int excludeSeq) {
-        if (req.query() == null || req.query().isBlank()) {
-            throw new ApiException(400, "query 不能为空");
-        }
         String id = req.id() == null ? "" : req.id().trim();
         if (id.isEmpty()) {
             id = "q-" + STAMP.format(LocalDateTime.now()) + "-"
@@ -394,9 +397,37 @@ public class EvalService {
         try {
             ObjectNode node = mapper.createObjectNode();
             node.put("id", id);
-            node.put("query", req.query().trim());
-            if (req.response() != null && !req.response().isBlank()) {
-                node.put("response", req.response().trim());
+            String sampleType = req.sampleType() == null ? "" : req.sampleType().trim().toLowerCase();
+            List<EvalSampleRequest.TurnRequest> turns = req.turns() == null ? List.of() : req.turns();
+            if (!sampleType.isEmpty() && !"single".equals(sampleType) && !"multi".equals(sampleType)) {
+                throw new ApiException(400, "sampleType 仅支持 single 或 multi");
+            }
+            boolean isMulti = "multi".equals(sampleType) || (sampleType.isEmpty() && !turns.isEmpty());
+            if (isMulti) {
+                if (turns.size() < 2) {
+                    throw new ApiException(400, "多轮样本至少需要 2 轮");
+                }
+                ArrayNode arr = node.putArray("turns");
+                for (int i = 0; i < turns.size(); i++) {
+                    EvalSampleRequest.TurnRequest turn = turns.get(i);
+                    String q = turn == null || turn.query() == null ? "" : turn.query().trim();
+                    if (q.isBlank()) {
+                        throw new ApiException(400, "第 " + (i + 1) + " 轮 query 不能为空");
+                    }
+                    ObjectNode t = arr.addObject();
+                    t.put("query", q);
+                    if (turn != null && turn.response() != null && !turn.response().isBlank()) {
+                        t.put("response", turn.response().trim());
+                    }
+                }
+            } else {
+                if (req.query() == null || req.query().isBlank()) {
+                    throw new ApiException(400, "query 不能为空");
+                }
+                node.put("query", req.query().trim());
+                if (req.response() != null && !req.response().isBlank()) {
+                    node.put("response", req.response().trim());
+                }
             }
             String type = req.referenceType() == null ? "" : req.referenceType().trim();
             if (!type.isEmpty()) {

@@ -12,6 +12,11 @@
 .score.err { background:#6b7280; }
 .score.pending { background:#94a3b8; }
 .score.skip { background:#cbd5e1; }
+.sm-type { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+.sm-turns { display:flex; flex-direction:column; gap:10px; }
+.sm-turn { border:1px solid #dbe3ee; border-radius:8px; padding:10px; background:#f8fafc; }
+.sm-turn-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+.sm-turn-title { font-weight:600; color:#334155; }
 /* 人工评分面板 */
 .human-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:10px 0; }
 .human-card { border:1px solid #e5e7eb; border-radius:8px; padding:12px 14px; background:#fafbfc; }
@@ -447,8 +452,30 @@ tr.diff-imp td { background: #f0fdf4; }
           <input type="text" id="sm-id" placeholder="留空自动生成">
         </div>
         <div class="field">
-          <label>query<span class="req">*</span></label>
-          <textarea id="sm-query" rows="3" placeholder="要评测的提问，如：知识图谱中一共收录了多少件文物？"></textarea>
+          <label>样本类型</label>
+          <div class="sm-type">
+            <label><input type="radio" id="sm-type-single" name="sm-type" value="single" checked onchange="onSmTypeChange()"> 单轮</label>
+            <label><input type="radio" id="sm-type-multi" name="sm-type" value="multi" onchange="onSmTypeChange()"> 多轮（至少 2 轮）</label>
+          </div>
+        </div>
+        <div id="sm-single-block">
+          <div class="field">
+            <label>query<span class="req">*</span></label>
+            <textarea id="sm-query" rows="3" placeholder="要评测的提问，如：知识图谱中一共收录了多少件文物？"></textarea>
+          </div>
+          <div class="field">
+            <label>预置回答（可选）</label>
+            <textarea id="sm-response" rows="3"></textarea>
+            <div class="hint">非空则评测时跳过 agent 直接判分</div>
+          </div>
+        </div>
+        <div class="field" id="sm-multi-block" style="display:none">
+          <label>多轮脚本<span class="req">*</span></label>
+          <div id="sm-turns-list" class="sm-turns"></div>
+          <div style="margin-top:8px">
+            <button type="button" class="btn ghost sm" onclick="addTurnRow()">+ 添加轮次</button>
+          </div>
+          <div class="hint">至少 2 轮；全部轮次均填写预置回答时，评测会跳过 agent 直接判分。</div>
         </div>
         <div class="field-row">
           <div class="field">
@@ -469,11 +496,6 @@ tr.diff-imp td { background: #f0fdf4; }
         <div class="field">
           <label>期望回答</label>
           <input type="text" id="sm-reftext" placeholder="如：北宋">
-        </div>
-        <div class="field">
-          <label>预置回答（可选）</label>
-          <textarea id="sm-response" rows="3"></textarea>
-          <div class="hint">非空则评测时跳过 agent 直接判分</div>
         </div>
         <div class="muted" id="sm-raw-hint" style="display:none"></div>
         <div id="sm-from-chat-hint" style="display:none;background:#eff6ff;color:#1d4ed8;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.6"></div>
@@ -1143,16 +1165,20 @@ function renderSamples(samples) {
     ['#', 'id', '问题 / 期望回答', '预置回答', '操作'],
     samples.map(s => {
       const bad = s.valid === false;
+      const isMulti = isMultiSample(s);
+      const turns = Array.isArray(s.turns) ? s.turns : [];
       const query = bad
         ? `<span style="color:#dc2626">格式错误：${esc(s.error || '')}</span>`
-        : esc(s.query || '') +
+        : (isMulti
+            ? `<div>${esc(s.query || '')}</div>${fmtTurnQueryLines(turns)}`
+            : esc(s.query || '')) +
           `<div class="muted" style="font-size:12px">期望回答：${esc(fmtRef(s.referenceResponse))}` +
           (s.tolerance != null ? '　容差 ' + s.tolerance : '') + '</div>';
       return [
         s.seq,
         code(s.id || ''),
         `<div class="wrap">${query}</div>`,
-        s.response ? `<div class="wrap" style="color:#2563eb">${esc(s.response)}</div>` : '<span class="muted">（无）</span>',
+        fmtSampleResponse(s),
         `<button class="btn sm" onclick="openSampleModal('edit', ${s.seq})">编辑</button>` +
         `<button class="btn sm danger" onclick="deleteSample(${s.seq})">删除</button>`
       ];
@@ -1171,6 +1197,29 @@ function markBadRows(samples) {
 function fmtRef(v) {
   if (v == null) return '（无）';
   return typeof v === 'string' ? v : JSON.stringify(v);
+}
+
+function isMultiSample(sample) {
+  return sample && (sample.sampleType === 'multi'
+    || (Array.isArray(sample.turns) && sample.turns.length >= 2));
+}
+
+function fmtTurnQueryLines(turns) {
+  if (!Array.isArray(turns) || !turns.length) return '';
+  return `<div class="muted" style="font-size:12px;margin-top:4px">${turns.map((t, i) =>
+    `轮${i + 1}：${esc((t && t.query) || '')}`).join('<br>')}</div>`;
+}
+
+function fmtSampleResponse(sample) {
+  if (isMultiSample(sample)) {
+    const turns = Array.isArray(sample.turns) ? sample.turns : [];
+    if (!turns.length) return '<span class="muted">（无）</span>';
+    return `<div class="wrap" style="color:#2563eb">${turns.map((t, i) => {
+      const answer = t && typeof t.response === 'string' ? t.response.trim() : '';
+      return `轮${i + 1}：${answer ? esc(answer) : '<span class="muted">（未预置）</span>'}`;
+    }).join('<br>')}</div>`;
+  }
+  return sample.response ? `<div class="wrap" style="color:#2563eb">${esc(sample.response)}</div>` : '<span class="muted">（无）</span>';
 }
 
 function renderPager() {
@@ -1212,6 +1261,81 @@ function onSmDatasetChange() {
   }
 }
 
+function currentSmType() {
+  const checked = document.querySelector('input[name="sm-type"]:checked');
+  return checked ? checked.value : 'single';
+}
+
+function setSmType(type) {
+  $('sm-type-multi').checked = type === 'multi';
+  $('sm-type-single').checked = type !== 'multi';
+  onSmTypeChange();
+}
+
+function onSmTypeChange() {
+  const isMulti = currentSmType() === 'multi';
+  $('sm-single-block').style.display = isMulti ? 'none' : '';
+  $('sm-multi-block').style.display = isMulti ? '' : 'none';
+  if (isMulti && !$('sm-turns-list').children.length) {
+    renderTurnRows([{ query: '', response: '' }, { query: '', response: '' }]);
+  }
+}
+
+function turnRowHtml(turn, index) {
+  const q = turn && typeof turn.query === 'string' ? turn.query : '';
+  const r = turn && typeof turn.response === 'string' ? turn.response : '';
+  return `<div class="sm-turn">
+    <div class="sm-turn-head">
+      <div class="sm-turn-title">第 ${index + 1} 轮</div>
+      <button type="button" class="btn ghost sm" onclick="removeTurnRow(${index})">删除</button>
+    </div>
+    <div class="field">
+      <label>query<span class="req">*</span></label>
+      <textarea rows="2" data-role="turn-query" placeholder="请输入这一轮的问题">${esc(q)}</textarea>
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>预置回答（可选）</label>
+      <textarea rows="2" data-role="turn-response" placeholder="留空则评测时由 agent 作答">${esc(r)}</textarea>
+    </div>
+  </div>`;
+}
+
+function renderTurnRows(turns) {
+  const list = $('sm-turns-list');
+  list.innerHTML = (turns || []).map((turn, index) => turnRowHtml(turn, index)).join('');
+}
+
+function addTurnRow() {
+  const turns = collectTurnDrafts();
+  turns.push({ query: '', response: '' });
+  renderTurnRows(turns);
+}
+
+function removeTurnRow(index) {
+  const turns = collectTurnDrafts();
+  if (turns.length <= 2) return showMsg('多轮样本至少需要 2 轮；如需改单轮，请切换为“单轮”。', false);
+  turns.splice(index, 1);
+  renderTurnRows(turns);
+}
+
+function collectTurnDrafts() {
+  return [...document.querySelectorAll('#sm-turns-list .sm-turn')].map(item => ({
+    query: item.querySelector('[data-role="turn-query"]').value,
+    response: item.querySelector('[data-role="turn-response"]').value
+  }));
+}
+
+function collectTurns() {
+  const turns = collectTurnDrafts().map(t => ({
+    query: (t.query || '').trim(),
+    response: (t.response || '').trim()
+  }));
+  if (turns.length < 2) throw new Error('多轮样本至少需要 2 轮');
+  const badIndex = turns.findIndex(t => !t.query);
+  if (badIndex >= 0) throw new Error('第 ' + (badIndex + 1) + ' 轮 query 不能为空');
+  return turns;
+}
+
 function openSampleModal(mode, seq) {
   if (!dsState.name) return showMsg('请先选择数据集', false);
   smModal = { mode, seq: seq || 0 };
@@ -1225,6 +1349,8 @@ function openSampleModal(mode, seq) {
   $('sm-id').value = ''; $('sm-query').value = '';
   $('sm-reftype').value = ''; $('sm-reftext').value = '';
   $('sm-tolerance').value = ''; $('sm-response').value = '';
+  renderTurnRows([]);
+  setSmType('single');
   $('sm-raw-hint').style.display = 'none';
   $('sm-raw-hint').textContent = '';
   $('sm-from-chat-hint').style.display = 'none';
@@ -1240,11 +1366,19 @@ function openSampleModal(mode, seq) {
         $('sm-raw-hint').textContent = '该行格式错误，原文：' + (s.raw || '') + '（重新填写保存即修复）';
       } else {
         $('sm-id').value = s.id || '';
-        $('sm-query').value = s.query || '';
         $('sm-reftype').value = detectRefType(s.referenceResponse);
         $('sm-reftext').value = s.referenceResponse == null ? '' : String(s.referenceResponse);
         $('sm-tolerance').value = s.tolerance == null ? '' : s.tolerance;
-        $('sm-response').value = s.response || '';
+        if (isMultiSample(s)) {
+          setSmType('multi');
+          renderTurnRows(Array.isArray(s.turns) && s.turns.length ? s.turns : [
+            { query: '', response: '' }, { query: '', response: '' }
+          ]);
+        } else {
+          setSmType('single');
+          $('sm-query').value = s.query || '';
+          $('sm-response').value = s.response || '';
+        }
       }
       $('sm-modal').style.display = 'flex';
     }).catch(e => showMsg('加载失败：' + e.message, false));
@@ -1259,20 +1393,30 @@ async function saveSample() {
   // 目标数据集以弹窗内选择为准（新增可切换；编辑锁定为当前数据集）
   const target = smModal.mode === 'add' ? $('sm-dataset').value : dsState.name;
   if (!target) return showMsg('请选择数据集', false);
-  const query = $('sm-query').value.trim();
-  if (!query) return showMsg('query 不能为空', false);
+  const sampleType = currentSmType();
   const refType = $('sm-reftype').value;
   const refText = $('sm-reftext').value.trim();
   if (refType && !refText) return showMsg('已选期望回答类型，请填写期望回答', false);
   const tol = $('sm-tolerance').value;
   const body = {
     id: $('sm-id').value.trim(),
-    query,
+    sampleType,
     referenceType: refType,
     referenceText: refText,
-    tolerance: tol === '' ? null : Number(tol),
-    response: $('sm-response').value.trim()
+    tolerance: tol === '' ? null : Number(tol)
   };
+  if (sampleType === 'multi') {
+    try {
+      body.turns = collectTurns();
+    } catch (e) {
+      return showMsg(e.message, false);
+    }
+  } else {
+    const query = $('sm-query').value.trim();
+    if (!query) return showMsg('query 不能为空', false);
+    body.query = query;
+    body.response = $('sm-response').value.trim();
+  }
   if (tol !== '' && isNaN(body.tolerance)) return showMsg('容差须为数字', false);
   try {
     if (smModal.mode === 'add') {
