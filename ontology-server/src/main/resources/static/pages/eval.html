@@ -193,7 +193,18 @@ td.wrap { max-width:360px; }
 .field input[type=number] { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: #fff; }
 .field-row { display: flex; gap: 16px; }
 .field-row .field { flex: 1; }
-@media (max-width: 560px) { .field-row { flex-direction: column; gap: 0; } }
+.field-inline { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
+.field-inline > label { width: 88px; flex: none; font-size: 13px; color: #374151; font-weight: 600; margin: 0; }
+.field-inline > label .req { color: #dc2626; margin-left: 3px; }
+.field-inline > .sm-type,
+.field-inline > select,
+.field-inline > input[type="text"] { flex: 1; width: auto; }
+.field-inline .hint { display: none; }
+@media (max-width: 560px) {
+  .field-row { flex-direction: column; gap: 0; }
+  .field-inline { flex-direction: column; align-items: stretch; gap: 6px; }
+  .field-inline > label { width: auto; }
+}
 /* 数据集管理表格：坏行标红 */
 tr.bad td { background: #fef2f2; }
 /* 回归对比（Run Diff）：样本级翻转行高亮（红=通过→失败，绿=失败→通过） */
@@ -442,16 +453,16 @@ tr.diff-imp td { background: #f0fdf4; }
     <div class="modal-box">
       <div class="modal-head"><h2 id="sm-title">新增记录</h2></div>
       <div class="modal-body">
-        <div class="field">
+        <div class="field-inline">
           <label>数据集<span class="req">*</span></label>
           <select id="sm-dataset" onchange="onSmDatasetChange()"></select>
-          <div class="hint" id="sm-dataset-hint">保存落到所选数据集；编辑记录时不可切换</div>
         </div>
-        <div class="field">
+        <div class="hint" id="sm-dataset-hint" style="margin:-4px 0 15px 0; padding-left:100px">保存落到所选数据集；编辑记录时不可切换</div>
+        <div class="field-inline">
           <label>id</label>
           <input type="text" id="sm-id" placeholder="留空自动生成">
         </div>
-        <div class="field">
+        <div class="field-inline">
           <label>样本类型</label>
           <div class="sm-type">
             <label><input type="radio" id="sm-type-single" name="sm-type" value="single" checked onchange="onSmTypeChange()"> 单轮</label>
@@ -1162,23 +1173,19 @@ async function loadSamples(page) {
 function renderSamples(samples) {
   if (!samples.length) { $('ds-table').innerHTML = '<div class="muted">无记录</div>'; return; }
   $('ds-table').innerHTML = table(
-    ['#', 'id', '问题 / 期望回答', '预置回答', '操作'],
+    ['id', '问题 / 期望回答', '操作'],
     samples.map(s => {
       const bad = s.valid === false;
       const isMulti = isMultiSample(s);
       const turns = Array.isArray(s.turns) ? s.turns : [];
-      const query = bad
+      const body = bad
         ? `<span style="color:#dc2626">格式错误：${esc(s.error || '')}</span>`
-        : (isMulti
-            ? `<div>${esc(s.query || '')}</div>${fmtTurnQueryLines(turns)}`
-            : esc(s.query || '')) +
-          `<div class="muted" style="font-size:12px">期望回答：${esc(fmtRef(s.referenceResponse))}` +
+        : (isMulti ? fmtTurnQueryBlock(turns) : fmtSingleQueryBlock(s.query, s.response)) +
+          `<div class="muted" style="font-size:12px;margin-top:6px">期望回答：${esc(fmtRef(s.referenceResponse))}` +
           (s.tolerance != null ? '　容差 ' + s.tolerance : '') + '</div>';
       return [
-        s.seq,
         code(s.id || ''),
-        `<div class="wrap">${query}</div>`,
-        fmtSampleResponse(s),
+        `<div class="wrap">${body}</div>`,
         `<button class="btn sm" onclick="openSampleModal('edit', ${s.seq})">编辑</button>` +
         `<button class="btn sm danger" onclick="deleteSample(${s.seq})">删除</button>`
       ];
@@ -1208,6 +1215,37 @@ function fmtTurnQueryLines(turns) {
   if (!Array.isArray(turns) || !turns.length) return '';
   return `<div class="muted" style="font-size:12px;margin-top:4px">${turns.map((t, i) =>
     `轮${i + 1}：${esc((t && t.query) || '')}`).join('<br>')}</div>`;
+}
+
+function fmtTurnQueryBlock(turns) {
+  if (!Array.isArray(turns) || !turns.length) return '';
+  const count = turns.length;
+  const head = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+    <span class="channel-tag llm">多轮 ${count} 轮</span>
+    <span class="muted" style="font-size:12px">上下文会保留到最后一轮进行评测</span>
+  </div>`;
+  const body = turns.map((t, i) => {
+    const q = t && typeof t.query === 'string' ? t.query.trim() : '';
+    const r = t && typeof t.response === 'string' ? t.response.trim() : '';
+    return `<div style="padding:6px 0;border-bottom:1px dashed #e5e7eb;line-height:1.6">
+      <div><span style="font-weight:600;color:#334155">轮${i + 1}</span> <span class="muted">问：</span>${esc(q)}</div>
+      ${r ? `<div style="margin-left:56px;margin-top:2px"><span class="muted">答：</span><span style="color:#2563eb">${esc(r)}</span></div>` : ''}
+    </div>`;
+  }).join('');
+  return head + `<div>${body}</div>`;
+}
+
+function fmtSingleQueryBlock(query, response) {
+  const q = typeof query === 'string' ? query.trim() : '';
+  const r = typeof response === 'string' ? response.trim() : '';
+  const head = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+    <span class="channel-tag human" style="background:#dcfce7;color:#15803d;border:none">单轮</span>
+  </div>`;
+  const body = `<div style="padding:6px 0;border-bottom:1px dashed #e5e7eb;line-height:1.6">
+    <div><span style="font-weight:600;color:#334155">问</span> <span class="muted">：</span>${esc(q)}</div>
+    ${r ? `<div style="margin-left:40px;margin-top:2px"><span class="muted">答：</span><span style="color:#2563eb">${esc(r)}</span></div>` : ''}
+  </div>`;
+  return head + `<div>${body}</div>`;
 }
 
 function fmtSampleResponse(sample) {
