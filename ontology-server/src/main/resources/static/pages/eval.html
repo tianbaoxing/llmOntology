@@ -21,28 +21,144 @@
 .human-nav { display:flex; gap:8px; align-items:center; }
 /* 评测器分组卡片 */
 .grader-groups { display:grid; grid-template-columns:repeat(auto-fit, minmax(430px, 1fr)); gap:10px; align-items:start; }
-.ggroup { border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; background:#fff; }
-.ggroup-head { display:flex; align-items:center; gap:8px; padding:7px 12px; background:#f8fafc; border-bottom:1px solid #eef0f3; }
-.ggroup.rule { border-color:#cfe3ee; }
-.ggroup.rule .ggroup-head { background:#eff7fb; border-bottom:1px solid #dbeaf3; }
-.ggroup.llm { border-color:#ded4f4; }
-.ggroup.llm .ggroup-head { background:#f7f4fd; border-bottom:1px solid #e5dcf8; }
-.ggroup.human { border-color:#f0d9a8; }
-.ggroup.human .ggroup-head { background:#fdf6e7; border-bottom:1px solid #f3e3c0; }
-.ggroup-title { font-weight:600; font-size:13px; color:#1f2937; }
-.ggroup-cnt { font-size:12px; color:#94a3b8; }
-.channel-tag { display:inline-block; padding:1px 9px; border-radius:10px; font-size:11px; flex:none; font-weight:600; }
-.channel-tag.rule { background:#cfe6f2; color:#0c5a78; }
-.channel-tag.llm { background:#e6dcfa; color:#5b21b6; }
-.channel-tag.human { background:#f5e6c8; color:#92600a; }
-.g-toggle { margin-left:auto; font-size:12px; color:#2563eb; cursor:pointer; background:none; border:none; padding:2px 6px; border-radius:4px; }
-.g-toggle:hover { background:#eff6ff; }
-.ggroup-body { padding:8px 12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:2px 14px; }
-.ggroup-body label { display:flex; align-items:flex-start; gap:6px; padding:3px 6px; border-radius:5px; cursor:pointer; font-weight:normal; }
-.ggroup-body label:hover { background:#f1f5f9; }
-.ggroup-body input { margin-top:3px; flex:none; }
-.ggroup-body code { font-size:12px; word-break:break-all; background:#e9f2f8; color:#0c5a78; padding:1px 6px; border-radius:4px; }
-.ggroup.llm .ggroup-body code { background:#ece5fa; color:#5b21b6; }
+.ggroup { border-radius:10px; overflow:hidden; background:#fff; transition:box-shadow .2s ease, transform .15s ease; border:1px solid transparent; }
+.ggroup:hover { box-shadow:0 6px 18px rgba(15,23,42,.10); transform:translateY(-1px); }
+.ggroup.rule { border-color:#bfdbfe; box-shadow:0 1px 2px rgba(37,99,235,.08); }
+.ggroup.rule .ggroup-head {
+  background:linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+  border-bottom:1px solid #bfdbfe;
+}
+.ggroup.llm { border-color:#ddd6fe; box-shadow:0 1px 2px rgba(139,92,246,.08); }
+.ggroup.llm .ggroup-head {
+  background:linear-gradient(135deg, #ede9fe 0%, #f5f3ff 100%);
+  border-bottom:1px solid #ddd6fe;
+}
+.ggroup.human { border-color:#fde68a; box-shadow:0 1px 2px rgba(245,158,11,.08); }
+.ggroup.human .ggroup-head {
+  background:linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
+  border-bottom:1px solid #fde68a;
+}
+.ggroup-head {
+  display:flex; align-items:center; gap:8px; padding:7px 12px; flex-wrap:wrap;
+  position:relative; cursor:help;
+}
+.ggroup-head::after {
+  content:attr(data-tip);
+  position:absolute; top:calc(100% + 4px); left:12px;
+  background:#1f2937; color:#f9fafb;
+  padding:6px 10px; border-radius:6px;
+  font-size:12px; line-height:1.5; font-weight:normal;
+  white-space:pre-line; max-width:340px;
+  opacity:0; visibility:hidden; transform:translateY(-3px);
+  transition:all .18s ease; pointer-events:none;
+  z-index:50; box-shadow:0 4px 16px rgba(0,0,0,.18);
+}
+.ggroup-head:hover::after { opacity:1; visibility:visible; transform:none; }
+.ggroup-head::before {
+  content:''; position:absolute; top:100%; left:24px;
+  border:4px solid transparent; border-bottom-color:#1f2937;
+  opacity:0; visibility:hidden; transition:all .18s ease;
+  z-index:51; pointer-events:none;
+}
+.ggroup-head:hover::before { opacity:1; visibility:visible; }
+
+.ggroup-title { font-weight:700; font-size:13px; color:#111827; }
+.ggroup-cnt { font-size:11px; color:#6b7280; background:rgba(255,255,255,.7); padding:1px 7px; border-radius:8px; font-weight:500; }
+
+.channel-tag {
+  display:inline-flex; align-items:center; gap:3px;
+  padding:2px 9px; border-radius:16px;
+  font-size:10.5px; flex:none; font-weight:700;
+  letter-spacing:.2px;
+}
+.channel-tag::before { content:''; width:5px; height:5px; border-radius:50%; }
+.channel-tag.rule { background:#2563eb; color:#fff; }
+.channel-tag.rule::before { background:#93c5fd; }
+.channel-tag.llm { background:#7c3aed; color:#fff; }
+.channel-tag.llm::before { background:#c4b5fd; }
+.channel-tag.human { background:#d97706; color:#fff; }
+.channel-tag.human::before { background:#fcd34d; }
+
+.g-toggle {
+  margin-left:auto; font-size:11px; font-weight:600;
+  cursor:pointer; padding:3px 10px; border-radius:16px;
+  border:1.5px solid transparent; background:rgba(255,255,255,.6);
+  transition:all .15s ease;
+}
+.ggroup.rule .g-toggle { color:#1d4ed8; border-color:#93c5fd; }
+.ggroup.rule .g-toggle:hover { background:#2563eb; color:#fff; border-color:#2563eb; }
+.ggroup.llm .g-toggle { color:#6d28d9; border-color:#c4b5fd; }
+.ggroup.llm .g-toggle:hover { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+.ggroup.human .g-toggle { color:#b45309; border-color:#fcd34d; }
+.ggroup.human .g-toggle:hover { background:#d97706; color:#fff; border-color:#d97706; }
+.g-toggle.active { background:#16a34a; color:#fff; border-color:#16a34a; }
+.g-toggle.active:hover { background:#15803d; border-color:#15803d; }
+
+.ggroup-body {
+  padding:8px 12px; display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+  gap:4px 10px;
+  background:#fafbfc;
+}
+.ggroup-body label {
+  display:flex; align-items:flex-start; gap:6px;
+  padding:5px 8px; border-radius:6px;
+  cursor:pointer; font-weight:500;
+  border:1.5px solid transparent;
+  transition:all .15s ease;
+  background:#fff;
+  position:relative;
+}
+.ggroup-body label:hover {
+  border-color:#e5e7eb; background:#f8fafc;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
+}
+.ggroup-body label:has(input:checked) {
+  border-color:#2563eb; background:#eff6ff;
+  box-shadow:0 1px 6px rgba(37,99,235,.12);
+}
+.ggroup.llm .ggroup-body label:has(input:checked) {
+  border-color:#7c3aed; background:#f5f3ff;
+  box-shadow:0 1px 6px rgba(124,58,237,.12);
+}
+.ggroup.human .ggroup-body label:has(input:checked) {
+  border-color:#d97706; background:#fffbeb;
+  box-shadow:0 1px 6px rgba(217,119,6,.12);
+}
+.ggroup-body input {
+  margin:2px 0 0; flex:none; cursor:pointer;
+  width:14px; height:14px; accent-color:#2563eb;
+}
+.ggroup.llm .ggroup-body input { accent-color:#7c3aed; }
+.ggroup.human .ggroup-body input { accent-color:#d97706; }
+
+.grader-chip {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:12px; font-weight:600;
+  padding:2px 7px; border-radius:6px;
+  background:#f1f5f9; color:#0f172a;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  transition:all .15s ease;
+  border:1px solid #e2e8f0;
+}
+.ggroup.rule .grader-chip { background:#eff6ff; color:#1e40af; border-color:#bfdbfe; }
+.ggroup.rule label:has(input:checked) .grader-chip { background:#2563eb; color:#fff; border-color:#2563eb; }
+.ggroup.llm .grader-chip { background:#f5f3ff; color:#5b21b6; border-color:#ddd6fe; }
+.ggroup.llm label:has(input:checked) .grader-chip { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+.ggroup.human .grader-chip { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+.ggroup.human label:has(input:checked) .grader-chip { background:#d97706; color:#fff; border-color:#d97706; }
+.grader-chip-desc {
+  display:block; font-size:10.5px; color:#6b7280;
+  margin-top:1px; line-height:1.35;
+  font-family:"Microsoft YaHei", sans-serif; font-weight:400;
+  max-height:0; overflow:hidden; opacity:0;
+  transition:all .2s ease;
+}
+.ggroup-body label:hover .grader-chip-desc,
+.ggroup-body label:has(input:checked) .grader-chip-desc {
+  max-height:56px; opacity:1; margin-top:3px;
+}
+.grader-chip-wrap { display:flex; flex-direction:column; min-width:0; }
 details.eval-detail { margin:2px 0; }
 details.eval-detail summary { cursor:pointer; color:#2563eb; font-size:13px; }
 details.eval-detail pre { background:#f1f5f9; padding:8px; border-radius:5px; font-size:12px; white-space:pre-wrap; word-break:break-all; max-height:320px; overflow:auto; }
@@ -879,16 +995,19 @@ async function previewDataset(name) {
 let graderCache = [];
 /** 分组展示元数据（group = 后端 graders 包路径后缀，新增评测器自动归组；未知组按通道兜底） */
 const GROUP_ORDER = ['rule.match', 'rule.text', 'rule.tool', 'llm.answer', 'llm.dialogue', 'llm.tool', 'agent', 'custom', 'human'];
+const RULE_TIP = '【通道：规则】\n本地算法执行，零计算成本，无需调用外部服务。\n速度快、结果确定性强，适合格式/数值/字符串类基准校验。';
+const LLM_TIP = '【通道：LLM】\n调用 Judge 大模型进行语义判分，消耗 tokens 与 API 额度。\n适合回答质量、推理合理性、上下文理解等主观/语义类评测。';
+const HUMAN_TIP = '【通道：人工】\n由人工逐条阅读打分，结果最准确但人力成本高。\n适用于核心样本验收或对自动化评测结果做抽检校准。';
 const GROUP_META = {
-  'rule.match':  { title: '精确匹配', channel: '规则', cls: 'rule' },
-  'rule.text':   { title: '文本统计', channel: '规则', cls: 'rule' },
-  'rule.tool':   { title: '工具调用', channel: '规则', cls: 'rule' },
-  'llm.answer':  { title: '回答质量', channel: 'LLM', cls: 'llm' },
-  'llm.dialogue':{ title: '多轮对话', channel: 'LLM', cls: 'llm' },
-  'llm.tool':    { title: '工具轨迹', channel: 'LLM', cls: 'llm' },
-  'agent':       { title: '图谱取证（Agentic）', channel: 'Agentic', cls: 'llm' },
-  'custom':      { title: '自定义（用户提示词）', channel: 'LLM', cls: 'llm' },
-  'human':       { title: '人工评分', channel: '人工', cls: 'human' },
+  'rule.match':  { title: '精确匹配', channel: '规则', cls: 'rule', tip: RULE_TIP + '\n\n【维度：精确匹配】\n对格式、数值、字符串进行严格或正则匹配，适合答案明确的题目。' },
+  'rule.text':   { title: '文本统计', channel: '规则', cls: 'rule', tip: RULE_TIP + '\n\n【维度：文本统计】\n基于文本特征（重复率、相似度等）的统计性评估，无需语义理解。' },
+  'rule.tool':   { title: '工具调用', channel: '规则', cls: 'rule', tip: RULE_TIP + '\n\n【维度：工具调用】\n评估工具选择、参数正确性、调用结果信息增益等工具使用行为。' },
+  'llm.answer':  { title: '回答质量', channel: 'LLM', cls: 'llm', tip: LLM_TIP + '\n\n【维度：回答质量】\n从正确性、幻觉、相关性、完整性、帮助性等方面综合评判回答。' },
+  'llm.dialogue':{ title: '多轮对话', channel: 'LLM', cls: 'llm', tip: LLM_TIP + '\n\n【维度：多轮对话】\n评估多轮场景下的上下文记忆、指代消解、澄清提问与重复控制能力。' },
+  'llm.tool':    { title: '工具轨迹', channel: 'LLM', cls: 'llm', tip: LLM_TIP + '\n\n【维度：工具轨迹】\n基于语义判定工具选择、参数准确性、使用效率及整体工具链轨迹质量。' },
+  'agent':       { title: '图谱取证（Agentic）', channel: 'Agentic', cls: 'llm', tip: LLM_TIP + '\n\n【维度：图谱取证】\n对 Agent 访问知识图谱得到的证据链进行 groundedness 校验，判断回答是否有据可依。' },
+  'custom':      { title: '自定义（用户提示词）', channel: 'LLM', cls: 'llm', tip: LLM_TIP + '\n\n【维度：自定义】\n用户在「自定义评测器」Tab 中用提示词定义的判分器，灵活度最高。' },
+  'human':       { title: '人工评分', channel: '人工', cls: 'human', tip: HUMAN_TIP + '\n\n【维度：人工评分】\n逐条人工星级评分，可填写评语，结果作为最终权威基准或 Gold Label。' },
 };
 
 async function loadGraders() {
@@ -896,29 +1015,49 @@ async function loadGraders() {
   graderCache = d.graders || [];
   const buckets = {};
   graderCache.forEach(g => {
-    // group 缺失或不在预置分组时，按通道兜底归组，保证所有评测器都可见
     const grp = GROUP_META[g.group] ? g.group : (g.type === 'llm' ? 'llm.answer' : 'rule.match');
     (buckets[grp] = buckets[grp] || []).push(g);
   });
   const order = GROUP_ORDER.filter(k => buckets[k])
     .concat(Object.keys(buckets).filter(k => !GROUP_ORDER.includes(k)));
-  const chip = g =>
-    `<label title="${esc(g.description)}"><input type="checkbox" value="${esc(g.name)}">` +
-    `<span><code>${esc(g.name)}</code></span></label>`;
+  const chip = g => {
+    const desc = g.description ? `<span class="grader-chip-desc">${esc(g.description)}</span>` : '';
+    return `<label title="${esc(g.description || g.name)}">
+      <input type="checkbox" value="${esc(g.name)}" onchange="refreshGroupToggle('${esc(g.group || grp)}')">
+      <span class="grader-chip-wrap">
+        <span class="grader-chip">${esc(g.name)}</span>
+        ${desc}
+      </span>
+    </label>`;
+  };
   $('ev-graders').innerHTML = order.length
     ? order.map(grp => {
-        const meta = GROUP_META[grp] || { title: grp, channel: '?', cls: 'rule' };
+        const meta = GROUP_META[grp] || { title: grp, channel: '?', cls: 'rule', tip: '' };
         return `<div class="ggroup ${meta.cls}" data-group="${esc(grp)}">
-          <div class="ggroup-head">
+          <div class="ggroup-head" data-tip="${esc(meta.tip || '')}">
             <span class="channel-tag ${meta.cls}">${meta.channel}</span>
             <span class="ggroup-title">${esc(meta.title)}</span>
             <span class="ggroup-cnt">共 ${buckets[grp].length} 项</span>
-            <button type="button" class="g-toggle" onclick="toggleGroup('${esc(grp)}')">全选/清空</button>
+            <button type="button" class="g-toggle" data-group="${esc(grp)}" onclick="toggleGroup('${esc(grp)}')">全选/清空</button>
           </div>
           <div class="ggroup-body">${buckets[grp].map(chip).join('')}</div>
         </div>`;
       }).join('')
     : '<span class="muted">无已注册评测器</span>';
+  order.forEach(grp => refreshGroupToggle(grp));
+}
+
+/** 刷新分组「全选/清空」按钮的文案与状态（全选时绿色+文案「清空」，否则默认） */
+function refreshGroupToggle(grp) {
+  const btn = document.querySelector(`.g-toggle[data-group="${grp}"]`);
+  if (!btn) return;
+  const boxes = document.querySelectorAll(`.ggroup[data-group="${grp}"] input`);
+  if (!boxes.length) { btn.classList.remove('active'); btn.textContent = '全选/清空'; return; }
+  const allOn = [...boxes].every(b => b.checked);
+  const anyOn = [...boxes].some(b => b.checked);
+  if (allOn) { btn.classList.add('active'); btn.textContent = '✓ 清空'; }
+  else if (anyOn) { btn.classList.remove('active'); btn.textContent = '全选剩余'; }
+  else { btn.classList.remove('active'); btn.textContent = '全选'; }
 }
 
 /** 分组内全选 ⇄ 清空切换 */
@@ -926,6 +1065,7 @@ function toggleGroup(grp) {
   const boxes = document.querySelectorAll(`.ggroup[data-group="${grp}"] input`);
   const allOn = [...boxes].length && [...boxes].every(b => b.checked);
   boxes.forEach(b => { b.checked = !allOn; });
+  refreshGroupToggle(grp);
 }
 
 // ---------------- 数据集管理 ----------------
