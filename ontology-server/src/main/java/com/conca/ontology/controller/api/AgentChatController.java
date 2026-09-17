@@ -16,13 +16,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.conca.ontology.auth.SessionUser;
 import com.conca.ontology.dto.request.AgentChatRequest;
-import com.conca.ontology.dto.request.MemoryToolsRequest;
 import com.conca.ontology.dto.request.SessionTitleRequest;
 import com.conca.ontology.dto.ApiResponse;
 import com.conca.ontology.exception.ApiException;
 import com.conca.ontology.model.UserEntry;
 import com.conca.ontology.service.AgentChatService;
-import com.conca.ontology.service.AgentMemoryToolsToggle;
 import com.conca.ontology.service.AgentSessionService;
 
 import jakarta.servlet.http.HttpSession;
@@ -39,8 +37,6 @@ import jakarta.validation.Valid;
  * DELETE /api/agent/sessions/{id}          → 删除会话（含 AI 记忆）
  * GET  /api/agent/skills                   → 技能清单（chat 页输入区快捷插入）
  * GET  /api/agent/tools                    → 工具清单（chat 页「工具列表」悬停面板）
- * GET  /api/agent/memory-tools             → 记忆工具开关状态（activeTools 与开关值对账）
- * PUT  /api/agent/memory-tools             → 切换session_search/ memory_search/get/save 对模型可见性
  * 会话/记忆按登录用户隔离：userId 一律取当前会话，不信任请求参数。
  */
 @RestController
@@ -50,14 +46,11 @@ public class AgentChatController {
 
     private final AgentChatService agentChatService;
     private final AgentSessionService agentSessionService;
-    private final AgentMemoryToolsToggle memoryToolsToggle;
 
     public AgentChatController(AgentChatService agentChatService,
-            AgentSessionService agentSessionService,
-            AgentMemoryToolsToggle memoryToolsToggle) {
+            AgentSessionService agentSessionService) {
         this.agentChatService = agentChatService;
         this.agentSessionService = agentSessionService;
-        this.memoryToolsToggle = memoryToolsToggle;
     }
 
     /** 技能清单（按当前用户角色过滤被禁技能）；agent 未装配（未配置 key）时为空列表 */
@@ -82,18 +75,6 @@ public class AgentChatController {
         return ApiResponse.ok(Map.of(
                 "agentAvailable", agentChatService.isAvailable(),
                 "subagents", agentChatService.listSubagents(currentRole(session))));
-    }
-
-    /** 记忆工具开关状态；activeTools 为 Toolkit 实际存活集（与开关值对账，前端以它为准） */
-    @GetMapping("/memory-tools")
-    public ApiResponse<Map<String, Object>> memoryTools() {
-        return ApiResponse.ok(memoryToolsToggle.status());
-    }
-
-    /** 切换记忆工具可见性；影响下一次模型请求的工具 schema（进行中的流式轮次不受控） */
-    @PutMapping("/memory-tools")
-    public ApiResponse<Map<String, Object>> updateMemoryTools(@Valid @RequestBody MemoryToolsRequest request) {
-        return ApiResponse.ok(memoryToolsToggle.setEnabled(request.enabled()));
     }
 
     @PostMapping(value = "/sessions/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

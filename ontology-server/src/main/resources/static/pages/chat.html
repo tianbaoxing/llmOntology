@@ -85,12 +85,8 @@ body { display: flex; flex-direction: column; }
 .skills-row.show { display: flex; }
 .skill-chip { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 16px; background: #f9fafb; color: #374151; font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; }
 .skill-chip:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
-.skill-chip .tip, .mem-toggle .tip { display: none; position: absolute; bottom: calc(100% + 8px); left: 0; width: max-content; max-width: 360px; padding: 8px 10px; background: #1f2937; color: #f9fafb; border-radius: 8px; font-size: 12px; line-height: 1.6; white-space: normal; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
-.skill-chip:hover .tip, .mem-toggle:hover .tip { display: block; }
-.mem-toggle { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 16px; background: #f9fafb; color: #374151; font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; }
-.mem-toggle.on { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
-.mem-toggle input { accent-color: #2563eb; margin: 0; cursor: pointer; }
-.mem-toggle .tip { left: auto; right: 0; }
+.skill-chip .tip { display: none; position: absolute; bottom: calc(100% + 8px); left: 0; width: max-content; max-width: 360px; padding: 8px 10px; background: #1f2937; color: #f9fafb; border-radius: 8px; font-size: 12px; line-height: 1.6; white-space: normal; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.skill-chip:hover .tip { display: block; }
 .input-row { display: flex; gap: 10px; align-items: flex-end; max-width: 900px; margin: 0 auto; }
 textarea { flex: 1; width: 100%; resize: none; min-height: 44px; max-height: 140px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5; }
 textarea:focus { outline: none; border-color: #2563eb; }
@@ -185,11 +181,6 @@ textarea:focus { outline: none; border-color: #2563eb; }
     <div class="input-area">
       <div class="tools-bar">
         <div class="skills-row" id="skills-row"></div>
-        <label class="mem-toggle" id="mem-toggle" style="display:none;">
-          <input type="checkbox" id="mem-check">
-          <span>记忆工具</span>
-          <span class="tip" id="mem-tip"></span>
-        </label>
       </div>
       <div class="input-row">
         <div class="slash-wrap">
@@ -575,52 +566,6 @@ function renderSubagents(subagents) {
   row.appendChild(chip);
   if (!row.classList.contains('show')) row.classList.add('show');
 }
-
-// ---------- 记忆工具开关 ----------
-// 运行时控制 agent 的 session_search/memory_search/get/save 对模型是否可见（GET 对账，PUT 切换）；
-// agent 未装配（无 key）或拉取失败时不渲染开关，不影响聊天
-const memToggle = $('mem-toggle');
-const memCheck = $('mem-check');
-const memTip = $('mem-tip');
-
-fetch('/api/agent/memory-tools').then(r => r.json()).then(j => {
-  if (j && j.code === 0 && j.data && j.data.agentAvailable) {
-    memToggle.style.display = '';
-    syncMemToggle(j.data);
-  }
-}).catch(() => { /* 拉取失败不显示开关 */ });
-
-/** 以 Toolkit 实际存活集（activeTools）为准渲染，与开关值不一致时对账纠偏 */
-function syncMemToggle(d) {
-  const live = Array.isArray(d.activeTools) && d.activeTools.length > 0;
-  memCheck.checked = live;
-  memToggle.classList.toggle('on', live);
-  memTip.textContent = live
-    ? '记忆工具已开启：AI 可检索历史会话沉淀的记忆（session_search / memory_search / memory_get / memory_save）'
-    : '记忆工具已关闭：AI 无法检索历史会话记忆，下一轮对话生效';
-}
-
-memCheck.addEventListener('change', async () => {
-  const target = memCheck.checked;
-  try {
-    const res = await fetch('/api/agent/memory-tools', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: target })
-    });
-    if (res.status === 401) { location.href = '/login'; return; }
-    const j = await res.json();
-    if (res.ok && j && j.code === 0 && j.data) {
-      syncMemToggle(j.data);
-      loadTools(); // 记忆工具增减后刷新工具清单缓存
-      return;
-    }
-    throw new Error((j && j.msg) || ('HTTP ' + res.status));
-  } catch (e) {
-    memCheck.checked = !target; // 切换失败回滚
-    memTip.textContent = '切换失败：' + (e.message || '网络异常');
-  }
-});
 
 // ---------- 工具清单拉取 ----------
 // 数据来自 Toolkit 实时存活集（GET /api/agent/tools），缓存到 toolCache，
