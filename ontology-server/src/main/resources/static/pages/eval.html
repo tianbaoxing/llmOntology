@@ -419,6 +419,71 @@ tr.diff-imp td { background: #f0fdf4; }
 
 .rp-xscroll { overflow-x:auto; max-width:100%; }
 .rp-empty { padding:28px; text-align:center; color:#94a3b8; font-size:12px; }
+
+/* 单样本维度分析：总览 4 宫格小卡 */
+.rp-overview-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+@media (max-width: 820px) { .rp-overview-grid { grid-template-columns:repeat(2,1fr); } }
+
+/* 低分样本表格 */
+.rp-lowscore-tbl { width:100%; border-collapse:collapse; font-size:12px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; }
+.rp-lowscore-tbl th { background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%); color:#334155; font-weight:700; padding:8px 10px; text-align:left; border-bottom:1px solid #e2e8f0; white-space:nowrap; font-size:11.5px; letter-spacing:.2px; }
+.rp-lowscore-tbl td { padding:10px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+.rp-lowscore-tbl tr:last-child td { border-bottom:none; }
+.rp-lowscore-tbl tr:hover td { background:#fafbfc; }
+.rp-lowscore-tbl .col-rank { width:54px; text-align:center; }
+.rp-lowscore-tbl .col-sample { min-width:220px; max-width:320px; }
+.rp-lowscore-tbl .col-avg { width:90px; text-align:right; white-space:nowrap; }
+.rp-lowscore-tbl .col-issues { min-width:260px; }
+.rp-lowscore-tbl .col-graders { min-width:240px; }
+.rp-lowscore-tbl .col-op { width:64px; text-align:center; white-space:nowrap; }
+
+/* 排名徽章 */
+.rp-rank-badge { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; font-weight:800; font-size:13px; color:#fff; }
+.rp-rank-badge.r1 { background:linear-gradient(135deg,#dc2626 0%,#b91c1c 100%); box-shadow:0 2px 6px rgba(220,38,38,.3); }
+.rp-rank-badge.r2 { background:linear-gradient(135deg,#ea580c 0%,#c2410c 100%); box-shadow:0 2px 6px rgba(234,88,12,.28); }
+.rp-rank-badge.r3 { background:linear-gradient(135deg,#d97706 0%,#b45309 100%); box-shadow:0 2px 6px rgba(217,119,6,.26); }
+.rp-rank-badge.r4 { background:linear-gradient(135deg,#64748b 0%,#475569 100%); }
+.rp-rank-badge.r5 { background:linear-gradient(135deg,#94a3b8 0%,#64748b 100%); }
+
+/* 均分数字 & 等级色 */
+.rp-avg-num { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:18px; font-weight:800; letter-spacing:-.5px; }
+.rp-avg-num.S { color:#059669; } .rp-avg-num.A { color:#16a34a; }
+.rp-avg-num.B { color:#d97706; } .rp-avg-num.C { color:#ea580c; }
+.rp-avg-num.D { color:#dc2626; }
+.rp-avg-sub { font-size:10.5px; color:#94a3b8; margin-top:2px; font-weight:500; }
+.rp-avg-sub.bad { color:#dc2626; font-weight:600; }
+
+/* 问题行 meta（样本列） */
+.rp-sample-q { font-weight:600; color:#0f172a; line-height:1.45; word-break:break-all; margin-bottom:3px; }
+.rp-sample-ref { font-size:11px; color:#64748b; line-height:1.4; word-break:break-all; margin-bottom:4px; }
+.rp-sample-meta { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+.rp-sample-meta .sm { font-size:10.5px; padding:1px 6px; border-radius:10px; display:inline-flex; align-items:center; gap:3px; }
+.rp-sample-meta .sm.t-multi { background:#ede9fe; color:#5b21b6; border:1px solid #ddd6fe; }
+.rp-sample-meta .sm.t-single { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+.rp-sample-meta .sm.t-tool { background:#f0f9ff; color:#075985; border:1px solid #bae6fd; }
+.rp-sample-meta .sm.t-time { background:#fef3c7; color:#92400e; border:1px solid #fde68a; }
+.rp-sample-meta .sm.t-err { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+
+/* 核心 issue 列表 */
+.rp-issue-list { display:flex; flex-direction:column; gap:5px; }
+.rp-issue-item { display:flex; gap:6px; align-items:flex-start; line-height:1.45; padding:4px 8px; border-radius:6px; font-size:11.5px; word-break:break-word; }
+.rp-issue-item.i-agent { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
+.rp-issue-item.i-graderr { background:#fee2e2; border:1px solid #fecaca; color:#b91c1c; }
+.rp-issue-item.i-low { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; }
+.rp-issue-item.i-evidence { background:#fefce8; border:1px solid #fde68a; color:#854d0e; }
+.rp-issue-item.i-pend { background:#f1f5f9; border:1px solid #cbd5e1; color:#475569; }
+.rp-issue-item .i-ic { flex:none; font-weight:800; font-size:11px; line-height:1.6; }
+.rp-issue-item .i-body { flex:1; min-width:0; }
+.rp-issue-item .i-grader { display:inline-block; padding:0 5px; border-radius:4px; font-size:10.5px; font-weight:700; margin-right:4px; }
+.rp-issue-item .i-grader.ch-rule { background:#dbeafe; color:#1d4ed8; }
+.rp-issue-item .i-grader.ch-llm { background:#ede9fe; color:#5b21b6; }
+.rp-issue-item .i-grader.ch-human { background:#fef3c7; color:#92400e; }
+.rp-issue-item .i-grader.ch-custom { background:#fce7f3; color:#9d174d; }
+
+/* 评测器得分行徽章列 */
+.rp-grader-row { display:flex; flex-wrap:wrap; gap:3px 5px; }
+.rp-grader-row .g-meta { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.rp-grader-row .g-tag { font-size:10.5px; }
 </style>
 </head>
 <body>
@@ -496,64 +561,10 @@ tr.diff-imp td { background: #f0fdf4; }
           </div>
         </div>
 
-        <!-- ② 评测器维度分析 -->
-        <div class="rp-section">
-          <div class="rp-section-title">评测器维度分析</div>
-          <div class="rp-chart-box">
-            <div class="rp-chart-wrap">
-              <canvas id="rp-grader-chart"></canvas>
-            </div>
-            <div id="rp-grader-empty" class="rp-empty" style="display:none">暂无评测器数据</div>
-          </div>
-          <div id="rp-grader-table"></div>
-        </div>
-
-        <!-- ③ 单样本维度分析 -->
-        <div class="rp-section">
-          <div class="rp-section-title">单样本维度分析</div>
-          <div class="rp-chart-box">
-            <div class="rp-chart-toolbar">
-              <div class="rp-seg" id="rp-sample-style">
-                <button class="on" data-v="bar">柱状图</button>
-                <button data-v="line">折线图</button>
-              </div>
-              <button class="rp-chip-btn" id="rp-show-avgline">均分参考线 ✓</button>
-              <button class="rp-chip-btn" id="rp-show-passline">通过阈值线 ✓</button>
-              <span id="rp-sample-count-tip" class="sub" style="margin-left:auto"></span>
-            </div>
-            <div class="rp-xscroll">
-              <div class="rp-chart-wrap xl">
-                <canvas id="rp-sample-chart"></canvas>
-              </div>
-            </div>
-          </div>
-          <div id="rp-sample-nav"></div>
-        </div>
-
-        <!-- ④ 耗时分析 -->
-        <div class="rp-section">
-          <div class="rp-section-title">耗时分析</div>
-          <div class="rp-chart-box">
-            <div class="rp-chart-toolbar">
-              <div class="rp-seg" id="rp-duration-style">
-                <button class="on" data-v="trend">趋势图</button>
-                <button data-v="hist">直方图</button>
-                <button data-v="scatter">工具调用 vs 耗时</button>
-              </div>
-            </div>
-            <div class="rp-chart-wrap lg">
-              <canvas id="rp-duration-chart"></canvas>
-            </div>
-            <div id="rp-duration-empty" class="rp-empty" style="display:none">暂无耗时数据</div>
-          </div>
-          <div id="rp-duration-stats"></div>
-          <div id="rp-slow-table" style="margin-top:10px"></div>
-        </div>
-
         <!-- ⑤ 补充指标（可折叠） -->
         <div class="rp-extra-wrap">
-          <div class="rp-extra-btn" id="rp-extra-toggle">展开补充指标（Tokens 成本 / 错误分布 / 人工评分）</div>
-          <div class="rp-extra-body" id="rp-extra-body">
+          <div class="rp-extra-btn open" id="rp-extra-toggle">收起补充指标（Tokens 成本 / 错误分布 / 人工评分）</div>
+          <div class="rp-extra-body open" id="rp-extra-body">
             <div class="rp-3grid">
               <div class="rp-chart-box">
                 <div class="rp-section-title" style="margin-bottom:6px">Tokens 成本分析</div>
@@ -582,6 +593,49 @@ tr.diff-imp td { background: #f0fdf4; }
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- ② 评测器维度分析 -->
+        <div class="rp-section">
+          <div class="rp-section-title">评测器维度分析</div>
+          <div class="rp-chart-box">
+            <div class="rp-chart-wrap">
+              <canvas id="rp-grader-chart"></canvas>
+            </div>
+            <div id="rp-grader-empty" class="rp-empty" style="display:none">暂无评测器数据</div>
+          </div>
+          <div id="rp-grader-table"></div>
+        </div>
+
+        <!-- ③ 单样本维度分析 -->
+        <div class="rp-section">
+          <div class="rp-section-title">单样本维度分析</div>
+          <div id="rp-sample-overview"></div>
+          <div id="rp-lowscore-box" style="margin-top:10px">
+            <div style="font-weight:600;font-size:12px;color:#475569;margin-bottom:6px">📉 低分样本分析（Bottom 5，均分 &lt; 0.8 优先展示）</div>
+            <div id="rp-lowscore-table"></div>
+          </div>
+          <div id="rp-sample-nav" style="margin-top:10px"></div>
+        </div>
+
+        <!-- ④ 耗时分析 -->
+        <div class="rp-section">
+          <div class="rp-section-title">耗时分析</div>
+          <div class="rp-chart-box">
+            <div class="rp-chart-toolbar">
+              <div class="rp-seg" id="rp-duration-style">
+                <button class="on" data-v="trend">趋势图</button>
+                <button data-v="hist">直方图</button>
+                <button data-v="scatter">工具调用 vs 耗时</button>
+              </div>
+            </div>
+            <div class="rp-chart-wrap lg">
+              <canvas id="rp-duration-chart"></canvas>
+            </div>
+            <div id="rp-duration-empty" class="rp-empty" style="display:none">暂无耗时数据</div>
+          </div>
+          <div id="rp-duration-stats"></div>
+          <div id="rp-slow-table" style="margin-top:10px"></div>
         </div>
 
       </div>
@@ -2418,7 +2472,7 @@ window.Report = (() => {
   // ---------- 内部状态 ----------
   const charts = new Map();
   const state = {
-    result: null, agg: null, collapsed: false, extraOpen: false,
+    result: null, agg: null, collapsed: false, extraOpen: true,
     sampleStyle: 'bar', durationStyle: 'trend',
     showAvgLine: true, showPassLine: true,
     boundEvents: false
@@ -2550,7 +2604,7 @@ window.Report = (() => {
 
     // ---- 慢样本 Top N ----
     const slowSamples = perSample
-      .filter(s => s.duration != null && s.duration > 10)
+      .filter(s => s.duration != null && s.duration > 0.01)
       .sort((a, b) => b.duration - a.duration)
       .slice(0, 5);
 
@@ -2859,169 +2913,213 @@ window.Report = (() => {
   }
 
   // ---------- 图表 3：单样本得分（柱状 / 折线可切换）----------
-  function drawSample(agg) {
-    destroyChart('sample');
-    const canvas = $('rp-sample-chart');
-    if (!canvas || typeof Chart === 'undefined' || !agg.perSample.length) return;
+  function avgGrade(v) {
+    if (v == null) return 'D';
+    if (v >= 0.95) return 'S';
+    if (v >= 0.85) return 'A';
+    if (v >= 0.70) return 'B';
+    if (v >= 0.50) return 'C';
+    return 'D';
+  }
 
-    const style = state.sampleStyle;
-    const valid = agg.validSamples;
-    const labels = valid.map(s => `#${s.idx + 1}`);
-    const avgArr = valid.map(s => s.avg != null ? Number(s.avg.toFixed(3)) : null);
-    // 各评测器 dataset
-    const datasets = agg.gradersStats.map((g, gi) => {
-      if (g.count === 0) return null;
-      const data = valid.map(s => {
-        const r = s.byGrader[g.name];
-        return (r && !r.error && !r.pending && r.score != null) ? Number(r.score.toFixed(3)) : null;
-      });
-      // 如果是 style=bar 且评测器过多（>8），用更低 alpha 避免色糊
-      const alpha = style === 'bar' && agg.gradersStats.length > 8 ? 0.55 : 0.78;
-      const bgHex = channelColor(g.channel, gi).replace(/[\d.]+\)$/, `${alpha})`);
-      const ds = {
-        label: g.name, data,
-        backgroundColor: bgHex, borderColor: channelSolid(g.channel, gi),
-        borderWidth: style === 'line' ? 1.5 : 1,
-        borderRadius: 3, stack: 's',
-        pointRadius: style === 'line' ? 2 : 0, pointHoverRadius: 5,
-        pointBackgroundColor: channelSolid(g.channel, gi), tension: 0.25, spanGaps: false
-      };
-      if (style === 'line') { ds.type = 'line'; ds.fill = false; ds.stack = undefined; }
-      return ds;
-    }).filter(Boolean);
-    // 最顶叠加均值线（scatter-like 方式 + 插件线）
-    datasets.push({
-      label: '样本均分',
-      type: 'line', data: avgArr,
-      borderColor: 'rgba(15,23,42,0.85)', backgroundColor: 'rgba(15,23,42,0.85)',
-      borderWidth: 2.2, borderDash: style === 'line' ? [8, 5] : [5, 4],
-      pointBackgroundColor: valid.map(s =>
-        s.avg >= PASS_THRESHOLD ? COLORS.ok : COLORS.bad
-      ), pointRadius: 3.5, pointHoverRadius: 6,
-      pointBorderColor: '#fff', pointBorderWidth: 1,
-      fill: false, tension: 0.35, spanGaps: true, z: 10
-    });
-
-    const avgLine = state.showAvgLine && agg.summary.avgScore != null
-      ? { value: Number(agg.summary.avgScore.toFixed(3)), color: '#4f46e5', label: `均分 ${agg.summary.avgScore.toFixed(3)}` }
-      : null;
-    const passLine = state.showPassLine
-      ? { value: PASS_THRESHOLD, color: COLORS.warn, label: '通过阈值 0.8' }
-      : null;
-
-    const plugins = [
-      // 自制参考线（避免引入 annotation 插件依赖）
-      {
-        id: 'refLines',
-        afterDraw(chart) {
-          const { ctx, chartArea, scales: { x, y } } = chart;
-          if (!chartArea) return;
-          const yVal = (v) => y.getPixelForValue(v);
-          ctx.save();
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([6, 4]);
-          [avgLine, passLine].forEach(line => {
-            if (!line) return;
-            const py = yVal(line.value);
-            if (py < chartArea.top || py > chartArea.bottom) return;
-            ctx.strokeStyle = line.color;
-            ctx.beginPath();
-            ctx.moveTo(chartArea.left, py); ctx.lineTo(chartArea.right, py);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.fillStyle = line.color;
-            ctx.font = 'bold 10.5px ui-sans-serif,system-ui';
-            const txt = line.label;
-            const tw = ctx.measureText(txt).width + 10;
-            ctx.fillRect(chartArea.right - tw, py - 10, tw, 18);
-            ctx.fillStyle = '#fff';
-            ctx.fillText(txt, chartArea.right - tw + 5, py + 3);
-            ctx.setLineDash([6, 4]);
-          });
-          ctx.restore();
+  function collectLowScoreIssues(agg, s) {
+    const issues = [];
+    const orig = state.result && Array.isArray(state.result.samples) ? state.result.samples[s.idx] || null : null;
+    // 优先级 1：agent 调用失败
+    if (orig && orig.agentError) {
+      const msg = String(orig.agentError || '').replace(/\s+/g, ' ').slice(0, 80);
+      issues.push({ type: 'agent', text: `agent 调用失败：${msg}`, grader: null, channel: null });
+    }
+    // 遍历 byGrader：先报错误（error=true），再报 pending/skipped，再报分数 <0.5 的低分项
+    const graderEntries = Object.entries(s.byGrader || {});
+    // error
+    for (const [name, g] of graderEntries) {
+      if (g.error) {
+        issues.push({ type: 'graderr', text: `评测器执行错误${g.reason ? '：' + String(g.reason).replace(/\s+/g, ' ').slice(0, 60) : ''}`, grader: name, channel: g.channel });
+      }
+    }
+    // pending / skipped
+    for (const [name, g] of graderEntries) {
+      if (g.pending) {
+        issues.push({ type: 'pend', text: `待人工评分`, grader: name, channel: g.channel });
+      } else if (g.skipped) {
+        issues.push({ type: 'pend', text: `人工跳过${g.reason ? '：' + String(g.reason).slice(0, 40) : ''}`, grader: name, channel: g.channel });
+      }
+    }
+    // 图谱取证未证实（找 agentic/取证类评测器 metadata.evidence）
+    if (orig && Array.isArray(orig.scores)) {
+      for (const sc of orig.scores) {
+        const md = sc && sc.metadata ? sc.metadata : null;
+        if (!md || !Array.isArray(md.evidence) || !md.evidence.length) continue;
+        const total = md.evidence.length;
+        const unconfirmed = md.evidence.filter(e => !e.confirmed).length;
+        if (unconfirmed >= Math.max(2, Math.ceil(total / 2))) {
+          const qc = md.queryCount != null ? md.queryCount : '?';
+          const trun = md.truncated ? '（已截断）' : '';
+          issues.push({ type: 'evidence', text: `图谱取证：${unconfirmed}/${total} 条断言未证实，查询 ${qc} 次${trun}`, grader: sc.name, channel: (s.byGrader[sc.name] && s.byGrader[sc.name].channel) || 'llm' });
         }
       }
-    ];
+    }
+    // 低分评测器（score < 0.5 或 reason 非空）按分数升序取前 2 条
+    const lowGraders = graderEntries
+      .filter(([name, g]) => !g.error && !g.pending && !g.skipped && (g.score == null || g.score < 0.5 || g.reason))
+      .sort((a, b) => {
+        const sa = a[1].score != null ? a[1].score : -Infinity;
+        const sb = b[1].score != null ? b[1].score : -Infinity;
+        return sa - sb;
+      })
+      .slice(0, 2);
+    for (const [name, g] of lowGraders) {
+      const scTxt = g.score != null ? g.score.toFixed(2) : '?';
+      let body = `${scTxt} 分`;
+      if (g.reason) {
+        const r = String(g.reason).replace(/\s+/g, ' ').slice(0, 70);
+        body += `：${r}${String(g.reason).length > 70 ? '…' : ''}`;
+      }
+      issues.push({ type: 'low', text: body, grader: name, channel: g.channel });
+    }
+    return issues.slice(0, 3);
+  }
 
-    const yMax = 1.02;
-    const type = style === 'line' ? 'line' : 'bar';
-    if (style === 'line') datasets.forEach(ds => ds.type = 'line');
+  function drawSample(agg) {
+    destroyChart('sample');
+    const ovEl = $('rp-sample-overview');
+    const tblEl = $('rp-lowscore-table');
+    const navEl = $('rp-sample-nav');
+    if (!ovEl || !tblEl || !navEl) return;
+    ovEl.innerHTML = ''; tblEl.innerHTML = ''; navEl.innerHTML = '';
+    if (!agg.perSample.length) {
+      ovEl.innerHTML = `<div class="rp-empty">暂无样本数据</div>`;
+      return;
+    }
 
-    const tipColorMap = new Map(agg.gradersStats.map((g, i) => [g.name, channelSolid(g.channel, i)]));
+    // ---- ① 总览 4 宫格小卡 ----
+    const total = agg.perSample.length;
+    const valid = agg.validSamples;
+    const sm = agg.summary || {};
+    const passCount = sm.passCount != null ? sm.passCount : valid.filter(s => s.pass).length;
+    const passRate = sm.passRate != null ? sm.passRate : (total > 0 ? passCount / total : 0);
+    const avgScore = sm.avgScore != null ? sm.avgScore : (valid.length ? valid.reduce((a, b) => a + (b.avg || 0), 0) / valid.length : null);
+    const errCount = sm.errorCount != null ? sm.errorCount : agg.perSample.filter(s => s.error).length;
+    const failCount = total - passCount;
+    const gCard = (lbl, val, sub, cls) => {
+      const col = cls ? ` style="background:linear-gradient(135deg,#fff 0%,${cls}12 100%);border-color:${cls}46"` : '';
+      const valCls = cls ? ` style="color:${cls}"` : '';
+      return `<div class="rp-mini-stat"${col}><span class="lbl">${lbl}</span><span class="val"${valCls}>${val}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+    };
+    ovEl.innerHTML = `<div class="rp-overview-grid">` +
+      gCard('有效样本数', `${valid.length} / ${total}`, `共 ${total} 条样本`) +
+      gCard('通过率', (passRate * 100).toFixed(1) + '%', `${passCount} 通过 / ${failCount} 不通过`, passRate >= 0.8 ? '#16a34a' : '#d97706') +
+      gCard('平均分', avgScore != null ? avgScore.toFixed(3) : '-', '所有有效样本均分', avgScore != null && avgScore >= 0.8 ? '#16a34a' : (avgScore != null && avgScore < 0.5 ? '#dc2626' : '#d97706')) +
+      gCard('异常 / 未通过', String(errCount + (failCount - errCount)), `${errCount} 条异常，${Math.max(0, failCount - errCount)} 条未达阈值`, '#dc2626') +
+      `</div>`;
 
-    charts.set('sample', new Chart(canvas.getContext('2d'), {
-      type,
-      data: { labels, datasets },
-      options: Object.assign(baseOptions({ mode: 'index', intersect: false }), {
-        responsive: true, maintainAspectRatio: false,
-        scales: {
-          x: {
-            stacked: style === 'bar' ? true : false,
-            grid: { display: false },
-            ticks: { color: COLORS.axis, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 30 }
-          },
-          y: {
-            min: 0, max: yMax,
-            grid: { color: 'rgba(148,163,184,0.12)' },
-            ticks: { color: COLORS.axis, font: { size: 11 },
-              callback: v => Number(v).toFixed(1) }
-          }
-        },
-        plugins: {
-          legend: { display: agg.gradersStats.length <= 10,
-            labels: { color: COLORS.axis, font: { size: 10.5 }, boxWidth: 11, padding: 8 } },
-          tooltip: {
-            callbacks: {
-              title: (items) => {
-                if (!items.length) return '';
-                const idx = items[0].dataIndex;
-                const s = valid[idx];
-                const q = (s.query || '').replace(/\s+/g, ' ').slice(0, 50);
-                return `#${s.idx + 1} ${s.id}${q ? '  ' + q + ((s.query || '').length > 50 ? '…' : '') : ''}`;
-              },
-              afterBody: (items) => {
-                if (!items.length) return '';
-                const idx = items[0].dataIndex;
-                const s = valid[idx];
-                const line = [];
-                line.push(`────────────`);
-                line.push(`均分 ${s.avg != null ? s.avg.toFixed(3) : '-'}  ${s.pass ? '✓ 通过' : '✗ 不通过'}`);
-                if (s.duration != null) line.push(`耗时 ${fmtDur(s.duration)}，工具 ${s.toolCalls} 次${s.multiTurn ? `，${s.rounds || '?'} 轮` : ''}`);
-                line.push('点击定位到表格对应样本行');
-                return line;
-              },
-              labelColor: (ctx) => ({
-                borderColor: tipColorMap.get(ctx.dataset.label) || '#000',
-                backgroundColor: tipColorMap.get(ctx.dataset.label) || '#000'
-              })
-            }
-          }
-        },
-        onClick: (_evt, els) => {
-          if (!els || !els.length) return;
-          const idx = els[0].index;
-          const s = valid[idx];
-          if (s != null) highlightSampleRow(s.idx);
+    // ---- ② Bottom 5 低分样本表 ----
+    const bots = agg.botSamples || [];
+    if (!bots.length) {
+      tblEl.innerHTML = `<div class="rp-empty">暂无可分析的低分样本</div>`;
+    } else {
+      const headers = ['排名', '样本信息', '均分', '为什么低分（核心问题）', '各评测器得分', '操作'];
+      const ch = (n) => ({ rule: 'ch-rule', llm: 'ch-llm', human: 'ch-human', custom: 'ch-custom' }[n] || 'ch-rule');
+      const rowsHtml = bots.map((s, i) => {
+        const rankCls = 'r' + (i + 1);
+        // 样本信息列
+        const qRaw = s.query || '';
+        const q = qRaw.length > 36 ? qRaw.slice(0, 36) + '…' : qRaw;
+        const orig = state.result && Array.isArray(state.result.samples) ? state.result.samples[s.idx] || null : null;
+        let refText = '';
+        if (orig && orig.referenceResponse != null) {
+          const r = typeof orig.referenceResponse === 'string' ? orig.referenceResponse : JSON.stringify(orig.referenceResponse);
+          refText = r.length > 36 ? r.slice(0, 36) + '…' : r;
         }
-      }),
-      plugins
-    }));
+        const smTags = [];
+        smTags.push(s.multiTurn
+          ? `<span class="sm t-multi">多轮 ${s.rounds || '?'}</span>`
+          : `<span class="sm t-single">单轮</span>`);
+        smTags.push(`<span class="sm t-tool">工具 ${s.toolCalls}</span>`);
+        if (s.duration != null) smTags.push(`<span class="sm t-time">${fmtDur(s.duration)}</span>`);
+        if (s.error) smTags.push(`<span class="sm t-err">异常</span>`);
+        const refHtml = refText ? `<div class="rp-sample-ref">期望：${esc(refText)}</div>` : '';
+        const sampleCol = `<div>
+          <div style="margin-bottom:3px"><code style="font-size:10.5px;color:#475569;background:#f1f5f9;padding:1px 6px;border-radius:3px">#${s.idx + 1}</code> <code style="font-size:10.5px;color:#64748b">${esc(String(s.id || '').slice(0, 14))}</code></div>
+          <div class="rp-sample-q">${esc(q)}</div>
+          ${refHtml}
+          <div class="rp-sample-meta">${smTags.join('')}</div>
+        </div>`;
+        // 均分列
+        const grade = avgGrade(s.avg);
+        const avgTxt = s.avg != null ? s.avg.toFixed(3) : '-';
+        const belowPass = s.avg != null && s.avg < PASS_THRESHOLD;
+        const subHtml = belowPass && s.avg != null
+          ? `<div class="rp-avg-sub bad">距阈值差 ${(PASS_THRESHOLD - s.avg).toFixed(3)}</div>`
+          : (s.pending ? `<div class="rp-avg-sub">待评 ${s.pending} 项</div>`
+              : (s.error ? `<div class="rp-avg-sub bad">含评测异常</div>` : `<div class="rp-avg-sub">已通过 ✓</div>`));
+        const avgCol = `<div><div class="rp-avg-num ${grade}">${avgTxt}</div>${subHtml}</div>`;
+        // issue 列
+        const issues = collectLowScoreIssues(agg, s);
+        const issueHtml = issues.length
+          ? `<div class="rp-issue-list">` + issues.map(it => {
+              const gHtml = it.grader ? `<span class="i-grader ${ch(it.channel || 'rule')}">${esc(it.grader)}</span>` : '';
+              let ic = '⚠';
+              if (it.type === 'agent') ic = '⛔';
+              else if (it.type === 'graderr') ic = '✗';
+              else if (it.type === 'evidence') ic = '🔍';
+              else if (it.type === 'pend') ic = '⏳';
+              else if (it.type === 'low') ic = '↓';
+              return `<div class="rp-issue-item i-${it.type}"><span class="i-ic">${ic}</span><div class="i-body">${gHtml}${esc(it.text)}</div></div>`;
+            }).join('') + `</div>`
+          : `<div class="muted" style="font-size:11.5px">无可提取的扣分项</div>`;
+        // 评测器得分列
+        const graderArr = Object.entries(s.byGrader || {});
+        const graderHtml = graderArr.length
+          ? `<div class="rp-grader-row">` + graderArr.map(([name, g]) => {
+              let inner, title = '';
+              if (g.error) { inner = `<span class="score err">${esc(name)}:错误</span>`; title = String(g.reason || ''); }
+              else if (g.pending) { inner = `<span class="score pending">${esc(name)}:待评</span>`; title = '待人工评分'; }
+              else if (g.skipped) { inner = `<span class="score skip">${esc(name)}:跳过</span>`; title = String(g.reason || ''); }
+              else {
+                const v = g.score != null ? g.score : NaN;
+                const cls = !Number.isNaN(v) ? (v >= 0.8 ? 'hi' : v >= 0.5 ? 'mid' : 'lo') : 'err';
+                inner = `<span class="score ${cls}">${esc(name)}:${!Number.isNaN(v) ? Number(v).toFixed(2) : '-'}</span>`;
+                title = String(g.reason || '');
+              }
+              return `<div title="${esc(title)}">${inner}</div>`;
+            }).join('') + `</div>`
+          : `<span class="muted" style="font-size:11.5px">无评测结果</span>`;
+        const opCol = `<button class="btn sm" data-rowidx="${s.idx}">查看</button>`;
+        return `<tr>
+          <td class="col-rank"><span class="rp-rank-badge ${rankCls}">${i + 1}</span></td>
+          <td class="col-sample">${sampleCol}</td>
+          <td class="col-avg">${avgCol}</td>
+          <td class="col-issues">${issueHtml}</td>
+          <td class="col-graders">${graderHtml}</td>
+          <td class="col-op">${opCol}</td>
+        </tr>`;
+      }).join('');
+      tblEl.innerHTML = `<table class="rp-lowscore-tbl"><thead><tr>` +
+        headers.map((h, i) => {
+          const colCls = ['col-rank', 'col-sample', 'col-avg', 'col-issues', 'col-graders', 'col-op'][i] || '';
+          return `<th class="${colCls}">${h}</th>`;
+        }).join('') +
+        `</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+      tblEl.querySelectorAll('button[data-rowidx]').forEach(btn => {
+        btn.onclick = () => highlightSampleRow(Number(btn.dataset.rowidx));
+      });
+    }
 
-    // ---- count tip + Top/Bottom chips ----
-    $('rp-sample-count-tip').textContent = `共 ${valid.length}/${agg.perSample.length} 条有效样本（含得分统计）`;
+    // ---- ③ Top 高分 chips 保留（Bottom 低分 chips 保留，和表呼应）----
     const chips = (list, cls, title) => list.length
       ? `<div style="margin-right:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b style="font-size:12px;color:#475569">${title}：</b>` +
         list.map(s => {
           const avg = s.avg != null ? s.avg.toFixed(2) : '-';
           return `<span class="rp-sample-chip ${cls}" data-idx="${s.idx}" title="${esc(s.query || '').slice(0, 80)}">#${s.idx + 1} ${avg}</span>`;
         }).join('') + `</div>` : '';
-    $('rp-sample-nav').innerHTML =
+    navEl.innerHTML =
       `<div class="rp-sample-nav" style="display:flex;align-items:center;flex-wrap:wrap">` +
       chips(agg.botSamples, 'lo', 'Bottom 低分') +
       chips(agg.topSamples, 'hi', 'Top 高分') +
       `</div>`;
-    // chip 点击事件委托
-    $('rp-sample-nav').querySelectorAll('.rp-sample-chip').forEach(el => {
+    navEl.querySelectorAll('.rp-sample-chip').forEach(el => {
       el.onclick = () => { const i = Number(el.dataset.idx); if (!Number.isNaN(i)) highlightSampleRow(i); };
     });
   }
