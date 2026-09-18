@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.disjoint.dto;
+package com.conca.ontology.disjoint.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "冲突检测请求：传入一段待校验的文本（LLM 拟输出 / 草稿 / 抽取结果等）")

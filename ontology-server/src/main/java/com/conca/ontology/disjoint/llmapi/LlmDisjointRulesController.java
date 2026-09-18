@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.disjoint.llmapi;
+package com.conca.ontology.disjoint.llmapi;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,10 +8,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.graph.disjoint.dto.DisjointCheckRequest;
-import com.conca.ontology.graph.disjoint.dto.view.DisjointConflictView;
-import com.conca.ontology.graph.disjoint.model.DisjointRuleFile;
-import com.conca.ontology.graph.disjoint.service.DisjointRuleService;
+import com.conca.ontology.disjoint.dto.DisjointCheckRequest;
+import com.conca.ontology.disjoint.dto.view.DisjointConflictView;
+import com.conca.ontology.disjoint.model.DisjointRuleFile;
+import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

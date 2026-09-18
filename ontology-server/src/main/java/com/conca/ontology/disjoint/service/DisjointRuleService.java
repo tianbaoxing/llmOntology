@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.disjoint.service;
+package com.conca.ontology.disjoint.service;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -13,10 +13,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.conca.ontology.graph.disjoint.dto.view.DisjointConflictView;
+import com.conca.ontology.disjoint.dto.view.DisjointConflictView;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.graph.disjoint.model.DisjointRule;
-import com.conca.ontology.graph.disjoint.model.DisjointRuleFile;
+import com.conca.ontology.disjoint.model.DisjointRule;
+import com.conca.ontology.disjoint.model.DisjointRuleFile;
 
 @Service
 public class DisjointRuleService {

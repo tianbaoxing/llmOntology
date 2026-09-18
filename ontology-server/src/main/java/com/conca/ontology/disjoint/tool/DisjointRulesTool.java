@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.disjoint.tool;
+package com.conca.ontology.disjoint.tool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -7,9 +7,9 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.conca.ontology.graph.disjoint.model.DisjointRule;
-import com.conca.ontology.graph.disjoint.model.DisjointRuleFile;
-import com.conca.ontology.graph.disjoint.service.DisjointRuleService;
+import com.conca.ontology.disjoint.model.DisjointRule;
+import com.conca.ontology.disjoint.model.DisjointRuleFile;
+import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.tool.Tool;

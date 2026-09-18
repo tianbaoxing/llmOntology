@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.disjoint.api;
+package com.conca.ontology.disjoint.api;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.graph.disjoint.model.DisjointRule;
-import com.conca.ontology.graph.disjoint.model.DisjointRuleFile;
-import com.conca.ontology.graph.disjoint.service.DisjointRuleService;
+import com.conca.ontology.disjoint.model.DisjointRule;
+import com.conca.ontology.disjoint.model.DisjointRuleFile;
+import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

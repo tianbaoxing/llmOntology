@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.disjoint.model;
+package com.conca.ontology.disjoint.model;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "单条互斥约束规则：用户自由文本，约定【】包裹候选项；命中同一条内 ≥2 个候选项即触发冲突")

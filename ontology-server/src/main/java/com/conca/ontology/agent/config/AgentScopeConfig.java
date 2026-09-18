@@ -10,9 +10,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.conca.ontology.agent.tool.ChartPluginTool;
-import com.conca.ontology.graph.disjoint.tool.DisjointRulesTool;
+import com.conca.ontology.disjoint.tool.DisjointRulesTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
-import com.conca.ontology.graph.disjoint.service.DisjointRuleService;
+import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.agentscope.core.state.JsonFileAgentStateStore;
 import io.agentscope.core.studio.StudioManager;

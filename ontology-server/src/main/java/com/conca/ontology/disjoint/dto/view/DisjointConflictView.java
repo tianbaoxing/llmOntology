@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.disjoint.dto.view;
+package com.conca.ontology.disjoint.dto.view;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
