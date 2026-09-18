@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.conca.ontology.dto.view.DisjointConflictView;
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.model.DisjointRule;
 import com.conca.ontology.model.DisjointRuleFile;
 

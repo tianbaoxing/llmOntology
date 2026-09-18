@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.conca.ontology.dto.ApiResponse;
+import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.dto.request.NodeCreateRequest;
 import com.conca.ontology.dto.result.NodeCreateResult;
 import com.conca.ontology.dto.result.NodeDeleteResult;

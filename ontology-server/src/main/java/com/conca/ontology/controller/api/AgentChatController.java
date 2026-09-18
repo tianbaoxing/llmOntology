@@ -14,12 +14,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.conca.ontology.auth.SessionUser;
+import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.dto.request.AgentChatRequest;
 import com.conca.ontology.dto.request.SessionTitleRequest;
-import com.conca.ontology.dto.ApiResponse;
-import com.conca.ontology.exception.ApiException;
-import com.conca.ontology.model.UserEntry;
+import com.conca.ontology.shared.web.ApiResponse;
+import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.service.AgentChatService;
 import com.conca.ontology.service.AgentSessionService;
 

@@ -25,7 +25,7 @@ import com.conca.ontology.dto.result.QueryResult;
 import com.conca.ontology.dto.view.RelationDetail;
 import com.conca.ontology.dto.view.RelationView;
 import com.conca.ontology.dto.view.SchemaView;
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.model.ClassDef;
 import com.conca.ontology.model.GraphSchema;
 import com.conca.ontology.model.PropertyDef;

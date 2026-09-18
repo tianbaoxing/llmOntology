@@ -25,7 +25,7 @@ import io.agentscope.harness.agent.HarnessAgent;
 import com.conca.ontology.agent.ContentSecurityMiddleware;
 import com.conca.ontology.agent.RolePermissionMiddleware;
 import com.conca.ontology.service.ContentSecurityService;
-import com.conca.ontology.service.RolePermissionService;
+import com.conca.ontology.user.service.RolePermissionService;
 
 /**
  * AgentScope 2.0 Harness 装配：

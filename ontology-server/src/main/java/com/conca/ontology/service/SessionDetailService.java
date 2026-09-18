@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.skill.SkillUsageJudge;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

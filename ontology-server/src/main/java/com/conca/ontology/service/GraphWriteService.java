@@ -14,7 +14,7 @@ import com.conca.ontology.dto.result.RelCreateResult;
 import com.conca.ontology.dto.result.RelDeleteResult;
 import com.conca.ontology.dto.request.RelRequest;
 import com.conca.ontology.dto.result.RelUpdateResult;
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.model.GraphSchema;
 
 /**

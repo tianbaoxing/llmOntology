@@ -14,7 +14,7 @@ import com.conca.ontology.dto.result.BatchNodesResult;
 import com.conca.ontology.dto.result.BatchRelsResult;
 import com.conca.ontology.dto.request.NodeBatchRequest;
 import com.conca.ontology.dto.request.RelBatchRequest;
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.model.ClassDef;
 import com.conca.ontology.model.GraphSchema;
 

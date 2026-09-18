@@ -15,7 +15,8 @@ import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.user.service.UserService;
 
 /**
  * Agent 记忆查看（只读）：扫描 workspace/{userId}/ 下的记忆文件，

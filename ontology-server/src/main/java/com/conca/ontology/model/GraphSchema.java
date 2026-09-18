@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 
 /**
  * 图谱白名单与元数据注册表：从 graph-schema.json 加载（唯一事实源），支持热更新。

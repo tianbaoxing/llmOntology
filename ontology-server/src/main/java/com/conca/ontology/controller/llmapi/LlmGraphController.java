@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.conca.ontology.dto.ApiResponse;
+import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.dto.result.BatchNodesResult;
 import com.conca.ontology.dto.result.BatchRelsResult;
 import com.conca.ontology.dto.view.GraphStatsView;

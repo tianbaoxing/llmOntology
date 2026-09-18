@@ -12,8 +12,8 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.conca.ontology.model.RoleRule;
-import com.conca.ontology.service.RolePermissionService;
+import com.conca.ontology.user.model.RoleRule;
+import com.conca.ontology.user.service.RolePermissionService;
 
 import io.agentscope.core.agent.Agent;
 import io.agentscope.core.agent.RuntimeContext;

@@ -17,7 +17,7 @@ import com.conca.ontology.dto.view.NeighborGroupsView;
 import com.conca.ontology.dto.view.NeighborsView;
 import com.conca.ontology.dto.view.NodesPageView;
 import com.conca.ontology.dto.result.QueryResult;
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.model.ClassDef;
 import com.conca.ontology.model.GraphSchema;
 import com.conca.ontology.model.PropertyDef;

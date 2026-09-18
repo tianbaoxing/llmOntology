@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 import com.conca.ontology.dto.result.QueryResult;
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.service.GraphQueryService;
 
 /**

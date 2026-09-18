@@ -25,7 +25,7 @@ import com.conca.ontology.dto.result.FileDeleteResult;
 import com.conca.ontology.dto.view.FileListView;
 import com.conca.ontology.dto.result.FileUpdateResult;
 import com.conca.ontology.dto.result.FileUploadResult;
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.model.FileEntry;
 import com.conca.ontology.model.FileMetadataFile;
 

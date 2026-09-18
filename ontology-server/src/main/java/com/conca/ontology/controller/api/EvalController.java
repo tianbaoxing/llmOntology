@@ -19,8 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.conca.ontology.auth.SessionUser;
-import com.conca.ontology.dto.ApiResponse;
+import com.conca.ontology.user.web.SessionUser;
+import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.dto.request.EvalCustomGraderRequest;
 import com.conca.ontology.dto.request.EvalCustomGraderTestRequest;
 import com.conca.ontology.dto.request.EvalDatasetRequest;
@@ -29,7 +29,7 @@ import com.conca.ontology.dto.request.EvalRunRequest;
 import com.conca.ontology.dto.request.EvalSampleRequest;
 import com.conca.ontology.dto.result.FromChatSampleResult;
 import com.conca.ontology.eval.EvalService;
-import com.conca.ontology.exception.ApiException;
+import com.conca.ontology.shared.web.ApiException;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.conca.ontology.dto.ApiResponse;
+import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.dto.DisjointCheckRequest;
 import com.conca.ontology.dto.view.DisjointConflictView;
 import com.conca.ontology.model.DisjointRuleFile;

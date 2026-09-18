@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.conca.ontology.dto.ApiResponse;
+import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.dto.result.FileDeleteResult;
 import com.conca.ontology.dto.request.FileDescRequest;
 import com.conca.ontology.dto.view.FileListView;
