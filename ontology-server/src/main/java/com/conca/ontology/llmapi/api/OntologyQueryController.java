@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.ontologyquery;
+package com.conca.ontology.llmapi.api;
 import java.util.Map;
 
 import jakarta.validation.Valid;
@@ -9,13 +9,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.graph.ontologyquery.OntologyQueryRequest;
-import com.conca.ontology.graph.ontologyquery.OntologyQueryExecutionService;
+import com.conca.ontology.llmapi.dto.OntologyQueryRequest;
+import com.conca.ontology.llmapi.service.OntologyQueryExecutionService;
 
-/**
- * 本体查询专用入口：
- * - /query 接受只读 Cypher，执行图谱查询
- */
 @RestController
 @RequestMapping("/api/llm/ontology-query")
 public class OntologyQueryController {

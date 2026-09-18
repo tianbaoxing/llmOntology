@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.llmapi;
+package com.conca.ontology.llmapi.api;
 import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,9 +16,6 @@ import com.conca.ontology.graph.service.ProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * LLM 专属入口：构建期问询记录（用户画像 / ontology 画像）的读写。
- */
 @Tag(name = "LLM-Profile", description = "构建期问询记录（用户画像 / ontology 画像）：LLM 在构建各阶段回看历史问答、追加新问答。"
         + "按 key upsert，同 key 重复问答覆盖，画像始终最新。")
 @RestController

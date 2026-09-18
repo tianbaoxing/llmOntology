@@ -1,4 +1,4 @@
-package com.conca.ontology.disjoint.llmapi;
+package com.conca.ontology.llmapi.api;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,15 +16,6 @@ import com.conca.ontology.disjoint.service.DisjointRuleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * LLM 专属入口：互斥约束词典（CRM-ACA 建模层的 DisjointClasses 简化版）。
- *
- * Agent 使用方式：
- *   1) 生成任何包含"事实描述"的最终回复 / 拟写入图谱的抽取结果 之前，
- *      调用 POST /api/llm/disjoint-rules/check 对文本跑一次冲突校验。
- *   2) 返回非空 conflict[] → 直接终止当前生成/写入，用返回的规则原文向用户说明，
- *      不要把冲突内容当成事实继续输出。
- */
 @Tag(name = "LLM-DisjointRules", description = "互斥约束词典 LLM 平面：读规则+冲突检测。"
         + "LLM 生成最终回复/写入前必须跑 check，有冲突必须终止并告知用户冲突规则。")
 @RestController

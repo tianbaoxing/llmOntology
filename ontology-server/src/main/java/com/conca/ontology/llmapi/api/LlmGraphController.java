@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.llmapi;
+package com.conca.ontology.llmapi.api;
 import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,11 +37,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * LLM 专属入口：图数据读写，供构建期实例抽取、批量灌数与对账校验。
- * 与 admin 入口（/api/graph 单条 CRUD/stats/node）同源同逻辑，双入口隔离调用方；
- * query/neighbors/batch 仅 LLM 使用，只在此暴露。
- */
 @Tag(name = "LLM-Graph", description = "图数据读写：通用只读查询、统计、节点/关系单条 CRUD 与批量幂等写入。"
         + "安全约束：label/type/属性名须在 schema 白名单内（校验后才拼接 Cypher），数据值全参数绑定。"
         + "与 admin 入口 /api/graph 同源同逻辑；query/neighbors/batch 仅本平面暴露。")

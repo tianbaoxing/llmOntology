@@ -1,4 +1,4 @@
-package com.conca.ontology.file.llmapi;
+package com.conca.ontology.llmapi.api;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,11 +15,6 @@ import com.conca.ontology.file.service.FileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * LLM 专属入口：只读文件列表（path 恒为"应读路径"）。
- * 二进制原件（pdf/word/excel）已自动转为 MD，path 指向 files-md/ 下的 Markdown；
- * 文本类原样返回原路径；转换 FAILED 的文件不返回（admin 页可见原因并支持重试）。
- */
 @Tag(name = "LLM-File", description = "知识库文件只读列表：返回 name/path(应读绝对路径)/originName/size/ext/description/uploadedAt，"
         + "path 恒为 Markdown/文本文件，LLM 按路径用自身工具直接读取。")
 @RestController
@@ -40,14 +35,12 @@ public class LlmFileController {
     public ApiResponse<LlmFileListView> files() {
         FileListView list = storageService.list();
         List<LlmFileEntryView> files = list.files().stream()
-                // FAILED 不给 LLM（admin 页可见原因，reconvert 修复后自动出现）
                 .filter(f -> !FileEntry.STATUS_FAILED.equals(f.convertStatus()))
                 .map(this::toView)
                 .toList();
         return ApiResponse.ok(new LlmFileListView(list.version(), files));
     }
 
-    /** 二进制 → MD 路径（originName 溯源）；文本 → 原路径 */
     private LlmFileEntryView toView(FileEntry f) {
         if (FileEntry.STATUS_SUCCESS.equals(f.convertStatus()) && f.mdName() != null) {
             return new LlmFileEntryView(f.mdName(), storageService.mdPathOf(f.mdName()), f.name(),

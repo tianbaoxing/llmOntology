@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.ontologyquery;
+package com.conca.ontology.llmapi.dto;
 import java.util.Map;
 
 import jakarta.validation.constraints.NotBlank;

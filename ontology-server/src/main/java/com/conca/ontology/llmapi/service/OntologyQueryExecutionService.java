@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.ontologyquery;
+package com.conca.ontology.llmapi.service;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,10 +10,6 @@ import com.conca.ontology.graph.dto.result.QueryResult;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.graph.service.GraphQueryService;
 
-/**
- * 本体查询专用只读执行入口：额外收紧通用 graph query 的使用边界，
- * 明确拒绝多语句与任何写操作关键字。
- */
 @Service
 public class OntologyQueryExecutionService {
 

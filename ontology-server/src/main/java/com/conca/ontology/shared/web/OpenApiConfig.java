@@ -31,7 +31,7 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("llm")
                 .pathsToMatch("/api/llm/**")
-                .packagesToScan("com.conca.ontology.graph.llmapi", "com.conca.ontology.file.llmapi", "com.conca.ontology.disjoint.llmapi")
+                .packagesToScan("com.conca.ontology.llmapi.api", "com.conca.ontology.llmapi.service")
                 .build();
     }
 

@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.llmapi;
+package com.conca.ontology.llmapi.api;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,10 +23,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * LLM 专属入口：概念层（schema 元数据）读写，供构建期概念抽取与落库。
- * 与 admin 入口（/api/schema）同源同逻辑，双入口隔离调用方。
- */
 @Tag(name = "LLM-Schema", description = "概念层（schema 元数据）读写：类定义、属性、关系声明的全量视图与 CRUD。"
         + "唯一事实源 graph-schema.json，每次变更 version+1 并热更新写接口白名单。"
         + "与 admin 入口 /api/schema 同源同逻辑。")
