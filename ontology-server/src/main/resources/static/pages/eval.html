@@ -492,6 +492,7 @@ tr.diff-imp td { background: #f0fdf4; }
 
   <div class="page-tabs">
     <a class="ptab active" data-tab="run" onclick="switchTab('run')">运行评测</a>
+    <a class="ptab" data-tab="report" onclick="switchTab('report')">评测报告</a>
     <a class="ptab" data-tab="ds" onclick="switchTab('ds')">数据集管理</a>
     <a class="ptab" data-tab="cg" onclick="switchTab('cg')">自定义评测器</a>
     <a class="ptab" data-tab="sk" onclick="switchTab('sk')">Skills 管理</a>
@@ -527,6 +528,10 @@ tr.diff-imp td { background: #f0fdf4; }
     </div>
   </div>
 
+  </div>
+
+  <!-- Tab 2：评测报告 -->
+  <div id="tab-report" style="display:none">
   <div class="card">
     <h2>历史评测</h2>
     <div id="ev-runs"></div>
@@ -662,7 +667,7 @@ tr.diff-imp td { background: #f0fdf4; }
   </div>
   </div>
 
-  <!-- Tab 2：数据集管理 -->
+  <!-- Tab 3：数据集管理 -->
   <div id="tab-ds" style="display:none">
     <div class="card">
       <h2>数据集管理</h2>
@@ -683,7 +688,7 @@ tr.diff-imp td { background: #f0fdf4; }
     </div>
   </div>
 
-  <!-- Tab 3：自定义评测器 -->
+  <!-- Tab 4：自定义评测器 -->
   <div id="tab-cg" style="display:none">
     <div class="card">
       <h2>自定义评测器</h2>
@@ -696,7 +701,7 @@ tr.diff-imp td { background: #f0fdf4; }
     </div>
   </div>
 
-  <!-- Tab 4：Skills 管理（列表视图 + 详情视图） -->
+  <!-- Tab 5：Skills 管理（列表视图 + 详情视图） -->
   <div id="tab-sk" style="display:none">
     <div id="sk-stale-banner"></div>
     <div class="card" id="sk-list">
@@ -1018,6 +1023,7 @@ function fmtDuration(ms) {
 
 function renderResult(result) {
   if (!result) return;
+  switchTab('report');
   currentResult = result;
   $('ev-result-card').style.display = '';
   $('ev-result-title').textContent = '结果明细：' + result.id + '（' + result.dataset + '）'
@@ -1099,6 +1105,7 @@ let humanState = { taskId: null, samples: [], idx: 0, draft: { star: 0, comment:
 /** 打开人工评分面板：从当前结果解析样本清单与已评状态，并定位到第一条待评样本 */
 function renderHumanPanel(result) {
   if (!result) return;
+  switchTab('report');
   const samples = (result.samples || []).map(sm => {
     const hs = (sm.scores || []).find(x => x.name === 'human_review') || { pending: true };
     return {
@@ -1651,6 +1658,7 @@ let smModal = { mode: 'add', seq: 0 };
 function switchTab(name) {
   document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   $('tab-run').style.display = name === 'run' ? '' : 'none';
+  $('tab-report').style.display = name === 'report' ? '' : 'none';
   $('tab-ds').style.display = name === 'ds' ? '' : 'none';
   $('tab-cg').style.display = name === 'cg' ? '' : 'none';
   $('tab-sk').style.display = name === 'sk' ? '' : 'none';
