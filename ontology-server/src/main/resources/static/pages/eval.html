@@ -255,6 +255,170 @@ tr.diff-imp td { background: #f0fdf4; }
 /* stale 顶部提示条：文件变更后滑入提醒重新检测 */
 #sk-stale-banner { position: sticky; top: 0; z-index: 50; display: none; align-items: center; gap: 8px; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; animation: skSlideDown .3s ease; }
 @keyframes skSlideDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+/* ========== 评测报告模块 ========== */
+.report-card {
+  border:1px solid #e2e8f0; border-radius:12px; background:#fff;
+  margin-top:14px; box-shadow:0 1px 3px rgba(15,23,42,.04);
+  overflow:hidden;
+}
+.report-head {
+  display:flex; align-items:center; gap:10px; padding:10px 16px;
+  background:linear-gradient(135deg,#f8fafc 0%,#eef2ff 100%);
+  border-bottom:1px solid #e2e8f0;
+}
+.report-head h3 { margin:0; font-size:14px; color:#1e293b; font-weight:700; }
+.report-head .sub { font-size:12px; color:#64748b; }
+.report-toggle {
+  margin-left:auto; font-size:11px; font-weight:600; cursor:pointer;
+  padding:3px 10px; border-radius:16px; border:1.5px solid #a5b4fc; background:#fff;
+  color:#4f46e5; transition:all .15s ease;
+}
+.report-toggle:hover { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+.report-body { padding:14px 16px; }
+.report-body.collapsed { display:none; }
+
+.rp-section { margin-bottom:18px; }
+.rp-section:last-child { margin-bottom:0; }
+.rp-section-title {
+  display:flex; align-items:center; gap:8px; margin-bottom:10px;
+  font-size:13px; font-weight:700; color:#334155;
+}
+.rp-section-title::before {
+  content:''; width:3px; height:14px; background:#4f46e5; border-radius:2px;
+}
+.rp-row { display:flex; gap:14px; flex-wrap:wrap; }
+.rp-col { flex:1; min-width:0; }
+.rp-col-1 { flex:0 0 280px; }
+.rp-col-2 { flex:0 0 auto; min-width:260px; }
+
+/* 总分卡 */
+.rp-total-score {
+  background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);
+  border:1px solid #c7d2fe; border-radius:10px; padding:16px; text-align:center;
+}
+.rp-total-score .ts-num {
+  font-size:48px; font-weight:800; color:#4338ca; line-height:1;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:-1px;
+}
+.rp-total-score .ts-grade {
+  display:inline-block; margin-top:8px; padding:3px 14px; border-radius:14px;
+  font-size:13px; font-weight:700; color:#fff;
+}
+.ts-grade.S { background:#059669; }
+.ts-grade.A { background:#16a34a; }
+.ts-grade.B { background:#d97706; }
+.ts-grade.C { background:#ea580c; }
+.ts-grade.D { background:#dc2626; }
+.rp-total-score .ts-stats {
+  margin-top:12px; display:grid; grid-template-columns:1fr 1fr 1fr;
+  gap:8px; padding-top:12px; border-top:1px dashed #a5b4fc;
+}
+.rp-total-score .ts-stats div { font-size:12px; color:#475569; }
+.rp-total-score .ts-stats b { display:block; font-size:15px; color:#1e293b; }
+
+/* 图表容器 */
+.rp-chart-box {
+  border:1px solid #e2e8f0; border-radius:8px; background:#fafbfc;
+  padding:10px 12px; position:relative;
+}
+.rp-chart-wrap { position:relative; width:100%; height:280px; }
+.rp-chart-wrap.sm { height:200px; }
+.rp-chart-wrap.lg { height:320px; }
+.rp-chart-wrap.xl { height:360px; }
+.rp-chart-toolbar {
+  display:flex; gap:6px; align-items:center; flex-wrap:wrap;
+  margin-bottom:8px; font-size:12px; color:#475569;
+}
+.rp-seg {
+  display:inline-flex; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden;
+}
+.rp-seg button {
+  padding:3px 10px; border:none; background:#fff; font-size:12px; cursor:pointer;
+  color:#475569; font-weight:500;
+}
+.rp-seg button.on { background:#4f46e5; color:#fff; }
+.rp-chip-btn {
+  padding:3px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#fff;
+  font-size:12px; cursor:pointer; color:#475569; font-weight:500;
+}
+.rp-chip-btn:hover { border-color:#4f46e5; color:#4f46e5; }
+.rp-chip-btn.on { background:#f0fdf4; border-color:#22c55e; color:#166534; }
+
+/* 评测器明细表 */
+.rp-grader-tbl { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+.rp-grader-tbl th {
+  background:#f1f5f9; color:#475569; font-weight:600;
+  padding:6px 8px; text-align:left; border-bottom:1px solid #e2e8f0;
+  white-space:nowrap;
+}
+.rp-grader-tbl td {
+  padding:6px 8px; border-bottom:1px solid #f1f5f9; vertical-align:middle;
+}
+.rp-grader-tbl tr:hover td { background:#f8fafc; }
+.rp-bar-mini {
+  display:inline-block; height:10px; border-radius:5px;
+  background:linear-gradient(90deg,#818cf8 0%,#4f46e5 100%);
+  vertical-align:middle; margin-right:6px;
+}
+.rp-dist {
+  display:inline-flex; gap:1px; height:10px; vertical-align:middle;
+}
+.rp-dist i {
+  display:inline-block; width:8px; background:#e2e8f0; border-radius:1px;
+}
+.rp-dist i.on { background:linear-gradient(180deg,#22c55e 0%,#16a34a 100%); }
+.rp-dist i.on.mid { background:linear-gradient(180deg,#fbbf24 0%,#d97706 100%); }
+.rp-dist i.on.lo { background:linear-gradient(180deg,#f87171 0%,#dc2626 100%); }
+
+/* 单样本得分表格联动高亮 */
+#ev-samples tr.highlight td { background:#fef9c3 !important; }
+#ev-samples tr.highlight td { animation:rowFlash 1.4s ease 2; }
+@keyframes rowFlash {
+  0%,100% { background:#fef9c3 !important; }
+  50% { background:#fde047 !important; }
+}
+
+/* Top / Bottom 列表 */
+.rp-sample-nav {
+  display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;
+}
+.rp-sample-chip {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 9px; border-radius:14px; font-size:11px;
+  background:#fff; border:1px solid #e2e8f0; cursor:pointer;
+  color:#475569; font-weight:600;
+}
+.rp-sample-chip:hover { border-color:#4f46e5; color:#4f46e5; }
+.rp-sample-chip.lo { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
+.rp-sample-chip.hi { background:#f0fdf4; border-color:#bbf7d0; color:#166534; }
+
+/* 补充指标可折叠区 */
+.rp-extra-wrap { border-top:1px dashed #e2e8f0; margin-top:8px; padding-top:12px; }
+.rp-extra-btn {
+  display:inline-flex; align-items:center; gap:4px; cursor:pointer;
+  font-size:12px; color:#64748b; font-weight:600;
+}
+.rp-extra-btn::after { content:'▾'; transition:transform .15s; }
+.rp-extra-btn.open::after { transform:rotate(180deg); }
+.rp-extra-body { display:none; margin-top:12px; }
+.rp-extra-body.open { display:block; }
+
+.rp-3grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+@media (max-width: 960px) {
+  .rp-3grid { grid-template-columns:1fr; }
+  .rp-col-1 { flex:1; }
+}
+.rp-mini-stat {
+  display:flex; flex-direction:column; gap:4px; padding:10px 12px;
+  border:1px solid #e2e8f0; border-radius:8px; background:#fafbfc;
+}
+.rp-mini-stat .lbl { font-size:11px; color:#64748b; font-weight:600; }
+.rp-mini-stat .val { font-size:18px; font-weight:700; color:#1e293b; }
+.rp-mini-stat .sub { font-size:11px; color:#94a3b8; }
+
+.rp-xscroll { overflow-x:auto; max-width:100%; }
+.rp-empty { padding:28px; text-align:center; color:#94a3b8; font-size:12px; }
 </style>
 </head>
 <body>
@@ -306,6 +470,124 @@ tr.diff-imp td { background: #f0fdf4; }
   <div class="card" id="ev-result-card" style="display:none">
     <h2 id="ev-result-title">结果明细</h2>
     <div id="ev-summary"></div>
+
+    <!-- ========== 评测报告模块（开始） ========== -->
+    <div class="report-card" id="ev-report-card" style="display:none">
+      <div class="report-head">
+        <h3>📊 评测报告</h3>
+        <span class="sub" id="ev-report-subtitle"></span>
+        <button class="report-toggle" id="ev-report-toggle" onclick="Report.toggle()">收起</button>
+      </div>
+      <div class="report-body" id="ev-report-body">
+
+        <!-- ① 综合总览 -->
+        <div class="rp-section">
+          <div class="rp-section-title">综合总览</div>
+          <div class="rp-row">
+            <div class="rp-col-1" id="rp-total-box"></div>
+            <div class="rp-col">
+              <div class="rp-chart-box">
+                <div class="rp-chart-wrap sm">
+                  <canvas id="rp-radar-chart"></canvas>
+                </div>
+                <div id="rp-radar-empty" class="rp-empty" style="display:none">评测器数量不足（&lt;3 个），雷达图跳过展示</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ② 评测器维度分析 -->
+        <div class="rp-section">
+          <div class="rp-section-title">评测器维度分析</div>
+          <div class="rp-chart-box">
+            <div class="rp-chart-wrap">
+              <canvas id="rp-grader-chart"></canvas>
+            </div>
+            <div id="rp-grader-empty" class="rp-empty" style="display:none">暂无评测器数据</div>
+          </div>
+          <div id="rp-grader-table"></div>
+        </div>
+
+        <!-- ③ 单样本维度分析 -->
+        <div class="rp-section">
+          <div class="rp-section-title">单样本维度分析</div>
+          <div class="rp-chart-box">
+            <div class="rp-chart-toolbar">
+              <div class="rp-seg" id="rp-sample-style">
+                <button class="on" data-v="bar">柱状图</button>
+                <button data-v="line">折线图</button>
+              </div>
+              <button class="rp-chip-btn" id="rp-show-avgline">均分参考线 ✓</button>
+              <button class="rp-chip-btn" id="rp-show-passline">通过阈值线 ✓</button>
+              <span id="rp-sample-count-tip" class="sub" style="margin-left:auto"></span>
+            </div>
+            <div class="rp-xscroll">
+              <div class="rp-chart-wrap xl">
+                <canvas id="rp-sample-chart"></canvas>
+              </div>
+            </div>
+          </div>
+          <div id="rp-sample-nav"></div>
+        </div>
+
+        <!-- ④ 耗时分析 -->
+        <div class="rp-section">
+          <div class="rp-section-title">耗时分析</div>
+          <div class="rp-chart-box">
+            <div class="rp-chart-toolbar">
+              <div class="rp-seg" id="rp-duration-style">
+                <button class="on" data-v="trend">趋势图</button>
+                <button data-v="hist">直方图</button>
+                <button data-v="scatter">工具调用 vs 耗时</button>
+              </div>
+            </div>
+            <div class="rp-chart-wrap lg">
+              <canvas id="rp-duration-chart"></canvas>
+            </div>
+            <div id="rp-duration-empty" class="rp-empty" style="display:none">暂无耗时数据</div>
+          </div>
+          <div id="rp-duration-stats"></div>
+          <div id="rp-slow-table" style="margin-top:10px"></div>
+        </div>
+
+        <!-- ⑤ 补充指标（可折叠） -->
+        <div class="rp-extra-wrap">
+          <div class="rp-extra-btn" id="rp-extra-toggle">展开补充指标（Tokens 成本 / 错误分布 / 人工评分）</div>
+          <div class="rp-extra-body" id="rp-extra-body">
+            <div class="rp-3grid">
+              <div class="rp-chart-box">
+                <div class="rp-section-title" style="margin-bottom:6px">Tokens 成本分析</div>
+                <div id="rp-tokens-stats"></div>
+                <div class="rp-chart-wrap sm" style="margin-top:8px">
+                  <canvas id="rp-tokens-chart"></canvas>
+                </div>
+              </div>
+              <div class="rp-chart-box">
+                <div class="rp-section-title" style="margin-bottom:6px">错误分布</div>
+                <div class="rp-chart-wrap sm">
+                  <canvas id="rp-error-chart"></canvas>
+                </div>
+              </div>
+              <div class="rp-chart-box">
+                <div class="rp-section-title" style="margin-bottom:6px">综合得分分布</div>
+                <div class="rp-chart-wrap sm">
+                  <canvas id="rp-score-dist-chart"></canvas>
+                </div>
+              </div>
+            </div>
+            <div id="rp-human-section" class="rp-chart-box" style="display:none;margin-top:14px">
+              <div class="rp-section-title" style="margin-bottom:6px">人工评分分布</div>
+              <div class="rp-chart-wrap sm">
+                <canvas id="rp-human-chart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <!-- ========== 评测报告模块（结束） ========== -->
+
     <div id="ev-samples" style="margin-top:12px"></div>
     <div id="ev-human-wrap" style="display:none; margin-top:16px; border-top:2px solid #f3e3c0; padding-top:10px">
       <h2>人工评分</h2>
@@ -541,6 +823,57 @@ tr.diff-imp td { background: #f0fdf4; }
   </div>
 </div>
 <script src="/pages/common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+// 覆盖 common.js 的 api()，原因：
+// 1）原 api() 以 HTTP 401 为唯一「未登录」标志，但 Spring 的 ConcurrentSessionControlAuthenticationStrategy
+//    在并发登出/会话失效时会对任何 fetch 返回 302→200 的登录页 HTML，原实现会因 JSON.parse 失败抛「Unexpected token <」
+//    ——随后 CF.initUser() 的 /api/session 再因 401 触发普通用户拦截 → location.replace('/')，表现为「删完跳概览」。
+// 2）这里显式区分三种情况：HTTP 401 / 返回体不是 JSON / code===401 → 都跳登录，其余统一走 ApiResponse.code 分支。
+// 3）保留原签名：async function api(method, url, body)，页面其它调用点无需修改。
+(function () {
+  const _origApi = window.api;
+  async function api(method, url, body) {
+    const opt = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' };
+    if (body !== undefined) opt.body = JSON.stringify(body);
+    let res;
+    try {
+      res = await fetch(url, opt);
+    } catch (e) {
+      throw new Error('网络异常：' + (e && e.message ? e.message : e));
+    }
+    if (res.status === 401) {
+      try { location.href = '/login'; } catch (_) {}
+      throw new Error('未登录或会话已过期');
+    }
+    const text = await res.text();
+    // 会话失效后 Spring 可能 302 → 登录页（200 HTML）；这里在解析前用首字符与关键字兜底
+    const trimmed = text.trim();
+    let json;
+    if (trimmed.length && (trimmed.charAt(0) === '{' || trimmed.charAt(0) === '[')) {
+      try { json = JSON.parse(text); } catch (_) { json = null; }
+    }
+    if (!json) {
+      // 非 JSON 响应：若内容像登录页（含「login」「登录」关键字）或 3xx/401 链后返回 200 HTML → 视为会话失效
+      const low = trimmed.toLowerCase();
+      if (res.status >= 300 || res.status === 200 && (low.includes('/login') || low.includes('登录') || low.includes('sign in'))) {
+        try { location.href = '/login'; } catch (_) {}
+        throw new Error('未登录或会话已过期');
+      }
+      throw new Error('响应格式错误（HTTP ' + res.status + '）：' + trimmed.substring(0, 80));
+    }
+    if (json.code === 401) {
+      try { location.href = '/login'; } catch (_) {}
+      throw new Error(json.msg || '未登录或会话已过期');
+    }
+    if (json.code !== 0) throw new Error(json.msg || ('HTTP ' + res.status));
+    return json.data;
+  }
+  window.api = api;
+  // 保留原版指针以防 CF 内部复用
+  window.__origApi = _origApi;
+})();
+</script>
 <script>
 // 诊断钩子（先于主脚本注册，捕获一切脚本错误与资源加载失败，显示到页面，不再无声失败）
 window.addEventListener('error', function(ev) {
@@ -652,7 +985,7 @@ function renderResult(result) {
     statCard(s.avgDurationMs ? fmtDuration(s.avgDurationMs) : '-', '平均耗时') +
     statCard((s.promptTokens ?? 0) + '/' + (s.completionTokens ?? 0), 'tokens(入/出)') +
     '</div>' + humanHtml;
-  const rows = (result.samples || []).map(sm => {
+  const rows = (result.samples || []).map((sm, idx) => {
     const scores = sm.scores || [];
     const toolCalls = sm.toolCalls || [];
     const dialogue = sm.dialogue || [];
@@ -682,15 +1015,16 @@ function renderResult(result) {
     const refText = sm.referenceResponse == null ? '（无）'
       : typeof sm.referenceResponse === 'string' ? sm.referenceResponse : JSON.stringify(sm.referenceResponse);
     return [
+      idx,
       `<td class="wrap">${esc(sm.query || '')}<div class="muted" style="font-size:12px">期望回答：${esc(refText)}</div></td>`,
       `<td class="wrap">${scores.map(scoreBadge).join(' ') || '<span class="muted">无</span>'}` +
         `<details class="eval-detail"><summary>判分理由</summary><div style="font-size:13px">${reasonDetail || '<span class="muted">无</span>'}</div></details></td>`,
       `<td class="wrap">${answerDetail}</td>`
-    ].join('');
+    ];
   });
   $('ev-samples').innerHTML = rows.length
     ? '<table><tr><th>样本</th><th>评测器得分</th><th style="width:32%">回答 / 轨迹</th></tr>' +
-      rows.map(r => `<tr>${r}</tr>`).join('') + '</table>'
+      rows.map(r => `<tr data-sample-idx="${r[0]}">${r.slice(1).join('')}</tr>`).join('') + '</table>'
     : '<div class="muted">无样本</div>';
   // 回归对比入口：目标 run 固定为当前结果，基线从历史 run 选择
   currentResultId = result.id;
@@ -700,6 +1034,8 @@ function renderResult(result) {
   $('ev-diff-card').style.display = '';
   $('ev-diff').innerHTML = '';
   refreshDiffBase();
+  // 渲染评测报告（Report 模块独立，内部判空/降级）
+  try { if (window.Report) Report.render(result); } catch (e) { console.warn('Report render failed', e); }
   $('ev-result-card').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -810,6 +1146,74 @@ async function submitHumanScore(skip) {
   } catch (e) { showMsg('评分提交失败：' + e.message, false); }
 }
 
+// 拦截所有会导致页面跳转的入口，一旦命中跳 / 或 /eval 的代码路径立即打印栈；
+// 这是定位「删除后跳概览」根因的最终兜底。
+(function hookNav() {
+  // 拦截整个 document 范围的 submit（万一有隐式 form 或 button 被当 submit），
+  // 任何 submit 都直接 preventDefault + 打印栈，从源头避免整页 reload。
+  document.addEventListener('submit', function (ev) {
+    console.error('[NAV-HOOK] 捕获 submit 事件，拦截！target=', ev.target, '触发元素=', ev.submitter);
+    console.trace('[NAV-HOOK] submit 调用栈：');
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
+    return false;
+  }, true);
+  // 绑定历史评测区的事件委托（查看/删除/翻页，全部走 data-action，不依赖 inline onclick + 无 form submit 风险）
+  document.addEventListener('click', function (ev) {
+    const b = ev.target && ev.target.closest ? ev.target.closest('button[data-action]') : null;
+    if (!b) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const act = b.getAttribute('data-action');
+    const id = b.getAttribute('data-id');
+    const page = b.getAttribute('data-page');
+    if (act === 'view-run' && id) {
+      try { viewRun(encodeURIComponent(id)); } catch (e) { console.error(e); }
+    } else if (act === 'delete-run' && id) {
+      try { deleteRun(encodeURIComponent(id)); } catch (e) { console.error(e); }
+    } else if (act === 'go-runs-page' && page) {
+      try { goRunsPage(parseInt(page, 10)); } catch (e) { console.error(e); }
+    }
+    return false;
+  }, true);
+  const wrapAssign = (obj, key) => {
+    const desc = Object.getOwnPropertyDescriptor(obj, key);
+    if (!desc || !desc.configurable) return;
+    const orig = desc.set;
+    Object.defineProperty(obj, key, {
+      configurable: true,
+      enumerable: desc.enumerable,
+      get: desc.get,
+      set(v) {
+        const url = String(v || '');
+        const isSuspect = url === '/' || url.startsWith('/?') || url.includes('/pages/index') || url.startsWith(location.origin + '/?') || url.startsWith(location.origin + '/#') || (url.includes('概览'));
+        if (isSuspect) {
+          console.error('[NAV-HOOK] ' + key + ' = ' + url);
+          console.trace('[NAV-HOOK] 调用栈：');
+          try {
+            if (!confirm('[调试] 检测到代码试图跳转到「' + url + '」\n\n是否允许？（取消 = 停在当前页，保留定位线索）')) throw new Error('用户阻止了跳转 ' + url);
+          } catch (e) { /* ignore */ }
+        }
+        if (orig) return orig.call(this, v);
+        location.href = v;
+      }
+    });
+  };
+  wrapAssign(window, 'location');
+  try { wrapAssign(document, 'location'); } catch (_) {}
+  const orp = location.replace;
+  location.replace = function (url) {
+    const s = String(url || '');
+    if (s === '/' || s.startsWith('/?') || s.startsWith(location.origin + '/?') || s.startsWith(location.origin + '/#')) {
+      console.error('[NAV-HOOK] location.replace(' + s + ')');
+      console.trace('[NAV-HOOK] 调用栈：');
+      if (!confirm('[调试] 检测到 location.replace 跳「' + s + '」，允许吗？（取消 = 留在当前页）')) throw new Error('阻止 replace ' + s);
+    }
+    return orp.call(this, url);
+  };
+})();
+
 // ---------------- 历史 / 初始化 ----------------
 async function loadRuns() {
   const d = await api('GET', '/api/eval/runs');
@@ -836,8 +1240,9 @@ function renderRunsPage() {
       s.passRate != null ? (s.passRate * 100).toFixed(1) + '%' : '-',
       s.avgScore != null ? s.avgScore.toFixed(3) : '-',
       s.total ?? '-', s.errorCount ?? '-',
-      `<button class="btn sm" onclick="viewRun('${encodeURIComponent(r.id)}')">查看</button>` +
-      `<a class="btn sm" href="/api/eval/runs/${encodeURIComponent(r.id)}/file">下载</a>`
+      `<button type="button" class="btn sm" data-action="view-run" data-id="${esc(r.id)}">查看</button>` +
+      `<a class="btn sm" href="/api/eval/runs/${encodeURIComponent(r.id)}/file">下载</a>` +
+      `<button type="button" class="btn sm danger" data-action="delete-run" data-id="${esc(r.id)}">删除</button>`
     ];
   });
   let html = table(['任务 id', '数据集', '状态', '通过率', '平均分', '样本数', '异常', '操作'], rows);
@@ -848,7 +1253,7 @@ function renderRunsPage() {
   const start = Math.max(1, Math.min(page - 2, pages - 4));
   for (let i = start; i <= Math.min(pages, start + 4); i++) win.push(i);
   const btn = (label, target, dis) =>
-    `<button class="btn sm" ${dis ? 'disabled' : ''} onclick="goRunsPage(${target})">${label}</button>`;
+    `<button type="button" class="btn sm" ${dis ? 'disabled' : ''} data-action="go-runs-page" data-page="${target}">${label}</button>`;
   $('runs-pager').innerHTML =
     btn('首页', 1, page === 1) + btn('上一页', page - 1, page === 1) +
     (start > 1 ? '<span class="muted">…</span>' : '') +
@@ -861,6 +1266,50 @@ function goRunsPage(n) {
   if (n < 1 || n > runState.pages || n === runState.page) return;
   runState.page = n;
   renderRunsPage();
+}
+
+async function deleteRun(encId) {
+  const id = decodeURIComponent(encId);
+  const hit = runsCache.find(r => r.id === id);
+  const ds = hit && hit.dataset ? `（数据集：${hit.dataset}，样本 ${(hit.summary && hit.summary.total) ?? '-'} 条）` : '';
+  console.log('[DELETE-RUN] id=', id, 'enc=', encId, 'hit=', hit);
+  if (!confirm('确认删除评测记录「' + id + '」' + ds + '？此操作不可恢复。')) return;
+  try {
+    const before = performance.now();
+    const resp = await fetch('/api/eval/runs/' + encId, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const text = await resp.text();
+    const ms = (performance.now() - before).toFixed(0);
+    console.log('[DELETE-RUN] HTTP', resp.status, '耗时', ms + 'ms', 'body=', text.substring(0, 400));
+    let json;
+    try { json = JSON.parse(text); } catch (_) { json = null; }
+    if (resp.status === 401 || (json && json.code === 401)) {
+      location.href = '/login';
+      throw new Error('未登录或会话已过期');
+    }
+    if (!json || json.code !== 0) {
+      throw new Error((json && json.msg) || 'HTTP ' + resp.status + '：' + text.substring(0, 80));
+    }
+    // 若正在查看的就是这一条，清空结果卡片 + Report
+    if (id === currentResultId) {
+      currentResultId = null;
+      currentResult = null;
+      $('ev-result-card').style.display = 'none';
+      try { if (window.Report && typeof Report.destroyAll === 'function') Report.destroyAll(); } catch (_) {}
+    }
+    // 若当前页删空则回退一页
+    if (runState.total % runState.size === 1 && runState.page > 1) runState.page--;
+    await loadRuns();
+    refreshDiffBase();
+    const briefId = id.length <= 24 ? id : id.substring(0, 24) + '…';
+    showMsg('已删除「' + briefId + '」', true);
+  } catch (e) {
+    console.error('[DELETE-RUN] 失败：', e);
+    showMsg('删除失败：' + e.message, false);
+  }
 }
 
 async function viewRun(encId) {
@@ -1055,6 +1504,15 @@ async function loadGraders() {
     const grp = GROUP_META[g.group] ? g.group : (g.type === 'llm' ? 'llm.answer' : 'rule.match');
     (buckets[grp] = buckets[grp] || []).push(g);
   });
+  // 注入全局评测器缓存（给 Report 模块做通道识别，颜色正确匹配 rule/llm/human/custom）
+  try {
+    window._gradersCacheList = graderCache.map(g => {
+      const grp = GROUP_META[g.group] ? g.group : (g.type === 'llm' ? 'llm.answer' : 'rule.match');
+      const meta = GROUP_META[grp] || {};
+      // cls 正好是英文 rule/llm/human/llm（agent/custom 也归为 llm，和现有配色一致）
+      return { name: g.name, channel: meta.cls || (g.type === 'llm' ? 'llm' : 'rule'), group: g.group || grp, description: g.description || '' };
+    });
+  } catch(_) {}
   const order = GROUP_ORDER.filter(k => buckets[k])
     .concat(Object.keys(buckets).filter(k => !GROUP_ORDER.includes(k)));
   const chip = g => {
@@ -1899,12 +2357,1201 @@ async function loadSkillResource(path) {
   } catch (e) { showMsg('文件读取失败：' + e.message, false); }
 }
 
+// ================================================================
+// 评测报告模块（Report）
+//   · 独立命名空间，纯函数聚合 + Chart.js 渲染 + 交互联动
+//   · 入口：window.Report.render(result)
+//   · 对 result.samples / result.summary 聚合，后端零侵入
+// ================================================================
+window.Report = (() => {
+  'use strict';
+
+  // ---------- 常量（颜色系统严格对齐现有页面 CSS）----------
+  const COLORS = Object.freeze({
+    rule:      { main: '#2563eb', soft: '#dbeafe', bar: 'rgba(37,99,235,0.78)', grid: 'rgba(37,99,235,0.08)' },
+    llm:       { main: '#7c3aed', soft: '#ede9fe', bar: 'rgba(124,58,237,0.78)', grid: 'rgba(124,58,237,0.08)' },
+    human:     { main: '#d97706', soft: '#fef3c7', bar: 'rgba(217,119,6,0.78)', grid: 'rgba(217,119,6,0.08)' },
+    custom:    { main: '#0891b2', soft: '#cffafe', bar: 'rgba(8,145,178,0.78)', grid: 'rgba(8,145,178,0.08)' },
+    ok:        '#16a34a', warn: '#d97706', bad: '#dc2626', muted: '#94a3b8',
+    axis:      '#475569', axisSoft: '#cbd5e1',
+    palette:   [  // 多评测器循环调色板（对齐通道色系，超出后用通用色板）
+      '#2563eb','#7c3aed','#d97706','#0891b2','#059669','#db2777','#ea580c',
+      '#4f46e5','#9333ea','#b45309','#0e7490','#047857','#be185d','#c2410c'
+    ]
+  });
+  const PASS_THRESHOLD = 0.8;
+  const GRADE_THRESHOLDS = Object.freeze([
+    { min: 0.9, grade: 'S', label: '卓越' },
+    { min: 0.8, grade: 'A', label: '优秀' },
+    { min: 0.7, grade: 'B', label: '良好' },
+    { min: 0.6, grade: 'C', label: '及格' },
+    { min: 0.0, grade: 'D', label: '不足' }
+  ]);
+  const CHART_IDS = ['radar','grader','sample','duration','tokens','error','scoreDist','human'];
+
+  // ---------- 内部状态 ----------
+  const charts = new Map();
+  const state = {
+    result: null, agg: null, collapsed: false, extraOpen: false,
+    sampleStyle: 'bar', durationStyle: 'trend',
+    showAvgLine: true, showPassLine: true,
+    boundEvents: false
+  };
+
+  // ================================================================
+  // 纯函数聚合层：aggregate(result) → 所有区块一次性产出
+  // ================================================================
+  function aggregate(result) {
+    const samples = result.samples || [];
+    const summary = result.summary || {};
+    const graders = (result.graders || []).slice();
+
+    // ---- 评测器分类通道：rule / llm / human / custom ----
+    function graderChannel(name) {
+      if (name === 'human_review') return 'human';
+      if (name.startsWith('llm_') || name.startsWith('Llm') || /Llm/.test(name)) return 'llm';
+      const rulePrefixes = ['StringExact','StringContains','StringRegex','FormatJson','NumberAccuracy',
+        'ResponseRepetition','ToolCallSuccess','ActionLoop','ObservationInformationGain','TextSimilarity'];
+      if (rulePrefixes.some(p => name.startsWith(p))) return 'rule';
+      if (/^rule[_A-Z]/i.test(name)) return 'rule';
+      return 'custom';
+    }
+    // 若当前前端已加载 grader 清单（gradersCache，来自 loadGraders 结果中的定义），优先用它分通道
+    const cacheMap = new Map();
+    try {
+      (window._gradersCacheList || []).forEach(g => {
+        if (g && g.name) cacheMap.set(g.name, g.channel || 'custom');
+      });
+    } catch(_) {}
+
+    function resolveChannel(name) {
+      return cacheMap.get(name) || graderChannel(name);
+    }
+
+    // ---- 样本级聚合：每行算平均分 / 错误标记 / 耗时 ----
+    const perSample = samples.map((sm, idx) => {
+      const scores = sm.scores || [];
+      let rowSum = 0, rowN = 0, rowErr = false, rowPending = 0;
+      const byGrader = {};
+      for (const s of scores) {
+        const ch = resolveChannel(s.name);
+        if (!graders.includes(s.name)) graders.push(s.name);
+        if (Boolean(s.pending)) { rowPending++; continue; }
+        if (Boolean(s.error)) { rowErr = true; }
+        const v = Number(s.score);
+        if (!Number.isNaN(v)) { rowSum += v; rowN += 1; }
+        byGrader[s.name] = {
+          score: Number.isNaN(v) ? null : v,
+          error: Boolean(s.error), pending: Boolean(s.pending), skipped: Boolean(s.skipped),
+          reason: s.reason || '', channel: ch
+        };
+      }
+      const avg = rowN > 0 ? rowSum / rowN : null;
+      const pass = avg != null && avg >= PASS_THRESHOLD && !rowErr;
+      const duration = typeof sm.durationMs === 'number' ? sm.durationMs : null;
+      const tc = Array.isArray(sm.toolCalls) ? sm.toolCalls.length : 0;
+      const rounds = typeof sm.rounds === 'number' ? sm.rounds : (Array.isArray(sm.dialogue) ? sm.dialogue.length : null);
+      const multiTurn = Array.isArray(sm.dialogue) && sm.dialogue.length > 1;
+      return {
+        idx, id: sm.id || `#${idx + 1}`, query: sm.query || '',
+        byGrader, graderCount: rowN, avg, pass, error: rowErr, pending: rowPending,
+        duration, toolCalls: tc, rounds, multiTurn
+      };
+    });
+
+    // ---- 评测器级聚合：按 name 分组 ----
+    const validSamples = perSample.filter(s => s.avg != null);
+    const graderMap = new Map();
+    for (const name of graders) {
+      const ch = resolveChannel(name);
+      let sum = 0, n = 0, err = 0, skip = 0, pend = 0;
+      let hi = -Infinity, lo = Infinity;
+      const vals = [];
+      const bins5 = [0,0,0,0,0];  // 0-0.2 / 0.2-0.4 / 0.4-0.6 / 0.6-0.8 / 0.8-1.0
+      for (const s of perSample) {
+        const g = s.byGrader[name];
+        if (!g) { continue; }
+        if (g.pending) { pend++; continue; }
+        if (g.skipped) { skip++; continue; }
+        if (g.error) { err++; continue; }
+        if (g.score != null) {
+          sum += g.score; n++; vals.push(g.score);
+          if (g.score > hi) hi = g.score;
+          if (g.score < lo) lo = g.score;
+          const binIdx = Math.min(4, Math.max(0, Math.floor(g.score * 5)));
+          bins5[binIdx]++;
+        }
+      }
+      const mean = n > 0 ? sum / n : null;
+      // 标准差（非无偏，除以 N，前端展示够用）
+      let std = null;
+      if (n > 0 && mean != null) {
+        let s2 = 0; for (const v of vals) s2 += (v - mean) * (v - mean);
+        std = Math.sqrt(s2 / n);
+      }
+      const selfPassRate = n > 0 ? vals.filter(v => v >= PASS_THRESHOLD).length / n : null;
+      graderMap.set(name, {
+        name, channel: ch, count: n, error: err, pending: pend, skipped: skip,
+        mean, min: n > 0 ? lo : null, max: n > 0 ? hi : null, std,
+        selfPassRate, bins5
+      });
+    }
+    const gradersStats = [...graderMap.values()].sort((a, b) => (b.mean ?? -1) - (a.mean ?? -1));
+
+    // ---- 综合总分（评测器等权平均；不要求每样本覆盖全部评测器）----
+    let compositeSum = 0, compositeN = 0;
+    for (const gs of gradersStats) {
+      if (gs.mean != null) { compositeSum += gs.mean; compositeN++; }
+    }
+    const compositeScore = compositeN > 0 ? compositeSum / compositeN : (summary.avgScore != null ? summary.avgScore : null);
+    const grade = GRADE_THRESHOLDS.find(t => compositeScore != null && compositeScore >= t.min) || GRADE_THRESHOLDS[GRADE_THRESHOLDS.length - 1];
+
+    // ---- 耗时统计 ----
+    const durations = perSample.map(s => s.duration).filter(v => typeof v === 'number').sort((a, b) => a - b);
+    const durationStats = durations.length ? {
+      total: durations.reduce((a, b) => a + b, 0),
+      avg: durations.reduce((a, b) => a + b, 0) / durations.length,
+      p50: quantile(durations, 0.50), p90: quantile(durations, 0.90), p95: quantile(durations, 0.95),
+      min: durations[0], max: durations[durations.length - 1], n: durations.length,
+      byMultiTurn: groupBy(perSample, s => s.multiTurn ? '多轮' : '单轮',
+        arr => arr.filter(s => s.duration != null).map(s => s.duration)),
+      byToolCalls: perSample
+        .filter(s => s.duration != null)
+        .map(s => ({ x: s.toolCalls, y: s.duration, idx: s.idx }))
+    } : null;
+    // 直方图 bins（等宽 10 段或按 ms 分档）
+    const durationHist = buildHistogram(durations, 10);
+
+    // ---- 慢样本 Top N ----
+    const slowSamples = perSample
+      .filter(s => s.duration != null)
+      .sort((a, b) => b.duration - a.duration)
+      .slice(0, 5);
+
+    // ---- Tokens 成本 ----
+    const sSum = summary;
+    const agentPrompt = Number(sSum.promptTokens || 0) || 0;
+    const agentCompletion = Number(sSum.completionTokens || 0) || 0;
+    const judge = sSum.judge && typeof sSum.judge === 'object' ? sSum.judge : {};
+    const judgePrompt = Number(judge.promptTokens || 0) || 0;
+    const judgeCompletion = Number(judge.completionTokens || 0) || 0;
+    const tokens = {
+      agentPrompt, agentCompletion, judgePrompt, judgeCompletion,
+      agentTotal: agentPrompt + agentCompletion,
+      judgeTotal: judgePrompt + judgeCompletion,
+      total: agentPrompt + agentCompletion + judgePrompt + judgeCompletion,
+      judgeModel: judge.model || null, judgeCalls: Number(judge.calls || 0) || 0
+    };
+
+    // ---- 错误分布 ----
+    let agentErrN = 0, graderErrN = 0, okN = 0;
+    for (const s of perSample) {
+      if (samples[s.idx] && samples[s.idx].agentError) agentErrN++;
+      let gErr = false; for (const k in s.byGrader) if (s.byGrader[k].error) { gErr = true; break; }
+      if (gErr && !samples[s.idx]?.agentError) graderErrN++;
+      if (!s.error && s.avg != null) okN++;
+    }
+    const errorDist = { ok: okN, agentFail: agentErrN, graderFail: graderErrN,
+      total: perSample.length };
+
+    // ---- 综合得分分布（10 段直方图）----
+    const avgScores = perSample.map(s => s.avg).filter(v => v != null);
+    const scoreDist = buildHistogramBounded(avgScores, 10, 0, 1);
+
+    // ---- 人工评分分布（若存在 human_review）----
+    const humanG = graderMap.get('human_review');
+    let humanDist = null;
+    if (humanG) {
+      // bins5: [0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1.0] 对 5 星换算
+      // rawScore 若在 metadata 中则更准确，此处退化为 score 分桶
+      humanDist = {
+        bins5: humanG.bins5.slice(),
+        pending: humanG.pending, skipped: humanG.skipped,
+        mean: humanG.mean, count: humanG.count, std: humanG.std
+      };
+    }
+
+    // ---- 单样本 Top/Bottom ----
+    const topSamples = validSamples.slice().sort((a, b) => (b.avg || 0) - (a.avg || 0)).slice(0, 5);
+    const botSamples = validSamples.slice().sort((a, b) => (a.avg || 0) - (b.avg || 0)).slice(0, 5);
+
+    return {
+      graders, gradersStats, perSample, validSamples,
+      compositeScore, grade,
+      durationStats, durationHist, slowSamples,
+      tokens, errorDist, scoreDist, humanDist,
+      topSamples, botSamples,
+      summary, resolveChannel
+    };
+  }
+
+  // ---------- 纯函数工具 ----------
+  function quantile(sorted, q) {
+    if (!sorted.length) return null;
+    if (sorted.length === 1) return sorted[0];
+    const pos = (sorted.length - 1) * q;
+    const base = Math.floor(pos);
+    const rest = pos - base;
+    if (base + 1 < sorted.length) {
+      return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+    }
+    return sorted[base];
+  }
+  function groupBy(arr, keyFn, valFn) {
+    const m = new Map();
+    arr.forEach((it, i) => {
+      const k = keyFn(it, i);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(it);
+    });
+    const out = {};
+    for (const [k, list] of m) out[k] = valFn ? valFn(list) : list;
+    return out;
+  }
+  function buildHistogram(values, bins) {
+    if (!values.length) return { labels: [], counts: [] };
+    let min = values[0], max = values[values.length - 1];
+    if (min === max) max = min + 1;
+    const w = (max - min) / bins;
+    const counts = new Array(bins).fill(0);
+    for (const v of values) {
+      let idx = Math.min(bins - 1, Math.floor((v - min) / w));
+      counts[idx]++;
+    }
+    const labels = [];
+    for (let i = 0; i < bins; i++) {
+      const a = min + i * w, b = min + (i + 1) * w;
+      labels.push(`${(a / 1000).toFixed(1)}–${(b / 1000).toFixed(1)}s`);
+    }
+    return { labels, counts, min, max, width: w };
+  }
+  function buildHistogramBounded(values, bins, lo, hi) {
+    const counts = new Array(bins).fill(0);
+    const w = (hi - lo) / bins;
+    for (const v of values) {
+      if (v < lo || v > hi) continue;
+      let idx = Math.min(bins - 1, Math.floor((v - lo) / w));
+      counts[idx]++;
+    }
+    const labels = [];
+    for (let i = 0; i < bins; i++) {
+      labels.push(`${(lo + i * w).toFixed(1)}–${(lo + (i + 1) * w).toFixed(1)}`);
+    }
+    return { labels, counts, total: values.length };
+  }
+  function gradeColor(grade) {
+    switch (grade) {
+      case 'S': return '#059669'; case 'A': return '#16a34a';
+      case 'B': return '#d97706'; case 'C': return '#ea580c';
+      case 'D': return '#dc2626'; default: return '#6b7280';
+    }
+  }
+  function channelColor(channel, paletteIdx) {
+    switch (channel) {
+      case 'rule':  return COLORS.rule.bar;
+      case 'llm':   return COLORS.llm.bar;
+      case 'human': return COLORS.human.bar;
+      case 'custom':return COLORS.custom.bar;
+      default:      return COLORS.palette[(paletteIdx || 0) % COLORS.palette.length];
+    }
+  }
+  function channelSolid(channel, paletteIdx) {
+    switch (channel) {
+      case 'rule':  return COLORS.rule.main;
+      case 'llm':   return COLORS.llm.main;
+      case 'human': return COLORS.human.main;
+      case 'custom':return COLORS.custom.main;
+      default:      return COLORS.palette[(paletteIdx || 0) % COLORS.palette.length];
+    }
+  }
+  function fmtDur(ms) {
+    if (ms == null || Number.isNaN(ms)) return '-';
+    if (ms >= 60000) return (ms / 60000).toFixed(1) + ' 分';
+    return (ms / 1000).toFixed(2) + ' 秒';
+  }
+  function fmtNum(v, d) { return v == null || Number.isNaN(v) ? '-' : Number(v).toFixed(d || 0); }
+
+  // ---------- Chart.js 通用配置复用 ----------
+  const baseOptions = (opts = {}) => ({
+    responsive: true, maintainAspectRatio: false, animation: { duration: 550 },
+    interaction: { mode: opts.mode || 'nearest', intersect: opts.intersect ?? true },
+    plugins: {
+      legend: Object.assign({ labels: { color: COLORS.axis, font: { size: 11 }, boxWidth: 12, padding: 10 } }, opts.legend || {}),
+      tooltip: Object.assign({
+        backgroundColor: 'rgba(15,23,42,0.92)', titleColor: '#f8fafc', bodyColor: '#e2e8f0',
+        borderColor: 'rgba(148,163,184,0.3)', borderWidth: 1, padding: 10, cornerRadius: 6,
+        titleFont: { size: 12 }, bodyFont: { size: 11 }
+      }, opts.tooltip || {})
+    },
+    scales: opts.scales || {}
+  });
+  function destroyChart(id) {
+    const c = charts.get(id);
+    if (c) { try { c.destroy(); } catch (_) {} charts.delete(id); }
+  }
+  function destroyAll() { for (const id of CHART_IDS) destroyChart(id); }
+
+  // ---------- 图表 1：雷达图（评测器 ≥3 时展示）----------
+  function drawRadar(agg) {
+    destroyChart('radar');
+    const canvas = $('rp-radar-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const valid = agg.gradersStats.filter(g => g.mean != null);
+    if (valid.length < 3) {
+      $('rp-radar-empty').style.display = '';
+      canvas.style.display = 'none';
+      return;
+    }
+    $('rp-radar-empty').style.display = 'none';
+    canvas.style.display = '';
+    const labels = valid.map(g => g.name.length > 14 ? g.name.slice(0, 14) + '…' : g.name);
+    const data = valid.map(g => Number((g.mean * 100).toFixed(1)));
+    const colors = valid.map((g, i) => channelSolid(g.channel, i));
+    const ctx = canvas.getContext('2d');
+    const borderColor = 'rgba(99,102,241,0.9)';
+    charts.set('radar', new Chart(ctx, {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [{
+          label: '评测器均分 (%)',
+          data,
+          backgroundColor: 'rgba(99,102,241,0.20)',
+          borderColor, borderWidth: 2, pointBackgroundColor: colors,
+          pointBorderColor: '#fff', pointRadius: 4, pointHoverRadius: 6
+        }]
+      },
+      options: baseOptions({
+        legend: { display: false },
+        scales: {
+          r: {
+            suggestedMin: 0, suggestedMax: 100,
+            angleLines: { color: 'rgba(148,163,184,0.25)' },
+            grid: { color: 'rgba(148,163,184,0.20)' },
+            pointLabels: { color: COLORS.axis, font: { size: 11 } },
+            ticks: { color: COLORS.muted, backdropColor: 'transparent', stepSize: 20, font: { size: 10 } }
+          }
+        }
+      })
+    }));
+  }
+
+  // ---------- 图表 2：评测器横向条形图 + 明细表 ----------
+  function drawGrader(agg) {
+    destroyChart('grader');
+    const canvas = $('rp-grader-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const valid = agg.gradersStats.filter(g => g.count > 0);
+    if (!valid.length) {
+      $('rp-grader-empty').style.display = '';
+      canvas.style.display = 'none';
+      return;
+    }
+    $('rp-grader-empty').style.display = 'none';
+    canvas.style.display = '';
+    const labels = valid.map(g => g.name);
+    const means = valid.map(g => g.mean != null ? Number((g.mean * 100).toFixed(1)) : 0);
+    const passRates = valid.map(g => g.selfPassRate != null ? Number((g.selfPassRate * 100).toFixed(1)) : 0);
+    const bars = valid.map((g, i) => channelColor(g.channel, i));
+    charts.set('grader', new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: '均分 (%)', data: means, backgroundColor: bars,
+            borderColor: valid.map((g, i) => channelSolid(g.channel, i)), borderWidth: 1, barPercentage: 0.65 },
+          { label: '自通过率 (%)', data: passRates, type: 'line',
+            borderColor: COLORS.ok, backgroundColor: COLORS.ok,
+            pointBackgroundColor: COLORS.ok, tension: 0.3, fill: false,
+            yAxisID: 'y', borderDash: [6, 4], pointRadius: 3 }
+        ]
+      },
+      options: Object.assign(baseOptions({ mode: 'index', intersect: false }), {
+        indexAxis: 'y',
+        scales: {
+          x: { min: 0, max: 100, grid: { color: COLORS.rule.grid },
+               ticks: { color: COLORS.axis, font: { size: 11 }, callback: v => v + '%' } },
+          y: { ticks: { color: COLORS.axis, font: { size: 11 }, autoSkip: false },
+               grid: { display: false } }
+        },
+        plugins: {
+          legend: { labels: { color: COLORS.axis, font: { size: 11 }, boxWidth: 12 } },
+          tooltip: {
+            callbacks: {
+              title: (items) => items[0] ? labels[items[0].dataIndex] : '',
+              label: (ctx) => {
+                const i = ctx.dataIndex;
+                const g = valid[i];
+                if (ctx.dataset.label === '均分 (%)') {
+                  return `均分 ${(g.mean).toFixed(3)}（σ ${g.std != null ? g.std.toFixed(3) : '-'}` +
+                         `，范围 ${g.min != null ? g.min.toFixed(2) : '-'}-${g.max != null ? g.max.toFixed(2) : '-'}）` +
+                         `，N=${g.count}${g.error ? '，错误' + g.error : ''}`;
+                }
+                return `自通过率（score≥0.8） ${g.selfPassRate != null ? (g.selfPassRate * 100).toFixed(1) : '-'}%`;
+              }
+            }
+          }
+        }
+      })
+    }));
+
+    // ---- 评测器明细表 ----
+    const header = ['评测器', '通道', '均分 / 范围', '通过率', 'σ(离散)', '样本数', '错误/待评', '5 段分布'];
+    const rows = valid.map(g => {
+      const chCls = g.channel;
+      const chMap = { rule: '规则', llm: 'LLM', human: '人工', custom: '自定义' };
+      const channelBadge = `<span class="channel-tag ${chCls}">${chMap[chCls] || chCls}</span>`;
+      const minMax = g.min != null
+        ? `<span class="muted">（${g.min.toFixed(2)}–${g.max.toFixed(2)}）</span>` : '';
+      const avgBarW = Math.max(2, Math.round((g.mean || 0) * 100));
+      const rangeCls = g.channel === 'human' ? '' : '';
+      void rangeCls;
+      const bins = g.bins5.map((cnt, bi) => {
+        const cls = bi >= 4 ? 'on' : bi >= 3 ? 'on mid' : 'on lo';
+        return cnt > 0 ? `<i class="${cls}" style="height:${Math.max(4, Math.min(28, 4 + cnt * 2))}px" title="第${bi + 1}段：${cnt}条"></i>`
+                       : `<i></i>`;
+      }).join('');
+      const errTag = [];
+      if (g.error) errTag.push(`<span class="score err" style="font-size:10.5px;padding:0 6px">错${g.error}</span>`);
+      if (g.pending) errTag.push(`<span class="score pending" style="font-size:10.5px;padding:0 6px">待${g.pending}</span>`);
+      if (g.skipped) errTag.push(`<span class="score skip" style="font-size:10.5px;padding:0 6px">跳${g.skipped}</span>`);
+      return [
+        `<span style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;font-weight:600;color:#0f172a">${esc(g.name)}</span>`,
+        channelBadge,
+        `<div><span class="rp-bar-mini" style="width:${avgBarW}px"></span><b>${g.mean != null ? g.mean.toFixed(3) : '-'}</b>${minMax}</div>`,
+        g.selfPassRate != null ? `<b>${(g.selfPassRate * 100).toFixed(1)}%</b>` : '-',
+        g.std != null ? g.std.toFixed(3) : '<span class="muted">-</span>',
+        `${g.count}/${agg.perSample.length}`,
+        errTag.length ? errTag.join(' ') : '<span class="muted">-</span>',
+        `<span class="rp-dist">${bins}</span>`
+      ];
+    });
+    $('rp-grader-table').innerHTML = rows.length
+      ? `<div style="margin-top:2px"><div class="muted" style="font-size:11.5px;margin-bottom:4px">σ 越大表示评测器打分越不稳定；5 段分布从左到右 = 低 → 高（低分红、中分橙、高分绿）</div>` +
+        table(header, rows) + `</div>`
+      : '';
+  }
+
+  // ---------- 图表 3：单样本得分（柱状 / 折线可切换）----------
+  function drawSample(agg) {
+    destroyChart('sample');
+    const canvas = $('rp-sample-chart');
+    if (!canvas || typeof Chart === 'undefined' || !agg.perSample.length) return;
+
+    const style = state.sampleStyle;
+    const valid = agg.validSamples;
+    const labels = valid.map(s => `#${s.idx + 1}`);
+    const avgArr = valid.map(s => s.avg != null ? Number(s.avg.toFixed(3)) : null);
+    // 各评测器 dataset
+    const datasets = agg.gradersStats.map((g, gi) => {
+      if (g.count === 0) return null;
+      const data = valid.map(s => {
+        const r = s.byGrader[g.name];
+        return (r && !r.error && !r.pending && r.score != null) ? Number(r.score.toFixed(3)) : null;
+      });
+      // 如果是 style=bar 且评测器过多（>8），用更低 alpha 避免色糊
+      const alpha = style === 'bar' && agg.gradersStats.length > 8 ? 0.55 : 0.78;
+      const bgHex = channelColor(g.channel, gi).replace(/[\d.]+\)$/, `${alpha})`);
+      const ds = {
+        label: g.name, data,
+        backgroundColor: bgHex, borderColor: channelSolid(g.channel, gi),
+        borderWidth: style === 'line' ? 1.5 : 1,
+        borderRadius: 3, stack: 's',
+        pointRadius: style === 'line' ? 2 : 0, pointHoverRadius: 5,
+        pointBackgroundColor: channelSolid(g.channel, gi), tension: 0.25, spanGaps: false
+      };
+      if (style === 'line') { ds.type = 'line'; ds.fill = false; ds.stack = undefined; }
+      return ds;
+    }).filter(Boolean);
+    // 最顶叠加均值线（scatter-like 方式 + 插件线）
+    datasets.push({
+      label: '样本均分',
+      type: 'line', data: avgArr,
+      borderColor: 'rgba(15,23,42,0.85)', backgroundColor: 'rgba(15,23,42,0.85)',
+      borderWidth: 2.2, borderDash: style === 'line' ? [8, 5] : [5, 4],
+      pointBackgroundColor: valid.map(s =>
+        s.avg >= PASS_THRESHOLD ? COLORS.ok : COLORS.bad
+      ), pointRadius: 3.5, pointHoverRadius: 6,
+      pointBorderColor: '#fff', pointBorderWidth: 1,
+      fill: false, tension: 0.35, spanGaps: true, z: 10
+    });
+
+    const avgLine = state.showAvgLine && agg.summary.avgScore != null
+      ? { value: Number(agg.summary.avgScore.toFixed(3)), color: '#4f46e5', label: `均分 ${agg.summary.avgScore.toFixed(3)}` }
+      : null;
+    const passLine = state.showPassLine
+      ? { value: PASS_THRESHOLD, color: COLORS.warn, label: '通过阈值 0.8' }
+      : null;
+
+    const plugins = [
+      // 自制参考线（避免引入 annotation 插件依赖）
+      {
+        id: 'refLines',
+        afterDraw(chart) {
+          const { ctx, chartArea, scales: { x, y } } = chart;
+          if (!chartArea) return;
+          const yVal = (v) => y.getPixelForValue(v);
+          ctx.save();
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+          [avgLine, passLine].forEach(line => {
+            if (!line) return;
+            const py = yVal(line.value);
+            if (py < chartArea.top || py > chartArea.bottom) return;
+            ctx.strokeStyle = line.color;
+            ctx.beginPath();
+            ctx.moveTo(chartArea.left, py); ctx.lineTo(chartArea.right, py);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = line.color;
+            ctx.font = 'bold 10.5px ui-sans-serif,system-ui';
+            const txt = line.label;
+            const tw = ctx.measureText(txt).width + 10;
+            ctx.fillRect(chartArea.right - tw, py - 10, tw, 18);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(txt, chartArea.right - tw + 5, py + 3);
+            ctx.setLineDash([6, 4]);
+          });
+          ctx.restore();
+        }
+      }
+    ];
+
+    const yMax = 1.02;
+    const type = style === 'line' ? 'line' : 'bar';
+    if (style === 'line') datasets.forEach(ds => ds.type = 'line');
+
+    const tipColorMap = new Map(agg.gradersStats.map((g, i) => [g.name, channelSolid(g.channel, i)]));
+
+    charts.set('sample', new Chart(canvas.getContext('2d'), {
+      type,
+      data: { labels, datasets },
+      options: Object.assign(baseOptions({ mode: 'index', intersect: false }), {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: {
+            stacked: style === 'bar' ? true : false,
+            grid: { display: false },
+            ticks: { color: COLORS.axis, font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 30 }
+          },
+          y: {
+            min: 0, max: yMax,
+            grid: { color: 'rgba(148,163,184,0.12)' },
+            ticks: { color: COLORS.axis, font: { size: 11 },
+              callback: v => Number(v).toFixed(1) }
+          }
+        },
+        plugins: {
+          legend: { display: agg.gradersStats.length <= 10,
+            labels: { color: COLORS.axis, font: { size: 10.5 }, boxWidth: 11, padding: 8 } },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                if (!items.length) return '';
+                const idx = items[0].dataIndex;
+                const s = valid[idx];
+                const q = (s.query || '').replace(/\s+/g, ' ').slice(0, 50);
+                return `#${s.idx + 1} ${s.id}${q ? '  ' + q + ((s.query || '').length > 50 ? '…' : '') : ''}`;
+              },
+              afterBody: (items) => {
+                if (!items.length) return '';
+                const idx = items[0].dataIndex;
+                const s = valid[idx];
+                const line = [];
+                line.push(`────────────`);
+                line.push(`均分 ${s.avg != null ? s.avg.toFixed(3) : '-'}  ${s.pass ? '✓ 通过' : '✗ 不通过'}`);
+                if (s.duration != null) line.push(`耗时 ${fmtDur(s.duration)}，工具 ${s.toolCalls} 次${s.multiTurn ? `，${s.rounds || '?'} 轮` : ''}`);
+                line.push('点击定位到表格对应样本行');
+                return line;
+              },
+              labelColor: (ctx) => ({
+                borderColor: tipColorMap.get(ctx.dataset.label) || '#000',
+                backgroundColor: tipColorMap.get(ctx.dataset.label) || '#000'
+              })
+            }
+          }
+        },
+        onClick: (_evt, els) => {
+          if (!els || !els.length) return;
+          const idx = els[0].index;
+          const s = valid[idx];
+          if (s != null) highlightSampleRow(s.idx);
+        }
+      }),
+      plugins
+    }));
+
+    // ---- count tip + Top/Bottom chips ----
+    $('rp-sample-count-tip').textContent = `共 ${valid.length}/${agg.perSample.length} 条有效样本（含得分统计）`;
+    const chips = (list, cls, title) => list.length
+      ? `<div style="margin-right:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b style="font-size:12px;color:#475569">${title}：</b>` +
+        list.map(s => {
+          const avg = s.avg != null ? s.avg.toFixed(2) : '-';
+          return `<span class="rp-sample-chip ${cls}" data-idx="${s.idx}" title="${esc(s.query || '').slice(0, 80)}">#${s.idx + 1} ${avg}</span>`;
+        }).join('') + `</div>` : '';
+    $('rp-sample-nav').innerHTML =
+      `<div class="rp-sample-nav" style="display:flex;align-items:center;flex-wrap:wrap">` +
+      chips(agg.botSamples, 'lo', 'Bottom 低分') +
+      chips(agg.topSamples, 'hi', 'Top 高分') +
+      `</div>`;
+    // chip 点击事件委托
+    $('rp-sample-nav').querySelectorAll('.rp-sample-chip').forEach(el => {
+      el.onclick = () => { const i = Number(el.dataset.idx); if (!Number.isNaN(i)) highlightSampleRow(i); };
+    });
+  }
+
+  function highlightSampleRow(idx) {
+    const tr = document.querySelector(`#ev-samples tr[data-sample-idx="${idx}"]`);
+    if (!tr) return;
+    document.querySelectorAll('#ev-samples tr.highlight').forEach(x => x.classList.remove('highlight'));
+    tr.classList.add('highlight');
+    tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => tr.classList.remove('highlight'), 4000);
+  }
+
+  // ---------- 图表 4：耗时分析（趋势 / 直方图 / 散点）----------
+  function drawDuration(agg) {
+    destroyChart('duration');
+    const canvas = $('rp-duration-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const ds = agg.durationStats;
+    if (!ds || !ds.n) {
+      $('rp-duration-empty').style.display = '';
+      canvas.style.display = 'none';
+      $('rp-duration-stats').innerHTML = '';
+      $('rp-slow-table').innerHTML = '';
+      return;
+    }
+    $('rp-duration-empty').style.display = 'none';
+    canvas.style.display = '';
+
+    const style = state.durationStyle;
+    let cfg;
+    if (style === 'hist') {
+      cfg = {
+        type: 'bar',
+        data: {
+          labels: agg.durationHist.labels,
+          datasets: [{
+            label: '样本数',
+            data: agg.durationHist.counts,
+            backgroundColor: 'rgba(59,130,246,0.68)', borderColor: COLORS.rule.main,
+            borderWidth: 1, borderRadius: 4, barPercentage: 0.85
+          }]
+        },
+        options: baseOptions({
+          scales: {
+            x: { grid: { display: false }, ticks: { color: COLORS.axis, font: { size: 11 } } },
+            y: { beginAtZero: true, grid: { color: COLORS.rule.grid }, ticks: { precision: 0, color: COLORS.axis, font: { size: 11 } } }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `耗时区间 ${agg.durationHist.labels[ctx.dataIndex]}：${ctx.raw} 条样本`
+              }
+            }
+          }
+        })
+      };
+    } else if (style === 'scatter') {
+      const pts = ds.byToolCalls.map(p => ({ x: p.x, y: p.y, _idx: p.idx }));
+      cfg = {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: '样本（工具次数 vs 耗时）',
+            data: pts,
+            backgroundColor: pts.map(p => agg.perSample[p._idx]?.avg >= PASS_THRESHOLD
+              ? 'rgba(34,197,94,0.72)' : 'rgba(239,68,68,0.72)'),
+            borderColor: pts.map(p => agg.perSample[p._idx]?.avg >= PASS_THRESHOLD ? COLORS.ok : COLORS.bad),
+            pointRadius: 5, pointHoverRadius: 7, borderWidth: 1
+          }]
+        },
+        options: baseOptions({
+          scales: {
+            x: { title: { display: true, text: '工具调用次数', color: COLORS.axis, font: { size: 11 } },
+                 ticks: { color: COLORS.axis, precision: 0 }, grid: { color: COLORS.rule.grid } },
+            y: { title: { display: true, text: '耗时 (ms)', color: COLORS.axis, font: { size: 11 } },
+                 beginAtZero: true, ticks: { color: COLORS.axis }, grid: { color: COLORS.rule.grid },
+                 callback: (v) => `${(v/1000).toFixed(1)}s` }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const p = pts[ctx.dataIndex];
+                  const s = agg.perSample[p._idx];
+                  return [
+                    `#${p._idx + 1}  ${s?.id || ''}`,
+                    `工具调用：${p.x} 次`,
+                    `耗时：${fmtDur(p.y)}`,
+                    `均分：${s?.avg != null ? s.avg.toFixed(3) : '-'}  ${s?.pass ? '通过' : '不通过'}`,
+                    s?.multiTurn ? `多轮（${s.rounds || '?'} 轮）` : '单轮'
+                  ];
+                }
+              }
+            },
+            onClick: (_e, els) => {
+              if (!els || !els.length) return;
+              const i = els[0].index; const p = pts[i]; if (p != null) highlightSampleRow(p._idx);
+            }
+          }
+        })
+      };
+    } else {
+      // 趋势图
+      const all = agg.perSample.filter(s => s.duration != null);
+      const labels = all.map(s => `#${s.idx + 1}`);
+      const data = all.map(s => s.duration);
+      const p95Val = ds.p95, p50Val = ds.p50, avgVal = ds.avg;
+      const plugins = [{
+        id: 'durLines', afterDraw(chart) {
+          const { ctx, chartArea, scales: { x, y } } = chart;
+          if (!chartArea) return;
+          ctx.save();
+          ctx.lineWidth = 1.5;
+          const lines = [
+            { v: avgVal, c: '#4f46e5', l: `平均 ${fmtDur(avgVal)}` },
+            { v: p50Val, c: '#0891b2', l: `P50 ${fmtDur(p50Val)}` },
+            { v: p95Val, c: COLORS.bad, l: `P95 ${fmtDur(p95Val)}` }
+          ];
+          lines.forEach((line, li) => {
+            const py = y.getPixelForValue(line.v);
+            if (py < chartArea.top || py > chartArea.bottom) return;
+            ctx.setLineDash([5, 4]);
+            ctx.strokeStyle = line.c;
+            ctx.beginPath();
+            ctx.moveTo(chartArea.left, py); ctx.lineTo(chartArea.right, py); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = line.c;
+            ctx.font = 'bold 10.5px ui-sans-serif,system-ui';
+            const tw = ctx.measureText(line.l).width + 10;
+            const xLeft = chartArea.left + 4 + li * (tw + 8);
+            if (xLeft + tw < chartArea.right) {
+              ctx.fillRect(xLeft, py - 10, tw, 18);
+              ctx.fillStyle = '#fff';
+              ctx.fillText(line.l, xLeft + 5, py + 3);
+            }
+          });
+          ctx.restore();
+        }
+      }];
+      cfg = {
+        type: 'line',
+        data: {
+          labels, datasets: [{
+            label: '耗时 (ms)', data,
+            fill: true,
+            backgroundColor: (ctx) => {
+              const ch = ctx.chart;
+              if (!ch.chartArea) return 'rgba(59,130,246,0.10)';
+              const g = ctx.chart.ctx.createLinearGradient(0, ch.chartArea.top, 0, ch.chartArea.bottom);
+              g.addColorStop(0, 'rgba(59,130,246,0.40)');
+              g.addColorStop(1, 'rgba(59,130,246,0.05)');
+              return g;
+            },
+            borderColor: COLORS.rule.main, borderWidth: 1.8,
+            pointBackgroundColor: data.map(v => v >= p95Val ? COLORS.bad : (v >= p50Val ? COLORS.warn : COLORS.ok)),
+            pointBorderColor: '#fff', pointBorderWidth: 1, pointRadius: 2.5, pointHoverRadius: 6,
+            tension: 0.25, spanGaps: false
+          }]
+        },
+        options: Object.assign(baseOptions({}), {
+          scales: {
+            x: { grid: { display: false }, ticks: { color: COLORS.axis, font: { size: 10 }, maxTicksLimit: 30 } },
+            y: {
+              beginAtZero: true, grid: { color: COLORS.rule.grid },
+              ticks: { color: COLORS.axis, font: { size: 11 },
+                callback: (v) => `${(v/1000).toFixed(1)}s` }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => items[0] ? labels[items[0].dataIndex] : '',
+                afterBody: (items) => {
+                  if (!items.length) return '';
+                  const origIdx = all[items[0].dataIndex]?.idx;
+                  if (origIdx == null) return '';
+                  const s = agg.perSample[origIdx];
+                  return [
+                    `均分 ${s.avg != null ? s.avg.toFixed(3) : '-'}，工具 ${s.toolCalls} 次`,
+                    s.multiTurn ? `多轮（${s.rounds || '?'} 轮）` : '单轮',
+                    '点击定位到表格对应样本行'
+                  ];
+                }
+              }
+            },
+            onClick: (_e, els) => {
+              if (!els || !els.length) return;
+              const origIdx = all[els[0].index]?.idx;
+              if (origIdx != null) highlightSampleRow(origIdx);
+            }
+          }
+        }),
+        plugins
+      };
+    }
+    charts.set('duration', new Chart(canvas.getContext('2d'), cfg));
+
+    // 耗时统计小卡片
+    const g = (lbl, val, sub) => `<div class="rp-mini-stat"><span class="lbl">${lbl}</span><span class="val">${val}</span>${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+    $('rp-duration-stats').innerHTML =
+      `<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px">` +
+      g('总耗时', fmtDur(ds.total), `${ds.n} 条`) +
+      g('平均耗时', fmtDur(ds.avg), '算术均值') +
+      g('P50（中位）', fmtDur(ds.p50), '一半样本≤此') +
+      g('P90', fmtDur(ds.p90), '90% 样本≤此') +
+      g('P95', fmtDur(ds.p95), '95% 样本≤此') +
+      g('最慢样本', fmtDur(ds.max), `最快 ${fmtDur(ds.min)}`) +
+      `</div>`;
+
+    // 多轮 vs 单轮对比
+    if (ds.byMultiTurn && Object.keys(ds.byMultiTurn).length) {
+      const keys = Object.keys(ds.byMultiTurn).sort();
+      const rows2 = keys.map(k => {
+        const arr = ds.byMultiTurn[k];
+        if (!arr || !arr.length) return [k, '0', '-', '-', '-'];
+        const sorted = arr.slice().sort((a, b) => a - b);
+        const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+        return [k, String(arr.length), fmtDur(avg), fmtDur(quantile(sorted, 0.5)), fmtDur(quantile(sorted, 0.95))];
+      });
+      $('rp-duration-stats').innerHTML +=
+        `<div style="margin-top:10px">` +
+        table(['样本类型', '样本数', '平均耗时', 'P50', 'P95'], rows2) +
+        `</div>`;
+    }
+
+    // Top 慢样本表
+    if (agg.slowSamples.length) {
+      const h = ['排名', '样本', '耗时', '工具调用', '轮次', '均分', '定位'];
+      const rs = agg.slowSamples.map((s, i) => [
+        `<b style="color:${i === 0 ? COLORS.bad : (i === 1 ? COLORS.warn : COLORS.axis)}">${i + 1}</b>`,
+        `<code>#${s.idx + 1}</code> <span style="font-size:12px">${esc((s.query || '').slice(0, 28))}${s.query.length > 28 ? '…' : ''}</span>`,
+        `<b>${fmtDur(s.duration)}</b>`,
+        `${s.toolCalls} 次`,
+        s.multiTurn ? `多轮 ${s.rounds || '?'}` : '单轮',
+        s.avg != null ? s.avg.toFixed(3) : '-',
+        `<button class="btn sm" data-rowidx="${s.idx}">查看</button>`
+      ]);
+      $('rp-slow-table').innerHTML =
+        `<div style="font-weight:600;font-size:12px;color:#475569;margin-bottom:6px">最慢 Top 5 样本</div>` +
+        table(h, rs);
+      $('rp-slow-table').querySelectorAll('button[data-rowidx]').forEach(btn => {
+        btn.onclick = () => highlightSampleRow(Number(btn.dataset.rowidx));
+      });
+    }
+  }
+
+  // ---------- 图表 5：补充指标（Tokens / 错误 / 综合分布 / 人工）----------
+  function drawExtra(agg) {
+    // Tokens
+    const t = agg.tokens;
+    $('rp-tokens-stats').innerHTML =
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">` +
+      `<div class="rp-mini-stat"><span class="lbl">Agent 入/出 Tokens</span><span class="val">${fmtNum(t.agentPrompt)}/${fmtNum(t.agentCompletion)}</span><span class="sub">合计 ${fmtNum(t.agentTotal)}</span></div>` +
+      `<div class="rp-mini-stat"><span class="lbl">Judge 入/出 Tokens</span><span class="val">${fmtNum(t.judgePrompt)}/${fmtNum(t.judgeCompletion)}</span><span class="sub">${t.judgeModel ? '模型：' + esc(t.judgeModel.slice(0, 22)) : ''}${t.judgeCalls ? '，' + t.judgeCalls + ' 次' : ''}</span></div>` +
+      `</div>`;
+    destroyChart('tokens');
+    const tc = $('rp-tokens-chart');
+    if (tc && typeof Chart !== 'undefined' && t.total > 0) {
+      const judgeShare = t.agentTotal + t.judgeTotal > 0
+        ? Math.round(t.judgeTotal / (t.agentTotal + t.judgeTotal) * 1000) / 10 : 0;
+      charts.set('tokens', new Chart(tc.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: [`Agent Prompt (${fmtNum(t.agentPrompt)})`, `Agent Completion (${fmtNum(t.agentCompletion)})`,
+                   `Judge Prompt (${fmtNum(t.judgePrompt)})`, `Judge Completion (${fmtNum(t.judgeCompletion)})`],
+          datasets: [{
+            data: [t.agentPrompt, t.agentCompletion, t.judgePrompt, t.judgeCompletion].map(v => Number(v) || 0),
+            backgroundColor: ['rgba(37,99,235,0.72)','rgba(59,130,246,0.50)',
+                              'rgba(124,58,237,0.72)','rgba(167,139,250,0.50)'],
+            borderColor: '#fff', borderWidth: 2
+          }]
+        },
+        options: baseOptions({
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 6, color: COLORS.axis, font: { size: 10.5 } } },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.label}：${ctx.raw}（占比 ${t.total ? (ctx.raw / t.total * 100).toFixed(1) : 0}%）` } }
+          },
+          cutout: '62%'
+        })
+      }));
+      // 中心文字：判分占比
+      void judgeShare;
+    }
+
+    // 错误分布
+    destroyChart('error');
+    const ec = $('rp-error-chart');
+    if (ec && typeof Chart !== 'undefined') {
+      const ed = agg.errorDist;
+      const labels = [`正常 ${ed.ok}`, `Agent 失败 ${ed.agentFail}`, `评测器错误 ${ed.graderFail}`];
+      const data = [ed.ok, ed.agentFail, ed.graderFail];
+      const any = ed.agentFail + ed.graderFail + ed.ok;
+      charts.set('error', new Chart(ec.getContext('2d'), {
+        type: 'pie',
+        data: { labels, datasets: [{
+          data, borderColor: '#fff', borderWidth: 2,
+          backgroundColor: ['rgba(22,163,74,0.75)', 'rgba(220,38,38,0.75)', 'rgba(217,119,6,0.75)']
+        }]},
+        options: baseOptions({
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 6, color: COLORS.axis, font: { size: 10.5 } } },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.label}：${ctx.raw} / ${ed.total}（${any ? (ctx.raw / any * 100).toFixed(1) : 0}%）` } }
+          }
+        })
+      }));
+    }
+
+    // 综合得分直方图（10 段 0-1）
+    destroyChart('scoreDist');
+    const sdc = $('rp-score-dist-chart');
+    if (sdc && typeof Chart !== 'undefined') {
+      const sd = agg.scoreDist;
+      charts.set('scoreDist', new Chart(sdc.getContext('2d'), {
+        type: 'bar',
+        data: { labels: sd.labels, datasets: [{
+          label: '样本数', data: sd.counts,
+          backgroundColor: sd.labels.map((_, i) => i >= 8 ? 'rgba(34,197,94,0.78)' : (i >= 6 ? 'rgba(251,191,36,0.78)' : 'rgba(248,113,113,0.78)')),
+          borderColor: sd.labels.map((_, i) => i >= 8 ? COLORS.ok : (i >= 6 ? COLORS.warn : COLORS.bad)),
+          borderWidth: 1, borderRadius: 3, barPercentage: 0.85
+        }]},
+        options: baseOptions({
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: COLORS.axis, font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { color: COLORS.axis, precision: 0 }, beginAtZero: true, grid: { color: COLORS.rule.grid } }
+          }
+        })
+      }));
+    }
+
+    // 人工评分分布
+    destroyChart('human');
+    const hc = $('rp-human-chart');
+    const hs = $('rp-human-section');
+    if (agg.humanDist && hc && typeof Chart !== 'undefined') {
+      hs.style.display = '';
+      const hd = agg.humanDist;
+      // 将 5 个 bins 映射为 1-5 星近似（bins5[4]=0.8-1.0 ≈ 5 星，bins5[0]=0-0.2 ≈ 1 星）
+      const starLabels = ['1★ 区间', '2★ 区间', '3★ 区间', '4★ 区间', '5★ 区间'];
+      charts.set('human', new Chart(hc.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: starLabels,
+          datasets: [{
+            label: '样本数', data: hd.bins5.slice(),
+            backgroundColor: ['rgba(248,113,113,0.80)','rgba(251,146,60,0.80)','rgba(251,191,36,0.80)','rgba(132,204,22,0.80)','rgba(34,197,94,0.80)'],
+            borderWidth: 1, borderRadius: 4, barPercentage: 0.7
+          }]
+        },
+        options: baseOptions({
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                afterBody: () => [
+                  `────────────`,
+                  `有效 ${hd.count} 条，均分 ${hd.mean != null ? hd.mean.toFixed(3) : '-'}`,
+                  `待评 ${hd.pending} / 跳过 ${hd.skipped}`,
+                  `离散度 σ=${hd.std != null ? hd.std.toFixed(3) : '-'}`
+                ]
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: COLORS.axis } },
+            y: { beginAtZero: true, ticks: { precision: 0, color: COLORS.axis }, grid: { color: COLORS.rule.grid } }
+          }
+        })
+      }));
+    } else if (hs) {
+      hs.style.display = 'none';
+    }
+  }
+
+  // ---------- 综合总分卡渲染 ----------
+  function drawTotalCard(agg) {
+    const s = agg.summary;
+    const cs = agg.compositeScore;
+    const csStr = cs != null ? cs.toFixed(3) : '-';
+    const badge = cs != null
+      ? `<span class="ts-grade ${agg.grade.grade}">${agg.grade.grade} · ${agg.grade.label}</span>`
+      : '';
+    $('rp-total-box').innerHTML =
+      `<div class="rp-total-score">
+        <div class="ts-num" style="color:${cs != null ? gradeColor(agg.grade.grade) : ''}">${csStr}</div>
+        ${badge}
+        <div class="ts-stats">
+          <div><b>${s.passRate != null ? (s.passRate * 100).toFixed(1) + '%' : '-'}</b>通过率</div>
+          <div><b>${s.passCount ?? '-'}/${s.total ?? '-'}</b>通过数</div>
+          <div><b>${s.errorCount ?? '-'}</b>异常</div>
+        </div>
+        <div class="ts-stats" style="margin-top:6px;border-top-color:#c7d2fe">
+          <div><b>${s.avgDurationMs ? fmtDur(s.avgDurationMs) : '-'}</b>平均耗时</div>
+          <div><b>${agg.gradersStats.length}</b>评测器数</div>
+          <div><b>${s.total ?? '-'}</b>样本总数</div>
+        </div>
+      </div>`;
+  }
+
+  // ---------- 事件绑定（一次性）----------
+  function bindEvents() {
+    if (state.boundEvents) return;
+    state.boundEvents = true;
+
+    // 单样本：图形类型切换
+    const ss = $('rp-sample-style');
+    if (ss) ss.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-v]'); if (!btn) return;
+      ss.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+      state.sampleStyle = btn.dataset.v;
+      if (state.agg) drawSample(state.agg);
+    });
+    // 均分 / 通过阈值线切换
+    const avgBtn = $('rp-show-avgline'); if (avgBtn) avgBtn.onclick = () => {
+      state.showAvgLine = !state.showAvgLine;
+      avgBtn.classList.toggle('on', state.showAvgLine);
+      avgBtn.textContent = '均分参考线 ' + (state.showAvgLine ? '✓' : '✗');
+      if (state.agg) drawSample(state.agg);
+    };
+    const passBtn = $('rp-show-passline'); if (passBtn) passBtn.onclick = () => {
+      state.showPassLine = !state.showPassLine;
+      passBtn.classList.toggle('on', state.showPassLine);
+      passBtn.textContent = '通过阈值线 ' + (state.showPassLine ? '✓' : '✗');
+      if (state.agg) drawSample(state.agg);
+    };
+    // 耗时类型切换
+    const ds = $('rp-duration-style');
+    if (ds) ds.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-v]'); if (!btn) return;
+      ds.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+      state.durationStyle = btn.dataset.v;
+      if (state.agg) drawDuration(state.agg);
+    });
+    // 补充指标折叠
+    const extBtn = $('rp-extra-toggle'), extBody = $('rp-extra-body');
+    if (extBtn && extBody) {
+      extBtn.addEventListener('click', () => {
+        state.extraOpen = !state.extraOpen;
+        extBtn.classList.toggle('open', state.extraOpen);
+        extBody.classList.toggle('open', state.extraOpen);
+        if (state.extraOpen && state.agg) {
+          // 首次展开时才渲染（否则 Canvas 尺寸为 0 导致图表变形）
+          setTimeout(() => drawExtra(state.agg), 0);
+        }
+      });
+    }
+  }
+
+  // ---------- 对外：总分卡副标题 ----------
+  function renderSubtitle(result, agg) {
+    const total = agg.perSample.length;
+    const valid = agg.validSamples.length;
+    const cs = agg.compositeScore;
+    const info = [
+      total ? `${total} 条样本` : '',
+      valid !== total ? `有效 ${valid} 条` : '',
+      cs != null ? `综合 ${cs.toFixed(3)} / ${agg.grade.grade} 级` : '',
+      result.dataset ? `数据集 ${result.dataset}` : ''
+    ].filter(Boolean).join(' · ');
+    $('ev-report-subtitle').textContent = info;
+  }
+
+  // ================================================================
+  // 公开 API
+  // ================================================================
+  return {
+    render(result) {
+      if (!result) return;
+      if (typeof Chart === 'undefined') {
+        console.warn('Chart.js 未加载，评测报告模块跳过');
+        return;
+      }
+      // 记录 graders 缓存（若 loadGraders 中存在 window._gradersCacheList 则自动被使用）
+      try {
+        if (Array.isArray(result.graderDefinitions) && !window._gradersCacheList) {
+          window._gradersCacheList = result.graderDefinitions;
+        }
+      } catch (_) {}
+
+      bindEvents();
+      destroyAll();
+
+      const agg = aggregate(result);
+      state.result = result; state.agg = agg;
+
+      $('ev-report-card').style.display = '';
+      if (state.collapsed) { $('ev-report-body').classList.add('collapsed'); }
+      else { $('ev-report-body').classList.remove('collapsed'); }
+      $('ev-report-toggle').textContent = state.collapsed ? '展开' : '收起';
+      renderSubtitle(result, agg);
+
+      // 分区块渲染（顺序依赖 DOM 已就绪）
+      try { drawTotalCard(agg); } catch (e) { console.error(e); }
+      try { drawRadar(agg); } catch (e) { console.error(e); }
+      try { drawGrader(agg); } catch (e) { console.error(e); }
+      try { drawSample(agg); } catch (e) { console.error(e); }
+      try { drawDuration(agg); } catch (e) { console.error(e); }
+      // 补充指标：若已处于展开状态则立即画，否则等用户点开
+      if (state.extraOpen) try { drawExtra(agg); } catch (e) { console.error(e); }
+    },
+    toggle() {
+      state.collapsed = !state.collapsed;
+      const body = $('ev-report-body'), btn = $('ev-report-toggle');
+      body.classList.toggle('collapsed', state.collapsed);
+      btn.textContent = state.collapsed ? '展开' : '收起';
+    },
+    // 外部调用（如删除当前 run 时）销毁全部 chart 实例，避免内存泄漏
+    destroyAll() { destroyAll(); state.agg = null; state.result = null; },
+    // 调试用：暴露内部状态（只读）
+    _debug: () => ({ state: Object.assign({}, state), agg: state.agg })
+  };
+})();
+
+// loadGraders 入口已将评测器通道清单注入到 window._gradersCacheList，
+// Report 模块内部会优先读取该清单，无需额外桥接。
+
 // ---------------- init ----------------
 // 诊断占位：加载成功后被表格替换；若长期停留此处说明主脚本中途断裂（配合上方 error 钩子定位断点）
 $('ev-runs').innerHTML = '<div class="muted">正在加载历史评测…</div>';
 try {
   CF.renderHeader({ titleSuffix: '' });
-  CF.initUser();
+  // 用本地校验版 initUser（不走 common.js，避免 DELETE 后会话状态边缘案例误判普通用户跳 /）
+  (async function initUserSafe() {
+    let me = null;
+    try {
+      const res = await fetch('/api/session', { credentials: 'same-origin' });
+      const text = await res.text();
+      if (res.status === 200 && text && text.trim().charAt(0) === '{') {
+        const j = JSON.parse(text);
+        me = j && j.code === 0 ? j.data : null;
+      }
+    } catch (e) {
+      console.warn('[initUserSafe] fetch失败：', e);
+    }
+    if (!me) { location.href = '/login'; return; }
+    if (me.role === 'ADMIN') {
+      document.querySelectorAll('.admin-tab').forEach(el => el.style.display = '');
+      document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+    } else {
+      document.querySelectorAll('.admin-tab').forEach(el => el.remove());
+      document.querySelectorAll('.admin-only').forEach(el => el.remove());
+      if (new Set(['/eval', '/files', '/data', '/backup']).has(location.pathname)) {
+        console.error('[initUserSafe] 非管理员访问评测页：role=', me.role, '即将跳 /');
+        console.trace('[initUserSafe] 非管理员拦截栈');
+        if (!confirm('[调试] 当前用户角色非 ADMIN（' + me.role + '），是否允许跳概览？（取消 = 留在当前页继续排查）')) return;
+        location.replace('/');
+        return;
+      }
+    }
+    $('user-name').textContent = me.username + (me.role === 'ADMIN' ? ' · 管理员' : '');
+    $('user-box').style.display = '';
+  })();
 } catch (e) {
   $('ev-runs').innerHTML = '<div class="msg err">页面初始化失败：' + esc(e.message) + '</div>';
 }

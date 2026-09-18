@@ -46,6 +46,7 @@ import jakarta.validation.Valid;
  * GET  /api/eval/runs                     → 历史任务列表（结果目录扫描）
  * GET  /api/eval/runs/{id}                → 任务进度/详情（完成后含完整 result）
  * GET  /api/eval/runs/{id}/file           → 下载完整结果 JSON
+ * DELETE /api/eval/runs/{id}              → 删除历史评测结果（RUN_ID_RE + startsWith 双保险防路径穿越）
  * 评测会话按登录用户隔离（agent 记忆 userId = 发起者，sessionId = 任务 id）。
  */
 @RestController
@@ -243,5 +244,19 @@ public class EvalController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName() + "\"")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new FileSystemResource(path));
+    }
+
+    @DeleteMapping("/runs/{id}")
+    @Operation(summary = "删除评测记录", description = "按 id 删除历史评测结果文件（路径穿越双保险：RUN_ID_RE 正则 + normalize 后 startsWith 校验）")
+    @Parameter(name = "id", description = "评测任务 id（文件名即 id，不含 .json 后缀）", example = "eval_20260917_103012_abc123")
+    public ApiResponse<Map<String, Object>> deleteRun(@PathVariable String id, HttpSession session) {
+        SessionUser user = SessionUser.of(session);
+        if (user == null) {
+            throw new ApiException(401, "未登录或会话已过期");
+        }
+        if (!user.isAdmin()) {
+            throw new ApiException(403, "需要管理员权限");
+        }
+        return ApiResponse.ok(evalService.deleteRun(id, user));
     }
 }

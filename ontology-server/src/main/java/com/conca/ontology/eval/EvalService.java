@@ -28,6 +28,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.auth.SessionUser;
+
 import com.conca.ontology.dto.request.EvalCustomGraderRequest;
 import com.conca.ontology.dto.request.EvalCustomGraderTestRequest;
 import com.conca.ontology.dto.request.EvalSampleRequest;
@@ -775,6 +777,41 @@ public class EvalService {
             throw new ApiException(404, "评测结果不存在: " + taskId);
         }
         return p;
+    }
+
+    /**
+     * 删除评测运行结果文件：
+     * 1）复用 requireResultFile 的 RUN_ID_RE + startsWith 双保险防路径穿越；
+     * 2）返回被删除的 id 与文件字节数，前端刷新列表。
+     * 若目标 run 恰好正在写入（如运行中点删除）：Windows 下因文件锁会抛 500，前端重试即可。
+     */
+    public synchronized Map<String, Object> deleteRun(String taskId, SessionUser operator) {
+        Path p = requireResultFile(taskId);
+        long size = 0L;
+        try {
+            size = Files.size(p);
+        } catch (IOException ignored) {}
+        log.warn("[EVAL-DELETE] 准备删除结果文件 id={} 操作者={}({}) 路径={} 字节={}",
+                taskId, operator == null ? "null" : operator.username(),
+                operator == null ? "null" : operator.userId(), p.toAbsolutePath(), size);
+        try {
+            Files.delete(p);
+        } catch (IOException e) {
+            log.error("[EVAL-DELETE] 删除失败 id={}: {}", taskId, e.getMessage());
+            throw new ApiException(500, "删除评测结果失败: " + e.getMessage());
+        }
+        log.warn("[EVAL-DELETE] 删除成功 id={}", taskId);
+        int remaining;
+        try {
+            remaining = ((List<?>) listRuns().get("runs")).size();
+        } catch (Exception e) {
+            remaining = -1;
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", taskId);
+        m.put("deletedBytes", size);
+        m.put("remaining", remaining);
+        return m;
     }
 
     // ---------------- 人工评分（human_review 评测器） ----------------
