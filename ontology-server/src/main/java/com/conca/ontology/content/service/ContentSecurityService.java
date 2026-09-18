@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.content.model.*;
+import com.conca.ontology.content.dto.result.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.agentscope.core.message.ContentBlock;

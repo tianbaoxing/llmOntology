@@ -5,7 +5,7 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.conca.ontology.content.model.ContentSecurityCheckResult;
+import com.conca.ontology.content.dto.result.ContentSecurityCheckResult;
 import com.conca.ontology.content.service.ContentSecurityService;
 
 import io.agentscope.core.ReActAgent;

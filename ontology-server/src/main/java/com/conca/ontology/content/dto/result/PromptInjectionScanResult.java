@@ -1,4 +1,8 @@
-package com.conca.ontology.content.model;
+package com.conca.ontology.content.dto.result;
+
+import com.conca.ontology.content.model.ContentDecision;
+import com.conca.ontology.content.model.ContentRiskLevel;
+
 import java.util.List;
 
 public record PromptInjectionScanResult(

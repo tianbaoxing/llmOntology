@@ -1,4 +1,5 @@
-package com.conca.ontology.content.model;
+package com.conca.ontology.content.dto.result;
+
 public record ContentSecurityCheckResult(
         PromptInjectionScanResult injectionResult,
         boolean shouldBlock,
