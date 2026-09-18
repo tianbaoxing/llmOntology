@@ -10,8 +10,8 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.Grader;
-import com.conca.ontology.eval.GraderInput;
-import com.conca.ontology.eval.GraderScore;
+import com.conca.ontology.eval.model.GraderInput;
+import com.conca.ontology.eval.model.GraderScore;
 
 /**
  * 数字准确性评测（对齐 OpenJudge NumberAccuracyGrader：顺序逐位比对）：

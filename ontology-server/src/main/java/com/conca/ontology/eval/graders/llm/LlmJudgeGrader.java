@@ -5,10 +5,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.conca.ontology.eval.AgentRecord;
+import com.conca.ontology.eval.model.AgentRecord;
 import com.conca.ontology.eval.Grader;
-import com.conca.ontology.eval.GraderInput;
-import com.conca.ontology.eval.GraderScore;
+import com.conca.ontology.eval.model.GraderInput;
+import com.conca.ontology.eval.model.GraderScore;
 import com.conca.ontology.eval.JudgeClient;
 
 /**

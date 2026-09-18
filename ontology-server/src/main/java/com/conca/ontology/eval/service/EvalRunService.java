@@ -1,11 +1,10 @@
-package com.conca.ontology.eval;
+package com.conca.ontology.eval.service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -17,7 +16,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -28,20 +26,20 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.user.web.SessionUser;
-
-import com.conca.ontology.eval.dto.request.EvalCustomGraderRequest;
-import com.conca.ontology.eval.dto.request.EvalCustomGraderTestRequest;
-import com.conca.ontology.eval.dto.request.EvalSampleRequest;
-import com.conca.ontology.eval.dto.result.FromChatSampleResult;
-import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
-import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.agent.service.AgentSessionService;
+import com.conca.ontology.eval.AgenticJudgeHolder;
+import com.conca.ontology.eval.Grader;
+import com.conca.ontology.eval.JudgeClient;
+import com.conca.ontology.eval.model.AgentRecord;
+import com.conca.ontology.eval.model.EvalSample;
+import com.conca.ontology.eval.model.EvalTask;
+import com.conca.ontology.eval.model.GraderInput;
+import com.conca.ontology.eval.model.GraderScore;
+import com.conca.ontology.user.web.SessionUser;
+import com.conca.ontology.shared.web.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.event.AgentEvent;
@@ -60,602 +58,57 @@ import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.harness.agent.HarnessAgent;
 
-/**
- * 评测编排服务（工程模式对齐 BackupService：异步任务 + 内存进度 + 结果落盘 + 单任务互斥）：
- * 数据集（data/eval/datasets/*.jsonl，格式对齐 OpenJudge：query/response/reference_response）
- * 逐条驱动 HarnessAgent（服务端直接收集事件流，不走前端 SSE；样本预置 response 时跳过
- * agent 直接判分，即 OpenJudge 纯判分模式），轨迹与回答交由 Grader 判分，
- * 结果写 data/eval/results/eval-*.json。
- * 单条样本/单个评测器异常均转为 error 结果，不中断整批（对齐 OpenJudge GraderError 语义）。
- */
 @Service
-public class EvalService {
+public class EvalRunService {
 
-    private static final Logger log = LoggerFactory.getLogger(EvalService.class);
+    private static final Logger log = LoggerFactory.getLogger(EvalRunService.class);
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
-    /** 单样本 agent 调用上限（多轮工具调用场景留足余量） */
     private static final long AGENT_TIMEOUT_MINUTES = 5;
-    /** 数据集文件名（防路径穿越）与任务 id / 结果文件名 */
-    private static final Pattern DATASET_NAME_RE = Pattern.compile("^[A-Za-z0-9._-]+\\.jsonl$");
-    /** 任务 id / 结果文件名（随机码 1-3 位十六进制：Integer.toHexString 不补零，历史 run 存在 2 位码） */
     private static final Pattern RUN_ID_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{1,3}$");
-    /** 结果文件名（RUN_ID + .json；独立于 RUN_ID_RE，避免锚点 pattern 拼接后永不匹配） */
     private static final Pattern RUN_FILE_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{1,3}\\.json$");
     private static final int TRUNCATE = 500;
-
-    /** 进度任务（内存态；产物落盘不受服务重启影响，历史任务从结果文件读取） */
-    public static final class Task {
-        public final String id;
-        public final String dataset;
-        public final List<String> graderNames;
-        public final String userId;
-        /** LLM 判分次数（B8 运行参数，null = 未指定回落 app.eval.judge.runs 配置） */
-        public final Integer judgeRuns;
-        public final LocalDateTime startedAt = LocalDateTime.now();
-        volatile String status = "running";  // running | success | failed
-        volatile String detail = "准备中";
-        volatile int percent = 0;
-        volatile String error;
-        volatile Map<String, Object> result;
-        volatile String resultFile;
-
-        Task(String id, String dataset, List<String> graderNames, Integer judgeRuns, String userId) {
-            this.id = id;
-            this.dataset = dataset;
-            this.graderNames = graderNames;
-            this.judgeRuns = judgeRuns;
-            this.userId = userId;
-        }
-    }
 
     private final ObjectProvider<HarnessAgent> agentProvider;
     private final ObjectMapper mapper;
     private final JudgeClient judgeClient;
     private final AgenticJudgeHolder agenticJudgeHolder;
     private final AgentSessionService agentSessionService;
-    private final Map<String, Grader> graders = new TreeMap<>();
-
-    @Value("${app.eval.dataset-dir:data/eval/datasets}")
-    private String datasetDir;
+    private final EvalGraderRegistry graderRegistry;
+    private final EvalDatasetService datasetService;
 
     @Value("${app.eval.result-dir:data/eval/results}")
     private String resultDir;
 
-    /** 样本级通过阈值（均分 ≥ 此值且无 error 记通过）；summary 与回归对比翻转矩阵同口径 */
     @Value("${app.eval.pass-threshold:0.8}")
     private double passThreshold;
 
-    private final AtomicReference<Task> current = new AtomicReference<>();
+    private final AtomicReference<EvalTask> current = new AtomicReference<>();
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "eval-worker");
         t.setDaemon(true);
         return t;
     });
-    /** persistProgress 落盘节流：上次写入毫秒时间戳（单线程模型无并发，volatile 可见即可） */
     private volatile long lastPersistAtMs = 0L;
-    /** persistProgress 落盘节流：上次写入时的 percent（整数变化才落盘，避免同 percent 狂刷 IO） */
     private volatile int lastPersistPercent = -1;
 
-    public EvalService(ObjectProvider<HarnessAgent> agentProvider,
+    public EvalRunService(ObjectProvider<HarnessAgent> agentProvider,
             ObjectMapper mapper, JudgeClient judgeClient, AgenticJudgeHolder agenticJudgeHolder,
-            AgentSessionService agentSessionService,
-            List<Grader> graderBeans, CustomGraderStore customGraderStore) {
+            AgentSessionService agentSessionService, EvalGraderRegistry graderRegistry,
+            EvalDatasetService datasetService) {
         this.agentProvider = agentProvider;
         this.mapper = mapper;
         this.judgeClient = judgeClient;
         this.agenticJudgeHolder = agenticJudgeHolder;
         this.agentSessionService = agentSessionService;
-        this.customGraderStore = customGraderStore;
-        for (Grader g : graderBeans) {
-            graders.put(g.name(), g);
-        }
-        // 自定义评测器（用户提示词驱动）：启动时从 data/eval/custom-graders.json 装载，
-        // 与内置评测器同等注册（可勾选运行 / 数据集引用 / 结果落盘可 Diff）
-        for (CustomGraderDefinition d : customGraderStore.all()) {
-            graders.put(d.name(), new CustomLlmGrader(judgeClient, d));
-        }
+        this.graderRegistry = graderRegistry;
+        this.datasetService = datasetService;
     }
 
-    private final CustomGraderStore customGraderStore;
-
-    // ---------------- 查询：数据集 / 评测器 ----------------
-
-    /** 数据集列表（目录扫描，逐文件数行数；目录不存在视为空） */
-    public Map<String, Object> listDatasets() {
-        List<Map<String, Object>> list = new ArrayList<>();
-        Path dir = datasetPath();
-        if (!Files.isDirectory(dir)) {
-            return Map.of("datasets", list);
-        }
-        try (Stream<Path> s = Files.list(dir)) {
-            for (Path p : s.filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith(".jsonl"))
-                    .sorted(Comparator.comparing((Path p) -> p.getFileName().toString())).toList()) {
-                Map<String, Object> d = new LinkedHashMap<>();
-                d.put("name", p.getFileName().toString());
-                d.put("count", countLines(p));
-                list.add(d);
-            }
-        } catch (IOException e) {
-            throw new ApiException(500, "扫描数据集目录失败: " + e.getMessage());
-        }
-        return Map.of("datasets", list);
-    }
-
-    /** 数据集预览（前 limit 行，逐行解析；坏行标记 error 不中断） */
-    public Map<String, Object> datasetPreview(String name, int limit) {
-        List<Map<String, Object>> all = readAllSamples(requireDataset(name));
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("name", name);
-        m.put("samples", all.subList(0, Math.min(all.size(), Math.max(1, limit))));
-        return m;
-    }
-
-    /** 评测器清单（注册的 Spring Bean 即页面可选集） */
-    public Map<String, Object> graderList() {
-        List<Map<String, Object>> list = new ArrayList<>();
-        graders.forEach((name, g) -> {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("name", g.name());
-            m.put("description", g.description());
-            m.put("type", g.type());
-            m.put("group", groupOf(g));
-            list.add(m);
-        });
-        return Map.of("graders", list);
-    }
-
-    /** 评测器分组（graders 包路径后缀，如 rule.match / llm.answer，页面按此分类展示） */
-    private static String groupOf(Grader g) {
-        String prefix = Grader.class.getPackageName() + ".graders.";
-        String pkg = g.getClass().getPackage().getName();
-        return pkg.startsWith(prefix) ? pkg.substring(prefix.length()) : "other";
-    }
-
-    // ---------------- 数据集管理：分页读取 / 增删改 / 新建 ----------------
-
-    /** 分页读取样本（seq = 非空行序号，从 1 起，编辑/删除按此定位；page 越界自动收敛） */
-    public Map<String, Object> datasetSamples(String name, int page, int pageSize) {
-        List<Map<String, Object>> all = readAllSamples(requireDataset(name));
-        int size = Math.min(Math.max(pageSize, 1), 100);
-        int total = all.size();
-        int pages = Math.max((total + size - 1) / size, 1);
-        int cur = Math.min(Math.max(page, 1), pages);
-        List<Map<String, Object>> slice = all.subList(Math.min((cur - 1) * size, total), Math.min(cur * size, total));
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("name", name);
-        m.put("page", cur);
-        m.put("pageSize", size);
-        m.put("total", total);
-        m.put("pages", pages);
-        m.put("samples", new ArrayList<>(slice));
-        return m;
-    }
-
-    /**
-     * 聊天记录沉淀：提取指定会话第 msgIndex 条 AI 回答及其对应提问（预填样本表单，不落盘）。
-     * 复用 AgentSessionService.messages 的会话隔离（越权/不存在 404）；期望回答由人工补齐后走 addSample。
-     */
-    @SuppressWarnings("unchecked")
-    public FromChatSampleResult sampleFromChat(String userId, String sessionId, int msgIndex) {
-        Map<String, Object> data = agentSessionService.messages(userId, sessionId);
-        List<Map<String, Object>> msgs = (List<Map<String, Object>>) data.get("messages");
-        if (msgs == null || msgIndex < 0 || msgIndex >= msgs.size()) {
-            throw new ApiException(400, "msgIndex 越界（会话共 " + (msgs == null ? 0 : msgs.size()) + " 条消息）");
-        }
-        Map<String, Object> target = msgs.get(msgIndex);
-        if (!"assistant".equals(target.get("role"))) {
-            throw new ApiException(400, "msgIndex 必须指向 AI 回答消息");
-        }
-        String answer = target.get("answer") == null ? "" : String.valueOf(target.get("answer"));
-        if (answer.isBlank()) {
-            throw new ApiException(400, "该消息无回答内容，无法沉淀");
-        }
-        // 最近一条 user 消息即提问；turnIndex = 该回答之前的 user 消息数（第几问）
-        String query = null;
-        int turnIndex = 0;
-        for (int i = 0; i < msgIndex; i++) {
-            Map<String, Object> m = msgs.get(i);
-            if ("user".equals(m.get("role"))) {
-                turnIndex++;
-                query = m.get("content") == null ? "" : String.valueOf(m.get("content"));
-            }
-        }
-        if (query == null || query.isBlank()) {
-            throw new ApiException(400, "未找到对应的提问");
-        }
-        String ts = target.get("ts") == null ? "" : String.valueOf(target.get("ts"));
-        return new FromChatSampleResult(sessionId, msgIndex, query, answer, ts, turnIndex, msgs.size());
-    }
-
-    /** 新增一条样本（校验后追加一行） */
-    public synchronized Map<String, Object> addSample(String name, EvalSampleRequest req) {
-        Path p = requireDataset(name);
-        String line = buildSampleLine(req, p, -1);
-        try {
-            Files.write(p, (line + "\n").getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        } catch (IOException e) {
-            throw new ApiException(500, "写入数据集失败: " + e.getMessage());
-        }
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("name", name);
-        m.put("total", countLines(p));
-        return m;
-    }
-
-    /** 编辑第 seq 个非空行（整读整写 + tmp 原子替换；运行中评测任务已在启动时载入内存，不受影响） */
-    public synchronized Map<String, Object> updateSample(String name, int seq, EvalSampleRequest req) {
-        Path p = requireDataset(name);
-        List<String> lines = readPhysicalLines(p);
-        int idx = indexOfSeq(lines, seq);
-        if (idx < 0) {
-            throw new ApiException(404, "样本不存在: 第 " + seq + " 条（数据集可能已被修改，请刷新）");
-        }
-        lines.set(idx, buildSampleLine(req, p, seq));
-        rewrite(p, lines);
-        return Map.of("name", name, "seq", seq);
-    }
-
-    /** 删除第 seq 个非空行 */
-    public synchronized Map<String, Object> deleteSample(String name, int seq) {
-        Path p = requireDataset(name);
-        List<String> lines = readPhysicalLines(p);
-        int idx = indexOfSeq(lines, seq);
-        if (idx < 0) {
-            throw new ApiException(404, "样本不存在: 第 " + seq + " 条（数据集可能已被修改，请刷新）");
-        }
-        lines.remove(idx);
-        rewrite(p, lines);
-        return Map.of("name", name, "seq", seq, "total", countLines(p));
-    }
-
-    /** 新建空数据集文件（同名已存在 409） */
-    public synchronized Map<String, Object> createDataset(String name) {
-        if (name == null || !DATASET_NAME_RE.matcher(name).matches()) {
-            throw new ApiException(400, "非法数据集文件名: " + name + "（须形如 my-ds.jsonl）");
-        }
-        Path p = datasetPath().resolve(name).normalize();
-        if (!p.startsWith(datasetPath())) {
-            throw new ApiException(400, "非法数据集文件名: " + name);
-        }
-        if (Files.exists(p)) {
-            throw new ApiException(409, "数据集已存在: " + name);
-        }
-        try {
-            Files.createDirectories(datasetPath());
-            Files.createFile(p);
-        } catch (IOException e) {
-            throw new ApiException(500, "创建数据集失败: " + e.getMessage());
-        }
-        return Map.of("name", name, "count", 0);
-    }
-
-    /** 全量读取样本（seq = 非空行序号，从 1 起；坏行 valid=false 不中断） */
-    private List<Map<String, Object>> readAllSamples(Path p) {
-        List<Map<String, Object>> samples = new ArrayList<>();
-        int seq = 0;
-        try (var reader = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.isBlank()) {
-                    continue;
-                }
-                samples.add(parseSampleRow(line, ++seq));
-            }
-        } catch (IOException e) {
-            throw new ApiException(500, "读取数据集失败: " + e.getMessage());
-        }
-        return samples;
-    }
-
-    /** 解析一行样本（与预览字段一致，附 seq；raw 供坏行编辑时展示原文） */
-    private Map<String, Object> parseSampleRow(String line, int seq) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("seq", seq);
-        row.put("raw", line);
-        try {
-            JsonNode node = mapper.readTree(line);
-            row.put("id", node.path("id").asText("line-" + seq));
-            JsonNode turnsNode = node.path("turns");
-            if (turnsNode.isArray() && turnsNode.size() >= 2) {
-                // 多轮样本：列表展示为压缩串，编辑回填使用完整 turns 数组。
-                StringBuilder q = new StringBuilder("【多轮 " + turnsNode.size() + " 轮】");
-                for (int i = 0; i < turnsNode.size(); i++) {
-                    q.append(" 轮").append(i + 1).append("：").append(turnsNode.get(i).path("query").asText(""));
-                }
-                row.put("sampleType", "multi");
-                row.put("query", q.toString());
-                row.put("turnsCount", turnsNode.size());
-                row.put("turns", mapper.convertValue(turnsNode, List.class));
-            } else {
-                row.put("sampleType", "single");
-                row.put("query", node.path("query").asText(""));
-                row.put("turnsCount", 0);
-                row.put("turns", List.of());
-            }
-            row.put("response", node.path("response").asText(null));
-            JsonNode ref = node.path("reference_response");
-            row.put("referenceResponse",
-                    ref.isMissingNode() || ref.isNull() ? null
-                            : ref.isTextual() ? ref.asText() : mapper.writeValueAsString(ref));
-            row.put("tolerance", node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null);
-            row.put("valid", true);
-        } catch (Exception e) {
-            row.put("valid", false);
-            row.put("error", "JSON 解析失败: " + e.getMessage());
-        }
-        return row;
-    }
-
-    /** 构建并校验一行样本 JSON（query 必填；ref 按类型解析；id 须唯一；样本不含评测器字段） */
-    private String buildSampleLine(EvalSampleRequest req, Path p, int excludeSeq) {
-        String id = req.id() == null ? "" : req.id().trim();
-        if (id.isEmpty()) {
-            id = "q-" + STAMP.format(LocalDateTime.now()) + "-"
-                    + Integer.toHexString((int) (System.currentTimeMillis() & 0xfff));
-        }
-        for (Map<String, Object> r : readAllSamples(p)) {
-            if ((int) r.get("seq") != excludeSeq && id.equals(r.get("id"))) {
-                throw new ApiException(409, "id 已存在: " + id);
-            }
-        }
-        try {
-            ObjectNode node = mapper.createObjectNode();
-            node.put("id", id);
-            String sampleType = req.sampleType() == null ? "" : req.sampleType().trim().toLowerCase();
-            List<EvalSampleRequest.TurnRequest> turns = req.turns() == null ? List.of() : req.turns();
-            if (!sampleType.isEmpty() && !"single".equals(sampleType) && !"multi".equals(sampleType)) {
-                throw new ApiException(400, "sampleType 仅支持 single 或 multi");
-            }
-            boolean isMulti = "multi".equals(sampleType) || (sampleType.isEmpty() && !turns.isEmpty());
-            if (isMulti) {
-                if (turns.size() < 2) {
-                    throw new ApiException(400, "多轮样本至少需要 2 轮");
-                }
-                ArrayNode arr = node.putArray("turns");
-                for (int i = 0; i < turns.size(); i++) {
-                    EvalSampleRequest.TurnRequest turn = turns.get(i);
-                    String q = turn == null || turn.query() == null ? "" : turn.query().trim();
-                    if (q.isBlank()) {
-                        throw new ApiException(400, "第 " + (i + 1) + " 轮 query 不能为空");
-                    }
-                    ObjectNode t = arr.addObject();
-                    t.put("query", q);
-                    if (turn != null && turn.response() != null && !turn.response().isBlank()) {
-                        t.put("response", turn.response().trim());
-                    }
-                }
-            } else {
-                if (req.query() == null || req.query().isBlank()) {
-                    throw new ApiException(400, "query 不能为空");
-                }
-                node.put("query", req.query().trim());
-                if (req.response() != null && !req.response().isBlank()) {
-                    node.put("response", req.response().trim());
-                }
-            }
-            String type = req.referenceType() == null ? "" : req.referenceType().trim();
-            if (!type.isEmpty()) {
-                String text = req.referenceText() == null ? "" : req.referenceText().trim();
-                switch (type) {
-                    case "string" -> node.put("reference_response", text);
-                    case "number" -> {
-                        try {
-                            if (text.matches("-?\\d+")) {
-                                node.put("reference_response", Long.parseLong(text));
-                            } else {
-                                node.put("reference_response", Double.parseDouble(text));
-                            }
-                        } catch (NumberFormatException e) {
-                            throw new ApiException(400, "数字类型解析失败: " + text);
-                        }
-                    }
-                    case "array" -> {
-                        JsonNode arr;
-                        try {
-                            arr = mapper.readTree(text);
-                        } catch (Exception e) {
-                            throw new ApiException(400, "数组类型解析失败（须形如 [\"北宋\",\"唐代\"]）");
-                        }
-                        if (!arr.isArray()) {
-                            throw new ApiException(400, "数组类型须形如 [\"北宋\",\"唐代\"]");
-                        }
-                        node.set("reference_response", arr);
-                    }
-                    default -> throw new ApiException(400, "未知 referenceType: " + type + "（string|number|array）");
-                }
-            }
-            if (req.tolerance() != null) {
-                node.put("tolerance", req.tolerance());
-            }
-            return mapper.writeValueAsString(node);
-        } catch (ApiException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ApiException(500, "样本序列化失败: " + e.getMessage());
-        }
-    }
-
-    /** 物理行全量读取（保留空行原样） */
-    private List<String> readPhysicalLines(Path p) {
-        try {
-            return Files.readAllLines(p, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new ApiException(500, "读取数据集失败: " + e.getMessage());
-        }
-    }
-
-    /** 第 seq 个非空行的物理下标（无则 -1） */
-    private int indexOfSeq(List<String> lines, int seq) {
-        int n = 0;
-        for (int i = 0; i < lines.size(); i++) {
-            if (!lines.get(i).isBlank() && ++n == seq) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    /** 原子重写（tmp 后 rename，读方只会看到旧或新完整文件） */
-    private void rewrite(Path p, List<String> lines) {
-        Path tmp = p.resolveSibling(p.getFileName() + ".tmp");
-        try {
-            Files.write(tmp, lines, StandardCharsets.UTF_8);
-            Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            try {
-                Files.deleteIfExists(tmp);
-            } catch (IOException ignore) {
-                // 清理失败不影响主错误上报
-            }
-            throw new ApiException(500, "写入数据集失败: " + e.getMessage());
-        }
-    }
-
-    // ---------------- 自定义评测器（用户提示词驱动） ----------------
-
-    /** 自定义评测器清单（graders 注册表已含全部，此清单附 mode/时间等定义元数据） */
-    public Map<String, Object> customGraderList() {
-        List<Map<String, Object>> list = new ArrayList<>();
-        for (CustomGraderDefinition d : customGraderStore.all()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("name", d.name());
-            m.put("description", d.description());
-            m.put("mode", d.mode());
-            m.put("updatedAt", d.updatedAt());
-            list.add(m);
-        }
-        return Map.of("graders", list);
-    }
-
-    /** 单个定义详情（含 prompt 全文，编辑回填用；列表接口不含 prompt 控载荷） */
-    public Map<String, Object> customGraderDetail(String name) {
-        CustomGraderDefinition d = customGraderStore.find(name);
-        if (d == null) {
-            throw new ApiException(404, "自定义评测器不存在: " + name);
-        }
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("name", d.name());
-        m.put("description", d.description());
-        m.put("mode", d.mode());
-        m.put("prompt", d.prompt());
-        m.put("createdAt", d.createdAt());
-        m.put("updatedAt", d.updatedAt());
-        return m;
-    }
-
-    /** 创建：与内置/既有评测器重名 400；定义校验（名称/模式/占位符）见 CustomGraderStore.validate */
-    public synchronized Map<String, Object> createCustomGrader(EvalCustomGraderRequest req) {
-        CustomGraderDefinition def = CustomGraderStore.validate(req.name(), req.description(),
-                req.mode(), req.prompt(), null);
-        if (graders.containsKey(def.name())) {
-            throw new ApiException(400, "评测器名已存在（内置或自定义）: " + def.name() + "，请换一个名称");
-        }
-        customGraderStore.create(def);
-        graders.put(def.name(), new CustomLlmGrader(judgeClient, def));
-        log.info("custom grader created: {}", def.name());
-        return Map.of("name", def.name(), "mode", def.mode());
-    }
-
-    /** 更新：名称不可改；更新后热替换注册表中的实例（同一次运行即生效，无需重启） */
-    public synchronized Map<String, Object> updateCustomGrader(String name, EvalCustomGraderRequest req) {
-        if (customGraderStore.find(name) == null) {
-            throw new ApiException(404, "自定义评测器不存在: " + name);
-        }
-        if (req.name() != null && !req.name().isBlank() && !req.name().trim().equals(name)) {
-            throw new ApiException(400, "名称不可修改（当前 " + name + "）");
-        }
-        CustomGraderDefinition def = CustomGraderStore.validate(name, req.description(),
-                req.mode(), req.prompt(), customGraderStore.find(name).createdAt());
-        customGraderStore.update(name, def);
-        graders.put(name, new CustomLlmGrader(judgeClient, def));
-        log.info("custom grader updated: {}", name);
-        return Map.of("name", name, "mode", def.mode());
-    }
-
-    /** 删除：被数据集样本内容引用（保守匹配带引号的名称串）时 409 列出引用位置 */
-    public synchronized Map<String, Object> deleteCustomGrader(String name) {
-        if (customGraderStore.find(name) == null) {
-            throw new ApiException(404, "自定义评测器不存在: " + name);
-        }
-        List<String> refs = findGraderReferences(name);
-        if (!refs.isEmpty()) {
-            throw new ApiException(409, "评测器被以下数据集引用，请先清理引用后再删除："
-                    + String.join("、", refs));
-        }
-        customGraderStore.delete(name);
-        graders.remove(name);
-        log.info("custom grader deleted: {}", name);
-        return Map.of("name", name);
-    }
-
-    /** 试跑：单次判分即时返回（不落盘、不消耗任务配额），body 为一条临时样本 */
-    public Map<String, Object> testCustomGrader(String name, EvalCustomGraderTestRequest req) {
-        Grader g = graders.get(name);
-        if (g == null || !(g instanceof CustomLlmGrader cg)) {
-            throw new ApiException(404, "自定义评测器不存在: " + name);
-        }
-        if (!judgeClient.isConfigured()) {
-            throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：试跑依赖 LLM 判分通道");
-        }
-        // 占位 record（预置 response 纯判分模式同构）：无轨迹，context 变量为「无」
-        AgentRecord record = new AgentRecord(req.response() == null ? "" : req.response(),
-                List.of(), 0, 0, 0, 0, null);
-        Map<String, Object> params = new LinkedHashMap<>();
-        params.put("query", req.query());
-        params.put("response", req.response());
-        params.put("reference_response", req.referenceResponse());
-        params.put("rubric", req.rubric());
-        GraderScore s = cg.evaluate(new GraderInput(params, record));
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("score", s.score());
-        m.put("reason", s.reason());
-        m.put("error", s.error());
-        m.put("metadata", s.metadata());
-        return m;
-    }
-
-    /** 扫描数据集目录，找出内容中出现带引号评测器名的行（保守引用检测，供删除拦截） */
-    private List<String> findGraderReferences(String name) {
-        List<String> refs = new ArrayList<>();
-        Path dir = datasetPath();
-        if (!Files.isDirectory(dir)) {
-            return refs;
-        }
-        String needle = "\"" + name + "\"";
-        try (Stream<Path> s = Files.list(dir)) {
-            for (Path p : s.filter(Files::isRegularFile)
-                    .filter(x -> x.getFileName().toString().endsWith(".jsonl")).toList()) {
-                try {
-                    List<String> lines = Files.readAllLines(p, StandardCharsets.UTF_8);
-                    for (int i = 0; i < lines.size(); i++) {
-                        if (lines.get(i).contains(needle)) {
-                            refs.add(p.getFileName() + " 第" + (i + 1) + "行");
-                        }
-                    }
-                } catch (IOException ignore) {
-                    // 单文件读取失败不阻断引用检测
-                }
-            }
-        } catch (IOException e) {
-            throw new ApiException(500, "扫描数据集目录失败: " + e.getMessage());
-        }
-        return refs;
-    }
-
-    // ---------------- 任务控制 ----------------
-
-    /** 启动评测（异步），同一时间仅允许一个任务；judgeRuns 为 LLM 判分次数运行参数（null/1 = 单次）；
-     * 线程安全：synchronized 块内完成「内存+文件双重检查 → 生成 taskId → 骨架文件原子落盘 → 更新内存 → submit 线程」，
-     * 无任何竞态窗口；重启后遗留 running 文件会被 Step 2 文件检查拦截，防止同目录重复起新任务。 */
     public synchronized Map<String, Object> start(String dataset, List<String> graderNames, Integer judgeRuns, String userId) {
-        // -------- Step 1：内存态检查（当前 JVM 实例里正在跑） --------
-        Task t = current.get();
+        EvalTask t = current.get();
         if (t != null && "running".equals(t.status)) {
             throw new ApiException(409, "已有评测任务进行中，请等待完成（任务 id：" + t.id + "，当前进度：" + t.detail + "）");
         }
-        // -------- Step 2：文件级检查（重启后遗留的 running 骨架文件；不同 JVM 实例并发防护） --------
         Path dir = resultPath();
         if (Files.isDirectory(dir)) {
             try (Stream<Path> s = Files.list(dir)) {
@@ -672,7 +125,6 @@ public class EvalService {
                     } catch (ApiException ae) {
                         throw ae;
                     } catch (Exception ignore) {
-                        // 损坏/解析失败的结果文件不阻断新建任务
                     }
                 }
             } catch (IOException e) {
@@ -688,33 +140,29 @@ public class EvalService {
                 runs = judgeRuns;
             }
         }
-        requireDataset(dataset);
+        datasetService.requireDataset(dataset);
         List<String> names = graderNames == null ? List.of() : graderNames.stream().filter(n -> n != null && !n.isBlank()).toList();
         if (names.isEmpty()) {
-            // 评测器仅任务级选择（样本不指定）：必选至少一个，避免误跑全量 LLM 判分产生 token 成本
-            throw new ApiException(400, "请至少勾选一个评测器（可用：" + graders.keySet() + "）");
+            throw new ApiException(400, "请至少勾选一个评测器（可用：" + graderRegistry.graders().keySet() + "）");
         }
+        Map<String, Grader> graders = graderRegistry.graders();
         for (String n : names) {
             if (!graders.containsKey(n)) {
                 throw new ApiException(400, "未知评测器: " + n + "（可用：" + graders.keySet() + "）");
             }
         }
-        // LLM 判分依赖 judge 通道：未配置 key 时提前 409（对齐现有「AI 服务未配置」文案约定）
         if (names.stream().anyMatch(n -> "llm".equals(graders.get(n).type())) && !judgeClient.isConfigured()) {
             throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：所选评测器包含 LLM 判分，"
                     + "请配置后重启服务或仅勾选规则评测器");
         }
-        // Agentic 取证评测依赖独立装配的取证 agent，同文案提前拦截
         if (names.stream().anyMatch(n -> "agentic".equals(graders.get(n).type()))
                 && (!agenticJudgeHolder.isConfigured() || agenticJudgeHolder.agent() == null)) {
             throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：所选评测器包含 Agentic 取证判分，"
                     + "请配置后重启服务或仅勾选规则评测器");
         }
-        // 仅当存在需 agent 作答的样本（未预置 response）时才要求 agent 装配；
-        // 全部预置 response 的数据集为纯判分模式（对齐 OpenJudge），不依赖 AI 服务
         boolean needAgent;
         try {
-            needAgent = loadSamples(dataset).stream().anyMatch(s -> !s.hasPresetResponse());
+            needAgent = datasetService.loadSamples(dataset).stream().anyMatch(s -> !s.hasPresetResponse());
         } catch (IOException e) {
             throw new ApiException(500, "读取数据集失败: " + e.getMessage());
         }
@@ -722,20 +170,16 @@ public class EvalService {
             throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：数据集含需 agent 作答的样本，"
                     + "请配置后重启服务或改用全部预置 response 的数据集");
         }
-        // -------- Step 3：生成任务 + 骨架文件立即落盘 --------
         String id = "eval-" + LocalDateTime.now().format(STAMP) + "-"
                 + Integer.toHexString((int) (Math.random() * 0xfff));
-        Task task = new Task(id, dataset, names, runs, userId);
-        // 重置节流计数器（新任务新起点）
+        EvalTask task = new EvalTask(id, dataset, names, runs, userId);
         lastPersistAtMs = 0L;
         lastPersistPercent = -1;
         writeTaskMeta(task);
-        // -------- Step 4：更新内存 + 起线程（先写文件后改内存，异常时回滚内存不污染列表） --------
         current.set(task);
         try {
             executor.submit(() -> runEval(task));
         } catch (RuntimeException e) {
-            // 极端情况：线程池拒绝提交（单 Executor 异常关闭） → 回滚文件为失败 + 清内存
             task.status = "failed";
             task.error = "executor 提交失败：" + e.getMessage();
             writeTaskMeta(task);
@@ -746,9 +190,8 @@ public class EvalService {
         return Map.of("taskId", task.id);
     }
 
-    /** 任务进度/详情：内存命中优先（含运行中实时态），否则从结果文件读取（服务重启后的历史） */
     public Map<String, Object> progress(String taskId) {
-        Task t = current.get();
+        EvalTask t = current.get();
         if (t != null && t.id.equals(taskId)) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("taskId", t.id);
@@ -778,10 +221,9 @@ public class EvalService {
         return m;
     }
 
-    /** 历史任务列表（扫描结果目录，按文件名倒序 = 时间倒序；僵尸 running 文件标 interrupted 供前端区分） */
     public Map<String, Object> listRuns() {
         List<Map<String, Object>> runs = new ArrayList<>();
-        Task running = current.get();
+        EvalTask running = current.get();
         String runningId = (running != null && "running".equals(running.status)) ? running.id : null;
         Path dir = resultPath();
         if (Files.isDirectory(dir)) {
@@ -799,7 +241,6 @@ public class EvalService {
                         m.put("finishedAt", saved.get("finishedAt"));
                         m.put("startedAt", saved.get("startedAt"));
                         String st = saved.get("status") == null ? "success" : (String) saved.get("status");
-                        // 僵尸态检测：文件 status=running，但内存中要么无 current，要么 id 不匹配（服务重启遗留）
                         if ("running".equals(st) && !id.equals(runningId)) {
                             m.put("status", "interrupted");
                             m.put("_zombie", true);
@@ -809,7 +250,6 @@ public class EvalService {
                         } else {
                             m.put("status", st);
                         }
-                        // 实时运行中：用内存态覆盖 detail/percent，前端列表也能看到进度（pollEval 仍走 GET /{id}）
                         if (id.equals(runningId)) {
                             m.put("_live", true);
                             m.put("detail", running.detail);
@@ -832,7 +272,6 @@ public class EvalService {
         return Map.of("runs", runs);
     }
 
-    /** 下载用结果文件路径（id 正则校验防路径穿越） */
     public Path requireResultFile(String taskId) {
         if (taskId == null || !RUN_ID_RE.matcher(taskId).matches()) {
             throw new ApiException(400, "非法任务 id: " + taskId);
@@ -847,12 +286,6 @@ public class EvalService {
         return p;
     }
 
-    /**
-     * 删除评测运行结果文件：
-     * 1）复用 requireResultFile 的 RUN_ID_RE + startsWith 双保险防路径穿越；
-     * 2）返回被删除的 id 与文件字节数，前端刷新列表。
-     * 若目标 run 恰好正在写入（如运行中点删除）：Windows 下因文件锁会抛 500，前端重试即可。
-     */
     public synchronized Map<String, Object> deleteRun(String taskId, SessionUser operator) {
         Path p = requireResultFile(taskId);
         long size = 0L;
@@ -882,14 +315,6 @@ public class EvalService {
         return m;
     }
 
-    // ---------------- 人工评分（human_review 评测器） ----------------
-
-    /**
-     * 人工评分：定位样本的 human_review 占位分并原地替换为真实分（或标记跳过），
-     * 重算 summary 并原子写回结果文件（文件是唯一真源，服务重启后仍可打分）。
-     * 全部样本已评/已跳过 → 任务状态翻转 success；内存 Task 同步更新（若仍在）。
-     * 同一任务可重复打分（覆盖修改，metadata.human.scoredAt 更新留痕）。
-     */
     public synchronized Map<String, Object> humanScore(String taskId, String sampleId,
             Integer rawScore, String comment, Boolean skip, String userId) {
         Map<String, Object> result = requireResult(taskId);
@@ -947,7 +372,6 @@ public class EvalService {
         hs.put("metadata", Map.of("human", meta));
         scores.set(idx, hs);
 
-        // 重算 summary（duration/tokens/judge 打分不改变，沿用旧值；人工分计入均值）
         Map<String, Object> os = result.get("summary") instanceof Map<?, ?> mm
                 ? (Map<String, Object>) mm : Map.of();
         int total = (int) num(os.get("total"));
@@ -963,7 +387,7 @@ public class EvalService {
         result.put("status", st);
         persistResult(taskId, result);
 
-        Task t = current.get();
+        EvalTask t = current.get();
         if (t != null && t.id.equals(taskId)) {
             t.result = result;
             t.resultFile = taskId + ".json";
@@ -980,7 +404,6 @@ public class EvalService {
         return m;
     }
 
-    /** 人工打分写回（与 writeResult 同构：tmp + rename 原子替换，半成品不进列表） */
     private void persistResult(String taskId, Map<String, Object> result) {
         try {
             Path dir = Files.createDirectories(resultPath());
@@ -997,12 +420,9 @@ public class EvalService {
         }
     }
 
-    // ---------------- 评测执行 ----------------
-
-    private void runEval(Task task) {
+    private void runEval(EvalTask task) {
         try {
-            List<EvalSample> samples = loadSamples(task.dataset);
-            // 数据集内容哈希快照（回归对比 Run Diff 校验用；失败不阻断评测，diff 时按 unknown 处理）
+            List<EvalSample> samples = datasetService.loadSamples(task.dataset);
             String dsh;
             try {
                 dsh = datasetHash(samples);
@@ -1017,6 +437,7 @@ public class EvalService {
             long totalDuration = 0;
             long totalPromptTokens = 0;
             long totalCompletionTokens = 0;
+            Map<String, Grader> graders = graderRegistry.graders();
 
             for (int i = 0; i < total; i++) {
                 EvalSample sample = samples.get(i);
@@ -1030,8 +451,6 @@ public class EvalService {
                     row.put("turns", sample.turns().size());
                 }
                 try {
-                    // 预置 response 纯判分模式（对齐 OpenJudge）：跳过 agent，占位 record 仅承载回答；
-                    // 多轮样本（turns）预置时同样跳过 agent，dialogue 取预置脚本
                     AgentRecord record;
                     if (sample.hasPresetResponse()) {
                         if (sample.isMultiTurn()) {
@@ -1047,7 +466,6 @@ public class EvalService {
                         }
                         row.put("responseSource", "preset");
                     } else if (sample.isMultiTurn()) {
-                        // 多轮 agent 模式：轮序在同一会话连续作答（跨轮上下文记忆），被评测对象为最后一轮回答
                         record = askAgentMultiTurn(sample, task);
                         row.put("responseSource", "agent");
                     } else {
@@ -1067,7 +485,7 @@ public class EvalService {
                     row.put("promptTokens", record.promptTokens());
                     row.put("completionTokens", record.completionTokens());
                     row.put("agentError", record.error());
-                    row.put("scores", judge(sample, record, task));
+                    row.put("scores", judge(sample, record, task, graders));
                 } catch (Exception e) {
                     log.warn("eval sample {} failed: {}", sample.id(), e.getMessage());
                     row.put("agentError", e.getMessage());
@@ -1082,7 +500,6 @@ public class EvalService {
             persistProgress(task, true);
             Map<String, Object> summary = summarize(sampleResults, totalDuration,
                     totalPromptTokens, totalCompletionTokens);
-            // 含人工评测器时任务进入「待人工评分」阶段（判分由人在页面完成，完成后翻转 success）
             boolean hasHuman = task.graderNames.stream()
                     .anyMatch(n -> "human".equals(graders.get(n).type()));
             String status = hasHuman ? "awaiting_human" : "success";
@@ -1106,8 +523,6 @@ public class EvalService {
             task.status = status;
             log.info("eval finished: {} passRate={} avgScore={}",
                     task.id, summary.get("passRate"), summary.get("avgScore"));
-            // 最终态文件已完整落盘：无条件清空 current，解除 start() 的 409 内存互斥锁
-            // （awaiting_human 期间允许新任务启动，人工评分逻辑是直接改结果文件，不依赖内存态）
             if (current.get() == task) {
                 current.set(null);
             }
@@ -1122,18 +537,9 @@ public class EvalService {
         }
     }
 
-    /**
-     * 样本 × 评测器逐个判分：单评测器异常转 GraderScore.fail，不影响其它评测器。
-     * 评测器选择 = 任务级勾选（task.graderNames，启动时已校验非空且均已注册），样本不指定评测器。
-     * mapper 落点（对齐 OpenJudge grader_configs.mapper，数据集字段 → grader 参数名）：
-     * query→query、reference_response→reference_response、tolerance→tolerance、
-     * rubric→rubric 为恒等映射；response 由运行时注入（预置样本取数据集 response，
-     * agent 样本取 record.answer）。
-     */
-    private List<Map<String, Object>> judge(EvalSample sample, AgentRecord record, Task task) {
+    private List<Map<String, Object>> judge(EvalSample sample, AgentRecord record, EvalTask task, Map<String, Grader> graders) {
         List<String> names = task.graderNames;
         Map<String, Object> params = new LinkedHashMap<>();
-        // 多轮样本被评测对象为最后一轮回答，query 取最后一轮问题（完整对话在 record.dialogue）
         params.put("query", sample.isMultiTurn()
                 ? sample.turns().get(sample.turns().size() - 1).query() : sample.query());
         params.put("response", record.answer());
@@ -1158,7 +564,6 @@ public class EvalService {
             m.put("reason", score.reason());
             m.put("error", score.error());
             m.put("metadata", score.metadata());
-            // 人工评测器占位分：顶层 pending 标记（统计/展示/打分写回定位用）
             if (score.metadata() != null && Boolean.TRUE.equals(score.metadata().get("pending"))) {
                 m.put("pending", true);
             }
@@ -1167,8 +572,6 @@ public class EvalService {
         return scores;
     }
 
-    /** 汇总：passRate 按样本级均分 ≥ 0.8 记通过；errorCount 含 agent 调用失败与评测器失败；
-     *  judge 汇总 LLM 评测器的判分调用成本（tokens/次数/模型，从各 score 的 metadata.judge 累计） */
     private Map<String, Object> summarize(List<Map<String, Object>> sampleResults,
             long totalDuration, long totalPromptTokens, long totalCompletionTokens) {
         int total = sampleResults.size();
@@ -1187,7 +590,6 @@ public class EvalService {
             int rowCount = 0;
             boolean rowError = false;
             for (Map<String, Object> s : scores) {
-                // 人工评测器进度统计（占位/已评/跳过）
                 if ("human_review".equals(s.get("name"))) {
                     if (Boolean.TRUE.equals(s.get("pending"))) {
                         humanPending++;
@@ -1197,7 +599,6 @@ public class EvalService {
                         humanScored++;
                     }
                 }
-                // 人工未评分样本不计入任何得分统计（已打分/已跳过则正常计入）
                 if (Boolean.TRUE.equals(s.get("pending"))) {
                     continue;
                 }
@@ -1255,38 +656,6 @@ public class EvalService {
         return v instanceof Number n ? n.longValue() : 0;
     }
 
-    // ---------------- 回归对比（Run Diff，三期模块二） ----------------
-
-    /**
-     * 数据集内容哈希（SHA-256）：对解析后的样本做规范化序列化——record 固定字段序 +
-     * 容器键排序（ORDER_MAP_ENTRIES_BY_KEYS），格式化空格/字段顺序差异不影响，
-     * 真实内容变更（含多轮转单轮）必被检出。哈希是运行时快照，diff 不依赖数据集文件现存状态。
-     */
-    private String datasetHash(List<EvalSample> samples) {
-        try {
-            var writer = mapper.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
-            StringBuilder sb = new StringBuilder();
-            for (EvalSample s : samples) {
-                sb.append(writer.writeValueAsString(s)).append('\n');
-            }
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            StringBuilder hex = new StringBuilder();
-            for (byte b : md.digest(sb.toString().getBytes(StandardCharsets.UTF_8))) {
-                hex.append(String.format("%02x", b));
-            }
-            return hex.toString();
-        } catch (Exception e) {
-            throw new ApiException(500, "数据集哈希计算失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 两次 run 的回归对比：dataset 哈希校验 + 总体/按评测器/按样本三级对比 + 翻转矩阵。
-     * 纯内存计算（直接加载两份结果文件，历史 run 可比、服务重启后可用），不落盘。
-     * 口径约定：总体指标直接取各 run 落盘的 summary（与详情页逐字段一致）；
-     * 样本/评测器级的 pass 判定与翻转按当前服务配置的 passThreshold 现算（error 视为 fail）。
-     * all=false 时 bySample 仅返回有变化的样本（按 delta 升序 = 回归最严重置顶）。
-     */
     public Map<String, Object> diff(String baseId, String targetId, boolean all) {
         if (baseId == null || !RUN_ID_RE.matcher(baseId).matches()
                 || targetId == null || !RUN_ID_RE.matcher(targetId).matches()) {
@@ -1305,7 +674,6 @@ public class EvalService {
         meta.put("target", targetMeta);
         String bh = (String) baseMeta.get("datasetHash");
         String th = (String) targetMeta.get("datasetHash");
-        // 旧版本结果未记录哈希 → unknown（提示仅供参考，不拦截）
         meta.put("hashMatch", bh == null || th == null ? "unknown" : bh.equals(th) ? "match" : "mismatch");
         meta.put("passThreshold", passThreshold);
 
@@ -1332,7 +700,6 @@ public class EvalService {
         return m;
     }
 
-    /** 读取结果文件（不存在 404） */
     private Map<String, Object> requireResult(String taskId) {
         Map<String, Object> saved = readResult(taskId);
         if (saved == null) {
@@ -1341,7 +708,6 @@ public class EvalService {
         return saved;
     }
 
-    /** run 元信息（哈希校验 + 页面展示用） */
     private static Map<String, Object> runMeta(Map<String, Object> run) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", run.get("id"));
@@ -1352,7 +718,6 @@ public class EvalService {
         return m;
     }
 
-    /** 总体指标（取结果文件 summary 字段，与详情页口径逐字段一致；judgeTokens 为入/出合计） */
     private static Map<String, Object> summaryMetrics(Map<String, Object> run) {
         Map<String, Object> s = run.get("summary") instanceof Map<?, ?> mm
                 ? (Map<String, Object>) mm : Map.of();
@@ -1370,8 +735,6 @@ public class EvalService {
         return m;
     }
 
-    /** 按评测器对比：均值（仅两侧共同评测器，error 不计分）+ 翻转矩阵（通过→失败/失败→通过，error 视为失败）；
-     *  单边启用的评测器不进对比，标注 onlyIn */
     private Map<String, Object> diffByGrader(Map<String, Object> base, Map<String, Object> target,
             Map<String, Map<String, Object>> baseIdx, Map<String, Map<String, Object>> targetIdx) {
         List<String> baseGraders = graderNames(base);
@@ -1415,7 +778,6 @@ public class EvalService {
                     targetCnt++;
                 }
                 boolean bp = graderPass(bs), tp = graderPass(ts);
-                // 人工未评分（pending）不参与翻转统计（视为该维度暂无分，避免假翻转）
                 if (!pending(bs) && !pending(ts)) {
                     if (bp && !tp) {
                         passToFail++;
@@ -1432,7 +794,6 @@ public class EvalService {
             flips.put("failToPass", failToPass);
             r.put("flips", flips);
             r.put("commonSamples", common);
-            // 自定义评测器定义（提示词）指纹比对：两次 run 间 prompt 变更则标注，不拦截
             if (baseHash != null && targetHash != null && !baseHash.equals(targetHash)) {
                 r.put("customPromptChanged", true);
                 r.put("note", "自定义评测器定义（提示词）已变更（" + baseHash + " → " + targetHash + "），对比仅供参考");
@@ -1442,7 +803,6 @@ public class EvalService {
         return Map.of("graders", rows);
     }
 
-    /** 从 score 行提取自定义评测器 promptHash（无 custom 标记返回 null，内置评测器恒 null） */
     private static String customPromptHash(Map<String, Object> score) {
         if (score == null || !(score.get("metadata") instanceof Map<?, ?> mm)) {
             return null;
@@ -1450,9 +810,6 @@ public class EvalService {
         return mm.get("custom") instanceof Map<?, ?> c && c.get("promptHash") instanceof String h ? h : null;
     }
 
-    /** 按样本对比：同 id 逐行 diff；默认仅返回有变化的（任一共同评测器得分/error 变化、
-     *  均分变化、样本级通过状态翻转），按 delta 升序（回归最严重置顶，error 转换 delta 缺失视为最严重）；
-     *  all=true 返回全部共同样本；单边存在的 id 列入 added/removed */
     private Map<String, Object> diffBySample(Map<String, Map<String, Object>> baseIdx,
             Map<String, Map<String, Object>> targetIdx, boolean all) {
         List<String> added = new ArrayList<>(), removed = new ArrayList<>();
@@ -1482,7 +839,6 @@ public class EvalService {
             boolean avgDiff = (baseAvg == null) != (targetAvg == null)
                     || (baseAvg != null && Math.abs(targetAvg - baseAvg) > 1e-9);
 
-            // 共同评测器的得分级明细与翻转
             Map<String, Map<String, Object>> bs = scoresByName(brow);
             Map<String, Map<String, Object>> ts = scoresByName(trow);
             List<Map<String, Object>> scores = new ArrayList<>();
@@ -1495,7 +851,6 @@ public class EvalService {
                 boolean berr = Boolean.TRUE.equals(b.get("error"));
                 boolean terr = Boolean.TRUE.equals(t.get("error"));
                 String flip = null;
-                // 人工未评分（pending）不参与翻转判定
                 if (!pending(b) && !pending(t)) {
                     if (graderPass(b) && !graderPass(t)) {
                         flip = "pass_to_fail";
@@ -1544,7 +899,7 @@ public class EvalService {
             rows.add(r);
         }
         rows.sort(Comparator.comparingDouble(r -> r.get("delta") instanceof Number n
-                ? n.doubleValue() : -1));  // delta 缺失（error 转换）视为最严重
+                ? n.doubleValue() : -1));
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("commonTotal", baseIdx.size() - removed.size());
         m.put("changedTotal", changedTotal);
@@ -1555,7 +910,6 @@ public class EvalService {
         return m;
     }
 
-    /** 样本按 id 建索引（重复 id 取首个；join 的最小单元） */
     private static Map<String, Map<String, Object>> indexSamples(Map<String, Object> run) {
         Map<String, Map<String, Object>> idx = new LinkedHashMap<>();
         if (run.get("samples") instanceof List<?> list) {
@@ -1568,7 +922,6 @@ public class EvalService {
         return idx;
     }
 
-    /** 样本 scores 按 name 建索引 */
     private static Map<String, Map<String, Object>> scoresByName(Map<String, Object> row) {
         Map<String, Map<String, Object>> idx = new LinkedHashMap<>();
         if (row.get("scores") instanceof List<?> list) {
@@ -1581,8 +934,6 @@ public class EvalService {
         return idx;
     }
 
-    /** 单样本行统计（对齐 summarize 口径）：均分 = 有效评测器（非 error）均分；
-     *  pass = 存在有效分且均分 ≥ 阈值且无 error */
     private Map<String, Object> rowStats(Map<String, Object> row) {
         double sum = 0;
         int cnt = 0;
@@ -1592,7 +943,6 @@ public class EvalService {
                 if (!(o instanceof Map<?, ?> s)) {
                     continue;
                 }
-                // 人工未评分不计入任何统计（样本均分只含已打分评测器，pass 由其余评测器决定）
                 if (pending((Map<String, Object>) s)) {
                     continue;
                 }
@@ -1611,13 +961,11 @@ public class EvalService {
         return m;
     }
 
-    /** 单评测器单样本通过判定（error / 缺分视为失败） */
     private boolean graderPass(Map<String, Object> score) {
         return score != null && !Boolean.TRUE.equals(score.get("error"))
                 && score.get("score") instanceof Number n && n.doubleValue() >= passThreshold;
     }
 
-    /** 人工未评分标记（占位分） */
     private static boolean pending(Map<String, Object> score) {
         return score != null && Boolean.TRUE.equals(score.get("pending"));
     }
@@ -1634,7 +982,6 @@ public class EvalService {
                 ? l.stream().map(String::valueOf).toList() : List.of();
     }
 
-    /** 数值差（target - base，四舍五入 3 位；任一非数值返回 null） */
     private static Object sub(Object a, Object b) {
         if (a instanceof Number x && b instanceof Number y) {
             double v = x.doubleValue() - y.doubleValue();
@@ -1647,9 +994,6 @@ public class EvalService {
         return Math.round(v * 1000.0) / 1000.0;
     }
 
-    // ---------------- agent 驱动与轨迹采集 ----------------
-
-    /** 多轮样本展示用 query：各轮问题串联（轮1：… ◆ 轮2：…） */
     private static String displayQuery(EvalSample sample) {
         if (!sample.isMultiTurn()) {
             return sample.query();
@@ -1664,12 +1008,7 @@ public class EvalService {
         return sb.toString();
     }
 
-    /**
-     * 多轮样本驱动：轮序在同一会话（sessionId=task.id，与 chat 页同一机制）连续作答，
-     * 跨轮上下文记忆生效；tokens/轮次/工具轨迹累计，answer 为最后一轮回答，
-     * dialogue 承载全轮对话（多轮评测器的证据）。任一轮失败即中止（后续轮上下文已不可信）。
-     */
-    private AgentRecord askAgentMultiTurn(EvalSample sample, Task task) {
+    private AgentRecord askAgentMultiTurn(EvalSample sample, EvalTask task) {
         List<Map<String, Object>> dialogue = new ArrayList<>();
         List<Map<String, Object>> allToolCalls = new ArrayList<>();
         int rounds = 0;
@@ -1702,8 +1041,7 @@ public class EvalService {
                 completionTokens, durationMs, null, dialogue);
     }
 
-    /** 订阅 HarnessAgent 事件流（collectList 阻塞等待完成），采集回答全文与工具轨迹 */
-    private AgentRecord askAgent(String query, Task task) {
+    private AgentRecord askAgent(String query, EvalTask task) {
         long t0 = System.currentTimeMillis();
         HarnessAgent agent = agentProvider.getIfAvailable();
         StringBuilder answer = new StringBuilder();
@@ -1759,13 +1097,12 @@ public class EvalService {
                     }
                     case AGENT_RESULT -> {
                         AgentResultEvent e = (AgentResultEvent) event;
-                        // 仅当轮次累计缺失时兜底（AGENT_RESULT 的 usage 是最终消息的，直接覆盖会丢多轮累计）
                         if (rounds[0] == 0 && e.getResult() != null && e.getResult().getUsage() != null) {
                             promptTokens[0] = e.getResult().getUsage().getInputTokens();
                             completionTokens[0] = e.getResult().getUsage().getOutputTokens();
                         }
                     }
-                    default -> { /* thinking 等事件一期轨迹不采集 */ }
+                    default -> { }
                 }
             }
         } catch (Exception e) {
@@ -1791,7 +1128,6 @@ public class EvalService {
         }
     }
 
-    /** 轨迹定稿：args/result 截断，保持调用顺序 */
     private static List<Map<String, Object>> toToolCalls(Map<String, Map<String, Object>> toolBuf) {
         List<Map<String, Object>> list = new ArrayList<>();
         for (Map<String, Object> t : toolBuf.values()) {
@@ -1819,64 +1155,25 @@ public class EvalService {
         return data == null ? "" : "[" + data.getClass().getSimpleName() + "]";
     }
 
-    // ---------------- 数据集与结果文件 ----------------
-
-    /** 加载数据集：坏行转为带 error 标记的占位样本（评测结果中可见，不中断整批） */
-    private List<EvalSample> loadSamples(String dataset) throws IOException {
-        Path p = requireDataset(dataset);
-        List<EvalSample> list = new ArrayList<>();
-        int lineNo = 0;
-        try (var reader = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                lineNo++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                try {
-                    JsonNode node = mapper.readTree(line);
-                    JsonNode ref = node.path("reference_response");
-                    Object refObj = ref.isMissingNode() || ref.isNull()
-                            ? null : mapper.convertValue(ref, Object.class);
-                    List<EvalSample.Turn> turns = parseTurns(node.path("turns"));
-                    list.add(new EvalSample(
-                            node.path("id").asText("line-" + lineNo),
-                            node.path("query").asText(""),
-                            node.path("response").asText(null),
-                            refObj,
-                            node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null,
-                            node.path("rubric").asText(null),
-                            turns));
-                } catch (Exception e) {
-                    list.add(new EvalSample("line-" + lineNo,
-                            "[数据行解析失败] " + e.getMessage(), null, null, null, null, List.of()));
-                }
+    private String datasetHash(List<EvalSample> samples) {
+        try {
+            var writer = mapper.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+            StringBuilder sb = new StringBuilder();
+            for (EvalSample s : samples) {
+                sb.append(writer.writeValueAsString(s)).append('\n');
             }
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            StringBuilder hex = new StringBuilder();
+            for (byte b : md.digest(sb.toString().getBytes(StandardCharsets.UTF_8))) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (Exception e) {
+            throw new ApiException(500, "数据集哈希计算失败: " + e.getMessage());
         }
-        return list;
     }
 
-    /** 解析多轮脚本 turns（缺失/非数组返回空列表 = 单轮样本；≥2 轮方为多轮，轮内 query 必填） */
-    private List<EvalSample.Turn> parseTurns(JsonNode turnsNode) {
-        if (turnsNode == null || !turnsNode.isArray()) {
-            return List.of();
-        }
-        if (turnsNode.size() == 1) {
-            throw new IllegalArgumentException("turns 仅 1 轮，请改用单轮 query/response 字段");
-        }
-        List<EvalSample.Turn> turns = new ArrayList<>();
-        for (JsonNode t : turnsNode) {
-            String q = t.path("query").asText("");
-            if (q.isBlank()) {
-                throw new IllegalArgumentException("turns 中存在 query 为空的轮次");
-            }
-            turns.add(new EvalSample.Turn(q, t.path("response").asText(null)));
-        }
-        return turns;
-    }
-
-    /** 写任务骨架/进度/异常信息（仅小字段，samples/summary 不写；tmp+rename 原子） */
-    private void writeTaskMeta(Task task) {
+    private void writeTaskMeta(EvalTask task) {
         try {
             Path dir = Files.createDirectories(resultPath());
             Path tmp = dir.resolve(task.id + ".json.tmp");
@@ -1903,8 +1200,7 @@ public class EvalService {
         }
     }
 
-    /** 进度落盘（节流：percent 整数变化才写） */
-    private void persistProgress(Task task, boolean force) {
+    private void persistProgress(EvalTask task, boolean force) {
         if (task == null) return;
         int p = task.percent;
         long now = System.currentTimeMillis();
@@ -1916,8 +1212,7 @@ public class EvalService {
         writeTaskMeta(task);
     }
 
-    /** 结果落盘（先 .tmp 后 rename，半成品不进列表） */
-    private void writeResult(Task task, Map<String, Object> result) throws IOException {
+    private void writeResult(EvalTask task, Map<String, Object> result) throws IOException {
         Path dir = Files.createDirectories(resultPath());
         Path tmp = dir.resolve(task.id + ".json.tmp");
         Path fin = dir.resolve(task.id + ".json");
@@ -1944,38 +1239,11 @@ public class EvalService {
         }
     }
 
-    /** 数据集文件名校验 + 存在性（防路径穿越） */
-    private Path requireDataset(String name) {
-        if (name == null || !DATASET_NAME_RE.matcher(name).matches()) {
-            throw new ApiException(400, "非法数据集文件名: " + name);
-        }
-        Path p = datasetPath().resolve(name).normalize();
-        if (!p.startsWith(datasetPath())) {
-            throw new ApiException(400, "非法数据集文件名: " + name);
-        }
-        if (!Files.isRegularFile(p)) {
-            throw new ApiException(404, "数据集不存在: " + name);
-        }
-        return p;
-    }
-
-    private long countLines(Path p) {
-        try (Stream<String> s = Files.lines(p, StandardCharsets.UTF_8)) {
-            return s.filter(l -> !l.isBlank()).count();
-        } catch (IOException e) {
-            return -1;
-        }
-    }
-
     private static String brief(String s) {
         if (s == null) {
             return "";
         }
         return s.length() <= 30 ? s : s.substring(0, 30) + "…";
-    }
-
-    private Path datasetPath() {
-        return Path.of(datasetDir).toAbsolutePath().normalize();
     }
 
     private Path resultPath() {

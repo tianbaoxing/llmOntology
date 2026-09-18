@@ -9,8 +9,8 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.Grader;
-import com.conca.ontology.eval.GraderInput;
-import com.conca.ontology.eval.GraderScore;
+import com.conca.ontology.eval.model.GraderInput;
+import com.conca.ontology.eval.model.GraderScore;
 
 /**
  * 死循环检测评测（二期规则补强，OpenJudge ActionLoopDetectionGrader 的规则版）：

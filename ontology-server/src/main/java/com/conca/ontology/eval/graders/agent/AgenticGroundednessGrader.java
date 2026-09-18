@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.AgenticJudgeHolder;
 import com.conca.ontology.eval.Grader;
-import com.conca.ontology.eval.GraderInput;
-import com.conca.ontology.eval.GraderScore;
+import com.conca.ontology.eval.model.GraderInput;
+import com.conca.ontology.eval.model.GraderScore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

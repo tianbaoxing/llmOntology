@@ -8,8 +8,8 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.Grader;
-import com.conca.ontology.eval.GraderInput;
-import com.conca.ontology.eval.GraderScore;
+import com.conca.ontology.eval.model.GraderInput;
+import com.conca.ontology.eval.model.GraderScore;
 
 /**
  * 关键词包含评测（对齐 OpenJudge StringMatchGrader 的 contains_all 算法，按比例得分）：

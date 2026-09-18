@@ -7,9 +7,9 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.conca.ontology.eval.CustomGraderDefinition;
-import com.conca.ontology.eval.GraderInput;
-import com.conca.ontology.eval.GraderScore;
+import com.conca.ontology.eval.model.CustomGraderDefinition;
+import com.conca.ontology.eval.model.GraderInput;
+import com.conca.ontology.eval.model.GraderScore;
 import com.conca.ontology.eval.JudgeClient;
 import com.conca.ontology.eval.graders.llm.LlmJudgeGrader;
 

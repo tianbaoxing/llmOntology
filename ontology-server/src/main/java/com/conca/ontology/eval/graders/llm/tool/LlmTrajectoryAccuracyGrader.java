@@ -4,7 +4,7 @@ import com.conca.ontology.eval.graders.llm.LlmJudgeGrader;
 
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.eval.GraderInput;
+import com.conca.ontology.eval.model.GraderInput;
 import com.conca.ontology.eval.JudgeClient;
 
 /**

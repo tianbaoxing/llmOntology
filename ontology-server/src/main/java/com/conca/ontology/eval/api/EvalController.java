@@ -18,8 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.conca.ontology.user.web.SessionUser;
-import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.eval.dto.request.EvalCustomGraderRequest;
 import com.conca.ontology.eval.dto.request.EvalCustomGraderTestRequest;
 import com.conca.ontology.eval.dto.request.EvalDatasetRequest;
@@ -27,7 +25,11 @@ import com.conca.ontology.eval.dto.request.EvalHumanScoreRequest;
 import com.conca.ontology.eval.dto.request.EvalRunRequest;
 import com.conca.ontology.eval.dto.request.EvalSampleRequest;
 import com.conca.ontology.eval.dto.result.FromChatSampleResult;
-import com.conca.ontology.eval.EvalService;
+import com.conca.ontology.eval.service.EvalCustomGraderService;
+import com.conca.ontology.eval.service.EvalDatasetService;
+import com.conca.ontology.eval.service.EvalRunService;
+import com.conca.ontology.user.web.SessionUser;
+import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.shared.web.ApiException;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,46 +38,40 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 
-/**
- * 评测中心入口：
- * GET  /api/eval/datasets                 → 数据集列表（data/eval/datasets/*.jsonl）
- * GET  /api/eval/datasets/{name}/file     → 数据集预览（前 20 行）
- * GET  /api/eval/graders                  → 评测器清单（注册的 Spring Bean）
- * POST /api/eval/runs                     → 创建评测任务（异步，返回 taskId 供轮询；运行中 409）
- * GET  /api/eval/runs                     → 历史任务列表（结果目录扫描）
- * GET  /api/eval/runs/{id}                → 任务进度/详情（完成后含完整 result）
- * GET  /api/eval/runs/{id}/file           → 下载完整结果 JSON
- * DELETE /api/eval/runs/{id}              → 删除历史评测结果（RUN_ID_RE + startsWith 双保险防路径穿越）
- * 评测会话按登录用户隔离（agent 记忆 userId = 发起者，sessionId = 任务 id）。
- */
 @RestController
 @RequestMapping("/api/eval")
 @Tag(name = "eval", description = "评测中心：数据集驱动 agent 问答并多评测器判分（规则评测器 + LLM 判分）")
 public class EvalController {
 
-    private final EvalService evalService;
+    private final EvalDatasetService datasetService;
+    private final EvalCustomGraderService customGraderService;
+    private final EvalRunService runService;
 
-    public EvalController(EvalService evalService) {
-        this.evalService = evalService;
+    public EvalController(EvalDatasetService datasetService,
+            EvalCustomGraderService customGraderService,
+            EvalRunService runService) {
+        this.datasetService = datasetService;
+        this.customGraderService = customGraderService;
+        this.runService = runService;
     }
 
     @GetMapping("/datasets")
     @Operation(summary = "数据集列表", description = "扫描 data/eval/datasets 目录，返回文件名与非空行数")
     public ApiResponse<Map<String, Object>> datasets() {
-        return ApiResponse.ok(evalService.listDatasets());
+        return ApiResponse.ok(datasetService.listDatasets());
     }
 
     @GetMapping("/datasets/{name}/file")
     @Operation(summary = "数据集预览", description = "返回数据集前 20 行（逐行解析，坏行标记 valid=false）")
     @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
     public ApiResponse<Map<String, Object>> datasetPreview(@PathVariable String name) {
-        return ApiResponse.ok(evalService.datasetPreview(name, 20));
+        return ApiResponse.ok(datasetService.datasetPreview(name, 20));
     }
 
     @PostMapping("/datasets")
     @Operation(summary = "新建数据集", description = "创建空 jsonl 文件（同名已存在 409）")
     public ApiResponse<Map<String, Object>> createDataset(@Valid @RequestBody EvalDatasetRequest request) {
-        return ApiResponse.ok(evalService.createDataset(request.name()));
+        return ApiResponse.ok(datasetService.createDataset(request.name()));
     }
 
     @GetMapping("/datasets/{name}/samples")
@@ -84,7 +80,7 @@ public class EvalController {
     public ApiResponse<Map<String, Object>> samples(@PathVariable String name,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int pageSize) {
-        return ApiResponse.ok(evalService.datasetSamples(name, page, pageSize));
+        return ApiResponse.ok(datasetService.datasetSamples(name, page, pageSize));
     }
 
     @PostMapping("/datasets/{name}/samples")
@@ -92,7 +88,7 @@ public class EvalController {
     @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
     public ApiResponse<Map<String, Object>> addSample(@PathVariable String name,
             @Valid @RequestBody EvalSampleRequest request) {
-        return ApiResponse.ok(evalService.addSample(name, request));
+        return ApiResponse.ok(datasetService.addSample(name, request));
     }
 
     @PutMapping("/datasets/{name}/samples/{seq}")
@@ -101,7 +97,7 @@ public class EvalController {
     @Parameter(name = "seq", description = "非空行序号（从 1 起）", example = "1")
     public ApiResponse<Map<String, Object>> updateSample(@PathVariable String name, @PathVariable int seq,
             @Valid @RequestBody EvalSampleRequest request) {
-        return ApiResponse.ok(evalService.updateSample(name, seq, request));
+        return ApiResponse.ok(datasetService.updateSample(name, seq, request));
     }
 
     @DeleteMapping("/datasets/{name}/samples/{seq}")
@@ -109,7 +105,7 @@ public class EvalController {
     @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
     @Parameter(name = "seq", description = "非空行序号（从 1 起）", example = "1")
     public ApiResponse<Map<String, Object>> deleteSample(@PathVariable String name, @PathVariable int seq) {
-        return ApiResponse.ok(evalService.deleteSample(name, seq));
+        return ApiResponse.ok(datasetService.deleteSample(name, seq));
     }
 
     @GetMapping("/samples/fromchat")
@@ -123,29 +119,27 @@ public class EvalController {
         if (user == null) {
             throw new ApiException(401, "未登录或会话已过期");
         }
-        return ApiResponse.ok(evalService.sampleFromChat(user.userId(), sessionId, msgIndex));
+        return ApiResponse.ok(datasetService.sampleFromChat(user.userId(), sessionId, msgIndex));
     }
 
     @GetMapping("/graders")
     @Operation(summary = "评测器清单", description = "当前已注册的评测器（名称/描述/类型 rule|llm）")
     public ApiResponse<Map<String, Object>> graders() {
-        return ApiResponse.ok(evalService.graderList());
+        return ApiResponse.ok(customGraderService.graderList());
     }
-
-    // ---------------- 自定义评测器（用户提示词驱动） ----------------
 
     @GetMapping("/custom-graders")
     @Operation(summary = "自定义评测器清单", description = "用户创建的 LLM 评测器（附 mode/更新时间；"
             + "亦出现在 /graders 注册清单中，可勾选运行、被数据集引用、结果落盘可 Diff）")
     public ApiResponse<Map<String, Object>> customGraders() {
-        return ApiResponse.ok(evalService.customGraderList());
+        return ApiResponse.ok(customGraderService.customGraderList());
     }
 
     @GetMapping("/custom-graders/{name}")
     @Operation(summary = "自定义评测器详情", description = "含 prompt 全文（编辑回填用；列表接口不含 prompt 控载荷）")
     @Parameter(name = "name", description = "评测器名", example = "my_concise_check")
     public ApiResponse<Map<String, Object>> customGraderDetail(@PathVariable String name) {
-        return ApiResponse.ok(evalService.customGraderDetail(name));
+        return ApiResponse.ok(customGraderService.customGraderDetail(name));
     }
 
     @PostMapping("/custom-graders")
@@ -153,7 +147,7 @@ public class EvalController {
             + "mode=template：prompt 为完整模板，占位符 {{query}}/{{answer}}/{{reference}}/{{context}}/{{rubric}}；"
             + "与内置评测器重名 400")
     public ApiResponse<Map<String, Object>> createCustomGrader(@Valid @RequestBody EvalCustomGraderRequest request) {
-        return ApiResponse.ok(evalService.createCustomGrader(request));
+        return ApiResponse.ok(customGraderService.createCustomGrader(request));
     }
 
     @PutMapping("/custom-graders/{name}")
@@ -162,14 +156,14 @@ public class EvalController {
     @Parameter(name = "name", description = "评测器名（不可改）", example = "my_concise_check")
     public ApiResponse<Map<String, Object>> updateCustomGrader(@PathVariable String name,
             @Valid @RequestBody EvalCustomGraderRequest request) {
-        return ApiResponse.ok(evalService.updateCustomGrader(name, request));
+        return ApiResponse.ok(customGraderService.updateCustomGrader(name, request));
     }
 
     @DeleteMapping("/custom-graders/{name}")
     @Operation(summary = "删除自定义评测器", description = "被数据集内容引用时 409 并列出引用位置，不静默破坏")
     @Parameter(name = "name", description = "评测器名", example = "my_concise_check")
     public ApiResponse<Map<String, Object>> deleteCustomGrader(@PathVariable String name) {
-        return ApiResponse.ok(evalService.deleteCustomGrader(name));
+        return ApiResponse.ok(customGraderService.deleteCustomGrader(name));
     }
 
     @PostMapping("/custom-graders/{name}/test")
@@ -178,7 +172,7 @@ public class EvalController {
     @Parameter(name = "name", description = "评测器名", example = "my_concise_check")
     public ApiResponse<Map<String, Object>> testCustomGrader(@PathVariable String name,
             @Valid @RequestBody EvalCustomGraderTestRequest request) {
-        return ApiResponse.ok(evalService.testCustomGrader(name, request));
+        return ApiResponse.ok(customGraderService.testCustomGrader(name, request));
     }
 
     @PostMapping("/runs")
@@ -191,13 +185,13 @@ public class EvalController {
             throw new ApiException(401, "未登录或会话已过期");
         }
         List<String> graders = request.graders() == null ? List.of() : request.graders();
-        return ApiResponse.ok(evalService.start(request.dataset(), graders, request.judgeRuns(), user.userId()));
+        return ApiResponse.ok(runService.start(request.dataset(), graders, request.judgeRuns(), user.userId()));
     }
 
     @GetMapping("/runs")
     @Operation(summary = "历史任务列表", description = "扫描结果目录（按时间倒序），含各任务汇总指标")
     public ApiResponse<Map<String, Object>> listRuns() {
-        return ApiResponse.ok(evalService.listRuns());
+        return ApiResponse.ok(runService.listRuns());
     }
 
     @GetMapping("/runs/diff")
@@ -211,14 +205,14 @@ public class EvalController {
             @RequestParam String target,
             @Parameter(name = "all", description = "true 返回全部共同样本；默认仅变化样本")
             @RequestParam(defaultValue = "false") boolean all) {
-        return ApiResponse.ok(evalService.diff(base, target, all));
+        return ApiResponse.ok(runService.diff(base, target, all));
     }
 
     @GetMapping("/runs/{id}")
     @Operation(summary = "任务进度/详情", description = "运行中返回实时进度；完成后（含服务重启后的历史）返回完整结果")
     @Parameter(name = "id", description = "任务 id（eval-时间-随机码）", example = "eval-20260826-153000-a1b")
     public ApiResponse<Map<String, Object>> progress(@PathVariable String id) {
-        return ApiResponse.ok(evalService.progress(id));
+        return ApiResponse.ok(runService.progress(id));
     }
 
     @PostMapping("/runs/{id}/humanscores")
@@ -231,14 +225,14 @@ public class EvalController {
         if (user == null) {
             throw new ApiException(401, "未登录或会话已过期");
         }
-        return ApiResponse.ok(evalService.humanScore(id, request.sampleId(),
+        return ApiResponse.ok(runService.humanScore(id, request.sampleId(),
                 request.rawScore(), request.comment(), request.skip(), user.userId()));
     }
 
     @GetMapping("/runs/{id}/file")
     @Operation(summary = "下载评测结果", description = "下载完整结果 JSON（样本明细 + 轨迹 + 各评测器得分）")
     public ResponseEntity<Resource> download(@PathVariable String id) {
-        Path path = evalService.requireResultFile(id);
+        Path path = runService.requireResultFile(id);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName() + "\"")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -256,6 +250,6 @@ public class EvalController {
         if (!user.isAdmin()) {
             throw new ApiException(403, "需要管理员权限");
         }
-        return ApiResponse.ok(evalService.deleteRun(id, user));
+        return ApiResponse.ok(runService.deleteRun(id, user));
     }
 }

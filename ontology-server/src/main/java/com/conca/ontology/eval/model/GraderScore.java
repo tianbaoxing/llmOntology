@@ -1,12 +1,7 @@
-package com.conca.ontology.eval;
+package com.conca.ontology.eval.model;
 
 import java.util.Map;
 
-/**
- * 评测器统一结果（对齐 OpenJudge GraderScore/GraderError）：
- * score ∈ [0,1]（一期规则评测器全部 0-1）；error=true 表示评测过程本身失败
- * （如 Neo4j 不可达、数据行缺字段），不计入得分统计而计入 errorCount。
- */
 public record GraderScore(
         String name,
         double score,
