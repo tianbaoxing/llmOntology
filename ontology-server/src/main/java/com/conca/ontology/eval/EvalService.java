@@ -131,6 +131,10 @@ public class EvalService {
         t.setDaemon(true);
         return t;
     });
+    /** persistProgress 落盘节流：上次写入毫秒时间戳（单线程模型无并发，volatile 可见即可） */
+    private volatile long lastPersistAtMs = 0L;
+    /** persistProgress 落盘节流：上次写入时的 percent（整数变化才落盘，避免同 percent 狂刷 IO） */
+    private volatile int lastPersistPercent = -1;
 
     public EvalService(ObjectProvider<HarnessAgent> agentProvider,
             ObjectMapper mapper, JudgeClient judgeClient, AgenticJudgeHolder agenticJudgeHolder,
@@ -642,11 +646,38 @@ public class EvalService {
 
     // ---------------- 任务控制 ----------------
 
-    /** 启动评测（异步），同一时间仅允许一个任务；judgeRuns 为 LLM 判分次数运行参数（null/1 = 单次） */
+    /** 启动评测（异步），同一时间仅允许一个任务；judgeRuns 为 LLM 判分次数运行参数（null/1 = 单次）；
+     * 线程安全：synchronized 块内完成「内存+文件双重检查 → 生成 taskId → 骨架文件原子落盘 → 更新内存 → submit 线程」，
+     * 无任何竞态窗口；重启后遗留 running 文件会被 Step 2 文件检查拦截，防止同目录重复起新任务。 */
     public synchronized Map<String, Object> start(String dataset, List<String> graderNames, Integer judgeRuns, String userId) {
+        // -------- Step 1：内存态检查（当前 JVM 实例里正在跑） --------
         Task t = current.get();
         if (t != null && "running".equals(t.status)) {
-            throw new ApiException(409, "已有评测任务进行中，请等待完成");
+            throw new ApiException(409, "已有评测任务进行中，请等待完成（任务 id：" + t.id + "，当前进度：" + t.detail + "）");
+        }
+        // -------- Step 2：文件级检查（重启后遗留的 running 骨架文件；不同 JVM 实例并发防护） --------
+        Path dir = resultPath();
+        if (Files.isDirectory(dir)) {
+            try (Stream<Path> s = Files.list(dir)) {
+                for (Path p : s.filter(Files::isRegularFile)
+                        .filter(p -> RUN_FILE_RE.matcher(p.getFileName().toString()).matches())
+                        .toList()) {
+                    try {
+                        Map<String, Object> saved = mapper.readValue(p.toFile(), Map.class);
+                        if ("running".equals(saved.get("status"))) {
+                            String fid = p.getFileName().toString().replaceFirst("\\.json$", "");
+                            throw new ApiException(409, "检测到未完成的历史评测任务「" + fid
+                                    + "」（服务重启或崩溃前遗留），请手动处理该结果文件后重试，或重启服务清理内存态");
+                        }
+                    } catch (ApiException ae) {
+                        throw ae;
+                    } catch (Exception ignore) {
+                        // 损坏/解析失败的结果文件不阻断新建任务
+                    }
+                }
+            } catch (IOException e) {
+                log.warn("start: scan result dir failed: {}", e.getMessage());
+            }
         }
         Integer runs = null;
         if (judgeRuns != null) {
@@ -691,11 +722,26 @@ public class EvalService {
             throw new ApiException(409, "AI 服务未配置（缺少 OPENROUTER_API_KEY）：数据集含需 agent 作答的样本，"
                     + "请配置后重启服务或改用全部预置 response 的数据集");
         }
+        // -------- Step 3：生成任务 + 骨架文件立即落盘 --------
         String id = "eval-" + LocalDateTime.now().format(STAMP) + "-"
                 + Integer.toHexString((int) (Math.random() * 0xfff));
         Task task = new Task(id, dataset, names, runs, userId);
+        // 重置节流计数器（新任务新起点）
+        lastPersistAtMs = 0L;
+        lastPersistPercent = -1;
+        writeTaskMeta(task);
+        // -------- Step 4：更新内存 + 起线程（先写文件后改内存，异常时回滚内存不污染列表） --------
         current.set(task);
-        executor.submit(() -> runEval(task));
+        try {
+            executor.submit(() -> runEval(task));
+        } catch (RuntimeException e) {
+            // 极端情况：线程池拒绝提交（单 Executor 异常关闭） → 回滚文件为失败 + 清内存
+            task.status = "failed";
+            task.error = "executor 提交失败：" + e.getMessage();
+            writeTaskMeta(task);
+            current.set(null);
+            throw new ApiException(500, "启动评测线程失败：" + e.getMessage());
+        }
         log.info("eval started: {} dataset={} graders={}", task.id, dataset, names);
         return Map.of("taskId", task.id);
     }
@@ -732,34 +778,56 @@ public class EvalService {
         return m;
     }
 
-    /** 历史任务列表（扫描结果目录，按文件名倒序 = 时间倒序） */
+    /** 历史任务列表（扫描结果目录，按文件名倒序 = 时间倒序；僵尸 running 文件标 interrupted 供前端区分） */
     public Map<String, Object> listRuns() {
         List<Map<String, Object>> runs = new ArrayList<>();
+        Task running = current.get();
+        String runningId = (running != null && "running".equals(running.status)) ? running.id : null;
         Path dir = resultPath();
-        if (!Files.isDirectory(dir)) {
-            return Map.of("runs", runs);
-        }
-        try (Stream<Path> s = Files.list(dir)) {
-            for (Path p : s.filter(Files::isRegularFile)
-                    .filter(p -> RUN_FILE_RE.matcher(p.getFileName().toString()).matches())
-                    .sorted(Comparator.comparing((Path p) -> p.getFileName().toString(), Comparator.reverseOrder()))
-                    .toList()) {
-                String id = p.getFileName().toString().replaceFirst("\\.json$", "");
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("id", id);
-                try {
-                    Map<String, Object> saved = mapper.readValue(p.toFile(), Map.class);
-                    m.put("dataset", saved.get("dataset"));
-                    m.put("finishedAt", saved.get("finishedAt"));
-                    m.put("status", saved.get("status") == null ? "success" : saved.get("status"));
-                    m.put("summary", saved.get("summary"));
-                } catch (Exception e) {
-                    m.put("error", "结果文件解析失败: " + e.getMessage());
+        if (Files.isDirectory(dir)) {
+            try (Stream<Path> s = Files.list(dir)) {
+                for (Path p : s.filter(Files::isRegularFile)
+                        .filter(p -> RUN_FILE_RE.matcher(p.getFileName().toString()).matches())
+                        .sorted(Comparator.comparing((Path p) -> p.getFileName().toString(), Comparator.reverseOrder()))
+                        .toList()) {
+                    String id = p.getFileName().toString().replaceFirst("\\.json$", "");
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", id);
+                    try {
+                        Map<String, Object> saved = mapper.readValue(p.toFile(), Map.class);
+                        m.put("dataset", saved.get("dataset"));
+                        m.put("finishedAt", saved.get("finishedAt"));
+                        m.put("startedAt", saved.get("startedAt"));
+                        String st = saved.get("status") == null ? "success" : (String) saved.get("status");
+                        // 僵尸态检测：文件 status=running，但内存中要么无 current，要么 id 不匹配（服务重启遗留）
+                        if ("running".equals(st) && !id.equals(runningId)) {
+                            m.put("status", "interrupted");
+                            m.put("_zombie", true);
+                            m.put("detail", saved.get("detail") == null ? "检测到服务重启前未完成任务（当前未续跑）"
+                                    : saved.get("detail"));
+                            m.put("percent", saved.get("percent"));
+                        } else {
+                            m.put("status", st);
+                        }
+                        // 实时运行中：用内存态覆盖 detail/percent，前端列表也能看到进度（pollEval 仍走 GET /{id}）
+                        if (id.equals(runningId)) {
+                            m.put("_live", true);
+                            m.put("detail", running.detail);
+                            m.put("percent", running.percent);
+                            m.put("graders", running.graderNames);
+                        }
+                        m.put("summary", saved.get("summary"));
+                        if (saved.get("error") != null) {
+                            m.put("error", saved.get("error"));
+                        }
+                    } catch (Exception e) {
+                        m.put("error", "结果文件解析失败: " + e.getMessage());
+                    }
+                    runs.add(m);
                 }
-                runs.add(m);
+            } catch (IOException e) {
+                throw new ApiException(500, "扫描评测结果目录失败: " + e.getMessage());
             }
-        } catch (IOException e) {
-            throw new ApiException(500, "扫描评测结果目录失败: " + e.getMessage());
         }
         return Map.of("runs", runs);
     }
@@ -944,6 +1012,7 @@ public class EvalService {
             }
             int total = samples.size();
             task.detail = "共 " + total + " 条样本，开始评测";
+            persistProgress(task, true);
             List<Map<String, Object>> sampleResults = new ArrayList<>();
             long totalDuration = 0;
             long totalPromptTokens = 0;
@@ -1006,9 +1075,11 @@ public class EvalService {
                 }
                 sampleResults.add(row);
                 task.percent = (int) (95.0 * (i + 1) / Math.max(total, 1));
+                persistProgress(task, false);
             }
 
             task.detail = "汇总结果并落盘";
+            persistProgress(task, true);
             Map<String, Object> summary = summarize(sampleResults, totalDuration,
                     totalPromptTokens, totalCompletionTokens);
             // 含人工评测器时任务进入「待人工评分」阶段（判分由人在页面完成，完成后翻转 success）
@@ -1035,10 +1106,19 @@ public class EvalService {
             task.status = status;
             log.info("eval finished: {} passRate={} avgScore={}",
                     task.id, summary.get("passRate"), summary.get("avgScore"));
+            // 最终态文件已完整落盘：无条件清空 current，解除 start() 的 409 内存互斥锁
+            // （awaiting_human 期间允许新任务启动，人工评分逻辑是直接改结果文件，不依赖内存态）
+            if (current.get() == task) {
+                current.set(null);
+            }
         } catch (Exception e) {
             task.status = "failed";
             task.error = e.getMessage();
             log.error("eval failed: {}", task.id, e);
+            persistProgress(task, true);
+            if (current.get() == task) {
+                current.set(null);
+            }
         }
     }
 
@@ -1793,6 +1873,47 @@ public class EvalService {
             turns.add(new EvalSample.Turn(q, t.path("response").asText(null)));
         }
         return turns;
+    }
+
+    /** 写任务骨架/进度/异常信息（仅小字段，samples/summary 不写；tmp+rename 原子） */
+    private void writeTaskMeta(Task task) {
+        try {
+            Path dir = Files.createDirectories(resultPath());
+            Path tmp = dir.resolve(task.id + ".json.tmp");
+            Path fin = dir.resolve(task.id + ".json");
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", task.id);
+            m.put("dataset", task.dataset);
+            m.put("graders", task.graderNames);
+            m.put("judgeRuns", task.judgeRuns);
+            m.put("startedAt", task.startedAt.toString());
+            m.put("status", task.status);
+            m.put("detail", task.detail);
+            m.put("percent", task.percent);
+            m.put("error", task.error);
+            m.put("userId", task.userId);
+            try {
+                mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), m);
+                Files.move(tmp, fin, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } finally {
+                Files.deleteIfExists(tmp);
+            }
+        } catch (IOException e) {
+            log.warn("writeTaskMeta failed id={} status={}: {}", task.id, task.status, e.getMessage());
+        }
+    }
+
+    /** 进度落盘（节流：percent 整数变化才写） */
+    private void persistProgress(Task task, boolean force) {
+        if (task == null) return;
+        int p = task.percent;
+        long now = System.currentTimeMillis();
+        if (!force && p == lastPersistPercent && (now - lastPersistAtMs) < 1000L) {
+            return;
+        }
+        lastPersistPercent = p;
+        lastPersistAtMs = now;
+        writeTaskMeta(task);
     }
 
     /** 结果落盘（先 .tmp 后 rename，半成品不进列表） */

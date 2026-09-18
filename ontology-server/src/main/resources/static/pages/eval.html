@@ -1221,6 +1221,16 @@ async function loadRuns() {
   runState.total = runsCache.length;
   runState.pages = Math.max(1, Math.ceil(runState.total / runState.size));
   if (runState.page > runState.pages) runState.page = runState.pages;
+  // 自动恢复轮询：列表里找第一条 _live=true (当前正在跑) 的任务
+  const live = runsCache.find(r => r._live === true && r.status === 'running');
+  if (live && evTaskId !== live.id) {
+    evTaskId = live.id;
+    $('ev-btn').disabled = true;
+    $('ev-progress-wrap').style.display = 'block';
+    $('ev-bar').style.width = (live.percent || 0) + '%';
+    $('ev-detail').textContent = (live.detail || '准备中') + '（' + (live.percent || 0) + '%）';
+    pollEval();
+  }
   renderRunsPage();
   refreshDiffBase();
 }
@@ -1233,8 +1243,24 @@ function renderRunsPage() {
   const slice = runsCache.slice((page - 1) * size, page * size);
   const rows = slice.map(r => {
     const s = r.summary || {};
-    const stBadge = r.status === 'awaiting_human'
-      ? `<span class="score pending" title="待人工评分">待评</span>` : '-';
+    let stBadge = '-';
+    const pct = typeof r.percent === 'number' ? r.percent : null;
+    if (r.status === 'awaiting_human') {
+      stBadge = `<span class="score pending" title="待人工评分">待评</span>`;
+    } else if (r.status === 'running' && r._live === true) {
+      const pctTxt = pct != null ? pct + '%' : '';
+      const titleAttr = r.detail ? ` title="${esc(r.detail)}"` : '';
+      stBadge = `<span class="score pending" style="background:#2563eb;color:#fff;border-color:#2563eb"${titleAttr}>运行中${pctTxt ? ' · ' + pctTxt : ''}</span>`;
+    } else if (r.status === 'interrupted') {
+      const pctTxt = pct != null ? ' 进度 ' + pct + '%' : '';
+      const titleAttr = r.detail ? ` title="${esc(r.detail)}"` : '';
+      stBadge = `<span class="score" style="background:#b45309;color:#fff;border-color:#b45309"${titleAttr}>中断遗留${pctTxt}</span>`;
+    } else if (r.status === 'failed') {
+      const titleAttr = r.error ? ` title="${esc(String(r.error))}"` : '';
+      stBadge = `<span class="score err"${titleAttr}>失败</span>`;
+    } else if (r.status === 'success') {
+      stBadge = `<span class="score hi">成功</span>`;
+    }
     return [
       code(r.id), esc(r.dataset || '-'), stBadge,
       s.passRate != null ? (s.passRate * 100).toFixed(1) + '%' : '-',
