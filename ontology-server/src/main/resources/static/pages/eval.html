@@ -2550,7 +2550,7 @@ window.Report = (() => {
 
     // ---- 慢样本 Top N ----
     const slowSamples = perSample
-      .filter(s => s.duration != null)
+      .filter(s => s.duration != null && s.duration > 10)
       .sort((a, b) => b.duration - a.duration)
       .slice(0, 5);
 
