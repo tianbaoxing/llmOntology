@@ -30,13 +30,13 @@ import org.springframework.stereotype.Service;
 
 import com.conca.ontology.user.web.SessionUser;
 
-import com.conca.ontology.dto.request.EvalCustomGraderRequest;
-import com.conca.ontology.dto.request.EvalCustomGraderTestRequest;
-import com.conca.ontology.dto.request.EvalSampleRequest;
-import com.conca.ontology.dto.result.FromChatSampleResult;
+import com.conca.ontology.eval.dto.request.EvalCustomGraderRequest;
+import com.conca.ontology.eval.dto.request.EvalCustomGraderTestRequest;
+import com.conca.ontology.eval.dto.request.EvalSampleRequest;
+import com.conca.ontology.eval.dto.result.FromChatSampleResult;
 import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.service.AgentSessionService;
+import com.conca.ontology.agent.service.AgentSessionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;

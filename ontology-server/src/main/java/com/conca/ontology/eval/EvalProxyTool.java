@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.conca.ontology.agent.HttpProxyTool;
+import com.conca.ontology.agent.tool.HttpProxyTool;
 
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.tool.Tool;

@@ -21,7 +21,7 @@ import com.conca.ontology.user.dto.request.ResetPasswordRequest;
 import com.conca.ontology.user.dto.request.UserPatchRequest;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.user.model.UserEntry;
-import com.conca.ontology.service.AgentMemoryService;
+import com.conca.ontology.agent.service.AgentMemoryService;
 import com.conca.ontology.user.service.UserService;
 
 import jakarta.servlet.http.HttpSession;

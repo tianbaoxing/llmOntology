@@ -25,7 +25,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.service.AgentChatService;
+import com.conca.ontology.agent.service.AgentChatService;
 
 import io.agentscope.harness.agent.HarnessAgent;
 import org.springframework.beans.factory.ObjectProvider;
