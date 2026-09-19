@@ -516,15 +516,15 @@ tr.diff-imp td { background: #f0fdf4; }
       <button class="btn" id="ev-btn" onclick="startEval()">运行评测</button>
       <span class="muted" id="ev-dataset-info"></span>
     </div>
-    <div style="margin-top:8px">
-      <div class="muted" style="margin-bottom:4px">评测器按「通道 / 维度」分组（规则=本地算法零成本，LLM=judge 判分消耗 tokens；悬停查看说明，每组可一键全选）</div>
-      <div class="grader-groups" id="ev-graders"></div>
-    </div>
     <div id="ev-progress-wrap" style="display:none; margin-top:12px">
       <div style="background:#e5e7eb;border-radius:5px;height:18px;overflow:hidden">
         <div id="ev-bar" style="background:#2563eb;height:100%;width:0%;transition:width .3s"></div>
       </div>
       <div class="muted" style="margin-top:6px" id="ev-detail"></div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="muted" style="margin-bottom:4px">评测器按「通道 / 维度」分组（规则=本地算法零成本，LLM=judge 判分消耗 tokens；悬停查看说明，每组可一键全选）</div>
+      <div class="grader-groups" id="ev-graders"></div>
     </div>
   </div>
 
