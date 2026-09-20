@@ -1605,17 +1605,18 @@ let currentResultId = null;
 let currentResult = null;
 let diffShowAll = false;
 
-/** 基线下拉：历史 run（排除当前目标 run），显示数据集与通过率便于选择 */
+/** 基线下拉：历史 run（排除当前目标 run + 仅同数据集），显示数据集与通过率便于选择 */
 function refreshDiffBase() {
   const sel = $('diff-base');
   if (!sel || !currentResultId) return;
-  const opts = runsCache.filter(r => r.id !== currentResultId);
+  const curDs = currentResult && currentResult.dataset ? currentResult.dataset : null;
+  const opts = runsCache.filter(r => r.id !== currentResultId && (!curDs || r.dataset === curDs));
   sel.innerHTML = opts.length
     ? opts.map(r => {
         const pr = r.summary && r.summary.passRate != null ? '，通过率 ' + (r.summary.passRate * 100).toFixed(1) + '%' : '';
         return `<option value="${esc(r.id)}">${esc(r.id)}（${esc(r.dataset || '-')}${pr}）</option>`;
       }).join('')
-    : '<option value="">（无其它历史 run）</option>';
+    : `<option value="">（无同数据集的其它历史 run${curDs ? '：' + esc(curDs) : ''}）</option>`;
 }
 
 async function runDiff(all) {
