@@ -257,8 +257,8 @@ public abstract class LlmJudgeGrader implements Grader {
         if (!mp.isEmpty()) meta.put("expected_mcps", mp);
     }
 
-    /** 参考答案渲染：数组按顿号连接，缺失为「无」 */
-    private static String refText(Object ref) {
+    /** 参考答案渲染：数组按顿号连接，缺失为「无」。protected：子类自定义 variables/userPrompt 可复用。 */
+    protected static String refText(Object ref) {
         if (ref == null) {
             return "无";
         }
@@ -270,11 +270,13 @@ public abstract class LlmJudgeGrader implements Grader {
         return s.isBlank() ? "无" : s;
     }
 
-    private static String text(String s) {
+    /** null/空串归一化为「无」。protected：子类自定义 variables/userPrompt 可复用。 */
+    protected static String text(String s) {
         return s == null || s.isBlank() ? "无" : s;
     }
 
-    private static String truncate(String s, int limit) {
+    /** 截断辅助：protected，方便子类复用。 */
+    protected static String truncate(String s, int limit) {
         if (s == null || s.length() <= limit) {
             return s == null ? "" : s;
         }
