@@ -2979,7 +2979,15 @@ window.Report = (() => {
 
     // ---- 单样本 Top/Bottom ----
     const topSamples = validSamples.slice().sort((a, b) => (b.avg || 0) - (a.avg || 0)).slice(0, 5);
-    const botSamples = validSamples.slice().sort((a, b) => (a.avg || 0) - (b.avg || 0)).slice(0, 5);
+    const botSamples = validSamples
+      .filter(s => s.avg != null && s.avg < 1)
+      .sort((a, b) => {
+        const aLow = a.avg < 0.8 ? 0 : 1;
+        const bLow = b.avg < 0.8 ? 0 : 1;
+        if (aLow !== bLow) return aLow - bLow;
+        return (a.avg || 0) - (b.avg || 0);
+      })
+      .slice(0, 5);
 
     return {
       graders, gradersStats, perSample, validSamples,
