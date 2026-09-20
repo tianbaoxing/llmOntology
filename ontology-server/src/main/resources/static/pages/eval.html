@@ -2561,12 +2561,13 @@ window.Report = (() => {
         if (!g) { continue; }
         if (g.pending) { pend++; continue; }
         if (g.skipped) { skip++; continue; }
-        if (g.error) { err++; continue; }
-        if (g.score != null) {
-          sum += g.score; n++; vals.push(g.score);
-          if (g.score > hi) hi = g.score;
-          if (g.score < lo) lo = g.score;
-          const binIdx = Math.min(4, Math.max(0, Math.floor(g.score * 5)));
+        const scoreForStat = g.error ? 0 : (g.score != null ? g.score : null);
+        if (g.error) { err++; }
+        if (scoreForStat != null) {
+          sum += scoreForStat; n++; vals.push(scoreForStat);
+          if (scoreForStat > hi) hi = scoreForStat;
+          if (scoreForStat < lo) lo = scoreForStat;
+          const binIdx = Math.min(4, Math.max(0, Math.floor(scoreForStat * 5)));
           bins5[binIdx]++;
         }
       }
