@@ -9,7 +9,10 @@ public record EvalSample(
         Object referenceResponse,
         Double tolerance,
         String rubric,
-        List<Turn> turns) {
+        List<Turn> turns,
+        List<String> skills,
+        List<String> tools,
+        List<String> mcps) {
 
     public record Turn(String query, String response) {
     }

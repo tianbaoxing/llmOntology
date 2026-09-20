@@ -252,6 +252,174 @@ tr.diff-imp td { background: #f0fdf4; }
 .sk-api-row code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 /* 已忽略提示 */
 .sk-hidden-note { margin-top: 8px; font-size: 12px; color: #9ca3af; }
+/* 样本弹窗：Skills / Tools / MCP 选择区 */
+.sm-stm-block {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-top: 14px;
+  background: #fafbfc;
+  overflow: hidden;
+}
+.sm-stm-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  border-bottom: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+.sm-stm-head .sm-stm-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.sm-stm-head .sm-stm-tip {
+  font-size: 11.5px;
+  color: #64748b;
+}
+.sm-stm-head .sm-stm-toggle {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 10px;
+  border-radius: 16px;
+  border: 1.5px solid #a5b4fc;
+  background: #fff;
+  color: #4f46e5;
+  transition: all .15s ease;
+}
+.sm-stm-head .sm-stm-toggle.on { background: #16a34a; color: #fff; border-color: #16a34a; }
+.sm-stm-head .sm-stm-toggle:hover { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+.sm-stm-head .sm-stm-toggle.on:hover { background: #15803d; border-color: #15803d; }
+.sm-stm-body {
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 4px 10px;
+  max-height: 240px;
+  overflow: auto;
+}
+.sm-stm-body label {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 12.5px;
+  border: 1.5px solid transparent;
+  background: #fff;
+  transition: all .15s ease;
+}
+.sm-stm-body label:hover { border-color: #e5e7eb; background: #f8fafc; }
+.sm-stm-body label:has(input:checked) {
+  border-color: #4f46e5;
+  background: #eef2ff;
+  box-shadow: 0 1px 4px rgba(79,70,229,.12);
+}
+.sm-stm-body input {
+  margin: 2px 0 0;
+  flex: none;
+  cursor: pointer;
+  width: 13px;
+  height: 13px;
+  accent-color: #4f46e5;
+}
+.sm-stm-body .stm-chip-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sm-stm-body .stm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.sm-stm-body .stm-chip-desc {
+  display: block;
+  font-size: 10.5px;
+  color: #6b7280;
+  margin-top: 1px;
+  line-height: 1.35;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: all .18s ease;
+  font-family: "Microsoft YaHei", sans-serif;
+  font-weight: 400;
+}
+.sm-stm-body label:hover .stm-chip-desc,
+.sm-stm-body label:has(input:checked) .stm-chip-desc {
+  max-height: 48px;
+  opacity: 1;
+  margin-top: 2px;
+}
+/* 三组主题色 */
+.sm-stm-block.sk .sm-stm-head { background: linear-gradient(135deg, #ede9fe 0%, #f5f3ff 100%); }
+.sm-stm-block.sk label:has(input:checked) { border-color: #7c3aed; background: #f5f3ff; }
+.sm-stm-block.sk input { accent-color: #7c3aed; }
+.sm-stm-block.sk .sm-stm-toggle { border-color: #c4b5fd; color: #6d28d9; }
+.sm-stm-block.sk .sm-stm-toggle:hover { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+
+.sm-stm-block.tl .sm-stm-head { background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%); }
+.sm-stm-block.tl label:has(input:checked) { border-color: #2563eb; background: #eff6ff; }
+.sm-stm-block.tl input { accent-color: #2563eb; }
+.sm-stm-block.tl .sm-stm-toggle { border-color: #93c5fd; color: #1d4ed8; }
+.sm-stm-block.tl .sm-stm-toggle:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+.sm-stm-block.mp .sm-stm-head { background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); }
+.sm-stm-block.mp label:has(input:checked) { border-color: #d97706; background: #fffbeb; }
+.sm-stm-block.mp input { accent-color: #d97706; }
+.sm-stm-block.mp .sm-stm-toggle { border-color: #fcd34d; color: #b45309; }
+.sm-stm-block.mp .sm-stm-toggle:hover { background: #d97706; color: #fff; border-color: #d97706; }
+
+.sm-stm-empty { padding: 14px; text-align: center; font-size: 12px; color: #94a3b8; }
+/* 列表行：Skills/Tools/MCP chip 展示 */
+.sm-row-stm {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #e5e7eb;
+  font-size: 11.5px;
+}
+.sm-row-stm .sm-row-stm-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.sm-row-stm .lbl {
+  font-weight: 700;
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  letter-spacing: .3px;
+}
+.sm-row-stm .lbl.sk-lbl { background: #ede9fe; color: #6d28d9; }
+.sm-row-stm .lbl.tl-lbl { background: #dbeafe; color: #1d4ed8; }
+.sm-row-stm .lbl.mp-lbl { background: #fef3c7; color: #92400e; }
+.stm-chip-out {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid;
+}
+.stm-chip-out.sk-chip { background: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; }
+.stm-chip-out.tl-chip { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+.stm-chip-out.mp-chip { background: #fffbeb; color: #92400e; border-color: #fde68a; }
 /* stale 顶部提示条：文件变更后滑入提醒重新检测 */
 #sk-stale-banner { position: sticky; top: 0; z-index: 50; display: none; align-items: center; gap: 8px; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; animation: skSlideDown .3s ease; }
 @keyframes skSlideDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
@@ -852,6 +1020,30 @@ tr.diff-imp td { background: #f0fdf4; }
         <div class="field">
           <label>期望回答</label>
           <input type="text" id="sm-reftext" placeholder="如：北宋">
+        </div>
+        <div class="sm-stm-block sk">
+          <div class="sm-stm-head">
+            <span class="sm-stm-title">🧩 期望 Skills</span>
+            <span class="sm-stm-tip">希望 LLM 本次回答实际执行的技能（用于后续 skill 评测器对比）</span>
+            <span class="sm-stm-toggle" onclick="toggleStmAll('sk', this)">全选</span>
+          </div>
+          <div class="sm-stm-body" id="sm-stm-sk"></div>
+        </div>
+        <div class="sm-stm-block tl">
+          <div class="sm-stm-head">
+            <span class="sm-stm-title">🔧 期望工具（普通，非 MCP）</span>
+            <span class="sm-stm-tip">期望使用的内置工具（非 MCP 来源）</span>
+            <span class="sm-stm-toggle" onclick="toggleStmAll('tl', this)">全选</span>
+          </div>
+          <div class="sm-stm-body" id="sm-stm-tl"></div>
+        </div>
+        <div class="sm-stm-block mp">
+          <div class="sm-stm-head">
+            <span class="sm-stm-title">📡 期望 MCP 工具</span>
+            <span class="sm-stm-tip">MCP 来源的工具（单个粒度）</span>
+            <span class="sm-stm-toggle" onclick="toggleStmAll('mp', this)">全选</span>
+          </div>
+          <div class="sm-stm-body" id="sm-stm-mp"></div>
         </div>
         <div class="muted" id="sm-raw-hint" style="display:none"></div>
         <div id="sm-from-chat-hint" style="display:none;background:#eff6ff;color:#1d4ed8;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.6"></div>
@@ -1654,6 +1846,12 @@ function toggleGroup(grp) {
 let dsTabLoaded = false;
 let dsState = { name: null, page: 1, pageSize: 10, pages: 1, total: 0 };
 let smModal = { mode: 'add', seq: 0 };
+const smAvail = {
+  loaded: false,
+  skills: [],
+  tools: [],
+  mcps: []
+};
 
 function switchTab(name) {
   document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -1677,8 +1875,91 @@ function switchTab(name) {
 }
 
 async function initDsTab() {
-  await loadDsSelector();
+  await Promise.all([
+    loadDsSelector(),
+    loadSmAvail().catch(() => {})
+  ]);
   if (dsState.name) await loadSamples(1); else renderSamples([]);
+}
+
+async function loadSmAvail(force) {
+  if (!force && smAvail.loaded) return;
+  try {
+    const [skRes, tlRes] = await Promise.all([
+      api('GET', '/api/skills').catch(() => null),
+      api('GET', '/api/agent/tools').catch(() => null)
+    ]);
+    const skillsRaw = Array.isArray(skRes) ? skRes : [];
+    smAvail.skills = skillsRaw.map(s => ({
+      name: s.name || (typeof s === 'string' ? s : ''),
+      description: s.description || (s.summary ? String(s.summary) : '')
+    })).filter(s => s.name);
+    const toolsRaw = (tlRes && Array.isArray(tlRes.tools)) ? tlRes.tools : [];
+    const split = { tools: [], mcps: [] };
+    toolsRaw.forEach(t => {
+      const nm = t.name || (typeof t === 'string' ? t : '');
+      if (!nm) return;
+      const desc = t.description || t.desc || '';
+      if (t.isMcp || t.type === 'mcp' || t.tool_source === 'mcp' || t.source === 'mcp') {
+        split.mcps.push({ name: nm, description: desc });
+      } else {
+        split.tools.push({ name: nm, description: desc });
+      }
+    });
+    smAvail.tools = split.tools;
+    smAvail.mcps = split.mcps;
+    smAvail.loaded = true;
+  } catch (e) {
+    smAvail.loaded = true;
+  }
+}
+
+function renderStmBlock(type, items, selected) {
+  const idMap = { sk: 'sm-stm-sk', tl: 'sm-stm-tl', mp: 'sm-stm-mp' };
+  const nameMap = { sk: 'sm-stm-sk[]', tl: 'sm-stm-tl[]', mp: 'sm-stm-mp[]' };
+  const box = $(idMap[type]);
+  const selSet = new Set(Array.isArray(selected) ? selected : []);
+  if (!items || !items.length) {
+    box.innerHTML = '<div class="sm-stm-empty">暂无可选项（agent 未装配或无 MCP 服务）</div>';
+    return;
+  }
+  box.innerHTML = items.map(it => {
+    const name = String(it.name || '');
+    const desc = it.description || '';
+    const chk = selSet.has(name) ? 'checked' : '';
+    return `<label><input type="checkbox" name="${nameMap[type]}" value="${esc(name)}" ${chk}>
+      <span class="stm-chip-wrap">
+        <span class="stm-chip">${esc(name)}</span>
+        ${desc ? `<span class="stm-chip-desc">${esc(desc)}</span>` : ''}
+      </span></label>`;
+  }).join('');
+}
+
+function collectStmChecked(type) {
+  const nameMap = { sk: 'sm-stm-sk[]', tl: 'sm-stm-tl[]', mp: 'sm-stm-mp[]' };
+  return [...document.querySelectorAll('input[name="' + nameMap[type] + '"]:checked')].map(i => i.value);
+}
+
+function toggleStmAll(type, btn) {
+  const nameMap = { sk: 'sm-stm-sk[]', tl: 'sm-stm-tl[]', mp: 'sm-stm-mp[]' };
+  const list = [...document.querySelectorAll('input[name="' + nameMap[type] + '"]')];
+  if (!list.length) return;
+  const anyOff = list.some(i => !i.checked);
+  list.forEach(i => { i.checked = anyOff; });
+  btn.textContent = anyOff ? '取消全选' : '全选';
+  btn.classList.toggle('on', anyOff);
+}
+
+function refreshStmAllBtn(type) {
+  const nameMap = { sk: 'sm-stm-sk[]', tl: 'sm-stm-tl[]', mp: 'sm-stm-mp[]' };
+  const list = [...document.querySelectorAll('input[name="' + nameMap[type] + '"]')];
+  const btnMap = { sk: 0, tl: 1, mp: 2 };
+  const btns = document.querySelectorAll('#sm-modal .sm-stm-toggle');
+  const btn = btns[btnMap[type]];
+  if (!btn || !list.length) return;
+  const allOn = list.every(i => i.checked);
+  btn.textContent = allOn ? '取消全选' : '全选';
+  btn.classList.toggle('on', allOn);
 }
 
 const DS_LAST_KEY = 'eval-dataset-last'; // 记住上次使用的数据集（弹窗选择 + 沉淀预填沿用）
@@ -1728,11 +2009,15 @@ function renderSamples(samples) {
       const bad = s.valid === false;
       const isMulti = isMultiSample(s);
       const turns = Array.isArray(s.turns) ? s.turns : [];
-      const body = bad
+      let body = bad
         ? `<span style="color:#dc2626">格式错误：${esc(s.error || '')}</span>`
         : (isMulti ? fmtTurnQueryBlock(turns) : fmtSingleQueryBlock(s.query, s.response)) +
           `<div class="muted" style="font-size:12px;margin-top:6px">期望回答：${esc(fmtRef(s.referenceResponse))}` +
           (s.tolerance != null ? '　容差 ' + s.tolerance : '') + '</div>';
+      if (!bad) {
+        const stm = fmtRowStm(s.skills, s.tools, s.mcps);
+        if (stm) body += stm;
+      }
       return [
         code(s.id || ''),
         `<div class="wrap">${body}</div>`,
@@ -1741,6 +2026,23 @@ function renderSamples(samples) {
       ];
     }));
   markBadRows(samples);
+}
+
+function fmtRowStm(skills, tools, mcps) {
+  const sk = Array.isArray(skills) ? skills.filter(Boolean) : [];
+  const tl = Array.isArray(tools) ? tools.filter(Boolean) : [];
+  const mp = Array.isArray(mcps) ? mcps.filter(Boolean) : [];
+  if (!sk.length && !tl.length && !mp.length) return '';
+  const chipCls = { sk: 'stm-chip-out sk-chip', tl: 'stm-chip-out tl-chip', mp: 'stm-chip-out mp-chip' };
+  const lblCls = { sk: 'lbl sk-lbl', tl: 'lbl tl-lbl', mp: 'lbl mp-lbl' };
+  const lblText = { sk: 'SKILLS', tl: 'TOOLS', mp: 'MCP' };
+  const line = (type, list) => {
+    if (!list.length) return '';
+    return `<div class="sm-row-stm-line"><span class="${lblCls[type]}">${lblText[type]}</span>` +
+      list.map(n => `<span class="${chipCls[type]}">${esc(String(n))}</span>`).join('') +
+      `</div>`;
+  };
+  return `<div class="sm-row-stm">${line('sk', sk)}${line('tl', tl)}${line('mp', mp)}</div>`;
 }
 
 function markBadRows(samples) {
@@ -1927,7 +2229,6 @@ function collectTurns() {
 function openSampleModal(mode, seq) {
   if (!dsState.name) return showMsg('请先选择数据集', false);
   smModal = { mode, seq: seq || 0 };
-  // 弹窗内数据集下拉：与外部下拉同源；新增可选任意数据集，编辑锁定当前（seq 按数据集内序号定位）
   const selDs = $('sm-dataset');
   const opts = [...$('ds-name').options].map(o => o.outerHTML).join('');
   selDs.innerHTML = opts || '<option value="">（无数据集）</option>';
@@ -1943,42 +2244,55 @@ function openSampleModal(mode, seq) {
   $('sm-raw-hint').textContent = '';
   $('sm-from-chat-hint').style.display = 'none';
   $('sm-from-chat-hint').textContent = '';
-  if (mode === 'edit') {
-    // 取当前页数据回填（列表刚加载，内存一致）
-    api('GET', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples?page=' + dsState.page
-      + '&pageSize=' + dsState.pageSize).then(d => {
-      const s = (d.samples || []).find(x => x.seq === seq);
-      if (!s) { showMsg('记录不存在，请刷新', false); return; }
-      if (s.valid === false) {
-        $('sm-raw-hint').style.display = '';
-        $('sm-raw-hint').textContent = '该行格式错误，原文：' + (s.raw || '') + '（重新填写保存即修复）';
-      } else {
-        $('sm-id').value = s.id || '';
-        $('sm-reftype').value = detectRefType(s.referenceResponse);
-        $('sm-reftext').value = s.referenceResponse == null ? '' : String(s.referenceResponse);
-        $('sm-tolerance').value = s.tolerance == null ? '' : s.tolerance;
-        if (isMultiSample(s)) {
-          setSmType('multi');
-          renderTurnRows(Array.isArray(s.turns) && s.turns.length ? s.turns : [
-            { query: '', response: '' }, { query: '', response: '' }
-          ]);
+  // 先默认渲染空列表（防止可选清单加载延迟导致空白）
+  renderStmBlock('sk', smAvail.skills, []);
+  renderStmBlock('tl', smAvail.tools, []);
+  renderStmBlock('mp', smAvail.mcps, []);
+  ['sk','tl','mp'].forEach(refreshStmAllBtn);
+  $('sm-modal').style.display = 'flex';
+  // 异步加载可选清单（失败则使用缓存/空值）
+  loadSmAvail().then(() => {
+    if (mode === 'edit') {
+      api('GET', '/api/eval/datasets/' + encodeURIComponent(dsState.name) + '/samples?page=' + dsState.page
+        + '&pageSize=' + dsState.pageSize).then(d => {
+        const s = (d.samples || []).find(x => x.seq === seq);
+        if (!s) { showMsg('记录不存在，请刷新', false); return; }
+        if (s.valid === false) {
+          $('sm-raw-hint').style.display = '';
+          $('sm-raw-hint').textContent = '该行格式错误，原文：' + (s.raw || '') + '（重新填写保存即修复）';
         } else {
-          setSmType('single');
-          $('sm-query').value = s.query || '';
-          $('sm-response').value = s.response || '';
+          $('sm-id').value = s.id || '';
+          $('sm-reftype').value = detectRefType(s.referenceResponse);
+          $('sm-reftext').value = s.referenceResponse == null ? '' : String(s.referenceResponse);
+          $('sm-tolerance').value = s.tolerance == null ? '' : s.tolerance;
+          if (isMultiSample(s)) {
+            setSmType('multi');
+            renderTurnRows(Array.isArray(s.turns) && s.turns.length ? s.turns : [
+              { query: '', response: '' }, { query: '', response: '' }
+            ]);
+          } else {
+            setSmType('single');
+            $('sm-query').value = s.query || '';
+            $('sm-response').value = s.response || '';
+          }
+          renderStmBlock('sk', smAvail.skills, s.skills);
+          renderStmBlock('tl', smAvail.tools, s.tools);
+          renderStmBlock('mp', smAvail.mcps, s.mcps);
+          ['sk','tl','mp'].forEach(refreshStmAllBtn);
         }
-      }
-      $('sm-modal').style.display = 'flex';
-    }).catch(e => showMsg('加载失败：' + e.message, false));
-  } else {
-    $('sm-modal').style.display = 'flex';
-  }
+      }).catch(e => showMsg('加载失败：' + e.message, false));
+    } else {
+      renderStmBlock('sk', smAvail.skills, []);
+      renderStmBlock('tl', smAvail.tools, []);
+      renderStmBlock('mp', smAvail.mcps, []);
+      ['sk','tl','mp'].forEach(refreshStmAllBtn);
+    }
+  });
 }
 
 function closeSampleModal() { $('sm-modal').style.display = 'none'; }
 
 async function saveSample() {
-  // 目标数据集以弹窗内选择为准（新增可切换；编辑锁定为当前数据集）
   const target = smModal.mode === 'add' ? $('sm-dataset').value : dsState.name;
   if (!target) return showMsg('请选择数据集', false);
   const sampleType = currentSmType();
@@ -1991,7 +2305,10 @@ async function saveSample() {
     sampleType,
     referenceType: refType,
     referenceText: refText,
-    tolerance: tol === '' ? null : Number(tol)
+    tolerance: tol === '' ? null : Number(tol),
+    skills: collectStmChecked('sk'),
+    tools: collectStmChecked('tl'),
+    mcps: collectStmChecked('mp')
   };
   if (sampleType === 'multi') {
     try {
@@ -2010,9 +2327,8 @@ async function saveSample() {
     if (smModal.mode === 'add') {
       await api('POST', '/api/eval/datasets/' + encodeURIComponent(target) + '/samples', body);
       showMsg('已新增到 ' + target + '（文件现 ' + await lastTotal(target) + ' 条）', true);
-      // 目标数据集非当前展示时切换过去（外部下拉 + 记忆同步），跳到最后一页
       if (target !== dsState.name) await loadDsSelector(target);
-      await loadSamples(999999); // 越界自动收敛到最后一页
+      await loadSamples(999999);
     } else {
       await api('PUT', '/api/eval/datasets/' + encodeURIComponent(target) + '/samples/' + smModal.seq, body);
       showMsg('已保存', true);

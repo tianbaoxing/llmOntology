@@ -26,7 +26,13 @@ public record EvalSampleRequest(
         @Schema(description = "预置回答（非空则评测时跳过 agent 直接判分）")
         String response,
         @Schema(description = "多轮脚本（sampleType=multi 时使用，至少 2 轮）")
-        List<@Valid TurnRequest> turns) {
+        List<@Valid TurnRequest> turns,
+        @Schema(description = "期望执行的 skills 名称列表", example = "[\"tongshu_query\",\"chart_plugin\"]")
+        List<String> skills,
+        @Schema(description = "期望使用的普通工具（非 MCP 来源）名称列表", example = "[\"read_file\",\"web_search\"]")
+        List<String> tools,
+        @Schema(description = "期望使用的 MCP 工具标识列表（MCP 来源的工具）", example = "[\"weather__get_weather_today\"]")
+        List<String> mcps) {
 
     @Schema(description = "多轮脚本中的一轮")
     public record TurnRequest(

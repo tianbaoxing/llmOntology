@@ -200,6 +200,9 @@ public class EvalDatasetService {
                     Object refObj = ref.isMissingNode() || ref.isNull()
                             ? null : mapper.convertValue(ref, Object.class);
                     List<EvalSample.Turn> turns = parseTurns(node.path("turns"));
+                    List<String> skills = parseStringList(node.path("skills"));
+                    List<String> tools = parseStringList(node.path("tools"));
+                    List<String> mcps = parseStringList(node.path("mcps"));
                     list.add(new EvalSample(
                             node.path("id").asText("line-" + lineNo),
                             node.path("query").asText(""),
@@ -207,10 +210,11 @@ public class EvalDatasetService {
                             refObj,
                             node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null,
                             node.path("rubric").asText(null),
-                            turns));
+                            turns, skills, tools, mcps));
                 } catch (Exception e) {
                     list.add(new EvalSample("line-" + lineNo,
-                            "[数据行解析失败] " + e.getMessage(), null, null, null, null, List.of()));
+                            "[数据行解析失败] " + e.getMessage(), null, null, null, null, List.of(),
+                            null, null, null));
                 }
             }
         }
@@ -289,6 +293,9 @@ public class EvalDatasetService {
                     ref.isMissingNode() || ref.isNull() ? null
                             : ref.isTextual() ? ref.asText() : mapper.writeValueAsString(ref));
             row.put("tolerance", node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null);
+            row.put("skills", parseStringList(node.path("skills")));
+            row.put("tools", parseStringList(node.path("tools")));
+            row.put("mcps", parseStringList(node.path("mcps")));
             row.put("valid", true);
         } catch (Exception e) {
             row.put("valid", false);
@@ -377,6 +384,9 @@ public class EvalDatasetService {
             if (req.tolerance() != null) {
                 node.put("tolerance", req.tolerance());
             }
+            writeStringList(node, "skills", req.skills());
+            writeStringList(node, "tools", req.tools());
+            writeStringList(node, "mcps", req.mcps());
             return mapper.writeValueAsString(node);
         } catch (ApiException e) {
             throw e;
@@ -433,5 +443,29 @@ public class EvalDatasetService {
             turns.add(new EvalSample.Turn(q, t.path("response").asText(null)));
         }
         return turns;
+    }
+
+    private static List<String> parseStringList(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull() || !node.isArray()) {
+            return null;
+        }
+        List<String> list = new ArrayList<>();
+        for (JsonNode e : node) {
+            if (e.isTextual()) {
+                String s = e.asText();
+                if (s != null && !s.isBlank()) list.add(s);
+            }
+        }
+        return list.isEmpty() ? null : list;
+    }
+
+    private static void writeStringList(ObjectNode node, String key, List<String> list) {
+        if (list == null || list.isEmpty()) return;
+        List<String> clean = list.stream()
+                .filter(s -> s != null && !s.isBlank())
+                .toList();
+        if (clean.isEmpty()) return;
+        ArrayNode arr = node.putArray(key);
+        clean.forEach(arr::add);
     }
 }
