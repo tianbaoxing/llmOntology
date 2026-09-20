@@ -46,6 +46,7 @@ public class ObservationInformationGainGrader implements Grader {
         Map<String, Object> meta = new LinkedHashMap<>();
         if (toolCalls == null || toolCalls.size() <= 1) {
             meta.put("total", toolCalls == null ? 0 : toolCalls.size());
+            appendExpectedMeta(meta, input);
             return GraderScore.of(name(), 1.0, "调用次数不足，无重复观察风险", meta);
         }
         List<String> results = new ArrayList<>();
@@ -68,6 +69,7 @@ public class ObservationInformationGainGrader implements Grader {
         meta.put("redundant", redundant);
         meta.put("redundantSteps", redundantSteps);
         meta.put("threshold", REPEAT_THRESHOLD);
+        appendExpectedMeta(meta, input);
         String reason = redundant == 0
                 ? toolCalls.size() + " 次调用每次均有新信息（与先前观察相似度均 < " + REPEAT_THRESHOLD + "）"
                 : "第 " + redundantSteps + " 步为重复查询（返回与先前观察相似度 ≥ " + REPEAT_THRESHOLD + "）";
@@ -79,5 +81,14 @@ public class ObservationInformationGainGrader implements Grader {
             return "";
         }
         return s.length() <= RESULT_CLIP ? s : s.substring(0, RESULT_CLIP);
+    }
+
+    private static void appendExpectedMeta(Map<String, Object> meta, GraderInput input) {
+        List<String> sk = input.expectedSkills();
+        List<String> tl = input.expectedTools();
+        List<String> mp = input.expectedMcps();
+        if (!sk.isEmpty()) meta.put("expected_skills", sk);
+        if (!tl.isEmpty()) meta.put("expected_tools", tl);
+        if (!mp.isEmpty()) meta.put("expected_mcps", mp);
     }
 }

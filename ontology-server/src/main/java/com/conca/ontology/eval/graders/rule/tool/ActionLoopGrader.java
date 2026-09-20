@@ -39,6 +39,7 @@ public class ActionLoopGrader implements Grader {
         Map<String, Object> meta = new LinkedHashMap<>();
         if (toolCalls == null || toolCalls.size() <= 1) {
             meta.put("total", toolCalls == null ? 0 : toolCalls.size());
+            appendExpectedMeta(meta, input);
             return GraderScore.of(name(), 1.0, "调用次数不足，无循环风险", meta);
         }
         int loops = 0;
@@ -53,9 +54,19 @@ public class ActionLoopGrader implements Grader {
         double score = 1.0 - loops * 1.0 / (toolCalls.size() - 1);
         meta.put("total", toolCalls.size());
         meta.put("loops", loops);
+        appendExpectedMeta(meta, input);
         String reason = loops == 0
                 ? toolCalls.size() + " 次调用无连续重复"
                 : "检测到 " + loops + " 个循环步（连续同工具同参数）";
         return GraderScore.of(name(), score, reason, meta);
+    }
+
+    private static void appendExpectedMeta(Map<String, Object> meta, GraderInput input) {
+        List<String> sk = input.expectedSkills();
+        List<String> tl = input.expectedTools();
+        List<String> mp = input.expectedMcps();
+        if (!sk.isEmpty()) meta.put("expected_skills", sk);
+        if (!tl.isEmpty()) meta.put("expected_tools", tl);
+        if (!mp.isEmpty()) meta.put("expected_mcps", mp);
     }
 }

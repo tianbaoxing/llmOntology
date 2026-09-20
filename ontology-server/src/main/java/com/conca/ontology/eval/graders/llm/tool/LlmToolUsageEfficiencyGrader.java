@@ -38,7 +38,9 @@ public class LlmToolUsageEfficiencyGrader extends LlmJudgeGrader {
 
     @Override
     protected String extraBlock(GraderInput input) {
-        return renderTrajectory(input.record());
+        String exp = renderExpectedBlock(input);
+        String traj = renderTrajectory(input.record());
+        return (exp.isEmpty() ? "" : exp + "\n\n") + traj;
     }
 
     @Override

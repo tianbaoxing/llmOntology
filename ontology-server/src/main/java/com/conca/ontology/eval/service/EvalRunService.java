@@ -549,6 +549,9 @@ public class EvalRunService {
         if (task.judgeRuns != null) {
             params.put("judge_runs", task.judgeRuns);
         }
+        params.put("expected_skills", sample.skills());
+        params.put("expected_tools", sample.tools());
+        params.put("expected_mcps", sample.mcps());
         GraderInput input = new GraderInput(params, record);
         List<Map<String, Object>> scores = new ArrayList<>();
         for (String n : names) {

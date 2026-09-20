@@ -96,6 +96,7 @@ public class AgenticGroundednessGrader implements Grader {
         meta.put("evidence", v.evidence);
         meta.put("queries", holder.tool().records());
         meta.put("judge", judge);
+        appendExpectedMeta(meta, input);
 
         if (!v.ok) {
             return new GraderScore(name(), 0.0, "[agentic judge 调用失败] " + v.error, true, meta);
@@ -221,5 +222,14 @@ public class AgenticGroundednessGrader implements Grader {
             return "";
         }
         return s.length() <= 120 ? s : s.substring(0, 120) + "…";
+    }
+
+    private static void appendExpectedMeta(Map<String, Object> meta, GraderInput input) {
+        List<String> sk = input.expectedSkills();
+        List<String> tl = input.expectedTools();
+        List<String> mp = input.expectedMcps();
+        if (!sk.isEmpty()) meta.put("expected_skills", sk);
+        if (!tl.isEmpty()) meta.put("expected_tools", tl);
+        if (!mp.isEmpty()) meta.put("expected_mcps", mp);
     }
 }

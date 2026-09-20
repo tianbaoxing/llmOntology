@@ -38,7 +38,9 @@ public class LlmToolParameterCheckGrader extends LlmJudgeGrader {
 
     @Override
     protected String extraBlock(GraderInput input) {
-        return renderTrajectory(input.record());
+        String exp = renderExpectedBlock(input, false);
+        String traj = renderTrajectory(input.record());
+        return (exp.isEmpty() ? "" : exp + "\n\n") + traj;
     }
 
     @Override

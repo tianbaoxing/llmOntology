@@ -117,6 +117,7 @@ public abstract class LlmJudgeGrader implements Grader {
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("rawScore", runs == 1 ? rawScores.get(0) : rawScores);
         meta.put("judge", judge);
+        appendExpectedMeta(meta, input);
         String reason = runs == 1 ? reasons.get(0)
                 : String.join(" | ", reasons) + "（" + runs + " 次判分取平均）";
         return GraderScore.of(name(), (avgRaw - 1) / 4.0, reason, meta);
@@ -206,6 +207,54 @@ public abstract class LlmJudgeGrader implements Grader {
                     .append("答：").append(truncate(String.valueOf(t.getOrDefault("answer", "")), 400)).append("\n");
         }
         return sb.toString();
+    }
+
+    /**
+     * 期望清单（Skills / 工具 / MCP）渲染：供轨迹类评测器 extraBlock 注入到 judge prompt。
+     * 三组全空时返回空串（完全不污染 prompt，兼容旧数据集）。
+     * @param includeSkills  是否包含 skills 组（纯工具类评测器可传 false）
+     */
+    protected final String renderExpectedBlock(GraderInput input, boolean includeSkills) {
+        List<String> skills = includeSkills ? input.expectedSkills() : List.of();
+        List<String> tools = input.expectedTools();
+        List<String> mcps = input.expectedMcps();
+        if (skills.isEmpty() && tools.isEmpty() && mcps.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        sb.append("═══════════════════════════════════════════════════════\n")
+          .append("【期望清单（Ground Truth，评测人预设）】\n");
+        if (!skills.isEmpty()) {
+            sb.append("期望使用 Skills (").append(skills.size()).append("项)：\n");
+            for (String s : skills) sb.append("  • ").append(s).append("\n");
+        }
+        if (!tools.isEmpty()) {
+            sb.append("期望使用 普通工具 (").append(tools.size()).append("项)：\n");
+            for (String s : tools) sb.append("  • ").append(s).append("\n");
+        }
+        if (!mcps.isEmpty()) {
+            sb.append("期望使用 MCP 工具 (").append(mcps.size()).append("项)：\n");
+            for (String s : mcps) sb.append("  • ").append(s).append("\n");
+        }
+        sb.append("═══════════════════════════════════════════════════════\n")
+          .append("评分时请重点参考期望清单：\n")
+          .append("  - 对期望内的工具/技能调用要更宽容（调用即加分项）\n")
+          .append("  - 明显偏离期望且无合理解释的额外调用，应扣分\n")
+          .append("  - 期望项没有被调用的，应在 reasoning 中明确指出「漏用」\n")
+          .append("═══════════════════════════════════════════════════════");
+        return sb.toString();
+    }
+
+    /** 便捷重载：默认包含 skills 组 */
+    protected final String renderExpectedBlock(GraderInput input) {
+        return renderExpectedBlock(input, true);
+    }
+
+    private static void appendExpectedMeta(Map<String, Object> meta, GraderInput input) {
+        List<String> sk = input.expectedSkills();
+        List<String> tl = input.expectedTools();
+        List<String> mp = input.expectedMcps();
+        if (!sk.isEmpty()) meta.put("expected_skills", sk);
+        if (!tl.isEmpty()) meta.put("expected_tools", tl);
+        if (!mp.isEmpty()) meta.put("expected_mcps", mp);
     }
 
     /** 参考答案渲染：数组按顿号连接，缺失为「无」 */
