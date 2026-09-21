@@ -108,6 +108,89 @@
 .cs-test-pass { color: #047857; font-weight: 700; }
 .cs-tip { background: #fef2f2; border-left: 3px solid #dc2626; padding: 8px 12px; color: #7f1d1d; font-size: 13px; line-height: 1.6; border-radius: 4px; margin-top: 8px; white-space: pre-line; }
 
+/* 图谱诊断 Tab 专属（前缀 gq-，全局隔离） */
+.gq-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+.gq-title-row h2 { margin: 0; font-size: 16px; color: #1e3a8a; border-left: 3px solid #2563eb; padding-left: 10px; }
+.gq-generated { color: #6b7280; font-size: 12px; }
+
+.gq-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.gq-kpi { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+.gq-kpi .label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+.gq-kpi .value { font-size: 22px; font-weight: 700; color: #1f2937; line-height: 1.2; }
+.gq-kpi .sub { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+.gq-kpi.danger .value { color: #b91c1c; }
+.gq-kpi.warn .value { color: #b45309; }
+.gq-kpi.good .value { color: #047857; }
+
+.gq-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 12px 0; }
+.gq-stat-cell { border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; background: #f9fafb; }
+.gq-stat-cell b { font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px; font-weight: 500; }
+.gq-stat-cell span { font-size: 18px; font-weight: 700; color: #1f2937; }
+.gq-stat-cell.bad span { color: #b91c1c; }
+
+.gq-progress { margin: 14px 0; }
+.gq-progress .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 13px; }
+.gq-progress .head b { color: #1f2937; }
+.gq-progress .head .pct { font-weight: 700; color: #1f2937; }
+.gq-progress .head .pct.low { color: #b91c1c; }
+.gq-progress .bar { width: 100%; background: #e5e7eb; border-radius: 10px; height: 14px; overflow: hidden; }
+.gq-progress .fill { height: 100%; background: linear-gradient(90deg, #2563eb, #60a5fa); border-radius: 10px; transition: width .4s; }
+.gq-progress .fill.low { background: linear-gradient(90deg, #dc2626, #f87171); }
+.gq-progress .fill.mid { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+
+.gq-chart-box { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; }
+.gq-chart-box h3 { font-size: 14px; margin: 0 0 10px; color: #1f2937; }
+.gq-chart-box .stat-row { color: #6b7280; font-size: 12px; margin-bottom: 10px; }
+.gq-chart-box .stat-row code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; color: #374151; margin: 0 2px; }
+.gq-chart-box .chart { width: 100%; height: 340px; }
+
+.gq-degree-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px dashed #f3f4f6; font-size: 13px; }
+.gq-degree-row:last-child { border-bottom: none; }
+.gq-degree-row .name { width: 240px; min-width: 180px; color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gq-degree-row .bar-box { flex: 1; background: #f3f4f6; height: 14px; border-radius: 7px; overflow: hidden; position: relative; }
+.gq-degree-row .bar-box .fill { background: #3b82f6; height: 100%; border-radius: 7px; }
+.gq-degree-row .bar-box .fill.hot { background: #ef4444; }
+.gq-degree-row .meta { width: 180px; text-align: right; color: #6b7280; font-size: 12px; flex-shrink: 0; }
+.gq-degree-row .meta .dev { color: #dc2626; font-weight: 600; margin-left: 6px; }
+.gq-degree-row .meta .act { margin-left: 8px; }
+.gq-degree-row .meta button { font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; cursor: pointer; }
+
+.gq-empty { color: #9ca3af; text-align: center; padding: 20px; font-size: 13px; }
+
+.gq-stat-cell { cursor: help; position: relative; }
+.gq-stat-cell:hover { border-color: #93c5fd; background: #eff6ff; }
+
+.gq-tooltip {
+  position: fixed;
+  z-index: 99999;
+  max-width: 520px;
+  background: #1f2937;
+  color: #f9fafb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  box-shadow: 0 10px 25px rgba(0,0,0,.25);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.gq-tooltip.show { opacity: 1; }
+.gq-tooltip .gq-tt-title { font-weight: 700; font-size: 13px; color: #60a5fa; margin-bottom: 6px; }
+.gq-tooltip .gq-tt-desc { color: #d1d5db; margin-bottom: 8px; }
+.gq-tooltip .gq-tt-sql-label { font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
+.gq-tooltip .gq-tt-sql {
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 11px;
+  color: #a5f3fc;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 </style>
 </head>
 <body>
@@ -120,6 +203,7 @@
     <a class="ptab" data-tab="disjoint" onclick="switchTab('disjoint')">互斥约束</a>
     <a class="ptab" data-tab="content-security" onclick="switchTab('content-security')">内容安全配置</a>
     <a class="ptab" data-tab="rewrite" onclick="switchTab('rewrite')">语义改写配置</a>
+    <a class="ptab" data-tab="quality" onclick="switchTab('quality')">图谱诊断</a>
   </div>
 
   <!-- Tab 1：图数据 -->
@@ -369,9 +453,98 @@
       <div id="rw-cards"></div>
     </div>
   </div>
+
+  <!-- Tab：图谱诊断 -->
+  <div id="tab-quality" style="display:none">
+    <div class="card">
+      <div class="gq-title-row">
+        <h2>图谱质量诊断</h2>
+        <div>
+          <span class="gq-generated" id="gq-generated">生成时间：-</span>
+          <button class="btn sm" style="margin-left:12px" onclick="gqRefresh()">↻ 刷新诊断</button>
+        </div>
+      </div>
+
+      <div class="gq-kpi-grid" id="gq-kpi"></div>
+    </div>
+
+    <div class="card">
+      <div class="gq-title-row"><h2>一、拓扑异常</h2></div>
+      <div class="gq-stat-grid" id="gq-topo-stats"></div>
+
+      <div style="margin-top:14px">
+        <h3 style="font-size:14px;margin:14px 0 8px">孤立节点（无任何关系连接）</h3>
+        <div class="muted" style="margin-bottom:8px;font-size:12px">孤立节点通常意味着：LLM 抽取时只产生节点但未建立关联、或合并流程丢失了上下文关联。</div>
+        <div id="gq-isolated-table"></div>
+      </div>
+
+      <div style="margin-top:14px">
+        <h3 style="font-size:14px;margin:14px 0 8px">自环关系（节点指向自身）</h3>
+        <div id="gq-selfloops-table"></div>
+      </div>
+
+      <div style="margin-top:14px">
+        <h3 style="font-size:14px;margin:14px 0 8px">入度异常 Top 20（≥ 均值 + 3σ）</h3>
+        <div class="muted" style="margin-bottom:8px;font-size:12px">高度中心节点：可能是超级类（如「商代」被 1000+ 文物引用，属正常），也可能是 LLM 过度关联的错误 hub。</div>
+        <div id="gq-in-degree"></div>
+      </div>
+
+      <div style="margin-top:14px">
+        <h3 style="font-size:14px;margin:14px 0 8px">出度异常 Top 20（≥ 均值 + 3σ）</h3>
+        <div id="gq-out-degree"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="gq-title-row"><h2>二、Schema 覆盖率</h2></div>
+      <div class="muted" style="margin:0 0 14px;font-size:13px">
+        对比 <code>graph-schema.json</code> 中声明的类 / 关系 与库中实际有实例的数量。低覆盖率可能代表：
+        1) Schema 过度设计（定义了用不到的类）；2) LLM 抽取率不足（漏掉了某类实体/关系）。
+      </div>
+
+      <div class="gq-progress">
+        <div class="head"><b>类覆盖率</b><span class="pct" id="gq-cls-cov-pct">-</span></div>
+        <div class="bar"><div class="fill" id="gq-cls-cov-fill" style="width:0%"></div></div>
+        <div class="muted" style="font-size:11px;margin-top:4px" id="gq-cls-cov-sub"></div>
+      </div>
+
+      <div class="gq-progress">
+        <div class="head"><b>关系覆盖率</b><span class="pct" id="gq-rel-cov-pct">-</span></div>
+        <div class="bar"><div class="fill" id="gq-rel-cov-fill" style="width:0%"></div></div>
+        <div class="muted" style="font-size:11px;margin-top:4px" id="gq-rel-cov-sub"></div>
+      </div>
+
+      <div style="margin-top:16px">
+        <h3 style="font-size:14px;margin:14px 0 8px" id="gq-unused-cls-title">未使用类定义</h3>
+        <div id="gq-unused-cls-table"></div>
+      </div>
+
+      <div style="margin-top:16px">
+        <h3 style="font-size:14px;margin:14px 0 8px" id="gq-unused-rel-title">未使用关系定义</h3>
+        <div id="gq-unused-rel-table"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="gq-title-row"><h2>三、节点 / 关系 类分布直方图</h2></div>
+
+      <div class="gq-chart-box">
+        <h3>① 节点类分布（按数量降序）</h3>
+        <div class="stat-row" id="gq-cls-stat"></div>
+        <div id="gq-chart-classes" class="chart"></div>
+      </div>
+
+      <div class="gq-chart-box">
+        <h3>② 关系类分布（按数量降序）</h3>
+        <div class="stat-row" id="gq-rel-stat"></div>
+        <div id="gq-chart-rels" class="chart"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="/pages/common.js"></script>
+<script src="/vendor/echarts.min.js"></script>
 <script>
 let schemaCache = null;
 let classSummaries = [];
@@ -384,6 +557,9 @@ let rewriteData = null;    // {version, pipeline, features}
 let djEditingId = null;    // 正在编辑的 id；null = 新增
 let csRulesData = null;    // {version, rules}
 let csAllowlistData = null; // {version, ruleIds}
+let qualityTabLoaded = false;
+let gqChartClasses = null;   // echarts 实例，遵循销毁重建
+let gqChartRels = null;
 
 // ---------------- Tab 切换 ----------------
 function switchTab(name) {
@@ -393,6 +569,7 @@ function switchTab(name) {
   $('tab-disjoint').style.display = name === 'disjoint' ? '' : 'none';
   $('tab-content-security').style.display = name === 'content-security' ? '' : 'none';
   $('tab-rewrite').style.display = name === 'rewrite' ? '' : 'none';
+  $('tab-quality').style.display = name === 'quality' ? '' : 'none';
   if (name === 'schema' && !schemaTabLoaded) {
     schemaTabLoaded = true;
     loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
@@ -408,6 +585,17 @@ function switchTab(name) {
   if (name === 'rewrite' && !rewriteTabLoaded) {
     rewriteTabLoaded = true;
     loadRewritePanel().catch(e => showMsg('加载失败：' + e.message, false));
+  }
+  if (name === 'quality' && !qualityTabLoaded) {
+    qualityTabLoaded = true;
+    gqRefresh();
+  }
+  // 若切换到质量诊断页，echarts 容器需要重绘（display 从 none → block 尺寸才对）
+  if (name === 'quality') {
+    setTimeout(() => {
+      if (gqChartClasses) gqChartClasses.resize();
+      if (gqChartRels) gqChartRels.resize();
+    }, 50);
   }
 }
 
@@ -997,6 +1185,404 @@ function csFormatResult(r) {
 
 const reviewThresholdDisplay = 50;
 const blockThresholdDisplay = 80;
+
+// ============================================================
+// 图谱诊断 Tab（Graph Quality Diagnostics）
+// ============================================================
+const GQ_PALETTE = ['#3b82f6','#22c55e','#a855f7','#f59e0b','#ef4444','#06b6d4','#84cc16','#ec4899','#6366f1','#14b8a6','#f97316','#0ea5e9'];
+
+function gqRefresh() {
+  showMsg('正在加载诊断报告…（大图可能需要几秒）', true);
+  api('GET', '/api/graph/quality/report')
+    .then(d => {
+      gqRenderAll(d);
+      showMsg('诊断完成', true);
+    })
+    .catch(e => showMsg('诊断失败：' + e.message, false));
+}
+
+function gqRenderAll(r) {
+  // 生成时间
+  $('gq-generated').textContent = '生成时间：' + new Date(r.generatedAtMs).toLocaleString('zh-CN');
+
+  gqRenderKpi(r);
+  gqRenderTopology(r.topology);
+  gqRenderCoverage(r.coverage, r.classCount, r.relationCount);
+  gqRenderClassHistogram(r.classHistogram);
+  gqRenderRelHistogram(r.relHistogram);
+}
+
+// -------- KPI --------
+function gqRenderKpi(r) {
+  const abnormalSum = r.topology.isolatedCount + r.topology.selfLoopCount + r.topology.danglingCount
+                    + r.topology.inDegreeAnomalyCount + r.topology.outDegreeAnomalyCount;
+  const cards = [
+    { label: '节点总数', value: r.totalNodes, sub: `声明类 ${r.classCount} 个`, cls: '' },
+    { label: '关系总数', value: r.totalRelations, sub: `声明关系 ${r.relationCount} 个`, cls: '' },
+    { label: '拓扑异常', value: abnormalSum,
+      sub: '孤立点 / 自环 / 悬挂 / 入出度异常',
+      cls: abnormalSum > 0 ? 'danger' : 'good' },
+    { label: '未使用类', value: r.coverage.unusedClassCount,
+      sub: '声明但零实例', cls: r.coverage.unusedClassCount > 0 ? 'warn' : 'good' },
+    { label: '未使用关系', value: r.coverage.unusedRelationCount,
+      sub: '声明但零实例', cls: r.coverage.unusedRelationCount > 0 ? 'warn' : 'good' },
+    { label: '类覆盖率', value: r.coverage.classCoveragePct + '%',
+      sub: `关系覆盖率 ${r.coverage.relationCoveragePct}%`,
+      cls: r.coverage.classCoveragePct >= 80 ? 'good' : (r.coverage.classCoveragePct >= 50 ? 'warn' : 'danger') },
+  ];
+  $('gq-kpi').innerHTML = cards.map(c => `
+    <div class="gq-kpi ${c.cls}">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+      <div class="sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+// -------- 拓扑异常 --------
+const GQ_TOPO_META = {
+  isolated: {
+    title: '孤立节点',
+    desc: '无任何关系连接的节点（入度=0 且 出度=0）。\n常见成因：\n① LLM 抽取时只产生节点但未建立关联；\n② 批量合并流程丢失了上下文关联；\n③ 相关关系被清理后残留的孤儿节点。',
+    sql: [
+      '// 计数 SQL',
+      'MATCH (n)',
+      'WHERE NOT (n)--()',
+      'RETURN count(n) AS cnt;',
+      '',
+      '// 列表 SQL（LIMIT 500）',
+      'MATCH (n)',
+      'WHERE NOT (n)--()',
+      'WITH labels(n)[0] AS label, n',
+      'WITH label, n ORDER BY label ASC',
+      'SKIP 0 LIMIT 500',
+      'RETURN label, elementId(n), properties(n);'
+    ].join('\n')
+  },
+  selfLoop: {
+    title: '自环关系',
+    desc: '起点与终点为同一节点的关系（n→n）。\n绝大多数业务场景下属于数据错误：\n① LLM 抽取时对「自身关联」类词汇误判；\n② 去重合并时 key 值碰撞导致同一节点的假关联。',
+    sql: [
+      '// 列表 SQL（计数用 size(列表)）',
+      'MATCH (n)-[r]->(n)',
+      'RETURN labels(n)[0] AS label, type(r) AS relType,',
+      '       elementId(n) AS elementId,',
+      '       properties(n) AS nodeProps,',
+      '       properties(r) AS relProps',
+      'ORDER BY label, relType;'
+    ].join('\n')
+  },
+  dangling: {
+    title: '悬挂/异常连接',
+    desc: '业务语义上的「死胡同边」：关系 (s)-[r]->(m) 满足以下任一即判定：\n① 终点 m 无任何出边（mOut=0），链路无法继续扩展；\n② 起点 s 无任何入边（sIn=0），属于无上游的根节点挂出。\n注：非 Neo4j 物理悬挂边，是保守的业务质量检测。',
+    sql: [
+      '// 计数 SQL',
+      'MATCH (s)-[r]->(m)',
+      'WITH r, s, m,',
+      '     COUNT { (m)-[]->() } AS mOut,',
+      '     COUNT { ()-[]->(s) } AS sIn',
+      'WHERE mOut = 0 OR sIn = 0',
+      'RETURN count(DISTINCT r) AS cnt;'
+    ].join('\n')
+  },
+  inDegree: {
+    title: '入度异常节点',
+    desc: '按同类分别统计，入度 ≥ 同类均值 + 3σ（3 倍标准差）的节点。\n仅对节点数 ≥ 50 的类做统计（小样本无统计意义）。\n解读：\n• 可能是合理的超级 Hub（如「唐代」被 1000+ 文物引用）；\n• 也可能是 LLM 过度关联导致的错误聚合点。',
+    sql: [
+      '// Step 1：每类度统计（节点数 ≥ 50）',
+      'MATCH (n)',
+      'WITH labels(n)[0] AS label,',
+      '     COUNT { (n)-[]->() } AS outDeg,',
+      '     COUNT { ()-[]->(n) } AS inDeg',
+      'WITH label, count(*) AS nCnt,',
+      '     avg(toFloat(outDeg)) AS avgOut, stdev(toFloat(outDeg)) AS stdOut,',
+      '     avg(toFloat(inDeg))  AS avgIn,  stdev(toFloat(inDeg))  AS stdIn',
+      'WHERE nCnt >= 50',
+      'RETURN label, nCnt, avgOut, stdOut, avgIn, stdIn;',
+      '',
+      '// Step 2：单类入度异常计数（threshold = avgIn + 3·stdIn）',
+      'MATCH (n:`<Label>`)',
+      'WHERE COUNT { ()-[]->(n) } > toInteger($threshold)',
+      'RETURN count(n) AS cnt;'
+    ].join('\n')
+  },
+  outDegree: {
+    title: '出度异常节点',
+    desc: '按同类分别统计，出度 ≥ 同类均值 + 3σ（3 倍标准差）的节点。\n仅对节点数 ≥ 50 的类做统计。\n解读：\n• 可能是合理的超级实体（如某综合事件关联大量角色）；\n• 也可能是 LLM 发散式误关联的噪声节点。',
+    sql: [
+      '// Step 1：每类度统计（节点数 ≥ 50）',
+      'MATCH (n)',
+      'WITH labels(n)[0] AS label,',
+      '     COUNT { (n)-[]->() } AS outDeg,',
+      '     COUNT { ()-[]->(n) } AS inDeg',
+      'WITH label, count(*) AS nCnt,',
+      '     avg(toFloat(outDeg)) AS avgOut, stdev(toFloat(outDeg)) AS stdOut,',
+      '     avg(toFloat(inDeg))  AS avgIn,  stdev(toFloat(inDeg))  AS stdIn',
+      'WHERE nCnt >= 50',
+      'RETURN label, nCnt, avgOut, stdOut, avgIn, stdIn;',
+      '',
+      '// Step 2：单类出度异常计数（threshold = avgOut + 3·stdOut）',
+      'MATCH (n:`<Label>`)',
+      'WHERE COUNT { (n)-[]->() } > toInteger($threshold)',
+      'RETURN count(n) AS cnt;'
+    ].join('\n')
+  }
+};
+
+let _gqTooltipEl = null;
+function gqEnsureTooltip() {
+  if (!_gqTooltipEl) {
+    _gqTooltipEl = document.createElement('div');
+    _gqTooltipEl.className = 'gq-tooltip';
+    document.body.appendChild(_gqTooltipEl);
+  }
+  return _gqTooltipEl;
+}
+function gqShowTooltip(meta, ev) {
+  const el = gqEnsureTooltip();
+  el.innerHTML =
+    `<div class="gq-tt-title">${esc(meta.title)}</div>` +
+    `<div class="gq-tt-desc">${esc(meta.desc).replace(/\n/g, '<br/>')}</div>` +
+    `<div class="gq-tt-sql-label">📋 统计 Cypher（可直接在 Neo4j Browser 执行）</div>` +
+    `<div class="gq-tt-sql">${esc(meta.sql)}</div>`;
+  el.classList.add('show');
+  const pad = 14;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const rw = el.offsetWidth, rh = el.offsetHeight;
+  let x = ev.clientX + pad;
+  let y = ev.clientY + pad;
+  if (x + rw > vw - 4) x = ev.clientX - rw - pad;
+  if (y + rh > vh - 4) y = ev.clientY - rh - pad;
+  if (x < 4) x = 4;
+  if (y < 4) y = 4;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+}
+function gqMoveTooltip(ev) {
+  if (!_gqTooltipEl || !_gqTooltipEl.classList.contains('show')) return;
+  const pad = 14;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const rw = _gqTooltipEl.offsetWidth, rh = _gqTooltipEl.offsetHeight;
+  let x = ev.clientX + pad;
+  let y = ev.clientY + pad;
+  if (x + rw > vw - 4) x = ev.clientX - rw - pad;
+  if (y + rh > vh - 4) y = ev.clientY - rh - pad;
+  if (x < 4) x = 4;
+  if (y < 4) y = 4;
+  _gqTooltipEl.style.left = x + 'px';
+  _gqTooltipEl.style.top = y + 'px';
+}
+function gqHideTooltip() {
+  if (_gqTooltipEl) _gqTooltipEl.classList.remove('show');
+}
+
+function gqRenderTopology(t) {
+  const cells = [
+    { b: '孤立节点', v: t.isolatedCount, bad: t.isolatedCount > 0, meta: GQ_TOPO_META.isolated },
+    { b: '自环关系', v: t.selfLoopCount, bad: t.selfLoopCount > 0, meta: GQ_TOPO_META.selfLoop },
+    { b: '悬挂/异常连接', v: t.danglingCount, bad: t.danglingCount > 0, meta: GQ_TOPO_META.dangling },
+    { b: '入度异常节点', v: t.inDegreeAnomalyCount, bad: t.inDegreeAnomalyCount > 0, meta: GQ_TOPO_META.inDegree },
+    { b: '出度异常节点', v: t.outDegreeAnomalyCount, bad: t.outDegreeAnomalyCount > 0, meta: GQ_TOPO_META.outDegree },
+  ];
+  $('gq-topo-stats').innerHTML = cells.map((c, i) => `
+    <div class="gq-stat-cell ${c.bad ? 'bad' : ''}"
+         data-gq-idx="${i}"
+         onmouseenter="gqShowTooltip(GQ_TOPO_META['${['isolated','selfLoop','dangling','inDegree','outDegree'][i]}'], event)"
+         onmousemove="gqMoveTooltip(event)"
+         onmouseleave="gqHideTooltip()">
+      <b>${c.b}</b><span>${c.v}</span>
+    </div>`).join('');
+
+  // 孤立节点表格
+  if (t.isolatedTop && t.isolatedTop.length) {
+    const rows = t.isolatedTop.map(n => `
+      <tr>
+        <td>${code(n.label)}</td>
+        <td>${code(n.keyProp)}</td>
+        <td>${esc(String(n.keyValue ?? ''))}</td>
+        <td>${esc(n.displayName ?? '')}</td>
+        <td>${gqNodeActionBtn(n.label, n.keyValue)}</td>
+      </tr>`).join('');
+    $('gq-isolated-table').innerHTML =
+      `<div class="muted" style="margin:6px 0 8px;font-size:11px">显示前 ${t.isolatedTop.length} 条 / 共 ${t.isolatedCount} 条</div>
+       <table><tr><th>类</th><th>keyProp</th><th>键值</th><th>展示名</th><th>操作</th></tr>${rows}</table>`;
+  } else {
+    $('gq-isolated-table').innerHTML = '<div class="gq-empty">✔ 未发现孤立节点（所有节点至少有 1 条关系）</div>';
+  }
+
+  // 自环表格
+  if (t.selfLoops && t.selfLoops.length) {
+    const rows = t.selfLoops.map(s => `
+      <tr>
+        <td>${code(s.label)}</td>
+        <td><code>${esc(s.relType)}</code></td>
+        <td>${esc(String(s.keyValue ?? ''))}</td>
+        <td>${esc(s.displayName ?? '')}</td>
+        <td><code>${esc(JSON.stringify(s.relProps || {}))}</code></td>
+        <td>${gqNodeActionBtn(s.label, s.keyValue)}</td>
+      </tr>`).join('');
+    $('gq-selfloops-table').innerHTML =
+      `<table><tr><th>节点类</th><th>关系类型</th><th>键值</th><th>节点展示名</th><th>关系属性</th><th>操作</th></tr>${rows}</table>`;
+  } else {
+    $('gq-selfloops-table').innerHTML = '<div class="gq-empty">✔ 未发现自环关系</div>';
+  }
+
+  // 入度 / 出度 异常条形
+  $('gq-in-degree').innerHTML = gqDegreeBarList(t.inDegreeTop, t.inDegreeAnomalyCount, true);
+  $('gq-out-degree').innerHTML = gqDegreeBarList(t.outDegreeTop, t.outDegreeAnomalyCount, false);
+}
+
+function gqDegreeBarList(list, totalCount, isHotIn) {
+  if (!list || !list.length) {
+    return `<div class="gq-empty">✔ 没有度值超过均值 + 3σ 的异常节点</div>`;
+  }
+  const max = Math.max(...list.map(d => d.degree));
+  const rows = list.map(d => {
+    const pct = max > 0 ? (d.degree / max * 100) : 0;
+    const hot = d.deviation >= 5 ? 'hot' : '';
+    return `<div class="gq-degree-row" title="${esc(String(d.keyValue ?? ''))} / σ=${d.deviation}">
+      <div class="name">${esc(d.displayName ?? String(d.keyValue ?? ''))} <span class="muted" style="font-size:11px">(${esc(d.label)})</span></div>
+      <div class="bar-box"><div class="fill ${hot}" style="width:${pct.toFixed(1)}%"></div></div>
+      <div class="meta">
+        degree: <b>${d.degree}</b><span class="dev">σ ${d.deviation.toFixed(2)}</span>
+        <span class="act">${gqNodeActionBtn(d.label, d.keyValue, true)}</span>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="muted" style="margin:4px 0 6px;font-size:11px">显示 Top ${list.length} / 共 ${totalCount} 个异常节点。σ 越大越偏离同类正常水平。</div>
+          <div style="border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;background:#fff">${rows}</div>`;
+}
+
+// -------- Schema 覆盖率 --------
+function gqRenderCoverage(c, totalClassDeclared, totalRelDeclared) {
+  const clsUsed = totalClassDeclared - c.unusedClassCount;
+  const relUsed = totalRelDeclared - c.unusedRelationCount;
+  gqSetProgress('gq-cls-cov', c.classCoveragePct, clsUsed, totalClassDeclared, '类');
+  gqSetProgress('gq-rel-cov', c.relationCoveragePct, relUsed, totalRelDeclared, '关系');
+
+  $('gq-unused-cls-title').textContent = `未使用类定义（${c.unusedClassCount}）`;
+  if (c.unusedClasses && c.unusedClasses.length) {
+    $('gq-unused-cls-table').innerHTML = table(
+      ['类名', '中文名', '层', 'keyProp', '描述'],
+      c.unusedClasses.map(u => [code(u.className), esc(u.cnName), badge(u.layer), code(u.keyProp), esc(u.description || '')]));
+  } else {
+    $('gq-unused-cls-table').innerHTML = '<div class="gq-empty">✔ 所有声明类均有实例</div>';
+  }
+
+  $('gq-unused-rel-title').textContent = `未使用关系定义（${c.unusedRelationCount}）`;
+  if (c.unusedRelations && c.unusedRelations.length) {
+    $('gq-unused-rel-table').innerHTML = table(
+      ['关系类型', '中文名', '签名', '描述', '示例'],
+      c.unusedRelations.map(u => [
+        code(u.relType), esc(u.cnName),
+        code(u.fromClass) + ' → ' + code(u.toClass),
+        esc(u.description || ''), esc(u.example || '')]));
+  } else {
+    $('gq-unused-rel-table').innerHTML = '<div class="gq-empty">✔ 所有声明关系均有实例</div>';
+  }
+}
+
+function gqSetProgress(idPrefix, pct, used, total, what) {
+  const pctEl = $(idPrefix + '-pct');
+  const fillEl = $(idPrefix + '-fill');
+  const subEl = $(idPrefix + '-sub');
+  pctEl.textContent = pct.toFixed(2) + '%';
+  pctEl.className = 'pct ' + (pct < 50 ? 'low' : (pct < 80 ? '' : ''));
+  fillEl.style.width = Math.min(100, pct).toFixed(2) + '%';
+  fillEl.className = 'fill ' + (pct < 50 ? 'low' : (pct < 80 ? 'mid' : ''));
+  subEl.textContent = `有实例 ${used} / 声明 ${total} 个${what}`;
+}
+
+// -------- 分布直方图（echarts）--------
+function gqRenderClassHistogram(h) {
+  if (!h || !h.bins || !h.bins.length) {
+    $('gq-cls-stat').textContent = '暂无数据';
+    if (gqChartClasses) { gqChartClasses.dispose(); gqChartClasses = null; }
+    return;
+  }
+  $('gq-cls-stat').innerHTML = `共 <code>${h.bins.length}</code> 个类 · `
+    + `min=<code>${h.minCount}</code> · avg=<code>${h.avgCount.toFixed(1)}</code> · `
+    + `median=<code>${h.medianCount}</code> · max=<code>${h.maxCount}</code>`;
+  const labels = h.bins.map(b => b.cnName || b.label);
+  const colors = h.bins.map((_, i) => GQ_PALETTE[i % GQ_PALETTE.length]);
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: params => {
+        const p = params[0]; const b = h.bins[p.dataIndex];
+        return `${b.cnName || b.label} <code>${b.label}</code> [${b.layer}]<br/>`
+             + `节点数: <b>${p.value}</b><br/>占比: ${b.pctOfTotal.toFixed(2)}%`;
+      }
+    },
+    grid: { left: 40, right: 20, top: 20, bottom: 80 },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: { interval: 0, rotate: 30, fontSize: 11, color: '#4b5563' }
+    },
+    yAxis: { type: 'value', name: '节点数' },
+    series: [{
+      type: 'bar',
+      data: h.bins.map((b, i) => ({ value: b.count, itemStyle: { color: colors[i] } })),
+      label: { show: true, position: 'top', fontSize: 11, color: '#374151' }
+    }]
+  };
+  if (gqChartClasses) { gqChartClasses.dispose(); gqChartClasses = null; }
+  gqChartClasses = echarts.init($('gq-chart-classes'));
+  gqChartClasses.setOption(option);
+}
+
+function gqRenderRelHistogram(h) {
+  if (!h || !h.bins || !h.bins.length) {
+    $('gq-rel-stat').textContent = '暂无数据';
+    if (gqChartRels) { gqChartRels.dispose(); gqChartRels = null; }
+    return;
+  }
+  $('gq-rel-stat').innerHTML = `共 <code>${h.bins.length}</code> 种关系 · `
+    + `min=<code>${h.minCount}</code> · avg=<code>${h.avgCount.toFixed(1)}</code> · `
+    + `median=<code>${h.medianCount}</code> · max=<code>${h.maxCount}</code>`;
+  const labels = h.bins.map(b => b.cnName || b.relType);
+  const colors = h.bins.map((_, i) => GQ_PALETTE[i % GQ_PALETTE.length]);
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: params => {
+        const p = params[0]; const b = h.bins[p.dataIndex];
+        return `<code>${b.relType}</code> ${b.cnName ? '（' + b.cnName + '）' : ''}<br/>`
+             + `签名: <code>${b.fromClass || '?'} → ${b.toClass || '?'}</code><br/>`
+             + `边数: <b>${p.value}</b><br/>占比: ${b.pctOfTotal.toFixed(2)}%`;
+      }
+    },
+    grid: { left: 40, right: 20, top: 20, bottom: 80 },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: { interval: 0, rotate: 30, fontSize: 11, color: '#4b5563' }
+    },
+    yAxis: { type: 'value', name: '边数' },
+    series: [{
+      type: 'bar',
+      data: h.bins.map((b, i) => ({ value: b.count, itemStyle: { color: colors[i] } })),
+      label: { show: true, position: 'top', fontSize: 11, color: '#374151' }
+    }]
+  };
+  if (gqChartRels) { gqChartRels.dispose(); gqChartRels = null; }
+  gqChartRels = echarts.init($('gq-chart-rels'));
+  gqChartRels.setOption(option);
+}
+
+// 跳转 /graph 查看节点
+function gqNodeActionBtn(label, keyValue, inline) {
+  if (!label || keyValue === null || keyValue === undefined || String(keyValue).trim() === '') {
+    return `<span class="muted" style="font-size:11px">—</span>`;
+  }
+  const url = '/graph?label=' + encodeURIComponent(label) + '&key=' + encodeURIComponent(String(keyValue));
+  if (inline) {
+    return `<button onclick="window.open('${url}','_blank')">查看</button>`;
+  }
+  return `<button class="btn sm" onclick="window.open('${url}','_blank')">查看节点</button>`;
+}
 
 // ---------------- init ----------------
 CF.renderHeader();

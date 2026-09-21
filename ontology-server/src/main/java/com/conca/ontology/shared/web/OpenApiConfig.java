@@ -40,7 +40,7 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("admin")
                 .pathsToMatch("/api/**")
-                .packagesToScan("com.conca.ontology.user.api", "com.conca.ontology.graph.api", "com.conca.ontology.file.api", "com.conca.ontology.agent.api", "com.conca.ontology.content.api", "com.conca.ontology.eval.api", "com.conca.ontology.skill.api", "com.conca.ontology.backup.api", "com.conca.ontology.disjoint.api")
+                .packagesToScan("com.conca.ontology.user.api", "com.conca.ontology.graph.api", "com.conca.ontology.file.api", "com.conca.ontology.agent.api", "com.conca.ontology.content.api", "com.conca.ontology.eval.api", "com.conca.ontology.skill.api", "com.conca.ontology.backup.api", "com.conca.ontology.disjoint.api", "com.conca.ontology.quality.api")
                 .build();
     }
 }
