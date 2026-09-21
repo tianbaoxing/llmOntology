@@ -191,6 +191,162 @@
   word-break: break-all;
 }
 
+/* 实体去重 Tab 专属（前缀 dp-，全局隔离） */
+.dp-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+.dp-title-row h2 { margin: 0; font-size: 16px; color: #166534; border-left: 3px solid #16a34a; padding-left: 10px; }
+.dp-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.dp-toolbar label { font-size: 13px; color: #374151; display: flex; align-items: center; gap: 6px; }
+.dp-toolbar select, .dp-toolbar input[type=number] { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: #fff; }
+.dp-toolbar select { min-width: 160px; }
+.dp-generated { color: #6b7280; font-size: 12px; }
+
+.dp-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.dp-kpi { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+.dp-kpi .label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+.dp-kpi .value { font-size: 22px; font-weight: 700; color: #1f2937; line-height: 1.2; }
+.dp-kpi .sub { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+.dp-kpi.danger .value { color: #b91c1c; }
+.dp-kpi.warn   .value { color: #b45309; }
+.dp-kpi.good   .value { color: #047857; }
+
+.dp-filter-bar { display: flex; gap: 8px; margin: 12px 0 14px; flex-wrap: wrap; align-items: center; }
+.dp-chip { padding: 5px 14px; border: 1px solid #d1d5db; border-radius: 20px; cursor: pointer; background: #fff; color: #374151; font-size: 13px; user-select: none; }
+.dp-chip.active { background: #16a34a; color: #fff; border-color: #16a34a; font-weight: 600; }
+.dp-chip:hover:not(.active) { border-color: #86efac; background: #f0fdf4; }
+.dp-filter-info { margin-left: auto; font-size: 12px; color: #6b7280; }
+
+.dp-group { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; background: #fff; }
+.dp-group .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+.dp-group .head .id { font-weight: 700; color: #166534; font-family: Consolas, Monaco, monospace; font-size: 13px; }
+.dp-group .head .meta { font-size: 12px; color: #6b7280; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.dp-group .head .stages { display: flex; gap: 4px; flex-wrap: wrap; }
+.dp-stage-tag { background: #dcfce7; color: #166534; border: 1px solid #86efac; border-radius: 12px; padding: 1px 8px; font-size: 11px; font-weight: 600; }
+.dp-stage-tag.exactKey { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+.dp-conflict-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+.dp-conflict-NONE     { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.dp-conflict-ATTRIBUTE { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.dp-conflict-DISJOINT  { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.dp-auto-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+.dp-auto-true  { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.dp-auto-false { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
+
+.dp-nodes { border-top: 1px dashed #e5e7eb; padding-top: 10px; }
+.dp-node-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f9fafb; font-size: 13px; }
+.dp-node-row:last-child { border-bottom: none; }
+.dp-node-row .prio { min-width: 24px; text-align: center; font-size: 12px; }
+.dp-node-row .prio .survivor { background: #16a34a; color: #fff; border-radius: 12px; padding: 1px 8px; font-weight: 700; }
+.dp-node-row .prio .num { color: #9ca3af; }
+.dp-node-row .kv { flex: 1; min-width: 0; }
+.dp-node-row .kv .name { font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-node-row .kv .sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+.dp-node-row .score { width: 110px; text-align: right; }
+.dp-node-row .score .comp { font-weight: 700; color: #1f2937; }
+.dp-node-row .score .comp.hot { color: #dc2626; }
+.dp-node-row .score .sub { font-size: 11px; color: #9ca3af; }
+.dp-node-row .props-summary { width: 260px; font-size: 11px; color: #4b5563; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-node-row .actions { width: 72px; text-align: right; flex-shrink: 0; }
+.dp-node-row .actions button { font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #bbf7d0; background: #f0fdf4; color: #15803d; cursor: pointer; }
+
+.dp-empty { color: #9ca3af; text-align: center; padding: 40px 20px; font-size: 13px; }
+.dp-summary-row { margin: 10px 0 4px; font-size: 12px; color: #4b5563; }
+.dp-scan-stat { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px 14px; margin: 10px 0 18px; font-size: 12px; color: #166534; }
+.dp-scan-stat b { color: #14532d; }
+
+/* ---------- Layer 1：原理说明 Accordion ---------- */
+.dp-principle { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; margin: 14px 0 18px; overflow: hidden; }
+.dp-principle summary { cursor: pointer; padding: 10px 16px; font-size: 13px; color: #1e3a8a; font-weight: 600; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.dp-principle summary::after { content: "▼ 展开详细原理"; font-size: 11px; color: #3b82f6; font-weight: 400; }
+.dp-principle[open] summary::after { content: "▲ 收起"; }
+.dp-principle .dp-quick { padding: 10px 16px 14px; }
+.dp-principle .dp-quick ol { margin: 0; padding-left: 20px; font-size: 12.5px; color: #1e3a8a; line-height: 1.8; }
+.dp-principle .dp-quick code { background: #dbeafe; padding: 1px 6px; border-radius: 4px; font-size: 11.5px; color: #1e40af; }
+.dp-principle .dp-detail { border-top: 1px dashed #bfdbfe; padding: 12px 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.dp-principle .dp-detail .card-s { background: #fff; border: 1px solid #dbeafe; border-radius: 6px; padding: 10px 12px; }
+.dp-principle .dp-detail h4 { margin: 0 0 6px; font-size: 12.5px; color: #1e40af; }
+.dp-principle .dp-detail ul { margin: 0; padding-left: 18px; font-size: 11.5px; color: #374151; line-height: 1.65; }
+
+/* ---------- Layer 2A：策略命中 KPI（两行布局） ---------- */
+.dp-strat-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+.dp-strat-wrap h2 { margin: 0 0 10px; font-size: 15px; color: #166534; border-left: 3px solid #16a34a; padding-left: 10px; }
+.dp-strat-row1 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.dp-strat-row2 { display: grid; grid-template-columns: 1.2fr 2.2fr 1.1fr; gap: 10px; }
+@media (max-width: 1100px) { .dp-strat-row2 { grid-template-columns: 1fr; } }
+.dp-strat-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; }
+.dp-strat-card .t { font-size: 12px; color: #6b7280; margin-bottom: 6px; font-weight: 600; }
+.dp-strat-card .v { font-size: 22px; font-weight: 700; color: #1f2937; }
+.dp-strat-card.norm .v { color: #7c3aed; }
+.dp-strat-card.multi .v { color: #d97706; }
+.dp-exact-breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+.dp-exact-sub { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; text-align: center; }
+.dp-exact-sub .st { font-size: 10.5px; color: #64748b; margin-bottom: 4px; height: 22px; line-height: 1.1; display: flex; align-items: center; justify-content: center; }
+.dp-exact-sub .sv { font-size: 18px; font-weight: 700; color: #0f172a; }
+.dp-exact-sub.sub-aux   { border-color: #bfdbfe; } .dp-exact-sub.sub-aux .sv   { color: #2563eb; }
+.dp-exact-sub.sub-title { border-color: #a5f3fc; } .dp-exact-sub.sub-title .sv { color: #0891b2; }
+.dp-exact-sub.sub-size  { border-color: #99f6e4; } .dp-exact-sub.sub-size .sv  { color: #0f766e; }
+
+/* ---------- Layer 2B：Label × 策略 矩阵 ---------- */
+.dp-matrix-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+.dp-matrix-wrap h2 { margin: 0 0 10px; font-size: 15px; color: #166534; border-left: 3px solid #16a34a; padding-left: 10px; display: flex; align-items: center; gap: 10px; }
+.dp-matrix-wrap h2 .hint { font-size: 11.5px; color: #6b7280; font-weight: 400; }
+.dp-matrix { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.dp-matrix th, .dp-matrix td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: center; }
+.dp-matrix th { background: #f9fafb; color: #374151; font-weight: 600; position: sticky; top: 0; }
+.dp-matrix th.lbl, .dp-matrix td.lbl { text-align: left; background: #f9fafb; width: 150px; font-weight: 600; color: #1f2937; }
+.dp-matrix td.c { cursor: pointer; font-weight: 700; transition: all .15s; user-select: none; }
+.dp-matrix td.c:hover { outline: 2px solid #16a34a; transform: scale(1.05); z-index: 1; }
+.dp-matrix td.c.c0 { background: #f9fafb; color: #9ca3af; font-weight: 400; cursor: default; }
+.dp-matrix td.c.c1 { background: #ecfdf5; color: #047857; }
+.dp-matrix td.c.c2 { background: #d1fae5; color: #065f46; }
+.dp-matrix td.c.c3 { background: #a7f3d0; color: #064e3b; }
+.dp-matrix td.c.c5 { background: #6ee7b7; color: #064e3b; }
+.dp-matrix td.c.ck { outline: 2px dashed #f59e0b; background: #fef3c7 !important; }
+
+/* ---------- Layer 3：典型案例墙 ---------- */
+.dp-showcase-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+.dp-showcase-wrap h2 { margin: 0 0 10px; font-size: 15px; color: #166534; border-left: 3px solid #f59e0b; padding-left: 10px; display: flex; align-items: center; gap: 10px; }
+.dp-showcase-wrap h2 .hint { font-size: 11.5px; color: #6b7280; font-weight: 400; }
+.dp-showcase-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.dp-showcase-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; background: #fff; cursor: pointer; transition: all .15s; position: relative; }
+.dp-showcase-card:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,.06); border-color: #86efac; }
+.dp-showcase-card .hd { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+.dp-showcase-card .hd .sid { font-family: Consolas, Monaco, monospace; font-size: 11.5px; color: #6b7280; }
+.dp-showcase-card .hd .smeta { font-size: 11px; color: #6b7280; display: flex; gap: 6px; align-items: center; }
+.dp-showcase-card .tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.dp-showcase-card .tag { border-radius: 10px; padding: 1px 8px; font-size: 10.5px; font-weight: 700; color: #fff; }
+.dp-showcase-card .tag.s-norm  { background: #7c3aed; }
+.dp-showcase-card .tag.s-aux   { background: #2563eb; }
+.dp-showcase-card .tag.s-title { background: #0891b2; }
+.dp-showcase-card .tag.s-size  { background: #0f766e; }
+.dp-showcase-card .tag.s-multi { background: #d97706; }
+.dp-showcase-card .k { font-size: 13px; font-weight: 600; color: #111827; margin: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-showcase-card .s { font-size: 11px; color: #4b5563; margin-top: 4px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+.dp-showcase-card .flash { animation: dpFlash 1.6s ease-in-out 2; }
+@keyframes dpFlash {
+  0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+  50%     { box-shadow: 0 0 0 6px rgba(34,197,94,.25); }
+}
+
+/* ---------- Layer 4：全量候选组（折叠 + 动态筛选 chip + 组内 Top2） ---------- */
+.dp-collapsible { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 18px; background: #fff; }
+.dp-collapsible > .summary { padding: 10px 16px; background: #f9fafb; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; font-size: 13px; color: #374151; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+.dp-collapsible > .summary::after { content: "▼ 展开全部"; font-size: 11px; color: #16a34a; font-weight: 500; }
+.dp-collapsible.open > .summary::after { content: "▲ 收起"; }
+.dp-collapsible > .body { padding: 14px 16px; display: none; }
+.dp-collapsible.open > .body { display: block; }
+.dp-chip-dyn-wrap { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 4px 0 12px; padding: 6px 0; border-top: 1px dashed #e5e7eb; border-bottom: 1px dashed #e5e7eb; }
+.dp-chip-dyn { padding: 3px 10px; border: 1px dashed #d1d5db; border-radius: 14px; cursor: pointer; background: #fff; color: #4b5563; font-size: 11.5px; }
+.dp-chip-dyn.active { background: #fef3c7; border-style: solid; border-color: #f59e0b; color: #92400e; font-weight: 600; }
+.dp-chip-dyn.x { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+.dp-group-collapsed .hd-expand { display: block; text-align: center; padding: 6px; margin-top: 6px; border-top: 1px dashed #e5e7eb; cursor: pointer; color: #2563eb; font-size: 12px; }
+.dp-group-collapsed.open .hd-expand { display: none; }
+.dp-node-row.collapsed-hide { display: none !important; }
+
+/* 小屏适配：props-summary 压缩 */
+@media (max-width: 1100px) {
+  .dp-node-row .props-summary { width: 150px; }
+  .dp-node-row .score { width: 80px; }
+}
+
 </style>
 </head>
 <body>
@@ -204,6 +360,7 @@
     <a class="ptab" data-tab="content-security" onclick="switchTab('content-security')">内容安全配置</a>
     <a class="ptab" data-tab="rewrite" onclick="switchTab('rewrite')">语义改写配置</a>
     <a class="ptab" data-tab="quality" onclick="switchTab('quality')">图谱诊断</a>
+    <a class="ptab" data-tab="dedup" onclick="switchTab('dedup')">实体去重</a>
   </div>
 
   <!-- Tab 1：图数据 -->
@@ -551,6 +708,136 @@
       </div>
     </div>
   </div>
+
+  <!-- Tab：实体去重（M1 可视化优化版） -->
+  <div id="tab-dedup" style="display:none">
+
+    <!-- Layer 0：工具栏 + 基础 KPI 6 卡（保留原来的，两行布局：上面 6，下面 3 策略块在 Layer 2） -->
+    <div class="card">
+      <div class="dp-title-row">
+        <h2>实体去重（M1 里程碑 · 确定性去重）</h2>
+        <div class="dp-toolbar">
+          <label>
+            Label:
+            <select id="dp-label">
+              <option value="*">全部（逐类扫描，不跨类）</option>
+            </select>
+          </label>
+          <label>
+            阈值:
+            <input id="dp-threshold" type="number" min="0.5" max="1" step="0.01" value="0.95" style="width:90px">
+          </label>
+          <label>
+            最多组数:
+            <input id="dp-limit" type="number" min="0" max="10000" step="10" value="0" style="width:90px">
+            <span class="muted" style="font-size:11px">（0=不限制）</span>
+          </label>
+          <span class="dp-generated" id="dp-generated">扫描时间：-</span>
+          <button class="btn sm" onclick="dpRefresh()">🔍 扫描重复</button>
+        </div>
+      </div>
+      <div class="dp-kpi-grid" id="dp-kpi"></div>
+    </div>
+
+    <!-- Layer 1：原理说明 Accordion（痛点 1：30 秒理解算法） -->
+    <details class="dp-principle" open>
+      <summary>🧠 去重逻辑 & 3 步判定流程（点击切换展开 / 收起）</summary>
+      <div class="dp-quick">
+        <ol>
+          <li><b>规范化别名（紫色策略）</b>：全角半角统一 + 括号去注释 + <code>Place</code>「省/市/遗址/博物馆…」18 后缀 / <code>Era</code>「朝/代/时期…」7 后缀循环剥离。<br>例：「西安市（陕西省省会）」规范化后得到「西安」，「西安市」「西安城」若都剥离到「西安」→ 判为重复候选。</li>
+          <li><b>精确 key 组合（蓝 / 青 系列策略）</b>：3 种指纹模式，命中任一即候选：
+            <br>· <span style="color:#2563eb">name+辅助属性</span>：Place 看 province+kind；Figure 看 dynastyLabel+identity；Event 看 startYear+endYear（<b>双方都非空才参与，避免单方有值误判</b>）。
+            <br>· <span style="color:#0891b2">CulturalRelic · 仅 title</span>：文物名称规范化后相同。
+            <br>· <span style="color:#0f766e">CulturalRelic · title+尺寸</span>：名称 + 7 个尺寸维度（heightCm / widthCm / lengthCm / boreCm / footCm / diameterCm / weightG）都一致。
+          </li>
+          <li><b>Survivor 选择 & 冲突保护</b>：属性数多 → 度数高 → key 长 → eid 小 优先保留；关键属性（era/site/province/dynastyLabel/startYear/endYear）多值冲突 → 标 <code>ATTRIBUTE</code> 需人工。
+            <br>综合分 = <code>normalizeAlias×40% + exactKey×40% + blocking×20%</code>（M1 blocking=0），≥95% 且无冲突 → 可自动合并。</li>
+        </ol>
+      </div>
+      <div class="dp-detail">
+        <div class="card-s">
+          <h4>① Normalize 后缀表（25 项）</h4>
+          <ul>
+            <li>Place：遗址博物馆 / 遗址公园 / 博物馆 / 考古遗址 / 墓群 / 墓葬 / 墓地 / 风景区 / 景区 / 旅游区 / 自治区 / 自治州 / 自治县 / 特别行政区 / 省 / 市 / 区 / 县 / 镇 / 乡 / 村 / 遗址</li>
+            <li>Era：年间 / 时期 / 时代 / 王朝 / 朝代 / 代 / 朝</li>
+            <li>其他类：只用括号去注释 + 全角半角统一</li>
+          </ul>
+        </div>
+        <div class="card-s">
+          <h4>② ExactKey 辅助属性清单</h4>
+          <ul>
+            <li>Place → province + kind</li>
+            <li>HistoricalFigure → dynastyLabel + identity</li>
+            <li>HistoricalEvent → startYear + endYear</li>
+            <li>AncientText → category</li>
+            <li>CulturalRelic 模式②：仅 title</li>
+            <li>CulturalRelic 模式③：title + 7 个尺寸</li>
+          </ul>
+        </div>
+        <div class="card-s">
+          <h4>③ 防误判指纹规则 <code>fp()</code></h4>
+          <ul>
+            <li>「当且仅当所有字段都非空时才构成指纹」</li>
+            <li>例：Place A 有 province=陕西 / kind=遗址，Place B 只有 name=西安（缺 province、kind）→ 退化为纯 name 比较，<b>不会</b>因 A 有值 B 空就误判「不相同」。</li>
+            <li>单方有辅助属性 / 另一方没有 → 不会错配。</li>
+          </ul>
+        </div>
+        <div class="card-s">
+          <h4>④ ConflictGuard 关键属性（6 项）</h4>
+          <ul>
+            <li>era / site / province / dynastyLabel / startYear / endYear</li>
+            <li>同候选组内出现 ≥2 个不同非空值 → <code>ConflictLevel=ATTRIBUTE</code>，自动合并被禁用。</li>
+            <li>Disjoint 互斥全量校验留 M4 里程碑。</li>
+          </ul>
+        </div>
+      </div>
+    </details>
+
+    <!-- Layer 2：策略命中概览（痛点 2：一眼看哪种策略起作用） -->
+    <div class="dp-strat-wrap">
+      <h2>📊 策略命中概览（可重复计数）</h2>
+      <div class="dp-strat-row1" id="dp-strat-row1"></div>
+      <div class="dp-strat-row2" id="dp-strat-row2"></div>
+    </div>
+    <div class="dp-matrix-wrap" id="dp-matrix-wrap" style="display:none">
+      <h2>🧩 Label × 策略 热力矩阵（单元格点击 → 自动筛选 + 跳到下方）<span class="hint">（单位：组；颜色越深越多）</span></h2>
+      <div id="dp-matrix"></div>
+    </div>
+
+    <!-- Layer 3：典型案例墙（痛点 3：249 组里先看 10 个代表性的） -->
+    <div class="dp-showcase-wrap">
+      <h2>⭐ 典型案例墙（自动抽取 10 组代表性候选）<span class="hint">（每组代表不同「策略 × Label × 冲突级别」切片；点击 → 跳到下方全量组 + 闪烁高亮）</span></h2>
+      <div id="dp-showcase"></div>
+    </div>
+
+    <!-- Layer 4：全量候选组（默认折叠 + 动态筛选 chip + 组内节点 Top2） -->
+    <div class="card">
+      <div class="dp-title-row" style="margin-bottom:8px">
+        <h2>🗂 全量候选组（默认折叠，按综合分降序 · 多层命中优先）</h2>
+      </div>
+      <div id="dp-scan-stat"></div>
+
+      <div class="dp-filter-bar">
+        <span class="dp-chip active" data-filter="ALL" onclick="dpSwitchFilter('ALL')">全部</span>
+        <span class="dp-chip" data-filter="AUTO" onclick="dpSwitchFilter('AUTO')">✔ 可自动合并</span>
+        <span class="dp-chip" data-filter="MANUAL" onclick="dpSwitchFilter('MANUAL')">⚠ 需人工确认</span>
+        <span class="dp-chip" data-filter="BLOCK" onclick="dpSwitchFilter('BLOCK')">❌ 冲突阻塞</span>
+        <span class="dp-filter-info" id="dp-filter-info">-</span>
+      </div>
+
+      <div class="dp-collapsible" id="dp-collapsible-groups">
+        <div class="summary" onclick="this.parentElement.classList.toggle('open')">
+          <span id="dp-collapsible-title">全量候选组（共 0 组，当前筛选显示 0 组）</span>
+        </div>
+        <div class="body">
+          <div class="dp-chip-dyn-wrap" id="dp-dyn-chips">
+            <span style="font-size:11.5px;color:#6b7280;font-weight:600">🎯 策略筛选：</span>
+          </div>
+          <div id="dp-groups"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="/pages/common.js"></script>
@@ -570,6 +857,9 @@ let csAllowlistData = null; // {version, ruleIds}
 let qualityTabLoaded = false;
 let gqChartClasses = null;   // echarts 实例，遵循销毁重建
 let gqChartRels = null;
+let dedupTabLoaded = false;
+let dpCacheResult = null;    // 最近一次扫描结果（前端缓存，用于筛选切换不重新拉取）
+let dpFilter = 'ALL';
 
 // ---------------- Tab 切换 ----------------
 function switchTab(name) {
@@ -580,6 +870,7 @@ function switchTab(name) {
   $('tab-content-security').style.display = name === 'content-security' ? '' : 'none';
   $('tab-rewrite').style.display = name === 'rewrite' ? '' : 'none';
   $('tab-quality').style.display = name === 'quality' ? '' : 'none';
+  $('tab-dedup').style.display = name === 'dedup' ? '' : 'none';
   if (name === 'schema' && !schemaTabLoaded) {
     schemaTabLoaded = true;
     loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
@@ -600,11 +891,22 @@ function switchTab(name) {
     qualityTabLoaded = true;
     gqRefresh();
   }
+  if (name === 'dedup' && !dedupTabLoaded) {
+    dedupTabLoaded = true;
+    dpInitLabelSelect();
+    dpRefresh();
+  }
   // 若切换到质量诊断页，echarts 容器需要重绘（display 从 none → block 尺寸才对）
   if (name === 'quality') {
     setTimeout(() => {
       if (gqChartClasses) gqChartClasses.resize();
       if (gqChartRels) gqChartRels.resize();
+    }, 50);
+  }
+  // 切换到去重页时也做一次 resize 预留（M2 阶段引入分布图时生效）
+  if (name === 'dedup') {
+    setTimeout(() => {
+      if (typeof dpChartsResize === 'function') dpChartsResize();
     }, 50);
   }
 }
@@ -1669,6 +1971,620 @@ function gqEdgeActionBtns(fromLabel, fromKeyValue, toLabel, toKeyValue) {
   const fromBtn = gqNodeActionBtn(fromLabel, fromKeyValue, true);
   const toBtn = gqNodeActionBtn(toLabel, toKeyValue, true);
   return fromBtn + '&nbsp;' + toBtn;
+}
+
+// ---------------- 实体去重 Tab（M1 可视化优化：原理 + 策略聚合 + 典型墙 + 全量折叠）----------------
+const DP_SUB_META = {
+  'norm':              { cn: '规范化别名', short: 'Norm',   clsChip: 's-norm'  },
+  'exact-nameAux':     { cn: '精确·name+辅助属性', short: 'Aux',    clsChip: 's-aux'   },
+  'exact-relicTitle':  { cn: '精确·relic title', short: 'Title',  clsChip: 's-title' },
+  'exact-relicTitleSize': { cn: '精确·title+尺寸', short: 'Size', clsChip: 's-size'  }
+};
+const DP_SUB_ORDER = ['norm', 'exact-nameAux', 'exact-relicTitle', 'exact-relicTitleSize'];
+
+let dpDynChipSub = new Set();   // 当前选中的「子策略」动态 chip（AND 语义：多子策略命中集合的交集；实际取并集更常见 → 用 OR 语义，即只要包含任一选中子策略就算命中）
+let dpDynChipLabel = new Set(); // 当前选中的「Label」动态 chip（OR 语义）
+let dpMatrixSelected = null;    // {label, sub} 当前矩阵选中的单元格（唯一高亮）
+
+function dpSub2Cn(s) { return DP_SUB_META[s]?.cn || s; }
+function dpPrimarySub(g) {
+  // multiHit≥2 时主命中 = 位最低的那个（即 norm 优先于 exact-aux 优先于 title 优先于 size，越靠前越"强"）
+  for (const s of DP_SUB_ORDER) if (g.triggeredSubStages?.includes(s)) return s;
+  return (g.triggeredSubStages && g.triggeredSubStages[0]) || 'norm';
+}
+function dpGroupHasSub(g, sub) { return g.triggeredSubStages?.includes(sub); }
+
+function dpInitLabelSelect() {
+  const sel = $('dp-label');
+  if (!schemaCache || !schemaCache.classes) {
+    setTimeout(dpInitLabelSelect, 400);
+    return;
+  }
+  if (sel.options.length > 1) return;
+  const opts = schemaCache.classes.map(c =>
+    `<option value="${esc(c.name)}">${esc(c.name)}（${esc(c.cnName)}，key=${esc(c.keyProp)}）</option>`
+  ).join('');
+  sel.innerHTML = `<option value="*">全部（逐类扫描，不跨类）</option>` + opts;
+}
+
+function dpRefresh() {
+  const label = $('dp-label').value;
+  const threshold = parseFloat($('dp-threshold').value || '0.95');
+  const limitGroups = parseInt($('dp-limit').value || '0', 10);
+  showMsg('扫描中…（大图首次全量扫描可能需要数秒，请稍候）', true);
+  // 清掉典型墙和策略 KPI，避免显示旧结果
+  $('dp-showcase').innerHTML = '<div class="dp-empty">📡 正在扫描，典型案例稍后加载…</div>';
+  $('dp-strat-row2').innerHTML = '<div class="dp-strat-card"><div class="t">加载中…</div></div>';
+  $('dp-groups').innerHTML = '<div class="dp-empty">📡 正在与图谱交互，请稍候…</div>';
+  $('dp-matrix-wrap').style.display = 'none';
+  dpDynChipSub = new Set(); dpDynChipLabel = new Set(); dpMatrixSelected = null;
+  api('POST', '/api/graph/dedup/scan', {
+    label: label === '*' ? null : label,
+    threshold: isNaN(threshold) ? null : threshold,
+    limitGroups: isNaN(limitGroups) || limitGroups <= 0 ? null : limitGroups,
+    skipGroups: 0
+  }).then(d => {
+    dpCacheResult = d;
+    dpFilter = 'ALL';
+    document.querySelectorAll('.dp-filter-bar .dp-chip').forEach(c =>
+      c.classList.toggle('active', c.dataset.filter === 'ALL'));
+    dpRenderAll(d);
+    const t = d.scannedLabel === '*' ? '全量' : d.scannedLabel;
+    showMsg(`扫描完成：${t} · ${d.scannedNodes} 节点 · 发现 ${d.totalGroups} 组重复候选`, true);
+  }).catch(e => {
+    showMsg('扫描失败：' + e.message, false);
+    $('dp-groups').innerHTML = `<div class="dp-empty" style="color:#b91c1c">❌ 扫描失败：${esc(e.message)}</div>`;
+  });
+}
+
+function dpSwitchFilter(f) {
+  dpFilter = f;
+  document.querySelectorAll('.dp-filter-bar .dp-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.filter === f));
+  if (dpCacheResult) dpRenderGroups(dpCacheResult.groups, dpCacheResult.totalGroups);
+}
+
+function dpRenderAll(r) {
+  const endTime = r.scanEndMs || Date.now();
+  const durSec = (r.scanDurationMs / 1000).toFixed(2);
+  $('dp-generated').textContent = '扫描时间：' + new Date(endTime).toLocaleString('zh-CN') + ` · 耗时 ${durSec}s`;
+
+  // Layer 0：原 6 张 KPI
+  dpRenderKpi(r);
+
+  // 扫描摘要（放在 Layer 4 顶部）
+  const avgSize = r.totalGroups > 0
+    ? (r.groups.reduce((s, g) => s + g.size, 0) / r.totalGroups).toFixed(2)
+    : '0.00';
+  $('dp-scan-stat').innerHTML =
+    `<div class="dp-scan-stat">
+        <b>扫描范围：</b>${esc(r.scannedLabel === '*' ? '全量 Label（共 ' + r.scannedLabels + ' 类）' : r.scannedLabel)} ·
+        <b>扫描节点：</b>${r.scannedNodes} ·
+        <b>综合分阈值：</b>${(r.threshold * 100).toFixed(0)}% ·
+        <b>平均组大小：</b>${avgSize} 节点/组
+        ${r.hasMore ? '· <span style="color:#b45309">⚠ 已截断（减小 Label 或提高阈值查看全部）</span>' : ''}
+      </div>`;
+
+  // Layer 2A：策略命中 KPI 3 块
+  dpRenderStrategy(r);
+  // Layer 2B：Label × 子策略 矩阵（≥2 个 Label 时才显示）
+  dpRenderMatrix(r);
+  // Layer 3：典型案例墙
+  const showcase = dpPickShowcase(r, 10);
+  dpRenderShowcase(showcase);
+  // Layer 4：动态 chip 初始化 + 组渲染
+  dpInitDynChips(r);
+  dpRenderGroups(r.groups, r.totalGroups);
+}
+
+/* ---------------- Layer 0：原 6 KPI（保留） ---------------- */
+function dpRenderKpi(r) {
+  const cards = [
+    { label: '扫描节点数', value: r.scannedNodes, sub: `涉及 ${r.scannedLabels} 类`, cls: '' },
+    { label: '候选组总数', value: r.totalGroups,
+      sub: r.estimatedTotalSaved > 0 ? `预计节省 ${r.estimatedTotalSaved} 节点` : '',
+      cls: r.totalGroups > 0 ? 'warn' : 'good' },
+    { label: '✔ 可自动合并', value: r.autoReadyGroups,
+      sub: '综合分≥阈值且无冲突',
+      cls: r.autoReadyGroups > 0 ? 'good' : '' },
+    { label: '⚠ 需人工确认', value: r.manualConfirmGroups,
+      sub: '冲突或中低置信',
+      cls: r.manualConfirmGroups > 0 ? 'warn' : '' },
+    { label: '❌ 冲突阻塞', value: r.blockedGroups,
+      sub: 'Disjoint 或严重属性冲突',
+      cls: r.blockedGroups > 0 ? 'danger' : 'good' },
+    { label: '综合分阈值', value: (r.threshold * 100).toFixed(0) + '%',
+      sub: `耗时 ${(r.scanDurationMs / 1000).toFixed(2)} 秒`,
+      cls: '' },
+  ];
+  $('dp-kpi').innerHTML = cards.map(c => `
+    <div class="dp-kpi ${c.cls}">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+      ${c.sub ? `<div class="sub">${c.sub}</div>` : ''}
+    </div>`).join('');
+}
+
+/* ---------------- Layer 2A：策略命中概览 3 卡 ---------------- */
+function dpRenderStrategy(r) {
+  const all = r.groups || [];
+  const cnt = { norm: 0, aux: 0, title: 0, size: 0, multi: 0 };
+  for (const g of all) {
+    const ss = g.triggeredSubStages || [];
+    if (ss.includes('norm')) cnt.norm++;
+    if (ss.includes('exact-nameAux'))     cnt.aux++;
+    if (ss.includes('exact-relicTitle'))  cnt.title++;
+    if (ss.includes('exact-relicTitleSize')) cnt.size++;
+    if ((g.multiHitCount || 0) >= 2) cnt.multi++;
+  }
+  const exactTotal = cnt.aux + cnt.title + cnt.size; // 可重复计数
+  $('dp-strat-row1').style.display = 'none'; // 原 6 卡已在 Layer 0，这里只展示新增 3 卡一行
+  $('dp-strat-row2').innerHTML = `
+    <div class="dp-strat-card norm">
+      <div class="t">🎯 规范化别名（子策略：Norm）</div>
+      <div class="v">${cnt.norm} 组</div>
+      <div style="margin-top:6px;font-size:11px;color:#6b7280">
+        全角半角统一 · 括号去注释 · Place/Era 后缀循环剥离
+      </div>
+    </div>
+    <div class="dp-strat-card">
+      <div class="t">🔬 精确 key 组合（3 模式拆分 · 可重复计数）</div>
+      <div style="font-size:14px;font-weight:700;color:#0f172a">合计命中 ${exactTotal} 组</div>
+      <div class="dp-exact-breakdown">
+        <div class="dp-exact-sub sub-aux">
+          <div class="st">name+辅助属性<br>(Place/Figure/Event/Text)</div>
+          <div class="sv">${cnt.aux}</div>
+        </div>
+        <div class="dp-exact-sub sub-title">
+          <div class="st">CulturalRelic<br>仅 title</div>
+          <div class="sv">${cnt.title}</div>
+        </div>
+        <div class="dp-exact-sub sub-size">
+          <div class="st">CulturalRelic<br>title+尺寸</div>
+          <div class="sv">${cnt.size}</div>
+        </div>
+      </div>
+    </div>
+    <div class="dp-strat-card multi">
+      <div class="t">🪙 多层命中（双保险，最可靠）</div>
+      <div class="v">${cnt.multi} 组</div>
+      <div style="margin-top:6px;font-size:11px;color:#6b7280">
+        同时被 Norm + ExactKey 命中（或多 Exact 子模式同时命中）
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------- Layer 2B：Label × 子策略 矩阵 ---------------- */
+function dpRenderMatrix(r) {
+  const wrap = $('dp-matrix-wrap');
+  const all = r.groups || [];
+  // 统计每个 label × sub 的计数
+  const labels = Array.from(new Set(all.map(g => g.label))).sort();
+  if (labels.length < 2) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const M = {}; // label -> sub -> count
+  for (const g of all) {
+    if (!M[g.label]) M[g.label] = { norm:0, aux:0, title:0, size:0 };
+    const row = M[g.label];
+    if (g.triggeredSubStages?.includes('norm')) row.norm++;
+    if (g.triggeredSubStages?.includes('exact-nameAux'))     row.aux++;
+    if (g.triggeredSubStages?.includes('exact-relicTitle'))  row.title++;
+    if (g.triggeredSubStages?.includes('exact-relicTitleSize')) row.size++;
+  }
+  const subCols = [
+    { k: 'norm',  short: 'Norm',  cn: '规范化别名' },
+    { k: 'aux',   short: 'Aux',   cn: 'name+辅助属性' },
+    { k: 'title', short: 'Title', cn: 'relic 仅 title' },
+    { k: 'size',  short: 'Size',  cn: 'relic title+尺寸' },
+  ];
+  // 合计行 + 合计列
+  const totals = { norm:0, aux:0, title:0, size:0 };
+  for (const l of labels) for (const c of subCols) totals[c.k] += M[l][c.k];
+  let html = `<table class="dp-matrix"><thead><tr>
+    <th class="lbl">Label</th>
+    ${subCols.map(c => `<th title="${esc(c.cn)}">${esc(c.short)}</th>`).join('')}
+    <th>合计</th></tr></thead><tbody>`;
+  for (const l of labels) {
+    const row = M[l];
+    let rowTotal = 0;
+    html += `<tr><td class="lbl">${esc(l)}</td>`;
+    for (const c of subCols) {
+      const v = row[c.k];
+      rowTotal += v;
+      const cell = { label: l, sub: c.k === 'norm' ? 'norm'
+                                : c.k === 'aux'  ? 'exact-nameAux'
+                                : c.k === 'title'? 'exact-relicTitle'
+                                :                  'exact-relicTitleSize' };
+      const isSel = dpMatrixSelected && dpMatrixSelected.label===l && dpMatrixSelected.sub===cell.sub;
+      const depth = v === 0 ? 'c0' : v===1 ? 'c1' : v<5 ? 'c2' : v<15 ? 'c3' : 'c5';
+      html += `<td class="c ${depth} ${isSel?'ck':''}"
+          onclick="dpClickMatrixCell('${esc(l)}','${esc(cell.sub)}', this)"
+          data-label="${esc(l)}" data-sub="${esc(cell.sub)}">${v}</td>`;
+    }
+    html += `<td><b>${rowTotal}</b></td></tr>`;
+  }
+  let allTotal = 0;
+  html += `<tr><td class="lbl"><b>合计（可重复计数）</b></td>`;
+  for (const c of subCols) { allTotal += totals[c.k];
+    html += `<td class="c c5"><b>${totals[c.k]}</b></td>`; }
+  html += `<td class="c5"><b>${allTotal}</b></td></tr>`;
+  html += '</tbody></table>';
+  $('dp-matrix').innerHTML = html;
+}
+function dpClickMatrixCell(label, sub, td) {
+  if (!label || !sub) return;
+  // ① 高亮唯一单元格
+  document.querySelectorAll('.dp-matrix td.c.ck').forEach(x => x.classList.remove('ck'));
+  if (td) td.classList.add('ck');
+  dpMatrixSelected = { label, sub };
+  // ② 设置动态 chip：单选「策略」=sub + 单选「Label」=label（AND 语义）
+  dpDynChipSub = new Set([sub]);
+  dpDynChipLabel = new Set([label]);
+  dpRefreshDynChipUI();
+  // ③ 打开 Layer 4 折叠容器
+  const col = $('dp-collapsible-groups');
+  if (col) col.classList.add('open');
+  // ④ 重新渲染 + 滚动到 Layer 4
+  dpRenderGroups(dpCacheResult.groups, dpCacheResult.totalGroups);
+  setTimeout(() => {
+    const anchor = $('dp-collapsible-groups');
+    if (anchor) anchor.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 150);
+}
+
+/* ---------------- Layer 3：典型案例 10 组 ---------------- */
+function dpPickShowcase(r, targetN) {
+  const all = r.groups || [];
+  if (!all.length) return [];
+  // 分桶：(主命中子策略 or 'multi' if multi≥2) × label × conflictLevel
+  const buckets = new Map();
+  for (const g of all) {
+    const multi = (g.multiHitCount || 0) >= 2;
+    const strategy = multi ? 'multi' : dpPrimarySub(g);
+    const key = `${strategy}__${g.label}__${g.conflictLevel}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(g);
+  }
+  // 桶内排序：综合分 DESC → size DESC → multi DESC → eid ASC
+  const out = [];
+  const seen = new Set();
+  // 第一轮：每桶取 1 个 top（优先 size≥3）
+  for (const list of buckets.values()) {
+    list.sort((a,b) => (b.maxComposite-a.maxComposite) || (b.size-a.size) || ((b.multiHitCount||0)-(a.multiHitCount||0)) || a.groupId.localeCompare(b.groupId));
+    const pick = list.find(g => g.size>=3) || list[0];
+    if (pick && !seen.has(pick.groupId)) { out.push(pick); seen.add(pick.groupId); }
+  }
+  // 第二轮：若不足 targetN，按 size DESC 补齐（去重）
+  if (out.length < targetN) {
+    const remain = all.filter(g => !seen.has(g.groupId))
+                      .sort((a,b) => (b.size-a.size) || (b.maxComposite-a.maxComposite));
+    for (const g of remain) {
+      if (out.length >= targetN) break;
+      out.push(g); seen.add(g.groupId);
+    }
+  }
+  // 第三轮：若超 targetN 裁剪：按 multi DESC + 综合分 DESC 裁
+  if (out.length > targetN) {
+    out.sort((a,b) => ((b.multiHitCount||0)-(a.multiHitCount||0)) || (b.maxComposite-a.maxComposite) || (b.size-a.size));
+    out.length = targetN;
+  }
+  // 最后按「multi DESC → 主命中策略颜色轮询 → size DESC」排序展示
+  out.sort((a,b) => {
+    const ma = (a.multiHitCount||0) >= 2 ? 1 : 0;
+    const mb = (b.multiHitCount||0) >= 2 ? 1 : 0;
+    if (mb !== ma) return mb - ma;
+    return (b.size - a.size) || (b.maxComposite - a.maxComposite);
+  });
+  return out;
+}
+function dpRenderShowcase(list) {
+  if (!list || !list.length) {
+    $('dp-showcase').innerHTML = `<div class="dp-empty">✔ 暂无候选组，图谱非常干净</div>`;
+    return;
+  }
+  $('dp-showcase').innerHTML = `<div class="dp-showcase-grid">${
+    list.map(g => {
+      const s0 = g.candidates[0];
+      const multi = (g.multiHitCount||0) >= 2;
+      const tags = [];
+      if (multi) tags.push('<span class="tag s-multi">多层命中</span>');
+      for (const s of (g.triggeredSubStages||[])) {
+        const meta = DP_SUB_META[s];
+        if (meta) tags.push(`<span class="tag ${meta.clsChip}">${esc(meta.short)}</span>`);
+      }
+      const compMax = (g.maxComposite * 100).toFixed(0);
+      const savKv = s0 ? esc(s0.keyValue || '—') : '—';
+      return `
+      <div class="dp-showcase-card" id="dp-sc-${esc(g.groupId)}" onclick="dpJumpToGroup('${esc(g.groupId)}')">
+        <div class="hd">
+          <span class="sid">${esc(g.groupId)} · ${esc(g.label)}</span>
+          <div class="smeta">
+            <span>size ${g.size}</span>
+            <span style="color:${g.autoMergeReady?'#047857':'#b45309'};font-weight:700">
+              ${g.autoMergeReady ? '✔可自动' : '⚠人工'}
+            </span>
+            <span>${compMax}%</span>
+          </div>
+        </div>
+        <div class="tags">${tags.join('')}</div>
+        <div class="k" title="${esc(savKv)}">🏆 Survivor：${savKv}</div>
+        <div class="s">
+          <span>节省 ${g.estimatedSaved} 节点 · 冲突：${esc(g.conflictLevel)}</span>
+          <span style="color:#2563eb">↓ 查看完整组 →</span>
+        </div>
+      </div>`;
+    }).join('')
+  }</div>`;
+}
+function dpJumpToGroup(gid) {
+  // 打开 Layer 4 折叠容器
+  const col = $('dp-collapsible-groups');
+  if (col) col.classList.add('open');
+  // 确保展示时该组不被外层筛选过滤掉：临时清掉筛选 + 重置 filter=ALL
+  dpFilter = 'ALL';
+  document.querySelectorAll('.dp-filter-bar .dp-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.filter === 'ALL'));
+  dpDynChipSub = new Set(); dpDynChipLabel = new Set(); dpMatrixSelected = null;
+  dpRefreshDynChipUI();
+  dpRenderGroups(dpCacheResult.groups, dpCacheResult.totalGroups);
+  setTimeout(() => {
+    const tgt = $('dp-group-' + gid);
+    if (tgt) {
+      tgt.scrollIntoView({ behavior:'smooth', block:'center' });
+      tgt.classList.add('flash');
+      setTimeout(()=>tgt.classList.remove('flash'), 3200);
+    }
+    // 同时让典型卡片也闪一下
+    const sc = $('dp-sc-' + gid);
+    if (sc) { sc.classList.add('flash'); setTimeout(()=>sc.classList.remove('flash'), 3200); }
+  }, 150);
+}
+
+/* ---------------- Layer 4：全量候选组（动态 chip + 组内节点默认 Top2） ---------------- */
+function dpInitDynChips(r) {
+  const all = r.groups || [];
+  // 子策略 chip：有命中的才展示
+  const subSet = new Set();
+  const labelSet = new Set();
+  for (const g of all) {
+    (g.triggeredSubStages||[]).forEach(s => subSet.add(s));
+    if (g.label) labelSet.add(g.label);
+  }
+  const container = $('dp-dyn-chips');
+  // 只保留第一个前缀文字节点
+  const keepFirst = container.firstElementChild || container.children[0];
+  container.innerHTML = '';
+  container.appendChild(Object.assign(document.createElement('span'), {
+    textContent: '🎯 策略筛选：',
+    style: 'font-size:11.5px;color:#6b7280;font-weight:600'
+  }));
+  for (const s of DP_SUB_ORDER) {
+    if (!subSet.has(s)) continue;
+    const el = Object.assign(document.createElement('span'), {
+      className: 'dp-chip-dyn',
+      textContent: dpSub2Cn(s),
+      title: DP_SUB_META[s]?.cn,
+      onclick: () => dpToggleDynChip('sub', s, el)
+    });
+    el.dataset.kind = 'sub';
+    el.dataset.val  = s;
+    container.appendChild(el);
+  }
+  // Label 筛选 chip：Top 5 高频 + '🗑' 清除
+  const lblCount = {};
+  for (const g of all) lblCount[g.label] = (lblCount[g.label]||0) + 1;
+  const topLabels = Object.entries(lblCount).sort((a,b) => b[1]-a[1]).slice(0, 5).map(x => x[0]);
+  if (topLabels.length) {
+    const sep = Object.assign(document.createElement('span'), {
+      textContent: '🏷 Label 筛选：',
+      style: 'font-size:11.5px;color:#6b7280;font-weight:600;margin-left:8px'
+    });
+    container.appendChild(sep);
+    for (const l of topLabels) {
+      const el = Object.assign(document.createElement('span'), {
+        className: 'dp-chip-dyn',
+        textContent: `${l} (${lblCount[l]})`,
+        onclick: () => dpToggleDynChip('label', l, el)
+      });
+      el.dataset.kind = 'label';
+      el.dataset.val  = l;
+      container.appendChild(el);
+    }
+  }
+  // 清除按钮
+  const clearBtn = Object.assign(document.createElement('span'), {
+    className: 'dp-chip-dyn x',
+    textContent: '🗑 清除筛选',
+    title: '清除所有策略 / Label 动态 chip',
+    onclick: () => { dpDynChipSub = new Set(); dpDynChipLabel = new Set(); dpMatrixSelected = null;
+                     dpRefreshDynChipUI(); dpRenderGroups(dpCacheResult.groups, dpCacheResult.totalGroups); }
+  });
+  container.appendChild(clearBtn);
+  dpRefreshDynChipUI();
+}
+function dpRefreshDynChipUI() {
+  document.querySelectorAll('.dp-chip-dyn').forEach(el => {
+    if (el.classList.contains('x')) return;
+    const k = el.dataset.kind, v = el.dataset.val;
+    const on = (k==='sub' && dpDynChipSub.has(v)) || (k==='label' && dpDynChipLabel.has(v));
+    el.classList.toggle('active', on);
+  });
+  // 矩阵单元格高亮（若有）
+  document.querySelectorAll('.dp-matrix td.c').forEach(td => {
+    const isSel = dpMatrixSelected && dpMatrixSelected.label===td.dataset.label && dpMatrixSelected.sub===td.dataset.sub;
+    td.classList.toggle('ck', !!isSel);
+  });
+}
+function dpToggleDynChip(kind, val, el) {
+  if (kind === 'sub') {
+    if (dpDynChipSub.has(val)) dpDynChipSub.delete(val); else dpDynChipSub.add(val);
+  } else {
+    if (dpDynChipLabel.has(val)) dpDynChipLabel.delete(val); else dpDynChipLabel.add(val);
+  }
+  // 手动切换 chip 时，如果和矩阵选中不一致，清掉矩阵选中
+  if (dpMatrixSelected) {
+    const sOk = dpDynChipSub.size === 0 || dpDynChipSub.has(dpMatrixSelected.sub);
+    const lOk = dpDynChipLabel.size === 0 || dpDynChipLabel.has(dpMatrixSelected.label);
+    if (!sOk || !lOk) dpMatrixSelected = null;
+  }
+  dpRefreshDynChipUI();
+  dpRenderGroups(dpCacheResult.groups, dpCacheResult.totalGroups);
+}
+
+function dpMatchDynFilter(g) {
+  // 策略：多值 OR（任一选中子策略命中就算过；未选任何子策略 = 不过滤）
+  if (dpDynChipSub.size) {
+    let ok = false;
+    for (const s of dpDynChipSub) if (dpGroupHasSub(g, s)) { ok = true; break; }
+    if (!ok) return false;
+  }
+  // Label：多值 OR
+  if (dpDynChipLabel.size && !dpDynChipLabel.has(g.label)) return false;
+  return true;
+}
+
+function dpRenderGroups(allGroups, totalCount) {
+  const beforeFilter = allGroups || [];
+  // 主 4 档位 + 动态筛选
+  let filtered = beforeFilter.slice();
+  if (dpFilter === 'AUTO')   filtered = filtered.filter(g => g.autoMergeReady);
+  if (dpFilter === 'MANUAL') filtered = filtered.filter(g => !g.autoMergeReady && g.conflictLevel !== 'DISJOINT');
+  if (dpFilter === 'BLOCK')  filtered = filtered.filter(g => g.conflictLevel === 'DISJOINT');
+  filtered = filtered.filter(dpMatchDynFilter);
+
+  // 动态 chip 统计
+  const autoN  = beforeFilter.filter(g => g.autoMergeReady).length;
+  const manualN= beforeFilter.filter(g => !g.autoMergeReady && g.conflictLevel !== 'DISJOINT').length;
+  const blockN = beforeFilter.filter(g => g.conflictLevel === 'DISJOINT').length;
+  $('dp-filter-info').textContent =
+    `当前显示 ${filtered.length} 组 / 本次返回 ${beforeFilter.length} 组 / 总数 ${totalCount} 组（✔${autoN} · ⚠${manualN} · ❌${blockN}）`;
+
+  // 折叠条摘要
+  const dynText = (dpDynChipSub.size + dpDynChipLabel.size > 0)
+    ? `，动态筛选 ${dpDynChipSub.size+'子策略' + (dpDynChipLabel.size?` + ${dpDynChipLabel.size}Label`:'')}`
+    : '';
+  $('dp-collapsible-title').textContent =
+    `全量候选组（共 ${totalCount} 组，当前筛选显示 ${filtered.length} 组${dynText}）`;
+
+  if (!filtered || !filtered.length) {
+    const hint = (dpFilter === 'ALL' && dpDynChipSub.size===0 && dpDynChipLabel.size===0)
+      ? '图谱非常干净，未发现任何显性重复节点。🎉'
+      : `当前筛选条件下无候选组（清除筛选或改 Label / 子策略再看）。`;
+    $('dp-groups').innerHTML = `<div class="dp-empty">✔ ${hint}</div>`;
+    return;
+  }
+
+  $('dp-groups').innerHTML = filtered.map(dpRenderGroup).join('');
+}
+
+function dpRenderGroup(g) {
+  const stageTags = (g.hitStages || []).map(s =>
+    `<span class="dp-stage-tag ${s === 'exactKey' ? 'exactKey' : ''}">${esc(s)}</span>`
+  ).join('');
+  // 子策略 tag（新的：彩色 5 类）- 放在主命中路径下
+  const subTags = (g.triggeredSubStages || []).map(s => {
+    const meta = DP_SUB_META[s];
+    if (!meta) return '';
+    return `<span class="tag ${meta.clsChip}" style="border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700;color:#fff;display:inline-block;margin-right:4px;margin-top:4px">${esc(meta.short)}</span>`;
+  }).join('');
+  const multiTag = (g.multiHitCount||0) >= 2
+    ? `<span class="tag s-multi" style="border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700;color:#fff;display:inline-block;margin-right:4px;margin-top:4px">多层命中×${g.multiHitCount}</span>`
+    : '';
+  const compMax = (g.maxComposite * 100).toFixed(1);
+  const compMin = (g.minComposite * 100).toFixed(1);
+  // 组内节点：默认只显示前 2（keep + 第一名候选），size>2 的其余隐藏 + 展开按钮
+  const needCollapse = g.size > 2;
+  const rows = (g.candidates||[]).map((c, idx) => {
+    const hide = needCollapse && idx >= 2;
+    return `<div class="dp-node-row ${hide ? 'collapsed-hide' : ''}">${dpRenderNodeRowInner(c)}</div>`;
+  }).join('');
+  const expandBtn = needCollapse
+    ? `<div class="hd-expand" onclick="dpToggleGroupNodes(this, '${esc(g.groupId)}')">+ 展开其余 ${g.size - 2} 个节点（共 ${g.size} 个）</div>`
+    : '';
+  return `
+    <div class="dp-group dp-group-collapsed" id="dp-group-${esc(g.groupId)}">
+      <div class="head">
+        <div>
+          <span class="id">${esc(g.groupId)}</span>
+          <div class="stages" style="margin-top:6px">
+            ${stageTags || '<span class="muted" style="font-size:11px">—</span>'}
+            <div>${subTags}${multiTag}</div>
+          </div>
+        </div>
+        <div class="meta">
+          <span><code>${esc(g.label)}</code> · ${g.size} 节点</span>
+          <span>综合分 <b>${compMax}%</b>${compMax !== compMin ? `~${compMin}%` : ''}</span>
+          <span class="dp-auto-badge dp-auto-${g.autoMergeReady}">${g.autoMergeReady ? '✔ 可自动合并' : '⚠ 人工确认'}</span>
+          <span class="dp-conflict-badge dp-conflict-${g.conflictLevel}">${g.conflictLevel}</span>
+        </div>
+      </div>
+      ${g.conflictReason ? `<div style="color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;padding:6px 10px;font-size:12px;margin-bottom:8px">⚠ ${esc(g.conflictReason)}</div>` : ''}
+      <div class="dp-summary-row" style="margin-top:4px">
+        💡 Survivor 推荐：保留 <b>${esc(g.candidates[0]?.keyValue ?? '—')}</b>（${esc(g.candidates[0]?.survivorReason ?? '默认首元素')}），节省 ${g.estimatedSaved} 节点
+      </div>
+      <div class="dp-nodes">
+        ${rows}
+        ${expandBtn}
+      </div>
+    </div>`;
+}
+function dpToggleGroupNodes(btn, gid) {
+  const group = btn.closest('.dp-group');
+  if (!group) return;
+  const opening = !group.classList.contains('open');
+  group.classList.toggle('open', opening);
+  // 找到 collapsed-hide 的行，切换显示
+  const hides = group.querySelectorAll('.dp-node-row.collapsed-hide');
+  hides.forEach(r => r.style.display = opening ? '' : 'none');
+  const rest = group.querySelectorAll('.dp-node-row').length - 2;
+  btn.innerHTML = opening
+    ? `− 收起其余 ${rest} 个节点`
+    : `+ 展开其余 ${rest} 个节点（共 ${rest + 2} 个）`;
+}
+
+function dpRenderNodeRowInner(c) {
+  // 返回 dp-node-row 的 innerHTML（外层 div 已在 dpRenderGroup 包好，这里只填内容）
+  const prio = c.survivorPriority === 0
+    ? `<span class="survivor">keep</span>`
+    : `<span class="num">#${c.survivorPriority}</span>`;
+  const compPct = (c.score?.composite ?? 0) * 100;
+  const compHot = compPct >= 95 ? '' : 'hot';
+  const skipKeys = new Set([c.keyProp]);
+  const props = Object.entries(c.props || {})
+    .filter(([k, v]) => !skipKeys.has(k) && v !== null && v !== undefined && String(v).trim() !== '')
+    .slice(0, 4)
+    .map(([k, v]) => `${k}=${String(v).length > 18 ? String(v).slice(0, 17) + '…' : v}`)
+    .join(' | ');
+  const subBits = [`key: ${c.keyProp}`];
+  if (c.propCount > 0) subBits.push(`${c.propCount} 属性`);
+  if (c.totalDegree > 0) subBits.push(`${c.totalDegree} 关系`);
+  // 子策略命中明细（节点级）
+  const nodeSub = [];
+  if (c.score?.normHit)             nodeSub.push('Norm');
+  if (c.score?.exactNameAuxHit)     nodeSub.push('Aux');
+  if (c.score?.exactRelicTitleHit)  nodeSub.push('Title');
+  if (c.score?.exactRelicTitleSizeHit) nodeSub.push('Size');
+  const hitTxt = nodeSub.length ? nodeSub.join('·') : ((c.score?.hitStages||[]).join('+') || '—');
+  return `
+      <div class="prio">${prio}</div>
+      <div class="kv">
+        <div class="name">${esc(c.keyValue || '（空值）')} <span class="muted" style="font-size:11px">(${esc(c.label)})</span></div>
+        <div class="sub">${subBits.join(' · ')}</div>
+      </div>
+      <div class="props-summary">${esc(props) || '<span class="muted">（无额外属性）</span>'}</div>
+      <div class="score">
+        <div class="comp ${compHot}">${compPct.toFixed(1)}%</div>
+        <div class="sub">${esc(hitTxt)}</div>
+      </div>
+      <div class="actions">
+        <button onclick="dpOpenNode('${esc(c.label)}', '${encodeURIComponent(String(c.keyValue ?? '')).replace(/'/g, "\\'")}'); event.stopPropagation();">查看</button>
+      </div>`;
+}
+
+function dpOpenNode(label, keyEnc) {
+  const url = '/graph?label=' + encodeURIComponent(label) + '&key=' + keyEnc;
+  window.open(url, '_blank');
 }
 
 // ---------------- init ----------------

@@ -111,3 +111,5 @@ graph:
   schema-file: data/graph-schema.json
   profile-file: data/ontology-profile.json
   disjoint-rules-file: data/disjoint-rules.json
+  dedup:
+    per-label-node-limit: 0
