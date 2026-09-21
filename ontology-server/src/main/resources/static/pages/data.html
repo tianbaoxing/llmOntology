@@ -484,6 +484,16 @@
       </div>
 
       <div style="margin-top:14px">
+        <h3 style="font-size:14px;margin:14px 0 8px">终端节点连接（终点无出边）</h3>
+        <div id="gq-dangling-noout-table"></div>
+      </div>
+
+      <div style="margin-top:14px">
+        <h3 style="font-size:14px;margin:14px 0 8px">源节点连接（起点无入边）</h3>
+        <div id="gq-dangling-noin-table"></div>
+      </div>
+
+      <div style="margin-top:14px">
         <h3 style="font-size:14px;margin:14px 0 8px">入度异常 Top 20（≥ 均值 + 3σ）</h3>
         <div class="muted" style="margin-bottom:8px;font-size:12px">高度中心节点：可能是超级类（如「商代」被 1000+ 文物引用，属正常），也可能是 LLM 过度关联的错误 hub。</div>
         <div id="gq-in-degree"></div>
@@ -1271,17 +1281,46 @@ const GQ_TOPO_META = {
       'ORDER BY label, relType;'
     ].join('\n')
   },
-  dangling: {
-    title: '悬挂/异常连接',
-    desc: '业务语义上的「死胡同边」：关系 (s)-[r]->(m) 满足以下任一即判定：\n① 终点 m 无任何出边（mOut=0），链路无法继续扩展；\n② 起点 s 无任何入边（sIn=0），属于无上游的根节点挂出。\n注：非 Neo4j 物理悬挂边，是保守的业务质量检测。',
+  danglingNoOut: {
+    title: '终端节点连接（终点无出边）',
+    desc: '关系 (s)-[r]->(m) 的终点 m 无任何出边（mOut=0），即这条边指向链路死胡同。\n常见成因：\n① 终点是业务上的终端节点（如「文物」作为最终实体，正常）；\n② LLM 抽取时末端关联未继续展开，遗漏下游节点；\n③ 原本的下游关系被清理后残留的终端边。',
     sql: [
       '// 计数 SQL',
       'MATCH (s)-[r]->(m)',
-      'WITH r, s, m,',
-      '     COUNT { (m)-[]->() } AS mOut,',
-      '     COUNT { ()-[]->(s) } AS sIn',
-      'WHERE mOut = 0 OR sIn = 0',
-      'RETURN count(DISTINCT r) AS cnt;'
+      'WHERE COUNT { (m)-[]->() } = 0',
+      'RETURN count(DISTINCT r) AS cnt;',
+      '',
+      '// 列表 SQL（LIMIT 10）',
+      'MATCH (s)-[r]->(m)',
+      'WHERE COUNT { (m)-[]->() } = 0',
+      'WITH s, r, m',
+      'ORDER BY labels(s)[0] ASC, type(r) ASC',
+      'SKIP 0 LIMIT 10',
+      'RETURN labels(s)[0] AS fromLabel, labels(m)[0] AS toLabel, type(r) AS relType,',
+      '       elementId(s) AS fromEid, properties(s) AS fromProps,',
+      '       elementId(m) AS toEid,   properties(m) AS toProps,',
+      '       properties(r) AS relProps;'
+    ].join('\n')
+  },
+  danglingNoIn: {
+    title: '源节点连接（起点无入边）',
+    desc: '关系 (s)-[r]->(m) 的起点 s 无任何入边（sIn=0），即这条边的起点无上游链路。\n常见成因：\n① 起点是业务上的根节点（如「朝代」作为顶层分类，正常）；\n② LLM 抽取时起点缺少来源上下文，未关联上游节点；\n③ 原本的上游关系被清理后残留的孤立起点。',
+    sql: [
+      '// 计数 SQL',
+      'MATCH (s)-[r]->(m)',
+      'WHERE COUNT { ()-[]->(s) } = 0',
+      'RETURN count(DISTINCT r) AS cnt;',
+      '',
+      '// 列表 SQL（LIMIT 10）',
+      'MATCH (s)-[r]->(m)',
+      'WHERE COUNT { ()-[]->(s) } = 0',
+      'WITH s, r, m',
+      'ORDER BY labels(s)[0] ASC, type(r) ASC',
+      'SKIP 0 LIMIT 10',
+      'RETURN labels(s)[0] AS fromLabel, labels(m)[0] AS toLabel, type(r) AS relType,',
+      '       elementId(s) AS fromEid, properties(s) AS fromProps,',
+      '       elementId(m) AS toEid,   properties(m) AS toProps,',
+      '       properties(r) AS relProps;'
     ].join('\n')
   },
   inDegree: {
@@ -1379,14 +1418,15 @@ function gqRenderTopology(t) {
   const cells = [
     { b: '孤立节点', v: t.isolatedCount, bad: t.isolatedCount > 0, meta: GQ_TOPO_META.isolated },
     { b: '自环关系', v: t.selfLoopCount, bad: t.selfLoopCount > 0, meta: GQ_TOPO_META.selfLoop },
-    { b: '悬挂/异常连接', v: t.danglingCount, bad: t.danglingCount > 0, meta: GQ_TOPO_META.dangling },
+    { b: '终端节点连接(终点无出边)', v: t.danglingNoOutCount, bad: t.danglingNoOutCount > 0, meta: GQ_TOPO_META.danglingNoOut },
+    { b: '源节点连接(起点无入边)', v: t.danglingNoInCount, bad: t.danglingNoInCount > 0, meta: GQ_TOPO_META.danglingNoIn },
     { b: '入度异常节点', v: t.inDegreeAnomalyCount, bad: t.inDegreeAnomalyCount > 0, meta: GQ_TOPO_META.inDegree },
     { b: '出度异常节点', v: t.outDegreeAnomalyCount, bad: t.outDegreeAnomalyCount > 0, meta: GQ_TOPO_META.outDegree },
   ];
   $('gq-topo-stats').innerHTML = cells.map((c, i) => `
     <div class="gq-stat-cell ${c.bad ? 'bad' : ''}"
          data-gq-idx="${i}"
-         onmouseenter="gqShowTooltip(GQ_TOPO_META['${['isolated','selfLoop','dangling','inDegree','outDegree'][i]}'], event)"
+         onmouseenter="gqShowTooltip(GQ_TOPO_META['${['isolated','selfLoop','danglingNoOut','danglingNoIn','inDegree','outDegree'][i]}'], event)"
          onmousemove="gqMoveTooltip(event)"
          onmouseleave="gqHideTooltip()">
       <b>${c.b}</b><span>${c.v}</span>
@@ -1424,6 +1464,46 @@ function gqRenderTopology(t) {
       `<table><tr><th>节点类</th><th>关系类型</th><th>键值</th><th>节点展示名</th><th>关系属性</th><th>操作</th></tr>${rows}</table>`;
   } else {
     $('gq-selfloops-table').innerHTML = '<div class="gq-empty">✔ 未发现自环关系</div>';
+  }
+
+  // 终端节点连接表格（终点无出边）
+  if (t.danglingNoOutTop && t.danglingNoOutTop.length) {
+    const rows = t.danglingNoOutTop.map(e => `
+      <tr>
+        <td>${code(e.fromLabel)}</td>
+        <td><code>${esc(e.relType)}</code></td>
+        <td>${esc(e.fromDisplayName ?? String(e.fromKeyValue ?? ''))}</td>
+        <td style="text-align:center;color:#9ca3af">→</td>
+        <td>${code(e.toLabel)}</td>
+        <td>${esc(e.toDisplayName ?? String(e.toKeyValue ?? ''))}</td>
+        <td><code style="font-size:11px">${esc(JSON.stringify(e.relProps || {}))}</code></td>
+        <td>${gqEdgeActionBtns(e.fromLabel, e.fromKeyValue, e.toLabel, e.toKeyValue)}</td>
+      </tr>`).join('');
+    $('gq-dangling-noout-table').innerHTML =
+      `<div class="muted" style="margin:6px 0 8px;font-size:11px">显示前 ${t.danglingNoOutTop.length} 条 / 共 ${t.danglingNoOutCount} 条。说明：该关系的终点节点无任何出边，链路到此终止。</div>
+       <table><tr><th>起点类</th><th>关系类型</th><th>起点展示名</th><th></th><th>终点类</th><th>终点展示名</th><th>关系属性</th><th>操作</th></tr>${rows}</table>`;
+  } else {
+    $('gq-dangling-noout-table').innerHTML = '<div class="gq-empty">✔ 未发现终端节点连接（所有关系终点均有出边）</div>';
+  }
+
+  // 源节点连接表格（起点无入边）
+  if (t.danglingNoInTop && t.danglingNoInTop.length) {
+    const rows = t.danglingNoInTop.map(e => `
+      <tr>
+        <td>${code(e.fromLabel)}</td>
+        <td><code>${esc(e.relType)}</code></td>
+        <td>${esc(e.fromDisplayName ?? String(e.fromKeyValue ?? ''))}</td>
+        <td style="text-align:center;color:#9ca3af">→</td>
+        <td>${code(e.toLabel)}</td>
+        <td>${esc(e.toDisplayName ?? String(e.toKeyValue ?? ''))}</td>
+        <td><code style="font-size:11px">${esc(JSON.stringify(e.relProps || {}))}</code></td>
+        <td>${gqEdgeActionBtns(e.fromLabel, e.fromKeyValue, e.toLabel, e.toKeyValue)}</td>
+      </tr>`).join('');
+    $('gq-dangling-noin-table').innerHTML =
+      `<div class="muted" style="margin:6px 0 8px;font-size:11px">显示前 ${t.danglingNoInTop.length} 条 / 共 ${t.danglingNoInCount} 条。说明：该关系的起点节点无任何入边，链路从此处开始。</div>
+       <table><tr><th>起点类</th><th>关系类型</th><th>起点展示名</th><th></th><th>终点类</th><th>终点展示名</th><th>关系属性</th><th>操作</th></tr>${rows}</table>`;
+  } else {
+    $('gq-dangling-noin-table').innerHTML = '<div class="gq-empty">✔ 未发现源节点连接（所有关系起点均有入边）</div>';
   }
 
   // 入度 / 出度 异常条形
@@ -1582,6 +1662,13 @@ function gqNodeActionBtn(label, keyValue, inline) {
     return `<button onclick="window.open('${url}','_blank')">查看</button>`;
   }
   return `<button class="btn sm" onclick="window.open('${url}','_blank')">查看节点</button>`;
+}
+
+// 悬挂边操作按钮：查看起点 + 查看终点
+function gqEdgeActionBtns(fromLabel, fromKeyValue, toLabel, toKeyValue) {
+  const fromBtn = gqNodeActionBtn(fromLabel, fromKeyValue, true);
+  const toBtn = gqNodeActionBtn(toLabel, toKeyValue, true);
+  return fromBtn + '&nbsp;' + toBtn;
 }
 
 // ---------------- init ----------------

@@ -20,6 +20,7 @@ import com.conca.ontology.graph.model.RelationDef;
 import com.conca.ontology.graph.service.GraphQueryService;
 import com.conca.ontology.quality.dto.view.ClassBin;
 import com.conca.ontology.quality.dto.view.ClassHistogramView;
+import com.conca.ontology.quality.dto.view.DanglingEdgeView;
 import com.conca.ontology.quality.dto.view.DegreeAnomalyView;
 import com.conca.ontology.quality.dto.view.IsolatedNodeView;
 import com.conca.ontology.quality.dto.view.QualityReportView;
@@ -81,6 +82,10 @@ public class GraphDiagnosticsService {
         List<IsolatedNodeView> isoList = isolatedList(Math.max(1, isolatedLimit));
         List<SelfLoopView> loops = selfLoops();
         long dangling = countDangling();
+        long danglingNoOutCnt = countDanglingNoOut();
+        long danglingNoInCnt = countDanglingNoIn();
+        List<DanglingEdgeView> danglingNoOutList = danglingNoOutList(5);
+        List<DanglingEdgeView> danglingNoInList = danglingNoInList(5);
 
         Map<String, double[]> degStats = degreeStats();
         List<DegreeAnomalyView> inTop = new ArrayList<>();
@@ -110,7 +115,8 @@ public class GraphDiagnosticsService {
         return new TopologyAnomalyView(
                 isoCnt, loops.size(), dangling,
                 inAnomCnt, outAnomCnt,
-                isoList, loops, inTop, outTop);
+                danglingNoOutCnt, danglingNoInCnt,
+                isoList, loops, danglingNoOutList, danglingNoInList, inTop, outTop);
     }
 
     public SchemaCoverageView schemaCoverage() {
@@ -198,6 +204,83 @@ public class GraphDiagnosticsService {
                         + "WHERE mOut = 0 OR sIn = 0 "
                         + "RETURN count(DISTINCT r) AS cnt", null);
         return r.rows().isEmpty() ? 0L : ((Number) r.rows().get(0).get("cnt")).longValue();
+    }
+
+    private long countDanglingNoOut() {
+        QueryResult r = qs.query(
+                "MATCH (s)-[r]->(m) "
+                        + "WHERE COUNT { (m)-[]->() } = 0 "
+                        + "RETURN count(DISTINCT r) AS cnt", null);
+        return r.rows().isEmpty() ? 0L : ((Number) r.rows().get(0).get("cnt")).longValue();
+    }
+
+    private long countDanglingNoIn() {
+        QueryResult r = qs.query(
+                "MATCH (s)-[r]->(m) "
+                        + "WHERE COUNT { ()-[]->(s) } = 0 "
+                        + "RETURN count(DISTINCT r) AS cnt", null);
+        return r.rows().isEmpty() ? 0L : ((Number) r.rows().get(0).get("cnt")).longValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<DanglingEdgeView> danglingNoOutList(int limit) {
+        QueryResult r = qs.query(
+                "MATCH (s)-[r]->(m) "
+                        + "WHERE COUNT { (m)-[]->() } = 0 "
+                        + "WITH s, r, m "
+                        + "ORDER BY labels(s)[0] ASC, type(r) ASC "
+                        + "SKIP 0 LIMIT $limit "
+                        + "RETURN labels(s)[0] AS fromLabel, labels(m)[0] AS toLabel, type(r) AS relType, "
+                        + "elementId(s) AS fromEid, properties(s) AS fromProps, "
+                        + "elementId(m) AS toEid, properties(m) AS toProps, "
+                        + "properties(r) AS relProps",
+                Map.of("limit", Math.max(1, limit)));
+        return buildDanglingEdges(r);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<DanglingEdgeView> danglingNoInList(int limit) {
+        QueryResult r = qs.query(
+                "MATCH (s)-[r]->(m) "
+                        + "WHERE COUNT { ()-[]->(s) } = 0 "
+                        + "WITH s, r, m "
+                        + "ORDER BY labels(s)[0] ASC, type(r) ASC "
+                        + "SKIP 0 LIMIT $limit "
+                        + "RETURN labels(s)[0] AS fromLabel, labels(m)[0] AS toLabel, type(r) AS relType, "
+                        + "elementId(s) AS fromEid, properties(s) AS fromProps, "
+                        + "elementId(m) AS toEid, properties(m) AS toProps, "
+                        + "properties(r) AS relProps",
+                Map.of("limit", Math.max(1, limit)));
+        return buildDanglingEdges(r);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<DanglingEdgeView> buildDanglingEdges(QueryResult r) {
+        List<DanglingEdgeView> out = new ArrayList<>(r.rows().size());
+        for (Map<String, Object> row : r.rows()) {
+            String fromLabel = (String) row.get("fromLabel");
+            String toLabel = (String) row.get("toLabel");
+            String relType = (String) row.get("relType");
+            String fromEid = (String) row.get("fromEid");
+            String toEid = (String) row.get("toEid");
+            Map<String, Object> fromProps = (Map<String, Object>) row.getOrDefault("fromProps", Map.of());
+            Map<String, Object> toProps = (Map<String, Object>) row.getOrDefault("toProps", Map.of());
+            Map<String, Object> relProps = (Map<String, Object>) row.getOrDefault("relProps", Map.of());
+
+            String fromKeyProp = schema.classOf(fromLabel) == null ? "" : schema.keyPropOf(fromLabel);
+            Object fromKeyValue = fromKeyProp.isEmpty() ? null : fromProps.get(fromKeyProp);
+            String toKeyProp = schema.classOf(toLabel) == null ? "" : schema.keyPropOf(toLabel);
+            Object toKeyValue = toKeyProp.isEmpty() ? null : toProps.get(toKeyProp);
+
+            out.add(new DanglingEdgeView(
+                    fromLabel, toLabel, relType,
+                    fromKeyProp, fromKeyValue,
+                    displayName(fromLabel, fromProps, fromKeyProp, fromKeyValue), fromEid,
+                    toKeyProp, toKeyValue,
+                    displayName(toLabel, toProps, toKeyProp, toKeyValue), toEid,
+                    relProps));
+        }
+        return out;
     }
 
     /**
