@@ -718,6 +718,12 @@
         <h2>实体去重（M1 里程碑 · 确定性去重）</h2>
         <div class="dp-toolbar">
           <label>
+            规则集:
+            <select id="dp-ruleset">
+              <option value="">（加载中…）</option>
+            </select>
+          </label>
+          <label>
             Label:
             <select id="dp-label">
               <option value="*">全部（逐类扫描，不跨类）</option>
@@ -734,63 +740,17 @@
           </label>
           <span class="dp-generated" id="dp-generated">扫描时间：-</span>
           <button class="btn sm" onclick="dpRefresh()">🔍 扫描重复</button>
+          <a class="btn sm" href="/pages/dedup-rules.html" target="_blank" style="background:#fff;color:#166534;border:1px solid #86efac;text-decoration:none">📝 编辑规则配置 →</a>
         </div>
       </div>
       <div class="dp-kpi-grid" id="dp-kpi"></div>
     </div>
 
-    <!-- Layer 1：原理说明 Accordion（痛点 1：30 秒理解算法） -->
+    <!-- Layer 1：原理说明 Accordion（痛点 1：30 秒理解算法）—— 按当前规则集动态渲染 -->
     <details class="dp-principle" open>
-      <summary>🧠 去重逻辑 & 3 步判定流程（点击切换展开 / 收起）</summary>
-      <div class="dp-quick">
-        <ol>
-          <li><b>规范化别名（紫色策略）</b>：全角半角统一 + 括号去注释 + <code>Place</code>「省/市/遗址/博物馆…」18 后缀 / <code>Era</code>「朝/代/时期…」7 后缀循环剥离。<br>例：「西安市（陕西省省会）」规范化后得到「西安」，「西安市」「西安城」若都剥离到「西安」→ 判为重复候选。</li>
-          <li><b>精确 key 组合（蓝 / 青 系列策略）</b>：3 种指纹模式，命中任一即候选：
-            <br>· <span style="color:#2563eb">name+辅助属性</span>：Place 看 province+kind；Figure 看 dynastyLabel+identity；Event 看 startYear+endYear（<b>双方都非空才参与，避免单方有值误判</b>）。
-            <br>· <span style="color:#0891b2">CulturalRelic · 仅 title</span>：文物名称规范化后相同。
-            <br>· <span style="color:#0f766e">CulturalRelic · title+尺寸</span>：名称 + 7 个尺寸维度（heightCm / widthCm / lengthCm / boreCm / footCm / diameterCm / weightG）都一致。
-          </li>
-          <li><b>Survivor 选择 & 冲突保护</b>：属性数多 → 度数高 → key 长 → eid 小 优先保留；关键属性（era/site/province/dynastyLabel/startYear/endYear）多值冲突 → 标 <code>ATTRIBUTE</code> 需人工。
-            <br>综合分 = <code>normalizeAlias×40% + exactKey×40% + blocking×20%</code>（M1 blocking=0），≥95% 且无冲突 → 可自动合并。</li>
-        </ol>
-      </div>
-      <div class="dp-detail">
-        <div class="card-s">
-          <h4>① Normalize 后缀表（25 项）</h4>
-          <ul>
-            <li>Place：遗址博物馆 / 遗址公园 / 博物馆 / 考古遗址 / 墓群 / 墓葬 / 墓地 / 风景区 / 景区 / 旅游区 / 自治区 / 自治州 / 自治县 / 特别行政区 / 省 / 市 / 区 / 县 / 镇 / 乡 / 村 / 遗址</li>
-            <li>Era：年间 / 时期 / 时代 / 王朝 / 朝代 / 代 / 朝</li>
-            <li>其他类：只用括号去注释 + 全角半角统一</li>
-          </ul>
-        </div>
-        <div class="card-s">
-          <h4>② ExactKey 辅助属性清单</h4>
-          <ul>
-            <li>Place → province + kind</li>
-            <li>HistoricalFigure → dynastyLabel + identity</li>
-            <li>HistoricalEvent → startYear + endYear</li>
-            <li>AncientText → category</li>
-            <li>CulturalRelic 模式②：仅 title</li>
-            <li>CulturalRelic 模式③：title + 7 个尺寸</li>
-          </ul>
-        </div>
-        <div class="card-s">
-          <h4>③ 防误判指纹规则 <code>fp()</code></h4>
-          <ul>
-            <li>「当且仅当所有字段都非空时才构成指纹」</li>
-            <li>例：Place A 有 province=陕西 / kind=遗址，Place B 只有 name=西安（缺 province、kind）→ 退化为纯 name 比较，<b>不会</b>因 A 有值 B 空就误判「不相同」。</li>
-            <li>单方有辅助属性 / 另一方没有 → 不会错配。</li>
-          </ul>
-        </div>
-        <div class="card-s">
-          <h4>④ ConflictGuard 关键属性（6 项）</h4>
-          <ul>
-            <li>era / site / province / dynastyLabel / startYear / endYear</li>
-            <li>同候选组内出现 ≥2 个不同非空值 → <code>ConflictLevel=ATTRIBUTE</code>，自动合并被禁用。</li>
-            <li>Disjoint 互斥全量校验留 M4 里程碑。</li>
-          </ul>
-        </div>
-      </div>
+      <summary>🧠 去重逻辑 & 3 步判定流程（点击切换展开 / 收起）<span id="dp-rule-hint" style="margin-left:10px;color:#3b82f6;font-size:11px;font-weight:normal"></span></summary>
+      <div class="dp-quick" id="dp-quick"></div>
+      <div class="dp-detail" id="dp-detail"></div>
     </details>
 
     <!-- Layer 2：策略命中概览（痛点 2：一眼看哪种策略起作用） -->
@@ -860,6 +820,10 @@ let gqChartRels = null;
 let dedupTabLoaded = false;
 let dpCacheResult = null;    // 最近一次扫描结果（前端缓存，用于筛选切换不重新拉取）
 let dpFilter = 'ALL';
+let dpRuleSets = [];         // 规则集索引
+let dpActiveRuleId = null;   // 当前 active id
+let dpCurrentRule = null;    // 当前选中规则集完整对象（用于动态原理卡片渲染）
+let dpRuleLoadPromise = null; // 缓存加载 Promise，避免重复请求
 
 // ---------------- Tab 切换 ----------------
 function switchTab(name) {
@@ -893,8 +857,10 @@ function switchTab(name) {
   }
   if (name === 'dedup' && !dedupTabLoaded) {
     dedupTabLoaded = true;
-    dpInitLabelSelect();
-    dpRefresh();
+    Promise.all([dpLoadRulesets(), dpWaitSchema()]).then(() => {
+      dpInitLabelSelect();
+      dpRefresh();
+    }).catch(e => showMsg('加载失败：' + e.message, false));
   }
   // 若切换到质量诊断页，echarts 容器需要重绘（display 从 none → block 尺寸才对）
   if (name === 'quality') {
@@ -1994,6 +1960,147 @@ function dpPrimarySub(g) {
 }
 function dpGroupHasSub(g, sub) { return g.triggeredSubStages?.includes(sub); }
 
+function dpWaitSchema() {
+  if (schemaCache && schemaCache.classes) return Promise.resolve();
+  return new Promise(resolve => {
+    const tick = () => { if (schemaCache && schemaCache.classes) resolve(); else setTimeout(tick, 200); };
+    tick();
+  });
+}
+
+function dpLoadRulesets() {
+  if (dpRuleLoadPromise) return dpRuleLoadPromise;
+  dpRuleLoadPromise = (async () => {
+    try {
+      const list = await api('GET', '/api/graph/dedup/rules');
+      dpRuleSets = list || [];
+      dpActiveRuleId = (list || []).find(x => x.active)?.id || null;
+      // 渲染规则集下拉
+      const sel = $('dp-ruleset');
+      if (sel) {
+        sel.innerHTML = dpRuleSets.map(r => `
+          <option value="${esc(r.id)}">${esc(r.name)}${r.id === dpActiveRuleId ? ' ✅(默认)' : ''} · v${r.version}</option>
+        `).join('');
+        if (dpActiveRuleId) sel.value = dpActiveRuleId;
+        sel.onchange = () => dpSwitchRuleset(sel.value);
+      }
+      // 拉取当前 active 完整对象用于原理动态渲染
+      const rid = dpActiveRuleId || (dpRuleSets[0] && dpRuleSets[0].id);
+      if (rid) {
+        dpCurrentRule = await api('GET', `/api/graph/dedup/rules/${rid}`);
+        dpRenderPrinciple();
+      }
+    } catch (e) {
+      showMsg('规则集加载失败：' + e.message, false);
+    }
+  })();
+  return dpRuleLoadPromise;
+}
+
+async function dpSwitchRuleset(id) {
+  try {
+    dpCurrentRule = await api('GET', `/api/graph/dedup/rules/${id}`);
+    dpRenderPrinciple();
+    const hint = $('dp-rule-hint');
+    if (hint) hint.innerHTML = `（已切换至：<b>${esc(dpCurrentRule.name || id)}</b> · v${dpCurrentRule.version || 0}）`;
+  } catch (e) { showMsg('切换规则集失败：' + e.message, false); }
+}
+
+function dpRenderPrinciple() {
+  const quick = $('dp-quick'), detail = $('dp-detail'), hint = $('dp-rule-hint');
+  if (!dpCurrentRule) {
+    if (quick) quick.innerHTML = `<div class="dr-empty">尚未创建去重规则集，请先通过「📝 编辑规则配置」创建并保存一套规则。</div>`;
+    if (detail) detail.innerHTML = '';
+    return;
+  }
+  const r = dpCurrentRule;
+  if (hint) hint.innerHTML = `（当前规则集：<b>${esc(r.name || '')}</b> · v${r.version || 0} · 更新 ${formatDpTime(r.updatedAt)}）`;
+  const suffixEntries = Object.entries(r.suffixTable || {});
+  const cfgEntries = Object.entries(r.labelConfig || {});
+  const globalCfl = (r.globalConflictProps || []).length ? r.globalConflictProps : '（未配置，仅 Label 私有）';
+  // 快速 3 步骤
+  const normItems = suffixEntries.length
+    ? suffixEntries.map(([lab, arr]) => `<code>${esc(lab)}</code>「${esc(arr.slice(0, 5).join(' / '))}${arr.length > 5 ? '…共 ' + arr.length + ' 项' : ''}」后缀循环剥离`).join('；')
+    : '<b style="color:#9ca3af">未配置 suffixTable</b>，仅括号去注释 + 全角半角统一';
+  const exactItems = cfgEntries.length
+    ? cfgEntries.map(([lab, c]) => {
+        const ms = (c.exactModes || []);
+        const has = (m) => ms.includes(m);
+        const parts = [];
+        if (has('NAME_AUX')) parts.push(`<span style="color:#2563eb">name+辅助属性</span>：${lab} 看 ${(c.auxProps && c.auxProps.length) ? c.auxProps.join('+') : '（无辅助属性，退化为纯 name）'}`);
+        if (has('TITLE_ONLY')) parts.push(`<span style="color:#0891b2">仅 ${c.nameProp || 'name'}</span>（${lab}）`);
+        if (has('TITLE_DIMS')) parts.push(`<span style="color:#0f766e">${c.nameProp || 'name'}+尺寸</span>（${c.dimProps ? c.dimProps.join(' / ') : '无 dimProps'}）`);
+        if (!ms.length) parts.push(`<span style="color:#9ca3af">${lab}：未启用 ExactKey 模式</span>`);
+        return parts.map(p => '· ' + p).join('<br>');
+      }).join('<br>')
+    : '<b style="color:#9ca3af">未配置 labelConfig，未启用 ExactKey 策略</b>';
+  const cflStr = Array.isArray(globalCfl) ? globalCfl.join(' / ') : globalCfl;
+  if (quick) quick.innerHTML = `
+    <ol>
+      <li><b>规范化别名（紫色策略）</b>：全角半角统一 + 括号去注释 + ${normItems}。<br>例：「西安市（陕西省省会）」经 Place 后缀剥离后得到「西安」；若两个节点剥离后存在共享 key → 候选。</li>
+      <li><b>精确 key 组合（蓝 / 青 系列策略）</b>：命中任一即候选。配置的 Label 清单：<br>${exactItems}<br><i style="font-size:12px;color:#6b7280">指纹规则：<b>双方都非空才参与</b>（单方有值 → 不参与指纹，避免误判不一致）。</i></li>
+      <li><b>Survivor 选择 & 冲突保护</b>：属性数多 → 度数高 → key 长 → eid 小 优先保留；关键属性多值冲突 → 标 <code>ATTRIBUTE</code> 需人工。<br>冲突保护属性（全局 ∪ Label 私有）：<code>${esc(cflStr)}</code><br>综合分 = <code>normalizeAlias×40% + exactKey×40% + blocking×20%</code>（M1 blocking=0），≥95% 且无冲突 → 可自动合并。</li>
+    </ol>
+  `;
+  // 4 原理卡片
+  const card1 = (() => {
+    const total = suffixEntries.reduce((s, [, a]) => s + (a || []).length, 0);
+    const lis = suffixEntries.length
+      ? suffixEntries.map(([lab, arr]) => `<li>${esc(lab)}：${esc((arr || []).join(' / '))}</li>`).join('')
+        + '<li>其他类：只用括号去注释 + 全角半角统一 + 空白压缩</li>'
+      : '<li style="color:#9ca3af">当前规则集未配置任何后缀表。可点击「📝 编辑规则配置 →」新增 Place/Era/自定义 Label 的后缀。</li>';
+    return `<div class="card-s">
+      <h4>① Normalize 后缀表（共 ${suffixEntries.length} 个 Label · ${total} 项）</h4><ul>${lis}</ul>
+    </div>`;
+  })();
+  const card2 = (() => {
+    const lis = cfgEntries.length
+      ? cfgEntries.map(([lab, c]) => {
+          const ms = (c.exactModes || []);
+          const rows = [];
+          if (ms.includes('NAME_AUX')) rows.push(`<li>${lab}（NAME_AUX）：${(c.auxProps && c.auxProps.length) ? c.auxProps.join(' + ') : '仅 name（无辅助属性）'}</li>`);
+          if (ms.includes('TITLE_ONLY')) rows.push(`<li>${lab} 模式②·仅 ${c.nameProp || 'name'}：规范化后相同即命中</li>`);
+          if (ms.includes('TITLE_DIMS')) rows.push(`<li>${lab} 模式③·${c.nameProp || 'name'}+尺寸：${(c.dimProps || []).length ? c.dimProps.join(' / ') : '（未配置尺寸属性）'}</li>`);
+          if (!ms.length) rows.push(`<li style="color:#9ca3af">${lab}：仅基础规范化（未启用 ExactKey 模式）</li>`);
+          return rows.join('');
+        }).join('')
+      : '<li style="color:#9ca3af">未配置 labelConfig → 所有 Label 均不使用 ExactKey 精确指纹判重，仅走 Normalize 规范化别名策略。</li>';
+    return `<div class="card-s"><h4>② ExactKey 模式 & 辅助属性清单</h4><ul>${lis}</ul></div>`;
+  })();
+  const card3 = `<div class="card-s">
+    <h4>③ 防误判指纹规则 <code>fp()</code></h4>
+    <ul>
+      <li>「当且仅当所有字段都非空时才构成指纹」</li>
+      <li>例：A 有 province=陕西 / kind=遗址，B 仅有 name=西安（缺 province、kind）→ NAME_AUX 指纹 <b>退化为纯 name 比较</b>，<b>不会</b>因为 A 有值 B 空就误判为「两者不同」。</li>
+      <li>辅助属性全部为空（TITLE_DIMS 尺寸也全空）→ exact key 退化为 none，该子策略不命中任何组（避免误合并）。</li>
+    </ul>
+  </div>`;
+  const card4 = (() => {
+    const lis = [];
+    const globalProps = (r.globalConflictProps || []);
+    if (globalProps.length) lis.push(`<li>全局通用（所有 Label）：${globalProps.join(' / ')}</li>`);
+    let perLabelCount = 0;
+    for (const [lab, c] of cfgEntries) {
+      if (c.conflictProps && c.conflictProps.length) {
+        lis.push(`<li>${lab} 私有：${c.conflictProps.join(' / ')}</li>`);
+        perLabelCount++;
+      }
+    }
+    if (!lis.length) lis.push(`<li style="color:#9ca3af">未配置任何冲突属性 → 所有重复候选组 ConflictLevel=NONE，综合分 ≥ threshold 即自动可合并。</li>`);
+    lis.push(`<li>并集语义：实际冲突检测 = globalConflictProps ∪ 该 Label 的 conflictProps（按出现顺序去重保序）</li>`);
+    lis.push(`<li>同候选组内出现 ≥2 个不同非空值 → <code>ConflictLevel=ATTRIBUTE</code>，自动合并被禁用。</li>`);
+    lis.push(`<li>Disjoint 互斥全量校验留 M4 里程碑。</li>`);
+    return `<div class="card-s"><h4>④ ConflictGuard 关键属性（全局 ${globalProps.length} 项 + ${perLabelCount} 个 Label 私有）</h4><ul>${lis.join('')}</ul></div>`;
+  })();
+  if (detail) detail.innerHTML = card1 + card2 + card3 + card4;
+}
+
+function formatDpTime(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function dpInitLabelSelect() {
   const sel = $('dp-label');
   if (!schemaCache || !schemaCache.classes) {
@@ -2011,6 +2118,7 @@ function dpRefresh() {
   const label = $('dp-label').value;
   const threshold = parseFloat($('dp-threshold').value || '0.95');
   const limitGroups = parseInt($('dp-limit').value || '0', 10);
+  const ruleSetId = $('dp-ruleset') ? $('dp-ruleset').value : null;
   showMsg('扫描中…（大图首次全量扫描可能需要数秒，请稍候）', true);
   // 清掉典型墙和策略 KPI，避免显示旧结果
   $('dp-showcase').innerHTML = '<div class="dp-empty">📡 正在扫描，典型案例稍后加载…</div>';
@@ -2022,7 +2130,8 @@ function dpRefresh() {
     label: label === '*' ? null : label,
     threshold: isNaN(threshold) ? null : threshold,
     limitGroups: isNaN(limitGroups) || limitGroups <= 0 ? null : limitGroups,
-    skipGroups: 0
+    skipGroups: 0,
+    ruleSetId: ruleSetId || null
   }).then(d => {
     dpCacheResult = d;
     dpFilter = 'ALL';

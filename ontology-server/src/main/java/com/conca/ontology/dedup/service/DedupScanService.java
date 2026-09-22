@@ -37,7 +37,8 @@ import com.conca.ontology.shared.web.ApiException;
  *   - 调度 NormalizeAliasStage（规范化别名）+ ExactKeyStage（精确 key 组合）
  *   - Neo4j 节点数据经 GraphQueryService（只读红线保护）拉取
  *   - 阶段结果合并去重 → 生成 DupCandidateGroup 列表 + KPI 汇总
- *   - ConflictGuard 属性冲突检测 M1 简化版：仅对 era/site/province 关键属性做轻量冲突标记（不阻塞），完整 Disjoint 校验留 M4
+ *   - ConflictGuard 属性冲突检测：全局冲突属性 + 类级冲突属性并集检测
+ *   - 规则集快照：每次 scan 从 DedupRulesService 取不可变 DedupRuleset，跨线程安全
  */
 @Service
 public class DedupScanService {
@@ -46,17 +47,20 @@ public class DedupScanService {
     private final GraphSchema schema;
     private final NormalizeAliasStage normStage;
     private final ExactKeyStage exactStage;
+    private final DedupRulesService rulesService;
 
     /** 批量拉取节点时，单 label 的节点数硬上限（避免万级节点全量拉卡死；0=不限制） */
     private final int perLabelNodeLimit;
 
     public DedupScanService(GraphQueryService qs, GraphSchema schema,
                             NormalizeAliasStage normStage, ExactKeyStage exactStage,
+                            DedupRulesService rulesService,
                             @Value("${graph.dedup.per-label-node-limit:0}") int perLabelNodeLimit) {
         this.qs = qs;
         this.schema = schema;
         this.normStage = normStage;
         this.exactStage = exactStage;
+        this.rulesService = rulesService;
         this.perLabelNodeLimit = perLabelNodeLimit;
     }
 
@@ -68,6 +72,9 @@ public class DedupScanService {
         long startMs = System.currentTimeMillis();
         double threshold = req.thresholdSafe();
         String scanLabel = req.labelSafe();
+
+        // 规则快照：本次 scan 全程使用同一份不可变 rules（CopyOnRead，并发 save 不影响进行中扫描）
+        final com.conca.ontology.dedup.model.DedupRuleset rules = rulesService.getOrDefault(req.ruleSetId());
 
         Collection<ClassDef> classes;
         if ("*".equals(scanLabel)) {
@@ -88,9 +95,9 @@ public class DedupScanService {
 
         List<DupCandidateGroup> mergedGroups = new ArrayList<>();
         for (LabelRaw raw : allRaws) {
-            List<DupCandidateGroup> g1 = runNormalizeAlias(raw);
-            List<DupCandidateGroup> g2 = runExactKey(raw);
-            mergedGroups.addAll(mergeGroupResults(raw, g1, g2, threshold));
+            List<DupCandidateGroup> g1 = runNormalizeAlias(raw, rules);
+            List<DupCandidateGroup> g2 = runExactKey(raw, rules);
+            mergedGroups.addAll(mergeGroupResults(raw, g1, g2, threshold, rules));
         }
 
         mergedGroups.sort(Comparator.comparingDouble((DupCandidateGroup g) -> g.maxComposite()).reversed()
@@ -165,38 +172,36 @@ public class DedupScanService {
     // 阶段调度
     // ============================================================
 
-    private List<DupCandidateGroup> runNormalizeAlias(LabelRaw raw) {
-        // NormalizeAliasStage 以 "name" 或 CulturalRelic 的 "title" 作为 name 源
-        String nameProp = "CulturalRelic".equals(raw.label) ? "title" : "name";
+    private List<DupCandidateGroup> runNormalizeAlias(LabelRaw raw, com.conca.ontology.dedup.model.DedupRuleset rules) {
+        String nameProp = rulesService.namePropOf(rules, raw.label);
         List<NodeName> inputs = new ArrayList<>(raw.nodes.size());
         for (RawNode rn : raw.nodes) {
             Object v = rn.props.get(nameProp);
             if (v == null) {
-                // CulturalRelic 无 title 时回退 keyProp itemId（只做空白压缩）
                 v = rn.props.getOrDefault(raw.keyProp, "");
             }
             inputs.add(new NodeName(rn.eid, raw.label, String.valueOf(v),
                     rn.totalDegree, rn.propCount));
         }
-        List<NormalizeAliasStage.MatchBucket> buckets = normStage.run(inputs);
+        List<NormalizeAliasStage.MatchBucket> buckets = normStage.run(inputs, rules);
         List<DupCandidateGroup> out = new ArrayList<>(buckets.size());
         for (NormalizeAliasStage.MatchBucket b : buckets) {
             out.add(buildGroupFromNodeRefs(raw, dedupeRefs(b.nodes().stream().map(NodeName::nodeRef).toList()),
-                    "normalizeAlias", DedupAlgorithmScore.exactNormalizeOnly()));
+                    "normalizeAlias", DedupAlgorithmScore.exactNormalizeOnly(), rules));
         }
         return out;
     }
 
-    private List<DupCandidateGroup> runExactKey(LabelRaw raw) {
+    private List<DupCandidateGroup> runExactKey(LabelRaw raw, com.conca.ontology.dedup.model.DedupRuleset rules) {
         List<NodeProps> inputs = new ArrayList<>(raw.nodes.size());
         for (RawNode rn : raw.nodes) {
             inputs.add(new NodeProps(rn.eid, raw.label, rn.props, rn.totalDegree, rn.propCount));
         }
-        List<ExactKeyStage.MatchBucket> buckets = exactStage.run(inputs);
+        List<ExactKeyStage.MatchBucket> buckets = exactStage.run(inputs, rules);
         List<DupCandidateGroup> out = new ArrayList<>(buckets.size());
         for (ExactKeyStage.MatchBucket b : buckets) {
             out.add(buildGroupFromNodeRefs(raw, dedupeRefs(b.nodes().stream().map(NodeProps::nodeRef).toList()),
-                    "exactKey", DedupAlgorithmScore.exactKeyOnly(b.subStage())));
+                    "exactKey", DedupAlgorithmScore.exactKeyOnly(b.subStage()), rules));
         }
         return out;
     }
@@ -213,8 +218,8 @@ public class DedupScanService {
     // ============================================================
 
     private List<DupCandidateGroup> mergeGroupResults(LabelRaw raw,
-            List<DupCandidateGroup> g1, List<DupCandidateGroup> g2, double threshold) {
-        // key = 排序后的 eid 列表短指纹（CRC32Hex 8 位 + 长度），同组节点跨阶段命中时合并
+            List<DupCandidateGroup> g1, List<DupCandidateGroup> g2, double threshold,
+            com.conca.ontology.dedup.model.DedupRuleset rules) {
         Map<String, GroupBuilder> builders = new LinkedHashMap<>();
         for (DupCandidateGroup g : g1) absorb(builders, g);
         for (DupCandidateGroup g : g2) absorb(builders, g);
@@ -222,7 +227,7 @@ public class DedupScanService {
         List<DupCandidateGroup> out = new ArrayList<>(builders.size());
         for (GroupBuilder b : builders.values()) {
             if (b.composite < threshold || b.eids == null || b.eids.size() < 2) continue;
-            DupCandidateGroup finalGroup = finalize(raw, b);
+            DupCandidateGroup finalGroup = finalize(raw, b, rules);
             if (finalGroup != null) out.add(finalGroup);
         }
         return out;
@@ -276,7 +281,8 @@ public class DedupScanService {
     // ============================================================
 
     private DupCandidateGroup buildGroupFromNodeRefs(LabelRaw raw, List<String> eidRefs,
-                                                      String stageName, DedupAlgorithmScore baseScore) {
+                                                      String stageName, DedupAlgorithmScore baseScore,
+                                                      com.conca.ontology.dedup.model.DedupRuleset rules) {
         if (eidRefs.size() < 2) return null;
         Map<String, RawNode> byEid = new LinkedHashMap<>();
         for (RawNode rn : raw.nodes) byEid.put(rn.eid, rn);
@@ -287,15 +293,14 @@ public class DedupScanService {
         gb.bestExact = baseScore.exactKey();
         gb.composite = baseScore.composite();
         for (String eid : eidRefs) gb.perNodeScore.put(eid, baseScore);
-        DupCandidateGroup g = finalize(raw, gb);
-        return g;
+        return finalize(raw, gb, rules);
     }
 
-    private DupCandidateGroup finalize(LabelRaw raw, GroupBuilder b) {
+    private DupCandidateGroup finalize(LabelRaw raw, GroupBuilder b,
+                                       com.conca.ontology.dedup.model.DedupRuleset rules) {
         Map<String, RawNode> byEid = new LinkedHashMap<>();
         for (RawNode rn : raw.nodes) byEid.put(rn.eid, rn);
 
-        // 组级 subStageMask：所有节点 score.subStageMask 按位 OR
         int groupMask = 0;
         List<DupCandidate> cands = new ArrayList<>(b.eids.size());
         for (String eid : b.eids) {
@@ -304,7 +309,6 @@ public class DedupScanService {
             Object keyVal = rn.props.getOrDefault(raw.keyProp, "");
             DedupAlgorithmScore sc = b.perNodeScore.get(eid);
             if (sc == null) {
-                // 兜底：构造一个与组级 bestNorm/bestExact 对应的占位 score
                 int mask = (b.bestNorm  > 0 ? DedupAlgorithmScore.MASK_NORM : 0)
                          | (b.bestExact > 0 ? DedupAlgorithmScore.MASK_EXACT_NAME_AUX : 0);
                 sc = new DedupAlgorithmScore(
@@ -321,7 +325,6 @@ public class DedupScanService {
         }
         if (cands.size() < 2) return null;
 
-        // Survivor 排序：属性数 DESC → 度数 DESC → keyVal 长度 DESC → eid ASC
         cands.sort((a, c) -> {
             int d = Integer.compare(c.propCount(), a.propCount());
             if (d != 0) return d;
@@ -352,12 +355,11 @@ public class DedupScanService {
                     c.props(), c.totalDegree(), c.propCount(), i, reason, c.score()));
         }
 
-        // 简单属性冲突（M1 轻量版）：同候选组内 era/site/province/dynastyLabel/startYear
-        // 若存在两个以上不同非空值 → ATTRIBUTE；否则 NONE。Disjoint 全量校验留 M4。
-        final String[] CRITICAL = {"era", "site", "province", "dynastyLabel", "startYear", "endYear"};
+        // 属性冲突：全局 + 类级 并集（动态，取代硬编码 CRITICAL）
+        List<String> critical = rulesService.conflictPropsOf(rules, raw.label);
         ConflictLevel cl = ConflictLevel.NONE;
         String clReason = "";
-        for (String cp : CRITICAL) {
+        for (String cp : critical) {
             Set<Object> seen = new LinkedHashSet<>();
             for (DupCandidate c : ordered) {
                 Object v = c.props().get(cp);
@@ -372,7 +374,6 @@ public class DedupScanService {
             }
         }
 
-        // 组级 triggeredSubStages：按位判断（固定顺序：norm → exact-nameAux → exact-relicTitle → exact-relicTitleSize）
         List<String> subStages = new ArrayList<>(4);
         if ((groupMask & DedupAlgorithmScore.MASK_NORM) != 0)              subStages.add(DedupAlgorithmScore.SUB_NORM);
         if ((groupMask & DedupAlgorithmScore.MASK_EXACT_NAME_AUX) != 0)    subStages.add(DedupAlgorithmScore.SUB_EXACT_NAME_AUX);

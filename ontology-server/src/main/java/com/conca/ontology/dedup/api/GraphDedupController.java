@@ -41,7 +41,7 @@ public class GraphDedupController {
                     + "候选组内按 survivorPriority 给出合并后保留节点（Survivor）建议，按综合分降序排序。")
     @PostMapping("/scan")
     public ApiResponse<DedupScanResult> scan(@RequestBody(required = false) DedupScanRequest req) {
-        return ApiResponse.ok(service.scan(req == null ? new DedupScanRequest(null, null, null, null) : req));
+        return ApiResponse.ok(service.scan(req == null ? new DedupScanRequest(null, null, null, null, null) : req));
     }
 
     @Operation(summary = "快捷 GET 扫描（默认参数：全量 label，threshold 0.95，不限制组数）",
@@ -51,7 +51,8 @@ public class GraphDedupController {
             @RequestParam(required = false) String label,
             @RequestParam(required = false) Double threshold,
             @RequestParam(required = false) Integer limitGroups,
-            @RequestParam(required = false) Integer skipGroups) {
-        return ApiResponse.ok(service.scan(new DedupScanRequest(label, threshold, limitGroups, skipGroups)));
+            @RequestParam(required = false) Integer skipGroups,
+            @RequestParam(required = false) String ruleSetId) {
+        return ApiResponse.ok(service.scan(new DedupScanRequest(label, threshold, limitGroups, skipGroups, ruleSetId)));
     }
 }

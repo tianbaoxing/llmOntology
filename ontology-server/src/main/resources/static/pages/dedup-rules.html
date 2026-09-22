@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>去重规则配置</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="stylesheet" href="/pages/common.css">
+<style>
+.breadcrumb { font-size: 13px; color: #6b7280; margin-bottom: 14px; }
+.breadcrumb a { color: #2563eb; text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.dr-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px 24px; max-width: 1100px; }
+.dr-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+.dr-head h2 { margin: 0; font-size: 16px; color: #166534; border-left: 3px solid #16a34a; padding-left: 10px; }
+.dr-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.dr-field { margin-bottom: 18px; }
+.dr-field > label { display: block; color: #374151; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+.dr-field > label .hint { color: #9ca3af; font-weight: normal; margin-left: 8px; font-size: 12px; }
+.dr-field input[type=text], .dr-field select, .dr-field textarea {
+  width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; padding: 7px 10px; font-size: 13px; font-family: inherit;
+}
+.dr-field textarea { min-height: 80px; font-family: Consolas, Monaco, monospace; font-size: 12px; }
+
+.dr-row2 { display: grid; grid-template-columns: 240px 1fr; gap: 14px; align-items: start; }
+.dr-row2 select { margin-top: 29px; }
+
+.dr-suffix-row { display: grid; grid-template-columns: 240px 1fr auto; gap: 10px; align-items: start; margin-bottom: 14px; }
+.dr-suffix-row select { margin-top: 29px; }
+.dr-suffix-row button.del { margin-top: 29px; padding: 6px 10px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.dr-suffix-row button.del:hover { background: #fee2e2; }
+
+.dr-label-check { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 14px; }
+.dr-label-check label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #374151; cursor: pointer; padding: 4px 6px; border-radius: 4px; }
+.dr-label-check label:hover { background: #f9fafb; }
+.dr-label-check input { cursor: pointer; }
+.dr-label-check label small { color: #9ca3af; font-size: 11px; margin-left: auto; }
+
+.dr-add-row { margin-bottom: 14px; }
+.dr-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; color: #1e40af; font-size: 12px; margin-bottom: 14px; line-height: 1.7; }
+.dr-banner.ok { background: #dcfce7; border-color: #86efac; color: #166534; }
+
+.dr-preview-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 9999; align-items: center; justify-content: center; }
+.dr-preview-modal.open { display: flex; }
+.dr-preview-box { background: #fff; border-radius: 8px; width: 720px; max-width: 92vw; max-height: 86vh; overflow: auto; padding: 18px 20px; }
+.dr-preview-box h3 { margin: 0 0 12px; color: #1e40af; display: flex; justify-content: space-between; align-items: center; }
+.dr-preview-box h3 .x { cursor: pointer; font-size: 18px; color: #6b7280; padding: 0 8px; }
+.dr-preview-step { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
+.dr-preview-hit { background: #dcfce7; border-color: #86efac; color: #166534; font-weight: 600; padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; }
+.dr-preview-miss { background: #fee2e2; border-color: #fecaca; color: #991b1b; font-weight: 600; padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; }
+.dr-preview-reasons { list-style: none; padding: 0; margin: 0; font-size: 13px; color: #374151; line-height: 1.7; }
+.dr-preview-reasons li { padding: 4px 0 4px 18px; position: relative; }
+.dr-preview-reasons li::before { content: "·"; position: absolute; left: 6px; color: #6b7280; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="breadcrumb">
+    <a href="/pages/data.html">← 返回图谱管理（data）</a> / <b>去重规则配置</b>
+  </div>
+
+  <div class="dr-wrap">
+    <div class="dr-head">
+      <h2>去重规则配置</h2>
+      <div class="dr-actions">
+        <button class="btn sm" onclick="drOpenPreview()">🧪 预览</button>
+        <button class="btn sm" onclick="drRevert()">↩️ 撤销改动</button>
+        <button class="btn sm primary" onclick="drSave()">💾 保存</button>
+      </div>
+    </div>
+
+    <div class="dr-banner ok" id="dr-status-banner">加载中…</div>
+
+    <!-- 字段 1：后缀表（Label + 关键词数组），两组起，可加 -->
+    <div class="dr-field">
+      <label>🗂 后缀表：关键词剥离 <span class="hint">按「规则名 = Label + 关键词数组」配置；例 Place→省/市/遗址…；Era→朝/代…。循环剥离，长后缀优先；逗号、换行、顿号都可分隔。</span></label>
+      <div class="dr-banner" style="font-size:12px">
+        💡 循环剥离例：「西安市博物馆」 → 去博物馆 → 「西安市」 → 去市 → 「西安」，任一规范化 key 相同即候选。
+      </div>
+      <div id="dr-suffix-rows"></div>
+      <div class="dr-add-row">
+        <button class="btn sm" onclick="drAddSuffixRow()">＋ 新增一组（Label + 关键词）</button>
+      </div>
+    </div>
+
+    <!-- 字段 2：Label 勾选（启用哪些 Label 的 ExactKey 判重） -->
+    <div class="dr-field">
+      <label>🏷 启用 ExactKey 的 Label <span class="hint">勾选 = 对该类节点额外做「name + 辅助属性」精确指纹判重；不勾选则仅基础规范化。默认 NAME_AUX 模式，辅助属性自动选择常见字段。</span></label>
+      <div id="dr-label-check" class="dr-label-check"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 预览弹窗 -->
+<div class="dr-preview-modal" id="dr-preview-modal">
+  <div class="dr-preview-box" id="dr-preview-box"></div>
+</div>
+
+<script src="/pages/common.js"></script>
+<script>
+/* ---------- 状态 ---------- */
+let drWorking = null;       // 正在编辑的完整 DedupRuleset 快照（只有一套，当前激活）
+let drOrigJson = null;      // 原始 JSON 字符串，用于撤销 & 脏判断
+let drSchema = null;        // GraphSchema 缓存
+
+/* ---------- 初始化 ---------- */
+document.addEventListener('DOMContentLoaded', drInit);
+async function drInit() {
+  try {
+    drSchema = await api('GET', '/api/schema');
+    drRenderLabelCheckboxes();
+    // 取当前激活规则（全部为用户创建，无内置规则）
+    let active;
+    try {
+      active = await api('GET', '/api/graph/dedup/rules/active');
+    } catch (e) {
+      // 尚未创建任何规则集：初始化为空白模板，保存时新建
+      active = { id: null, name: '去重规则', version: 0, updatedAt: 0,
+        suffixTable: {}, labelConfig: {}, globalConflictProps: [] };
+    }
+    drWorking = active;
+    drOrigJson = JSON.stringify(drWorking);
+    drRenderEditor();
+  } catch (e) {
+    showMsg('初始化失败：' + e.message, false);
+  }
+}
+
+/* ---------- 渲染编辑器（把 drWorking 同步到简单表单） ---------- */
+function drRenderEditor() {
+  const r = drWorking;
+  if (!r) return;
+  const box = $('dr-suffix-rows');
+  box.innerHTML = '';
+  const entries = Object.entries(r.suffixTable || {});
+  if (!entries.length) {
+    drAddSuffixRow(null, []);
+  } else {
+    for (const [lab, arr] of entries) drAddSuffixRow(lab, arr || []);
+  }
+  document.querySelectorAll('#dr-label-check input[type=checkbox]').forEach(cb => {
+    cb.checked = !!(r.labelConfig && r.labelConfig[cb.value]);
+  });
+  const b = $('dr-status-banner');
+  b.className = 'dr-banner ok';
+  b.innerHTML = r.id
+    ? `✅ 当前编辑 <b>唯一一套</b> 激活的去重规则。ID：<code>${esc(r.id)}</code> · v${r.version} · 更新 ${fmtTime(r.updatedAt)}。修改后直接「💾 保存」整体覆盖。`
+    : `🆕 尚未创建去重规则。配置下方内容后点击「💾 保存」将创建第一套规则集。`;
+}
+
+/* ---------- 后缀表行（Label 下拉 + 关键词 textarea） ---------- */
+function drAddSuffixRow(lab, arr) {
+  const classes = (drSchema?.classes || []);
+  const id = 'dr-suffix-' + Math.random().toString(36).slice(2, 8);
+  const opts = ['<option value="">-- 选择 Label --</option>'].concat(
+    classes.map(c => `<option value="${esc(c.name)}" ${c.name===lab?'selected':''}>${esc(c.name)}（key=${esc(c.keyProp)}）</option>`)
+  ).join('');
+  const txt = (arr || []).join('，');
+  const wrap = document.createElement('div');
+  wrap.className = 'dr-suffix-row';
+  wrap.dataset.id = id;
+  wrap.innerHTML = `
+    <div>
+      <label style="font-size:13px;font-weight:600;color:#374151">规则名（Label）</label>
+      <select data-field="lab" onchange="drEnsureUniqueLabel(this)">${opts}</select>
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:600;color:#374151">关键词数据（逗号 / 换行 / 顿号 分隔）</label>
+      <textarea data-field="val" placeholder="如：省，市，遗址，博物馆，遗址公园…">${esc(txt)}</textarea>
+    </div>
+    <button class="del" onclick="drRemoveSuffixRow(this)">✕ 移除</button>
+  `;
+  $('dr-suffix-rows').appendChild(wrap);
+}
+
+function drEnsureUniqueLabel(selEl) {
+  const used = new Set();
+  document.querySelectorAll('#dr-suffix-rows select[data-field=lab]').forEach(s => {
+    if (s !== selEl && s.value) used.add(s.value);
+  });
+  if (selEl.value && used.has(selEl.value)) {
+    showMsg(`后缀表中已存在 Label「${selEl.value}」，不能重复配置。若想替换请先移除旧行。`, false);
+    selEl.value = '';
+  }
+}
+
+function drRemoveSuffixRow(btn) {
+  btn.closest('.dr-suffix-row').remove();
+}
+
+/* ---------- Label 勾选列表 ---------- */
+function drRenderLabelCheckboxes() {
+  const box = $('dr-label-check');
+  const classes = (drSchema?.classes || []);
+  if (!classes.length) { box.innerHTML = '<div style="color:#9ca3af;font-size:12px;padding:10px">Schema 中暂无 Label，请先导入图谱结构。</div>'; return; }
+  box.innerHTML = classes.map(c => `
+    <label title="${esc((c.properties||[]).map(p=>p.name).join('、'))}">
+      <input type="checkbox" value="${esc(c.name)}">
+      <span>${esc(c.name)}</span>
+      <small>key=${esc(c.keyProp)} · ${c.properties?.length||0} 属性</small>
+    </label>
+  `).join('');
+}
+
+/* ---------- 把当前表单内容收集成 DedupRuleset 对象 ---------- */
+function drCollect() {
+  if (!drWorking) return null;
+  const suffixTable = {};
+  for (const row of document.querySelectorAll('#dr-suffix-rows .dr-suffix-row')) {
+    const lab = row.querySelector('select[data-field=lab]').value.trim();
+    const val = row.querySelector('textarea[data-field=val]').value || '';
+    if (!lab) continue;
+    const arr = val.split(/[,，、\s\n\r\t]+/).map(s => s.trim()).filter(Boolean);
+    suffixTable[lab] = arr;
+  }
+  const labelConfig = {};
+  const checkedLabels = Array.from(document.querySelectorAll('#dr-label-check input[type=checkbox]:checked')).map(i => i.value);
+  for (const lab of checkedLabels) {
+    const cls = (drSchema?.classes || []).find(c => c.name === lab);
+    let auxProps = [];
+    if (cls && Array.isArray(cls.properties)) {
+      const candidates = cls.properties.map(p => p.name).filter(p => {
+        const low = p.toLowerCase();
+        if (low === 'name' || low === 'title' || low === 'id' || low === 'eid') return false;
+        return /province|kind|dynasty|identity|category|site|type|era|area|city|author|material/i.test(low)
+            || /year|county|state|school|country|language|period/i.test(low);
+      }).slice(0, 6);
+      auxProps = candidates;
+    }
+    labelConfig[lab] = { nameProp: null, auxProps, exactModes: ['NAME_AUX'], dimProps: [], conflictProps: [] };
+  }
+  return {
+    ...drWorking,
+    suffixTable,
+    labelConfig
+  };
+}
+
+/* ---------- 保存 / 撤销 ---------- */
+async function drSave() {
+  if (!drWorking) return showMsg('规则尚未加载', false);
+  const body = drCollect();
+  if (!body) return;
+  try {
+    const idx = await api('POST', '/api/graph/dedup/rules', body);
+    // 保存后重新拉最新版本
+    drWorking = await api('GET', `/api/graph/dedup/rules/${idx.id}`);
+    drOrigJson = JSON.stringify(drWorking);
+    drRenderEditor();
+    showMsg(`保存成功，版本 v${idx.version}`, true);
+  } catch (e) {
+    alert('保存失败：\n' + (e.message || '').replace(/\n/g, '\n· '));
+  }
+}
+
+function drRevert() {
+  if (!drOrigJson || !drWorking) return;
+  if (!confirm('撤销所有未保存改动？')) return;
+  drWorking = JSON.parse(drOrigJson);
+  drRenderEditor();
+  showMsg('已撤销改动', true);
+}
+
+/* ---------- 预览（和后端 POST /preview 交互） ---------- */
+function drOpenPreview() {
+  if (!drWorking) return showMsg('规则尚未加载', false);
+  const classes = (drSchema?.classes || []);
+  const labels = Object.keys(drWorking.suffixTable || {}).concat(Object.keys(drWorking.labelConfig || {}));
+  const defaultLabel = labels[0] || (classes[0] && classes[0].name) || 'Place';
+  const opts = classes.map(c => `<option value="${esc(c.name)}" ${c.name===defaultLabel?'selected':''}>${esc(c.name)}</option>`).join('');
+  $('dr-preview-box').innerHTML = `
+    <h3>🧪 去重规则预览<span class="x" onclick="drClosePreview()">×</span></h3>
+    <div class="dr-banner" style="font-size:12px">选 Label + 填两个样例，按当前编辑的规则实时判断。</div>
+    <div class="dr-row2"><div><label style="font-size:13px;font-weight:600;color:#374151">选择 Label</label><select id="pv-label">${opts}</select></div><div style="margin-top:29px"><button class="btn sm primary" onclick="drRunPreview()">▶ 运行预览</button></div></div>
+    <div class="dr-row2">
+      <div><label style="font-size:13px;font-weight:600;color:#374151">样例 A · name1</label><input id="pv-name1" type="text" value="西安市博物馆"></div>
+      <div><label style="font-size:13px;font-weight:600;color:#374151">样例 B · name2</label><input id="pv-name2" type="text" value="西安"></div>
+    </div>
+    <div class="dr-row2">
+      <div><label style="font-size:13px;font-weight:600;color:#374151">props1（JSON，可选）</label><textarea id="pv-p1">{"province":"陕西","kind":"遗址"}</textarea></div>
+      <div><label style="font-size:13px;font-weight:600;color:#374151">props2（JSON，可选）</label><textarea id="pv-p2">{}</textarea></div>
+    </div>
+    <div id="pv-result"></div>
+  `;
+  $('dr-preview-modal').classList.add('open');
+}
+function drClosePreview() { $('dr-preview-modal').classList.remove('open'); }
+
+async function drRunPreview() {
+  const label = $('pv-label').value;
+  const name1 = $('pv-name1').value.trim(), name2 = $('pv-name2').value.trim();
+  let p1 = {}, p2 = {};
+  try { p1 = JSON.parse($('pv-p1').value || '{}'); } catch (e) { return alert('props1 JSON 错：' + e.message); }
+  try { p2 = JSON.parse($('pv-p2').value || '{}'); } catch (e) { return alert('props2 JSON 错：' + e.message); }
+  if (!label || !name1 || !name2) return alert('请填 Label 和两个 name');
+  const rules = drCollect() || drWorking;
+  try {
+    const res = await api('POST', '/api/graph/dedup/rules/preview', { rules, sample: { label, name1, name2, props1: p1, props2: p2 } });
+    const box = $('pv-result');
+    const norm = (ns, t) => ns ? `<div class="dr-preview-step"><b>${esc(t)}：</b>raw=<code>${esc(ns.raw)}</code> → base=<code>${esc(ns.base)}</code><br>规范化 key：${(ns.keys||[]).length?ns.keys.map(k=>`<code>${esc(k)}</code>`).join('、'):'（无可剥离后缀）'}</div>` : '';
+    box.innerHTML = `
+      ${res.hit ? `<div class="dr-preview-hit">✅ 命中：两个样例按当前规则<b>会判定为重复候选组</b></div>` : `<div class="dr-preview-miss">⛔ 未命中：规则下未判定为重复</div>`}
+      ${norm(res.norm1, '样例 A 规范化')}
+      ${norm(res.norm2, '样例 B 规范化')}
+      <div class="dr-preview-step"><b>共享 key：</b>${(res.sharedNormKeys||[]).length?res.sharedNormKeys.map(k=>`<code style="background:#dcfce7;color:#166534">${esc(k)}</code>`).join('、'):'（无）'}</div>
+      <div class="dr-preview-step"><b>ExactKey 命中子策略：</b>${(res.exactSubStagesHit||[]).length?res.exactSubStagesHit.map(s=>`<code style="background:#dbeafe;color:#1e40af">${esc(s)}</code>`).join('、'):'（未命中）'}</div>
+      <div class="dr-preview-step"><b>原因：</b><ul class="dr-preview-reasons">${(res.reasons||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
+    `;
+  } catch (e) {
+    $('pv-result').innerHTML = `<div class="dr-preview-miss">预览失败：${esc(e.message)}</div>`;
+  }
+}
+
+function fmtTime(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+</script>
+</body>
+</html>

@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
+import com.conca.ontology.dedup.model.DedupRuleset;
+
 /**
  * 规范化别名阶段（A-1）：
  *   对每个类的 keyProp/name 类属性做标准化，生成 1~N 个 normKey。
@@ -17,10 +19,7 @@ import org.springframework.stereotype.Component;
  * 规范化顺序（按粒度从粗到细，每个节点生成多 key 以覆盖不同剥离场景）：
  *   1. 统一全角半角标点 + 空白压缩 + 首尾 trim
  *   2. 去除括号内注释【】（）() [] 以及括号本身
- *   3. 剥离后缀表（按 label 不同使用不同的后缀词典）：
- *        Place → 遗址、墓群、墓葬、博物馆、景区、风景区、市、省、自治区、区、县、镇、村
- *        Era   → 朝、代、时期、时代、年间
- *        其他类 → 无专属后缀（只用通用 1+2 两步）
+ *   3. 剥离后缀表（按 label 不同使用不同的后缀词典，从 DedupRuleset.suffixTable 动态读取）
  *   4. 前后缀剥离后再次 trim + 空值丢弃
  *
  * 最终以 List<normKey> 同 label 内做等值分组。
@@ -32,26 +31,17 @@ public class NormalizeAliasStage {
             "[（(\\[【][^）)\\]】]*[）)\\]】]");
     private static final Pattern WHITESPACE_RE = Pattern.compile("[\\s\\u3000\\t]+");
 
-    private static final String[] PLACE_SUFFIXES = {
-            "遗址博物馆", "遗址公园", "博物馆", "考古遗址", "墓群", "墓葬", "墓地",
-            "风景区", "景区", "旅游区", "自治区", "自治州", "自治县",
-            "特别行政区", "省", "市", "区", "县", "镇", "乡", "村", "遗址"
-    };
-    private static final String[] ERA_SUFFIXES = {
-            "年间", "时期", "时代", "王朝", "朝代", "代", "朝"
-    };
-
     /** 输入节点（同 label 批处理）：key=内部节点标识，value=待规范化的字符串（name） */
     public record NodeName(String nodeRef, String label, String name, long totalDegree, int propCount) {}
 
     /** 输出匹配组：同一 normKey 下所有 NodeName 引用（size≥2 才算候选组）；subStage 恒等于 "norm" */
     public record MatchBucket(String normKey, String subStage, List<NodeName> nodes) {}
 
-    public List<MatchBucket> run(List<NodeName> nodes) {
+    public List<MatchBucket> run(List<NodeName> nodes, DedupRuleset rules) {
         Map<String, List<NodeName>> buckets = new LinkedHashMap<>();
         for (NodeName n : nodes) {
             if (n.name == null || n.name.isBlank()) continue;
-            for (String nk : generateNormKeys(n.name, n.label)) {
+            for (String nk : generateNormKeys(n.name, n.label, rules)) {
                 buckets.computeIfAbsent(nk + "|" + n.label, _k -> new ArrayList<>()).add(n);
             }
         }
@@ -65,17 +55,18 @@ public class NormalizeAliasStage {
         return out;
     }
 
-    List<String> generateNormKeys(String rawName, String label) {
+    public List<String> generateNormKeys(String rawName, String label, DedupRuleset rules) {
         String base = baseNormalize(rawName);
         if (base.isEmpty()) return List.of();
         List<String> out = new ArrayList<>(4);
         out.add(base);
-        String[] suffixes = suffixesFor(label);
+        List<String> suffixes = suffixesFor(label, rules);
         String stripped = base;
         boolean changed;
         do {
             changed = false;
             for (String sfx : suffixes) {
+                if (sfx == null || sfx.isEmpty()) continue;
                 if (stripped.endsWith(sfx) && stripped.length() > sfx.length()) {
                     stripped = stripped.substring(0, stripped.length() - sfx.length()).trim();
                     changed = true;
@@ -89,13 +80,10 @@ public class NormalizeAliasStage {
         return out;
     }
 
-    private String[] suffixesFor(String label) {
-        if (label == null) return new String[0];
-        return switch (label) {
-            case "Place" -> PLACE_SUFFIXES;
-            case "Era"   -> ERA_SUFFIXES;
-            default      -> new String[0];
-        };
+    private List<String> suffixesFor(String label, DedupRuleset rules) {
+        if (label == null || rules == null || rules.suffixTable() == null) return List.of();
+        List<String> s = rules.suffixTable().get(label);
+        return s == null ? List.of() : s;
     }
 
     /** 基础规范化：全角括号去内容 + 全角半角标点统一 + 空白压缩 */
