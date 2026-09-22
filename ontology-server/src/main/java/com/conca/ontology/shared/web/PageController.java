@@ -70,7 +70,7 @@ public class PageController {
         return "forward:/pages/users.html";
     }
 
-    /** 实例列表页（?label= 按类筛选，?page= 分页） */
+    /** 实例列表页（?label= 按类筛选，?page= 分页，?q= 关键词搜索） */
     @GetMapping("/instances")
     public String instances() {
         return "forward:/pages/instances.html";

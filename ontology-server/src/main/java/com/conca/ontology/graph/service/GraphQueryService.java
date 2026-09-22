@@ -72,19 +72,27 @@ public class GraphQueryService {
         return new GraphStatsView(nodeCounts, relCounts);
     }
 
-    /** 分页列出某 label 的实例（key + 全属性，供管理页实例列表） */
+    /** 分页列出某 label 的实例（key + 全属性，供管理页实例列表）；q 非空时按任意属性包含匹配过滤（忽略大小写） */
     @SuppressWarnings("unchecked")
-    public NodesPageView nodesPage(String label, int page, int size) {
+    public NodesPageView nodesPage(String label, int page, int size, String q) {
         schema.checkLabel(label);
         String keyProp = schema.keyPropOf(label);
         int p = Math.max(1, page);
         int s = Math.max(1, Math.min(size, 200));
+        String kw = q == null ? "" : q.trim();
+        String where = kw.isEmpty() ? " "
+                : " WHERE any(k IN keys(n) WHERE toLower(toString(n[k])) CONTAINS toLower($kw)) ";
+        Map<String, Object> params = new HashMap<>();
+        params.put("skip", (p - 1) * s);
+        params.put("limit", s);
+        params.put("kw", kw);
         QueryResult result = query(
-                "MATCH (n:`" + label + "`) WITH count(n) AS total "
-                        + "MATCH (n:`" + label + "`) "
+                "MATCH (n:`" + label + "`)" + where
+                        + "WITH count(n) AS total "
+                        + "MATCH (n:`" + label + "`)" + where
                         + "RETURN total AS total, n.`" + keyProp + "` AS key, properties(n) AS props "
                         + "ORDER BY key SKIP $skip LIMIT $limit",
-                Map.of("skip", (p - 1) * s, "limit", s));
+                params);
         List<Map<String, Object>> rawRows = result.rows();
         long total = rawRows.isEmpty() ? 0L
                 : ((Number) rawRows.get(0).get("total")).longValue();

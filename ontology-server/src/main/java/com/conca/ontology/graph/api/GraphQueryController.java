@@ -38,13 +38,15 @@ public class GraphQueryController {
         return ApiResponse.ok(queryService.stats());
     }
 
-    @Operation(summary = "分页实例列表", description = "概览页\"实例数\"跳转的数据源；按唯一键排序分页。")
+    @Operation(summary = "分页实例列表", description = "概览页\"实例数\"跳转的数据源；按唯一键排序分页；q 非空时按关键词过滤。")
     @GetMapping("/nodes")
     public ApiResponse<NodesPageView> nodes(
             @Parameter(description = "节点标签", example = "Era") @RequestParam String label,
             @Parameter(description = "页码（从 1 起）", example = "1") @RequestParam(defaultValue = "1") int page,
-            @Parameter(description = "页大小（1..200）", example = "50") @RequestParam(defaultValue = "50") int size) {
-        return ApiResponse.ok(queryService.nodesPage(label, page, size));
+            @Parameter(description = "页大小（1..200）", example = "50") @RequestParam(defaultValue = "50") int size,
+            @Parameter(description = "搜索关键词：任意属性包含匹配（忽略大小写），空则不过滤", example = "青铜")
+            @RequestParam(required = false) String q) {
+        return ApiResponse.ok(queryService.nodesPage(label, page, size, q));
     }
 
     @Operation(summary = "节点详情 + 出入边", description = "返回节点属性与全部出入边（上限 200 行）。")

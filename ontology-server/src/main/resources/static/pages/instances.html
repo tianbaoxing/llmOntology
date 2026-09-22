@@ -18,12 +18,19 @@ input[type=number] { padding: 5px 8px; border: 1px solid #d1d5db; border-radius:
 .detail-item b { width: auto; }
 .detail-item.long { grid-column: 1 / -1; }
 .empty { padding: 40px; text-align: center; color: #9ca3af; }
+.search-bar { display: flex; align-items: center; gap: 8px; margin: 4px 0 14px; flex-wrap: wrap; }
+.search-bar input[type=text] { flex: 0 1 320px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="card">
     <h2 id="page-title">实例列表</h2>
+    <div class="search-bar">
+      <input type="text" id="kw" placeholder="输入关键词，匹配实例任意属性" onkeydown="if(event.key==='Enter')doSearch()">
+      <button class="btn" onclick="doSearch()">搜索</button>
+      <a class="btn ghost" id="reset" href="javascript:void(0)" onclick="clearSearch()" style="display:none">重置</a>
+    </div>
     <div id="list"></div>
     <div id="pager" class="pager"></div>
   </div>
@@ -32,12 +39,13 @@ input[type=number] { padding: 5px 8px; border: 1px solid #d1d5db; border-radius:
 <script>
 const qs = new URLSearchParams(location.search);
 const LABEL = qs.get('label') || '';
+const Q = (qs.get('q') || '').trim();
 const SIZE = 50;
 let page = Math.max(1, parseInt(qs.get('page')) || 1);
 let propDefs = [];   // schema 属性定义（含中文名），用于详情展示
 
 function href(p) {
-  return `/instances?label=${encodeURIComponent(LABEL)}&page=${p}`;
+  return `/instances?label=${encodeURIComponent(LABEL)}&page=${p}` + (Q ? `&q=${encodeURIComponent(Q)}` : '');
 }
 
 function fmt(v) {
@@ -48,14 +56,15 @@ function fmt(v) {
 
 function renderTitle(cls, data) {
   const cn = cls ? cls.cnName : LABEL;
+  const countText = Q ? `关键词“<b>${esc(Q)}</b>”匹配 ${data.total} 条实例` : `共 ${data.total} 条实例`;
   $('page-title').innerHTML =
     `${esc(LABEL)} · ${esc(cn)} ${cls ? badge(cls.layer) : ''}
-     <span class="muted" style="margin-left:12px">共 ${data.total} 条实例（key：<code>${esc(data.keyProp)}</code>，每页 ${data.size} 条）· 点击行查看图谱，▾ 展开属性</span>`;
+     <span class="muted" style="margin-left:12px">${countText}（key：<code>${esc(data.keyProp)}</code>，每页 ${data.size} 条）· 点击行查看图谱，▾ 展开属性</span>`;
 }
 
 function renderList(data) {
   if (!data.rows.length) {
-    $('list').innerHTML = '<div class="empty">该类型暂无实例</div>';
+    $('list').innerHTML = Q ? `<div class="empty">未找到匹配“${esc(Q)}”的实例</div>` : '<div class="empty">该类型暂无实例</div>';
     $('pager').innerHTML = '';
     return;
   }
@@ -110,13 +119,25 @@ function jumpPage(pages) {
   const p = Math.min(Math.max(1, parseInt($('jump').value) || 1), pages);
   location.href = href(p);
 }
+function doSearch() {
+  const kw = $('kw').value.trim();
+  location.href = `/instances?label=${encodeURIComponent(LABEL)}&page=1` + (kw ? `&q=${encodeURIComponent(kw)}` : '');
+}
+function clearSearch() {
+  $('kw').value = '';
+  if (Q) location.href = `/instances?label=${encodeURIComponent(LABEL)}&page=1`;
+}
 
 async function init() {
   try {
+    $('kw').value = Q;
+    $('reset').style.display = Q ? '' : 'none';
     const schema = await api('GET', '/api/schema');
     const cls = schema.classes.find(c => c.name === LABEL);
     if (cls) propDefs = cls.properties || [];
-    const data = await api('GET', `/api/graph/nodes?label=${encodeURIComponent(LABEL)}&page=${page}&size=${SIZE}`);
+    let apiUrl = `/api/graph/nodes?label=${encodeURIComponent(LABEL)}&page=${page}&size=${SIZE}`;
+    if (Q) apiUrl += `&q=${encodeURIComponent(Q)}`;
+    const data = await api('GET', apiUrl);
     page = data.page;
     renderTitle(cls, data);
     renderList(data);
