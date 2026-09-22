@@ -31,7 +31,7 @@ public class DedupRulesFileStore {
 
     private final ObjectMapper mapper;
 
-    @Value("${graph.dedup.rules-file:data/dedup/rules.json}")
+    @Value("${graph.dedup.rules-file:data/dedup-rules.json}")
     private String rulesFile;
 
     public DedupRulesFileStore(ObjectMapper mapper) {
