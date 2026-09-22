@@ -8,10 +8,9 @@ public record DedupLabelConfig(
         @Schema(description = "name 属性源（如 CulturalRelic 用 title，其他一般用 name）", example = "name") String nameProp,
         @Schema(description = "NAME_AUX 模式的辅助属性列表", example = "[\"province\", \"kind\"]") List<String> auxProps,
         @Schema(description = "启用的精确匹配模式列表") List<DedupExactMode> exactModes,
-        @Schema(description = "TITLE_DIMS 模式的尺寸/维度属性列表", example = "[]") List<String> dimProps,
         @Schema(description = "该 label 私有的冲突检测关键属性（与 globalConflictProps 取并集）", example = "[\"site\", \"province\"]") List<String> conflictProps) {
 
     public static DedupLabelConfig empty(String nameProp) {
-        return new DedupLabelConfig(nameProp, List.of(), List.of(), List.of(), List.of());
+        return new DedupLabelConfig(nameProp, List.of(), List.of(), List.of());
     }
 }

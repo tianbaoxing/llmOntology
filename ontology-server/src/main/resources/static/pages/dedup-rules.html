@@ -30,11 +30,47 @@
 .dr-suffix-row button.del { margin-top: 29px; padding: 6px 10px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .dr-suffix-row button.del:hover { background: #fee2e2; }
 
-.dr-label-check { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 14px; }
-.dr-label-check label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #374151; cursor: pointer; padding: 4px 6px; border-radius: 4px; }
-.dr-label-check label:hover { background: #f9fafb; }
-.dr-label-check input { cursor: pointer; }
-.dr-label-check label small { color: #9ca3af; font-size: 11px; margin-left: auto; }
+/* 术语说明折叠块 */
+.dr-terms-toggle { display: inline-block; font-size: 12px; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; padding: 3px 12px; cursor: pointer; margin: 2px 0 10px; user-select: none; }
+.dr-terms-toggle:hover { background: #dbeafe; }
+.dr-terms { display: none; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; }
+.dr-terms table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.dr-terms th, .dr-terms td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: top; }
+.dr-terms th { color: #6b7280; font-weight: 600; white-space: nowrap; }
+.dr-terms tr:last-child td { border-bottom: none; }
+.dr-terms td:first-child { font-family: Consolas, Monaco, monospace; color: #1e40af; white-space: nowrap; }
+.dr-terms td:nth-child(2) { white-space: nowrap; font-weight: 600; }
+
+/* Label 配置卡 */
+.dr-card { border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 10px; background: #fff; }
+.dr-card-head { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; user-select: none; }
+.dr-card-head:hover { background: #f9fafb; }
+.dr-card-head b { font-size: 13px; color: #374151; white-space: nowrap; }
+.dr-card-summary { flex: 1; color: #6b7280; font-size: 12px; line-height: 1.6; }
+.dr-card-summary code { background: #f3f4f6; border-radius: 4px; padding: 0 5px; font-size: 11px; }
+.dr-badge { display: inline-block; background: #dcfce7; color: #166534; border-radius: 999px; padding: 1px 8px; font-size: 11px; margin: 0 2px; }
+.dr-arrow { color: #9ca3af; transition: transform .15s; font-size: 12px; }
+.dr-card.open .dr-arrow { transform: rotate(90deg); }
+.dr-card-body { display: none; border-top: 1px solid #e5e7eb; padding: 12px 14px; }
+.dr-card.open .dr-card-body { display: block; }
+.dr-card.off .dr-card-body { opacity: .45; pointer-events: none; }
+.dr-grp { margin-bottom: 14px; }
+.dr-grp:last-child { margin-bottom: 0; }
+.dr-grp.disabled { opacity: .45; pointer-events: none; }
+.dr-grp-title { font-weight: 600; font-size: 13px; color: #374151; }
+.dr-grp-title code { color: #9ca3af; font-weight: normal; font-size: 11px; margin-left: 6px; }
+.dr-grp-desc { color: #6b7280; font-size: 12px; margin: 2px 0 7px; }
+.dr-mode { display: inline-flex; align-items: center; gap: 5px; margin-right: 16px; font-size: 13px; color: #374151; cursor: pointer; white-space: nowrap; }
+.dr-mode code { color: #9ca3af; font-size: 11px; }
+.dr-mode.off { color: #9ca3af; cursor: not-allowed; }
+.dr-mode-note { background: #eff6ff; border-radius: 6px; color: #1e40af; padding: 6px 10px; font-size: 12px; margin-top: 7px; line-height: 1.8; }
+.dr-chip { display: inline-flex; align-items: center; gap: 5px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-family: Consolas, Monaco, monospace; color: #374151; margin: 2px 6px 2px 0; }
+.dr-chip b { cursor: pointer; color: #9ca3af; font-weight: normal; font-style: normal; }
+.dr-chip b:hover { color: #b91c1c; }
+.dr-chip-add-sel { font-size: 12px; border: 1px dashed #16a34a; border-radius: 6px; padding: 3px 6px; color: #166534; background: #f0fdf4; max-width: 160px; vertical-align: middle; }
+.dr-chip-add { border: 1px solid #bbf7d0; background: #dcfce7; color: #166534; border-radius: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer; vertical-align: middle; }
+.dr-chip-add:hover { background: #bbf7d0; }
+.dr-card-empty { color: #9ca3af; font-size: 12px; padding: 10px; }
 
 .dr-add-row { margin-bottom: 14px; }
 .dr-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px; color: #1e40af; font-size: 12px; margin-bottom: 14px; line-height: 1.7; }
@@ -83,10 +119,22 @@
       </div>
     </div>
 
-    <!-- 字段 2：Label 勾选（启用哪些 Label 的 ExactKey 判重） -->
+    <!-- 字段 2：Label 精确判重配置（勾选 + 可折叠配置卡） -->
     <div class="dr-field">
-      <label>🏷 启用 ExactKey 的 Label <span class="hint">勾选 = 对该类节点额外做「name + 辅助属性」精确指纹判重；不勾选则仅基础规范化。默认 NAME_AUX 模式，辅助属性自动选择常见字段。</span></label>
-      <div id="dr-label-check" class="dr-label-check"></div>
+      <label>🏷 Label 精确判重配置 <span class="hint">勾选 = 启用该类的精确指纹判重；点击行首展开配置。不勾选则该类仅做后缀规范化相似度判重。</span></label>
+      <div class="dr-terms-toggle" onclick="drToggleTerms()">❓ 什么是精确判重模式 / 冲突属性？（点击展开术语说明）</div>
+      <div class="dr-terms" id="dr-terms">
+        <table>
+          <tr><th>代码字段</th><th>中文名</th><th>解释</th></tr>
+          <tr><td>nameProp</td><td>名称属性</td><td>判重时取哪个属性当实体的「名字」</td></tr>
+          <tr><td>exactModes</td><td>精确判重模式</td><td>两个实体满足什么条件即判定为同一个，可多选</td></tr>
+          <tr><td>└ NAME_AUX</td><td>名称+辅助属性</td><td>名字规范化后相同，<b>且</b>辅助属性一致</td></tr>
+          <tr><td>auxProps</td><td>辅助属性</td><td>配合「名称+辅助属性」模式，防止同名误合并</td></tr>
+          <tr><td>conflictProps</td><td>冲突属性</td><td>值不一致 → 禁止自动合并，转人工确认</td></tr>
+          <tr><td>globalConflictProps</td><td>全局冲突属性</td><td>同上，对所有类生效</td></tr>
+        </table>
+      </div>
+      <div id="dr-label-cards"></div>
     </div>
   </div>
 </div>
@@ -108,7 +156,7 @@ document.addEventListener('DOMContentLoaded', drInit);
 async function drInit() {
   try {
     drSchema = await api('GET', '/api/schema');
-    drRenderLabelCheckboxes();
+    drBindCards();
     // 取当前激活规则（全部为用户创建，无内置规则）
     let active;
     try {
@@ -138,9 +186,7 @@ function drRenderEditor() {
   } else {
     for (const [lab, arr] of entries) drAddSuffixRow(lab, arr || []);
   }
-  document.querySelectorAll('#dr-label-check input[type=checkbox]').forEach(cb => {
-    cb.checked = !!(r.labelConfig && r.labelConfig[cb.value]);
-  });
+  drRenderLabelCards(r.labelConfig || {});
   const b = $('dr-status-banner');
   b.className = 'dr-banner ok';
   b.innerHTML = r.id
@@ -188,18 +234,149 @@ function drRemoveSuffixRow(btn) {
   btn.closest('.dr-suffix-row').remove();
 }
 
-/* ---------- Label 勾选列表 ---------- */
-function drRenderLabelCheckboxes() {
-  const box = $('dr-label-check');
+/* ---------- Label 配置卡（勾选 + 折叠编辑） ---------- */
+let drCardOpen = {};   // 折叠状态记忆 { label: true/false }
+
+const DR_MODES = [
+  { code: 'NAME_AUX', name: '名称+辅助属性', tip: '名字规范化后相同，且辅助属性一致' }
+];
+
+function drToggleTerms() {
+  const t = $('dr-terms');
+  t.style.display = t.style.display === 'block' ? 'none' : 'block';
+}
+
+function drPropNames(lab) {
+  const cls = (drSchema?.classes || []).find(c => c.name === lab);
+  return cls && Array.isArray(cls.properties) ? cls.properties.map(p => p.name) : [];
+}
+
+/** 新勾选 Label 的名称属性默认值：name → title → keyProp → 第一个属性 */
+function drDefaultNameProp(lab) {
+  const props = drPropNames(lab);
+  for (const cand of ['name', 'title']) if (props.includes(cand)) return cand;
+  const cls = (drSchema?.classes || []).find(c => c.name === lab);
+  if (cls && cls.keyProp && props.includes(cls.keyProp)) return cls.keyProp;
+  return props[0] || '';
+}
+
+function drCardHtml(c, cfg) {
+  const lab = c.name;
+  const props = drPropNames(lab);
+  const nameProp = cfg && cfg.nameProp ? cfg.nameProp : drDefaultNameProp(lab);
+  const modes = cfg && Array.isArray(cfg.exactModes) && cfg.exactModes.length ? cfg.exactModes : ['NAME_AUX'];
+  const opts = props.map(p => `<option value="${esc(p)}" ${p === nameProp ? 'selected' : ''}>${esc(p)}</option>`).join('');
+  const modeHtml = DR_MODES.map(m => `
+    <label class="dr-mode" title="${esc(m.tip)}">
+      <input type="checkbox" data-field="mode" value="${m.code}" ${modes.includes(m.code) ? 'checked' : ''}>${m.name}<code>${m.code}</code>
+    </label>`).join('');
+  return `
+  <div class="dr-card" data-lab="${esc(lab)}">
+    <div class="dr-card-head" title="${esc(props.join('、'))}">
+      <input type="checkbox" data-field="enable" ${cfg ? 'checked' : ''} title="勾选 = 启用该类的精确判重">
+      <b>${esc(lab)}</b><small style="color:#9ca3af;font-size:11px">key=${esc(c.keyProp)} · ${props.length} 属性</small>
+      <span class="dr-card-summary">…</span>
+      <span class="dr-arrow">▸</span>
+    </div>
+    <div class="dr-card-body">
+      <div class="dr-grp">
+        <div class="dr-grp-title">名称属性<code>nameProp</code></div>
+        <div class="dr-grp-desc">判重时取哪个属性当实体的「名字」——地点类用 name，文物类通常用 title</div>
+        <select data-field="nameProp" style="max-width:240px">${opts}</select>
+      </div>
+      <div class="dr-grp">
+        <div class="dr-grp-title">精确判重模式<code>exactModes</code></div>
+        <div class="dr-grp-desc">两个实体满足什么条件即判定为同一个，可多选</div>
+        <div>${modeHtml}</div>
+        <div class="dr-mode-note">名称+辅助属性＝名字规范化后相同且辅助属性一致。不勾选＝该类仅做后缀规范化相似度判重。</div>
+      </div>
+      <div class="dr-grp" data-ggrp="auxProps">
+        <div class="dr-grp-title">辅助属性<code>auxProps</code></div>
+        <div class="dr-grp-desc">「名称+辅助属性」模式使用：名称相同且这些属性值一致才判重，防止同名不同实体误合并</div>
+        <div class="dr-chips" data-chips="auxProps"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function drRenderLabelCards(cfg) {
+  const box = $('dr-label-cards');
   const classes = (drSchema?.classes || []);
-  if (!classes.length) { box.innerHTML = '<div style="color:#9ca3af;font-size:12px;padding:10px">Schema 中暂无 Label，请先导入图谱结构。</div>'; return; }
-  box.innerHTML = classes.map(c => `
-    <label title="${esc((c.properties||[]).map(p=>p.name).join('、'))}">
-      <input type="checkbox" value="${esc(c.name)}">
-      <span>${esc(c.name)}</span>
-      <small>key=${esc(c.keyProp)} · ${c.properties?.length||0} 属性</small>
-    </label>
-  `).join('');
+  if (!classes.length) { box.innerHTML = '<div class="dr-card-empty">Schema 中暂无 Label，请先导入图谱结构。</div>'; return; }
+  box.innerHTML = classes.map(c => drCardHtml(c, (cfg || {})[c.name] || null)).join('');
+  box.querySelectorAll('.dr-card').forEach(card => {
+    const lab = card.dataset.lab;
+    const c = (cfg || {})[lab] || {};
+    drRenderChipGroup(card, 'auxProps', Array.isArray(c.auxProps) ? c.auxProps : []);
+    if (drCardOpen[lab]) card.classList.add('open');
+    drSyncCard(card);
+  });
+}
+
+function drChipVals(card, field) {
+  return Array.from(card.querySelectorAll(`[data-chips=${field}] .dr-chip`)).map(x => x.dataset.v);
+}
+
+function drRenderChipGroup(card, field, vals) {
+  const box = card.querySelector(`[data-chips=${field}]`);
+  const rest = drPropNames(card.dataset.lab).filter(p => !vals.includes(p));
+  const chips = vals.map(v => `<span class="dr-chip" data-v="${esc(v)}">${esc(v)}<b class="dr-chip-x" title="移除">×</b></span>`).join('');
+  const adder = rest.length
+    ? `<select class="dr-chip-add-sel">${rest.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select><button type="button" class="dr-chip-add" title="添加">＋ 添加</button>`
+    : '<span style="color:#9ca3af;font-size:12px">（已全部添加）</span>';
+  box.innerHTML = chips + adder;
+}
+
+/** 同步单张卡的灰态联动与摘要行 */
+function drSyncCard(card) {
+  const enable = card.querySelector('[data-field=enable]');
+  const nameSel = card.querySelector('[data-field=nameProp]');
+  const modes = Array.from(card.querySelectorAll('[data-field=mode]:checked')).map(i => i.value);
+  // 灰态：模式未勾选时，对应属性区不可编辑
+  card.querySelector('[data-ggrp=auxProps]').classList.toggle('disabled', !modes.includes('NAME_AUX'));
+  // 摘要行
+  const sum = card.querySelector('.dr-card-summary');
+  card.classList.toggle('off', !enable.checked);
+  if (!enable.checked) {
+    sum.innerHTML = '未启用（该类仅做后缀规范化相似度判重）';
+  } else {
+    const badges = modes.length
+      ? modes.map(m => { const x = DR_MODES.find(d => d.code === m); return `<span class="dr-badge">${esc(x ? x.name : m)}</span>`; }).join('')
+      : '<span class="dr-badge" style="background:#f3f4f6;color:#6b7280">无精确模式</span>';
+    const auxN = drChipVals(card, 'auxProps').length;
+    sum.innerHTML = `名称属性 <code>${esc(nameSel.value || '-')}</code> ${badges} 辅助 ${auxN} 项`;
+  }
+}
+
+/** 事件委托：折叠、勾选、灰态联动、chips 增删（绑定一次） */
+function drBindCards() {
+  const box = $('dr-label-cards');
+  box.addEventListener('click', e => {
+    const chipX = e.target.closest('.dr-chip-x');
+    if (chipX) {
+      const grp = chipX.closest('[data-chips]'), card = chipX.closest('.dr-card');
+      const field = grp.dataset.chips, v = chipX.closest('.dr-chip').dataset.v;
+      drRenderChipGroup(card, field, drChipVals(card, field).filter(x => x !== v));
+      drSyncCard(card); return;
+    }
+    const add = e.target.closest('.dr-chip-add');
+    if (add) {
+      const grp = add.closest('[data-chips]'), card = add.closest('.dr-card');
+      const field = grp.dataset.chips, sel = grp.querySelector('select');
+      if (sel && sel.value) { drRenderChipGroup(card, field, [...drChipVals(card, field), sel.value]); drSyncCard(card); }
+      return;
+    }
+    const head = e.target.closest('.dr-card-head');
+    if (head && !e.target.closest('input')) {
+      const card = head.closest('.dr-card');
+      card.classList.toggle('open');
+      drCardOpen[card.dataset.lab] = card.classList.contains('open');
+    }
+  });
+  box.addEventListener('change', e => {
+    const card = e.target.closest('.dr-card');
+    if (card && e.target.matches('[data-field=enable],[data-field=nameProp],[data-field=mode]')) drSyncCard(card);
+  });
 }
 
 /* ---------- 把当前表单内容收集成 DedupRuleset 对象 ---------- */
@@ -214,21 +391,17 @@ function drCollect() {
     suffixTable[lab] = arr;
   }
   const labelConfig = {};
-  const checkedLabels = Array.from(document.querySelectorAll('#dr-label-check input[type=checkbox]:checked')).map(i => i.value);
-  for (const lab of checkedLabels) {
-    const cls = (drSchema?.classes || []).find(c => c.name === lab);
-    let auxProps = [];
-    if (cls && Array.isArray(cls.properties)) {
-      const candidates = cls.properties.map(p => p.name).filter(p => {
-        const low = p.toLowerCase();
-        if (low === 'name' || low === 'title' || low === 'id' || low === 'eid') return false;
-        return /province|kind|dynasty|identity|category|site|type|era|area|city|author|material/i.test(low)
-            || /year|county|state|school|country|language|period/i.test(low);
-      }).slice(0, 6);
-      auxProps = candidates;
-    }
-    labelConfig[lab] = { nameProp: null, auxProps, exactModes: ['NAME_AUX'], dimProps: [], conflictProps: [] };
-  }
+  document.querySelectorAll('#dr-label-cards .dr-card').forEach(card => {
+    if (!card.querySelector('[data-field=enable]').checked) return;
+    const lab = card.dataset.lab;
+    const prev = (drWorking.labelConfig || {})[lab] || {};
+    labelConfig[lab] = {
+      nameProp: card.querySelector('[data-field=nameProp]').value || null,
+      exactModes: Array.from(card.querySelectorAll('[data-field=mode]:checked')).map(i => i.value),
+      auxProps: drChipVals(card, 'auxProps'),
+      conflictProps: prev.conflictProps || []   // 本期不提供编辑入口，保留已有值
+    };
+  });
   return {
     ...drWorking,
     suffixTable,

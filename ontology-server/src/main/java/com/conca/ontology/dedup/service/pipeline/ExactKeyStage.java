@@ -16,15 +16,11 @@ import com.conca.ontology.dedup.model.DedupRuleset;
  * 精确 key 归一化阶段（A-2）：
  *   规范化 name 仍不相同，但某些属性组合完全一致 → 判重。
  *
- * 按 DedupRuleset.labelConfig 中 exactModes 的配置动态执行 3 种组合模式（命中任一即可）：
- *   NAME_AUX     ：name 规范化后相同 + 辅助属性值相同（若都非空）
- *   TITLE_ONLY   ：title 规范化后相同（适用于 CulturalRelic 等 nameProp=title 的类）
- *   TITLE_DIMS   ：title 规范化后相同 + 尺寸/维度属性完全一致（至少 1 个维度属性双方都非空）
+ * 按 DedupRuleset.labelConfig 中 exactModes 的配置动态执行：
+ *   NAME_AUX：name 规范化后相同 + 辅助属性值相同（若都非空）
  *
  * MatchBucket.subStage 统一取值（与 DedupAlgorithmScore.SUB_* 常量对齐）：
- *   "exact-nameAux"      NAME_AUX
- *   "exact-relicTitle"   TITLE_ONLY
- *   "exact-relicTitleSize" TITLE_DIMS
+ *   "exact-nameAux"  NAME_AUX
  */
 @Component
 public class ExactKeyStage {
@@ -53,8 +49,6 @@ public class ExactKeyStage {
         for (DedupExactMode m : modes) {
             switch (m) {
                 case NAME_AUX -> out.addAll(modeNamePlusAux(nodes, label, cfg));
-                case TITLE_ONLY -> out.addAll(modeTitleOnly(nodes, cfg));
-                case TITLE_DIMS -> out.addAll(modeTitlePlusDims(nodes, cfg));
             }
         }
         return out;
@@ -78,62 +72,6 @@ public class ExactKeyStage {
         for (List<NodeProps> grp : buckets.values()) {
             if (grp.size() >= 2) {
                 out.add(new MatchBucket("name+aux", "exact-nameAux", List.copyOf(grp)));
-            }
-        }
-        return out;
-    }
-
-    /** TITLE_ONLY：title(=nameProp) 规范化完全一致 */
-    private List<MatchBucket> modeTitleOnly(List<NodeProps> nodes, DedupLabelConfig cfg) {
-        Map<String, List<NodeProps>> buckets = new LinkedHashMap<>();
-        String nameProp = cfg.nameProp() == null || cfg.nameProp().isBlank() ? "title" : cfg.nameProp();
-        for (NodeProps n : nodes) {
-            Object rawTitle = n.props().get(nameProp);
-            if (rawTitle == null) continue;
-            String norm = normalize.baseNormalize(String.valueOf(rawTitle));
-            if (norm.isEmpty()) continue;
-            buckets.computeIfAbsent(norm, _k -> new ArrayList<>()).add(n);
-        }
-        List<MatchBucket> out = new ArrayList<>();
-        for (List<NodeProps> grp : buckets.values()) {
-            if (grp.size() >= 2) {
-                out.add(new MatchBucket("relic:title", "exact-relicTitle", List.copyOf(grp)));
-            }
-        }
-        return out;
-    }
-
-    /** TITLE_DIMS：title 规范化 + 尺寸/维度属性一致（至少 1 个维度属性双方都有） */
-    private List<MatchBucket> modeTitlePlusDims(List<NodeProps> nodes, DedupLabelConfig cfg) {
-        Map<String, List<NodeProps>> buckets = new LinkedHashMap<>();
-        String nameProp = cfg.nameProp() == null || cfg.nameProp().isBlank() ? "title" : cfg.nameProp();
-        List<String> dimsList = cfg.dimProps() == null ? List.of() : cfg.dimProps();
-        String[] DIMS = dimsList.toArray(new String[0]);
-        for (NodeProps n : nodes) {
-            Object rawTitle = n.props().get(nameProp);
-            if (rawTitle == null) continue;
-            String norm = normalize.baseNormalize(String.valueOf(rawTitle));
-            if (norm.isEmpty()) continue;
-            StringBuilder dims = new StringBuilder();
-            for (String d : DIMS) {
-                Object v = n.props().get(d);
-                dims.append(d).append('=').append(v == null ? "?" : v.toString()).append(';');
-            }
-            String fullKey = norm + "||" + dims.toString();
-            buckets.computeIfAbsent(fullKey, _k -> new ArrayList<>()).add(n);
-        }
-        List<MatchBucket> out = new ArrayList<>();
-        for (List<NodeProps> grp : buckets.values()) {
-            if (grp.size() >= 2) {
-                boolean bothHaveSize = grp.stream().allMatch(np -> {
-                    for (String d : DIMS) {
-                        if (np.props().get(d) != null) return true;
-                    }
-                    return false;
-                });
-                if (bothHaveSize) {
-                    out.add(new MatchBucket("relic:title+size", "exact-relicTitleSize", List.copyOf(grp)));
-                }
             }
         }
         return out;

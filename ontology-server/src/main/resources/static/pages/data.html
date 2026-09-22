@@ -276,13 +276,6 @@
 .dp-strat-card .v { font-size: 22px; font-weight: 700; color: #1f2937; }
 .dp-strat-card.norm .v { color: #7c3aed; }
 .dp-strat-card.multi .v { color: #d97706; }
-.dp-exact-breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
-.dp-exact-sub { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; text-align: center; }
-.dp-exact-sub .st { font-size: 10.5px; color: #64748b; margin-bottom: 4px; height: 22px; line-height: 1.1; display: flex; align-items: center; justify-content: center; }
-.dp-exact-sub .sv { font-size: 18px; font-weight: 700; color: #0f172a; }
-.dp-exact-sub.sub-aux   { border-color: #bfdbfe; } .dp-exact-sub.sub-aux .sv   { color: #2563eb; }
-.dp-exact-sub.sub-title { border-color: #a5f3fc; } .dp-exact-sub.sub-title .sv { color: #0891b2; }
-.dp-exact-sub.sub-size  { border-color: #99f6e4; } .dp-exact-sub.sub-size .sv  { color: #0f766e; }
 
 /* ---------- Layer 2B：Label × 策略 矩阵 ---------- */
 .dp-matrix-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
@@ -315,8 +308,6 @@
 .dp-showcase-card .tag { border-radius: 10px; padding: 1px 8px; font-size: 10.5px; font-weight: 700; color: #fff; }
 .dp-showcase-card .tag.s-norm  { background: #7c3aed; }
 .dp-showcase-card .tag.s-aux   { background: #2563eb; }
-.dp-showcase-card .tag.s-title { background: #0891b2; }
-.dp-showcase-card .tag.s-size  { background: #0f766e; }
 .dp-showcase-card .tag.s-multi { background: #d97706; }
 .dp-showcase-card .k { font-size: 13px; font-weight: 600; color: #111827; margin: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dp-showcase-card .s { font-size: 11px; color: #4b5563; margin-top: 4px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
@@ -1942,11 +1933,9 @@ function gqEdgeActionBtns(fromLabel, fromKeyValue, toLabel, toKeyValue) {
 // ---------------- 实体去重 Tab（M1 可视化优化：原理 + 策略聚合 + 典型墙 + 全量折叠）----------------
 const DP_SUB_META = {
   'norm':              { cn: '规范化别名', short: 'Norm',   clsChip: 's-norm'  },
-  'exact-nameAux':     { cn: '精确·name+辅助属性', short: 'Aux',    clsChip: 's-aux'   },
-  'exact-relicTitle':  { cn: '精确·relic title', short: 'Title',  clsChip: 's-title' },
-  'exact-relicTitleSize': { cn: '精确·title+尺寸', short: 'Size', clsChip: 's-size'  }
+  'exact-nameAux':     { cn: '精确·name+辅助属性', short: 'Aux',    clsChip: 's-aux'   }
 };
-const DP_SUB_ORDER = ['norm', 'exact-nameAux', 'exact-relicTitle', 'exact-relicTitleSize'];
+const DP_SUB_ORDER = ['norm', 'exact-nameAux'];
 
 let dpDynChipSub = new Set();   // 当前选中的「子策略」动态 chip（AND 语义：多子策略命中集合的交集；实际取并集更常见 → 用 OR 语义，即只要包含任一选中子策略就算命中）
 let dpDynChipLabel = new Set(); // 当前选中的「Label」动态 chip（OR 语义）
@@ -1954,7 +1943,7 @@ let dpMatrixSelected = null;    // {label, sub} 当前矩阵选中的单元格�
 
 function dpSub2Cn(s) { return DP_SUB_META[s]?.cn || s; }
 function dpPrimarySub(g) {
-  // multiHit≥2 时主命中 = 位最低的那个（即 norm 优先于 exact-aux 优先于 title 优先于 size，越靠前越"强"）
+  // multiHit≥2 时主命中 = 位最低的那个（即 norm 优先于 exact-aux，越靠前越"强"）
   for (const s of DP_SUB_ORDER) if (g.triggeredSubStages?.includes(s)) return s;
   return (g.triggeredSubStages && g.triggeredSubStages[0]) || 'norm';
 }
@@ -2028,8 +2017,6 @@ function dpRenderPrinciple() {
         const has = (m) => ms.includes(m);
         const parts = [];
         if (has('NAME_AUX')) parts.push(`<span style="color:#2563eb">name+辅助属性</span>：${lab} 看 ${(c.auxProps && c.auxProps.length) ? c.auxProps.join('+') : '（无辅助属性，退化为纯 name）'}`);
-        if (has('TITLE_ONLY')) parts.push(`<span style="color:#0891b2">仅 ${c.nameProp || 'name'}</span>（${lab}）`);
-        if (has('TITLE_DIMS')) parts.push(`<span style="color:#0f766e">${c.nameProp || 'name'}+尺寸</span>（${c.dimProps ? c.dimProps.join(' / ') : '无 dimProps'}）`);
         if (!ms.length) parts.push(`<span style="color:#9ca3af">${lab}：未启用 ExactKey 模式</span>`);
         return parts.map(p => '· ' + p).join('<br>');
       }).join('<br>')
@@ -2059,8 +2046,6 @@ function dpRenderPrinciple() {
           const ms = (c.exactModes || []);
           const rows = [];
           if (ms.includes('NAME_AUX')) rows.push(`<li>${lab}（NAME_AUX）：${(c.auxProps && c.auxProps.length) ? c.auxProps.join(' + ') : '仅 name（无辅助属性）'}</li>`);
-          if (ms.includes('TITLE_ONLY')) rows.push(`<li>${lab} 模式②·仅 ${c.nameProp || 'name'}：规范化后相同即命中</li>`);
-          if (ms.includes('TITLE_DIMS')) rows.push(`<li>${lab} 模式③·${c.nameProp || 'name'}+尺寸：${(c.dimProps || []).length ? c.dimProps.join(' / ') : '（未配置尺寸属性）'}</li>`);
           if (!ms.length) rows.push(`<li style="color:#9ca3af">${lab}：仅基础规范化（未启用 ExactKey 模式）</li>`);
           return rows.join('');
         }).join('')
@@ -2072,7 +2057,7 @@ function dpRenderPrinciple() {
     <ul>
       <li>「当且仅当所有字段都非空时才构成指纹」</li>
       <li>例：A 有 province=陕西 / kind=遗址，B 仅有 name=西安（缺 province、kind）→ NAME_AUX 指纹 <b>退化为纯 name 比较</b>，<b>不会</b>因为 A 有值 B 空就误判为「两者不同」。</li>
-      <li>辅助属性全部为空（TITLE_DIMS 尺寸也全空）→ exact key 退化为 none，该子策略不命中任何组（避免误合并）。</li>
+      <li>辅助属性全部为空 → exact key 退化为 none，该子策略不命中任何组（避免误合并）。</li>
     </ul>
   </div>`;
   const card4 = (() => {
@@ -2217,16 +2202,14 @@ function dpRenderKpi(r) {
 /* ---------------- Layer 2A：策略命中概览 3 卡 ---------------- */
 function dpRenderStrategy(r) {
   const all = r.groups || [];
-  const cnt = { norm: 0, aux: 0, title: 0, size: 0, multi: 0 };
+  const cnt = { norm: 0, aux: 0, multi: 0 };
   for (const g of all) {
     const ss = g.triggeredSubStages || [];
     if (ss.includes('norm')) cnt.norm++;
     if (ss.includes('exact-nameAux'))     cnt.aux++;
-    if (ss.includes('exact-relicTitle'))  cnt.title++;
-    if (ss.includes('exact-relicTitleSize')) cnt.size++;
     if ((g.multiHitCount || 0) >= 2) cnt.multi++;
   }
-  const exactTotal = cnt.aux + cnt.title + cnt.size; // 可重复计数
+  const exactTotal = cnt.aux;
   $('dp-strat-row1').style.display = 'none'; // 原 6 卡已在 Layer 0，这里只展示新增 3 卡一行
   $('dp-strat-row2').innerHTML = `
     <div class="dp-strat-card norm">
@@ -2237,28 +2220,17 @@ function dpRenderStrategy(r) {
       </div>
     </div>
     <div class="dp-strat-card">
-      <div class="t">🔬 精确 key 组合（3 模式拆分 · 可重复计数）</div>
-      <div style="font-size:14px;font-weight:700;color:#0f172a">合计命中 ${exactTotal} 组</div>
-      <div class="dp-exact-breakdown">
-        <div class="dp-exact-sub sub-aux">
-          <div class="st">name+辅助属性<br>(Place/Figure/Event/Text)</div>
-          <div class="sv">${cnt.aux}</div>
-        </div>
-        <div class="dp-exact-sub sub-title">
-          <div class="st">CulturalRelic<br>仅 title</div>
-          <div class="sv">${cnt.title}</div>
-        </div>
-        <div class="dp-exact-sub sub-size">
-          <div class="st">CulturalRelic<br>title+尺寸</div>
-          <div class="sv">${cnt.size}</div>
-        </div>
+      <div class="t">🔬 精确 key 组合（name+辅助属性）</div>
+      <div class="v">${exactTotal} 组</div>
+      <div style="margin-top:6px;font-size:11px;color:#6b7280">
+        名称规范化后相同 + 辅助属性一致
       </div>
     </div>
     <div class="dp-strat-card multi">
       <div class="t">🪙 多层命中（双保险，最可靠）</div>
       <div class="v">${cnt.multi} 组</div>
       <div style="margin-top:6px;font-size:11px;color:#6b7280">
-        同时被 Norm + ExactKey 命中（或多 Exact 子模式同时命中）
+        同时被 Norm + ExactKey 命中
       </div>
     </div>
   `;
@@ -2274,21 +2246,17 @@ function dpRenderMatrix(r) {
   wrap.style.display = '';
   const M = {}; // label -> sub -> count
   for (const g of all) {
-    if (!M[g.label]) M[g.label] = { norm:0, aux:0, title:0, size:0 };
+    if (!M[g.label]) M[g.label] = { norm:0, aux:0 };
     const row = M[g.label];
     if (g.triggeredSubStages?.includes('norm')) row.norm++;
     if (g.triggeredSubStages?.includes('exact-nameAux'))     row.aux++;
-    if (g.triggeredSubStages?.includes('exact-relicTitle'))  row.title++;
-    if (g.triggeredSubStages?.includes('exact-relicTitleSize')) row.size++;
   }
   const subCols = [
     { k: 'norm',  short: 'Norm',  cn: '规范化别名' },
     { k: 'aux',   short: 'Aux',   cn: 'name+辅助属性' },
-    { k: 'title', short: 'Title', cn: 'relic 仅 title' },
-    { k: 'size',  short: 'Size',  cn: 'relic title+尺寸' },
   ];
   // 合计行 + 合计列
-  const totals = { norm:0, aux:0, title:0, size:0 };
+  const totals = { norm:0, aux:0 };
   for (const l of labels) for (const c of subCols) totals[c.k] += M[l][c.k];
   let html = `<table class="dp-matrix"><thead><tr>
     <th class="lbl">Label</th>
@@ -2301,10 +2269,7 @@ function dpRenderMatrix(r) {
     for (const c of subCols) {
       const v = row[c.k];
       rowTotal += v;
-      const cell = { label: l, sub: c.k === 'norm' ? 'norm'
-                                : c.k === 'aux'  ? 'exact-nameAux'
-                                : c.k === 'title'? 'exact-relicTitle'
-                                :                  'exact-relicTitleSize' };
+      const cell = { label: l, sub: c.k === 'norm' ? 'norm' : 'exact-nameAux' };
       const isSel = dpMatrixSelected && dpMatrixSelected.label===l && dpMatrixSelected.sub===cell.sub;
       const depth = v === 0 ? 'c0' : v===1 ? 'c1' : v<5 ? 'c2' : v<15 ? 'c3' : 'c5';
       html += `<td class="c ${depth} ${isSel?'ck':''}"
@@ -2672,8 +2637,6 @@ function dpRenderNodeRowInner(c) {
   const nodeSub = [];
   if (c.score?.normHit)             nodeSub.push('Norm');
   if (c.score?.exactNameAuxHit)     nodeSub.push('Aux');
-  if (c.score?.exactRelicTitleHit)  nodeSub.push('Title');
-  if (c.score?.exactRelicTitleSizeHit) nodeSub.push('Size');
   const hitTxt = nodeSub.length ? nodeSub.join('·') : ((c.score?.hitStages||[]).join('+') || '—');
   return `
       <div class="prio">${prio}</div>

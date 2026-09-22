@@ -133,9 +133,8 @@ public class DedupRulesFileStore {
         String nameProp = (v.nameProp() == null || v.nameProp().isBlank()) ? "name" : v.nameProp().trim();
         List<String> auxProps = v.auxProps() == null ? List.of() : v.auxProps().stream().map(String::trim).filter(s -> !s.isBlank()).distinct().toList();
         List<DedupExactMode> modes = v.exactModes() == null ? List.of() : v.exactModes();
-        List<String> dims = v.dimProps() == null ? List.of() : v.dimProps().stream().map(String::trim).filter(s -> !s.isBlank()).distinct().toList();
         List<String> conf = v.conflictProps() == null ? List.of() : v.conflictProps().stream().map(String::trim).filter(s -> !s.isBlank()).distinct().toList();
-        return new DedupLabelConfig(nameProp, auxProps, modes, dims, conf);
+        return new DedupLabelConfig(nameProp, auxProps, modes, conf);
     }
 
     private Path file() {

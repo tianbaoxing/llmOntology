@@ -13,39 +13,29 @@ public record DedupAlgorithmScore(
         @Schema(description = "命中阶段名称列表（用于前端展示触发原因）", example = "[\"normalizeAlias\"]") java.util.List<String> hitStages,
         @Schema(description = "M1 子策略命中：规范化别名（subStage=norm）", example = "true") boolean normHit,
         @Schema(description = "M1 子策略命中：精确 key·name+辅助属性（subStage=exact-nameAux）", example = "false") boolean exactNameAuxHit,
-        @Schema(description = "M1 子策略命中：精确 key·CulturalRelic title（subStage=exact-relicTitle）", example = "false") boolean exactRelicTitleHit,
-        @Schema(description = "M1 子策略命中：精确 key·CulturalRelic title+尺寸（subStage=exact-relicTitleSize）", example = "false") boolean exactRelicTitleSizeHit,
-        @Schema(description = "命中的子策略位掩码（bit0=norm bit1=exactNameAux bit2=exactRelicTitle bit3=exactRelicTitleSize），用于 O(1) 判断多层命中", example = "3") int subStageMask) {
+        @Schema(description = "命中的子策略位掩码（bit0=norm bit1=exactNameAux），用于 O(1) 判断多层命中", example = "3") int subStageMask) {
 
     /** 子策略编号常量：与 mask 位对应 */
     public static final int MASK_NORM              = 1 << 0;
     public static final int MASK_EXACT_NAME_AUX    = 1 << 1;
-    public static final int MASK_EXACT_RELIC_TITLE = 1 << 2;
-    public static final int MASK_EXACT_RELIC_SIZE  = 1 << 3;
 
     /** 统一子策略字符串常量（组级 / 节点级 triggeredSubStages 统一用这些值，前端聚合直接匹配） */
     public static final String SUB_NORM               = "norm";
     public static final String SUB_EXACT_NAME_AUX     = "exact-nameAux";
-    public static final String SUB_EXACT_RELIC_TITLE  = "exact-relicTitle";
-    public static final String SUB_EXACT_RELIC_SIZE   = "exact-relicTitleSize";
 
     public static DedupAlgorithmScore exactNormalizeOnly() {
         return new DedupAlgorithmScore(1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                 java.util.List.of("normalizeAlias"),
-                true, false, false, false,
+                true, false,
                 MASK_NORM);
     }
 
     public static DedupAlgorithmScore exactKeyOnly(String subStage) {
         boolean nAux = SUB_EXACT_NAME_AUX.equals(subStage);
-        boolean rT   = SUB_EXACT_RELIC_TITLE.equals(subStage);
-        boolean rS   = SUB_EXACT_RELIC_SIZE.equals(subStage);
-        int mask = (nAux ? MASK_EXACT_NAME_AUX : 0)
-                 | (rT   ? MASK_EXACT_RELIC_TITLE : 0)
-                 | (rS   ? MASK_EXACT_RELIC_SIZE  : 0);
+        int mask = nAux ? MASK_EXACT_NAME_AUX : 0;
         return new DedupAlgorithmScore(0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
                 java.util.List.of("exactKey"),
-                false, nAux, rT, rS,
+                false, nAux,
                 mask);
     }
 
@@ -65,8 +55,6 @@ public record DedupAlgorithmScore(
                 java.util.List.copyOf(mergedStages),
                 (newMask & MASK_NORM) != 0,
                 (newMask & MASK_EXACT_NAME_AUX) != 0,
-                (newMask & MASK_EXACT_RELIC_TITLE) != 0,
-                (newMask & MASK_EXACT_RELIC_SIZE) != 0,
                 newMask);
     }
 }

@@ -316,7 +316,6 @@ public class DedupScanService {
                         List.copyOf(b.hitStages),
                         (mask & DedupAlgorithmScore.MASK_NORM) != 0,
                         (mask & DedupAlgorithmScore.MASK_EXACT_NAME_AUX) != 0,
-                        false, false,
                         mask);
             }
             groupMask |= sc.subStageMask();
@@ -374,11 +373,9 @@ public class DedupScanService {
             }
         }
 
-        List<String> subStages = new ArrayList<>(4);
+        List<String> subStages = new ArrayList<>(2);
         if ((groupMask & DedupAlgorithmScore.MASK_NORM) != 0)              subStages.add(DedupAlgorithmScore.SUB_NORM);
         if ((groupMask & DedupAlgorithmScore.MASK_EXACT_NAME_AUX) != 0)    subStages.add(DedupAlgorithmScore.SUB_EXACT_NAME_AUX);
-        if ((groupMask & DedupAlgorithmScore.MASK_EXACT_RELIC_TITLE) != 0) subStages.add(DedupAlgorithmScore.SUB_EXACT_RELIC_TITLE);
-        if ((groupMask & DedupAlgorithmScore.MASK_EXACT_RELIC_SIZE) != 0)  subStages.add(DedupAlgorithmScore.SUB_EXACT_RELIC_SIZE);
 
         double minC = ordered.stream().mapToDouble(c -> c.score().composite()).min().orElse(b.composite);
         double maxC = ordered.stream().mapToDouble(c -> c.score().composite()).max().orElse(b.composite);

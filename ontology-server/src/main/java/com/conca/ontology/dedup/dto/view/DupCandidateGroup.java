@@ -17,7 +17,7 @@ public record DupCandidateGroup(
         @Schema(description = "触发阶段名称列表（用于前端展示命中路径）", example = "[\"normalizeAlias\"]") List<String> hitStages,
         @Schema(description = "候选节点明细（按 survivorPriority 升序：0=推荐保留者在前）") List<DupCandidate> candidates,
         @Schema(description = "合并后预计可节省节点数 = size - 1", example = "1") int estimatedSaved,
-        @Schema(description = "M1 组级：所有节点命中的子策略并集（值来自 DedupAlgorithmScore.SUB_* 常量）。顺序：norm → exact-nameAux → exact-relicTitle → exact-relicTitleSize", example = "[\"norm\",\"exact-nameAux\"]") List<String> triggeredSubStages,
+        @Schema(description = "M1 组级：所有节点命中的子策略并集（值来自 DedupAlgorithmScore.SUB_* 常量）。顺序：norm → exact-nameAux", example = "[\"norm\",\"exact-nameAux\"]") List<String> triggeredSubStages,
         @Schema(description = "M1 组级：triggeredSubStages 的长度（≥2 表示该组被多子策略共同命中，即「多层命中」最可靠组）", example = "2") int multiHitCount) {
 
     public enum ConflictLevel {

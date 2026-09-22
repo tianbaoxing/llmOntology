@@ -99,26 +99,10 @@ public class DedupRulesService {
                 if (cfg.nameProp() != null && !props.contains(cfg.nameProp())) {
                     errors.add("Label '" + label + "' 的 name 属性源 '" + cfg.nameProp() + "' 不存在；可用属性：" + props);
                 }
-                boolean hasTitleLikeName = cfg.nameProp() != null
-                        && (cfg.nameProp().toLowerCase().contains("title") || cfg.nameProp().equalsIgnoreCase("name") == false);
-                boolean needTitleName = cfg.exactModes() != null && (cfg.exactModes().contains(DedupExactMode.TITLE_ONLY) || cfg.exactModes().contains(DedupExactMode.TITLE_DIMS));
-                if (needTitleName) {
-                    // 不强校验语义，但当 nameProp = name 且选择了 TITLE_* 时，给出错误（避免无意义配置）
-                    if ("name".equals(cfg.nameProp())) {
-                        errors.add("Label '" + label + "' 选择了 TITLE_ONLY/TITLE_DIMS 模式，但 name 属性源配置为 'name'。请把 nameProp 改为 title 类属性，或仅使用 NAME_AUX 模式。");
-                    }
-                }
                 if (cfg.auxProps() != null) {
                     for (String p : cfg.auxProps()) {
                         if (!props.contains(p)) {
                             errors.add("Label '" + label + "' 辅助属性 '" + p + "' 不存在；可用属性：" + props);
-                        }
-                    }
-                }
-                if (cfg.dimProps() != null) {
-                    for (String p : cfg.dimProps()) {
-                        if (!props.contains(p)) {
-                            errors.add("Label '" + label + "' 尺寸属性 '" + p + "' 不存在；可用属性：" + props);
                         }
                     }
                 }
@@ -212,16 +196,6 @@ public class DedupRulesService {
                         String fp2 = fingerprint(sample.props2(), cfg.auxProps());
                         if (!nm1.isEmpty() && nm1.equals(nm2) && fp1.equals(fp2)) exactHits.add("exact-nameAux");
                     }
-                    case TITLE_ONLY -> {
-                        if (!nm1.isEmpty() && nm1.equals(nm2)) exactHits.add("exact-relicTitle");
-                    }
-                    case TITLE_DIMS -> {
-                        String d1 = dims(sample.props1(), cfg.dimProps());
-                        String d2 = dims(sample.props2(), cfg.dimProps());
-                        boolean any1 = cfg.dimProps() != null && cfg.dimProps().stream().anyMatch(k -> sample.props1() != null && sample.props1().get(k) != null);
-                        boolean any2 = cfg.dimProps() != null && cfg.dimProps().stream().anyMatch(k -> sample.props2() != null && sample.props2().get(k) != null);
-                        if (!nm1.isEmpty() && nm1.equals(nm2) && d1.equals(d2) && any1 && any2) exactHits.add("exact-relicTitleSize");
-                    }
                 }
             }
         }
@@ -286,16 +260,6 @@ public class DedupRulesService {
         }
         if (nonNull == 0) return "none";
         return String.join("&", vals);
-    }
-
-    private static String dims(Map<String, Object> props, List<String> dims) {
-        if (dims == null) return "";
-        StringBuilder sb = new StringBuilder();
-        for (String d : dims) {
-            Object v = props == null ? null : props.get(d);
-            sb.append(d).append('=').append(v == null ? "?" : v.toString()).append(';');
-        }
-        return sb.toString();
     }
 
     // 供 NormalizeAliasStage 注入 DedupRuleset 时复用 suffixes 解析（保持原有 generateNormKeys 结构不变，改造另在 Stage 中完成）
