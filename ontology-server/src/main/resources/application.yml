@@ -113,4 +113,4 @@ graph:
   disjoint-rules-file: data/disjoint-rules.json
   dedup:
     per-label-node-limit: 0
-    rules-dir: data/dedup/rules
+    rules-file: data/dedup/rules.json
