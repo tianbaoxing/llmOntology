@@ -71,17 +71,8 @@ public class BackupService {
     @Value("${app.backup-dir:backups}")
     private String backupDir;
 
-    @Value("${graph.schema-file:data/graph-schema.json}")
-    private String schemaFile;
-
-    @Value("${graph.profile-file:data/ontology-profile.json}")
-    private String profileFile;
-
-    @Value("${app.metadata-file:data/file-metadata.json}")
-    private String metadataFile;
-
-    @Value("${app.auth.users-file:data/users.json}")
-    private String usersFile;
+    @Value("${app.data-dir:data}")
+    private String dataDir;
 
     @Value("${app.upload-dir:files}")
     private String uploadDir;
@@ -197,6 +188,7 @@ public class BackupService {
     }
 
     /** 导出全部关系：每行 {"type":..,"fromLabel":..,"fromEid":..,"toLabel":..,"toEid":..,"props":{..}} */
+    /** 递归复制 data 目录全部内容 + 上传文件目录到临时目录，返回复制的文件数 */
     private long exportRels(Task task, Path outFile) throws IOException {
         task.phase = "rels";
         long total = scalar("MATCH ()-[r]->() RETURN count(r) AS c");
@@ -231,10 +223,10 @@ public class BackupService {
     private long copyDataAndFiles(Task task, Path tmpDir) throws IOException {
         task.phase = "files";
         List<Path> sources = new ArrayList<>();
-        for (String cfg : List.of(schemaFile, profileFile, metadataFile, usersFile)) {
-            Path p = Path.of(cfg).toAbsolutePath().normalize();
-            if (Files.exists(p)) {
-                sources.add(p);
+        Path dataRoot = Path.of(dataDir).toAbsolutePath().normalize();
+        if (Files.isDirectory(dataRoot)) {
+            try (Stream<Path> walk = Files.walk(dataRoot)) {
+                walk.filter(Files::isRegularFile).forEach(sources::add);
             }
         }
         Path srcDir = Path.of(uploadDir).toAbsolutePath().normalize();
@@ -251,7 +243,7 @@ public class BackupService {
             if (src.startsWith(srcDir) && Files.isDirectory(srcDir)) {
                 dest = tmpDir.resolve("files").resolve(srcDir.relativize(src).toString());
             } else {
-                dest = tmpDir.resolve("data").resolve(src.getFileName().toString());
+                dest = tmpDir.resolve("data").resolve(dataRoot.relativize(src).toString());
             }
             Files.createDirectories(dest.getParent());
             Files.copy(src, dest, StandardCopyOption.REPLACE_EXISTING);
