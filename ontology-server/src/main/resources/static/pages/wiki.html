@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIKI 知识库</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="stylesheet" href="/pages/common.css">
+<style>
+/* 三栏布局：列表 | 阅读 | 目录 */
+.wk-grid { display: grid; grid-template-columns: 250px 1fr 170px; gap: 18px; align-items: start; }
+@media (max-width: 1000px) { .wk-grid { grid-template-columns: 220px 1fr; } .wk-toc { display: none; } }
+/* 左栏：搜索 + 分类 + 列表 */
+.wk-q { width: 100%; padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; margin-bottom: 10px; }
+.wk-cats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.wk-chip { padding: 2px 10px; border-radius: 12px; font-size: 12px; cursor: pointer; border: 1px solid #e5e7eb; background: #fff; color: #6b7280; user-select: none; }
+.wk-chip.on { background: #2563eb; color: #fff; border-color: #2563eb; }
+.wk-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; }
+.wk-item:hover { background: #f3f4f6; }
+.wk-item.on { background: #eff6ff; border-color: #bfdbfe; }
+.wk-item-t { font-size: 13px; font-weight: 600; color: #1f2937; line-height: 1.4; }
+.wk-item.on .wk-item-t { color: #1d4ed8; }
+.wk-item-d { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+.wk-empty { color: #9ca3af; font-size: 13px; padding: 10px; }
+/* 中栏：元信息条 + 正文 */
+.wk-doc-title { font-size: 20px; font-weight: 700; color: #111827; line-height: 1.4; margin-bottom: 8px; }
+.wk-doc-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: #6b7280; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; margin-bottom: 14px; }
+.wk-tag { padding: 1px 9px; border-radius: 11px; background: #eff6ff; color: #1d4ed8; font-size: 12px; }
+.wk-src { color: #2563eb; text-decoration: none; }
+.wk-src:hover { text-decoration: underline; }
+.wk-meta-btn { margin-left: auto; }
+/* 右栏：目录 */
+.wk-toc-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+.wk-toc-i { display: block; font-size: 12.5px; color: #6b7280; text-decoration: none; padding: 4px 0 4px 8px; border-left: 2px solid #e5e7eb; }
+.wk-toc-i:hover { color: #2563eb; }
+.wk-toc-i.lv3 { padding-left: 20px; }
+.wk-toc-i.lv2 { padding-left: 14px; }
+/* 正文渲染（marked + DOMPurify） */
+.md-body h1, .md-body h2, .md-body h3, .md-body h4 { color: #1f2937; margin: 18px 0 8px; line-height: 1.4; }
+.md-body h1 { font-size: 19px; } .md-body h2 { font-size: 17px; } .md-body h3 { font-size: 15px; } .md-body h4 { font-size: 14px; }
+.md-body p { margin: 8px 0; line-height: 1.8; }
+.md-body table { border-collapse: collapse; margin: 10px 0; width: 100%; }
+.md-body th, .md-body td { border: 1px solid #e5e7eb; padding: 6px 10px; font-size: 13px; }
+.md-body th { background: #f9fafb; }
+.md-body blockquote { border-left: 3px solid #d1d5db; padding: 4px 12px; color: #6b7280; margin: 8px 0; background: #f9fafb; }
+.md-body code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+.md-body pre { background: #f1f5f9; padding: 10px; border-radius: 6px; overflow: auto; }
+.md-body pre code { background: none; padding: 0; }
+.md-body a { color: #2563eb; }
+.md-body img { max-width: 100%; }
+/* 编辑元信息弹窗 */
+.wk-modal-mask { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.wk-modal { background: #fff; border-radius: 10px; width: min(460px, 92vw); padding: 20px; }
+.wk-modal h3 { font-size: 15px; margin-bottom: 14px; color: #1f2937; }
+.wk-modal label { display: block; font-size: 13px; color: #374151; margin: 10px 0 4px; }
+.wk-modal input { width: 100%; padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+.wk-modal .muted { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+.wk-modal .btn-row { margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="msg" class="msg"></div>
+
+  <div class="page-tabs">
+    <a class="ptab" href="/files">文件</a>
+    <a class="ptab active">WIKI</a>
+  </div>
+
+  <div class="card">
+    <div class="wk-grid">
+      <div class="wk-side">
+        <input class="wk-q" id="wk-q" placeholder="搜索标题 / 元信息" oninput="renderList()">
+        <div class="wk-cats" id="wk-cats"></div>
+        <div id="wk-list"></div>
+      </div>
+      <div class="wk-main">
+        <div id="wk-doc"></div>
+        <div id="wk-body" class="md-body"></div>
+      </div>
+      <div class="wk-toc">
+        <div class="wk-toc-title">目录</div>
+        <div id="wk-toc-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/purify.min.js"></script>
+<script src="/pages/common.js"></script>
+<script>
+// ---------------- WIKI 知识库 ----------------
+// 数据源：/api/wiki（SUCCESS 条目 + 元信息合并）；渲染：marked + DOMPurify（与 chat 页同栈）
+let wkDocs = [];        // 列表缓存
+let wkCur = null;       // 当前文档（含 content）
+let wkCat = '';         // 当前分类过滤（空 = 全部）
+
+// 路径逐段编码（与 files 页一致：'/' 不能编码，Tomcat 拒绝 %2F）
+function wkPath(name) { return name.split('/').map(encodeURIComponent).join('/'); }
+
+// ---------------- 列表 ----------------
+async function loadWiki() {
+  const d = await api('GET', '/api/wiki');
+  wkDocs = d.docs || [];
+  renderCats();
+  renderList();
+  // ?doc= 直达指定文档（files 页"阅读"入口），否则默认打开第一篇
+  const want = new URLSearchParams(location.search).get('doc');
+  const target = wkDocs.find(x => x.mdName === want);
+  if (target) openDoc(target.mdName);
+  else if (wkDocs.length) openDoc(wkDocs[0].mdName);
+  else {
+    $('wk-doc').innerHTML = '';
+    $('wk-body').innerHTML = '<div class="wk-empty">暂无文档：在「文件」页上传二进制文件（pdf/word/excel）自动转 MD 后即可在此阅读</div>';
+    $('wk-toc-list').innerHTML = '';
+  }
+}
+
+// 分类 chips：全部 + 去重分类（索引传参避免分类名含引号时破坏内联 JS）
+let wkCats = [];
+function renderCats() {
+  wkCats = ['', ...new Set(wkDocs.map(d => d.category).filter(Boolean))];
+  $('wk-cats').innerHTML = wkCats.map((c, i) =>
+    `<span class="wk-chip${wkCat === c ? ' on' : ''}" onclick="pickCat(${i})">${c === '' ? '全部' : esc(c)}</span>`).join('');
+}
+
+function pickCat(i) {
+  wkCat = wkCats[i];
+  renderCats();
+  renderList();
+}
+
+// 搜索（标题/元信息，前端过滤，P0 范围）+ 分类过滤 → 文档列表
+function renderList() {
+  const q = $('wk-q').value.trim().toLowerCase();
+  const hit = wkDocs.filter(d => {
+    if (wkCat && d.category !== wkCat) return false;
+    if (!q) return true;
+    const blob = [d.title, d.mdName, d.sourceName, d.publishDate, d.source, d.author,
+      d.category, d.description, ...(d.tags || [])].join(' ').toLowerCase();
+    return blob.includes(q);
+  });
+  $('wk-list').innerHTML = hit.length ? hit.map(d => `
+    <div class="wk-item${wkCur && wkCur.mdName === d.mdName ? ' on' : ''}" onclick="openDoc('${encodeURIComponent(d.mdName)}')">
+      <div class="wk-item-t">${esc(d.title)}</div>
+      <div class="wk-item-d">${esc(d.publishDate || '—')}${d.source ? ' · ' + esc(d.source) : ''}</div>
+    </div>`).join('')
+    : '<div class="wk-empty">无匹配文档</div>';
+}
+
+// ---------------- 阅读 ----------------
+async function openDoc(encName) {
+  const name = decodeURIComponent(encName);
+  try {
+    wkCur = await api('GET', '/api/wiki/doc?name=' + encodeURIComponent(name));
+  } catch (e) { showMsg('打开失败：' + e.message, false); return; }
+  renderDoc();
+}
+
+function renderDoc() {
+  const d = wkCur;
+  // 元信息条：日期/来源/作者 + 分类标签 + 来源文件回链 + 编辑入口
+  const tags = (d.tags || []).map(t => `<span class="wk-tag">${esc(t)}</span>`).join(' ');
+  $('wk-doc').innerHTML = `
+    <div class="wk-doc-title">${esc(d.title)}</div>
+    <div class="wk-doc-meta">
+      <span>${esc(d.publishDate || '—')}</span><span>·</span>
+      <span>来源 ${esc(d.source || '—')}</span><span>·</span>
+      <span>作者 ${esc(d.author || '—')}</span>
+      ${d.category ? `<span class="wk-tag">${esc(d.category)}</span>` : ''}${tags}
+      <a class="wk-src" href="/files" title="${esc(d.sourceName)}">来源文件</a>
+      <button class="btn sm ghost wk-meta-btn" onclick="openMetaModal()">编辑元信息</button>
+    </div>`;
+  // 剔除首行转换信息 + 内嵌图片占位（Tika 未导出图片实体），再渲染
+  let raw = d.content || '';
+  raw = raw.replace(/^>\s*来源:.*\n?/, '').replace(/!\[[^\]]*\]\(embedded:[^)]*\)/g, '');
+  let html;
+  try { html = window.marked.parse(raw); } catch (e) { html = '<p>' + esc(raw) + '</p>'; }
+  $('wk-body').innerHTML = DOMPurify.sanitize(html);
+  buildToc();
+  renderList();
+}
+
+// 目录：h1-h3 生成锚点（右侧栏，窄屏隐藏）
+function buildToc() {
+  const heads = document.querySelectorAll('#wk-body h1, #wk-body h2, #wk-body h3');
+  heads.forEach((h, i) => { h.id = 'wk-h' + i; });
+  $('wk-toc-list').innerHTML = heads.length
+    ? [...heads].map(h =>
+        `<a class="wk-toc-i ${h.tagName.toLowerCase() === 'h1' ? '' : 'lv' + h.tagName[1]}" href="#${h.id}">${esc(h.textContent.trim())}</a>`).join('')
+    : '<div class="wk-empty">无标题</div>';
+}
+
+// ---------------- 编辑元信息 ----------------
+function openMetaModal() {
+  if (!wkCur) return;
+  const back = document.createElement('div');
+  back.id = 'wk-modal-mask';
+  back.className = 'wk-modal-mask';
+  back.innerHTML = `
+    <div class="wk-modal">
+      <h3>编辑元信息：${esc(wkCur.title)}</h3>
+      <label>分类（如：考古发现 / 学术论文）</label>
+      <input id="wk-meta-cat" value="${esc(wkCur.category || '')}" maxlength="50">
+      <label>标签（逗号分隔）</label>
+      <input id="wk-meta-tags" value="${esc((wkCur.tags || []).join(', '))}" placeholder="陨铁, 三星堆">
+      <div class="muted">置空即清除；仅影响 Wiki 分类展示，不改动 MD 内容</div>
+      <div class="btn-row">
+        <button class="btn ghost" onclick="$('wk-modal-mask').remove()">取消</button>
+        <button class="btn" onclick="saveMeta()">保存</button>
+      </div>
+    </div>`;
+  back.addEventListener('click', e => { if (e.target === back) back.remove(); });
+  document.body.appendChild(back);
+  $('wk-meta-cat').focus();
+}
+
+async function saveMeta() {
+  const category = $('wk-meta-cat').value.trim();
+  const tags = $('wk-meta-tags').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  try {
+    await api('PUT', '/api/wiki/meta/' + wkPath(wkCur.mdName), { category, tags });
+    showMsg('元信息已保存', true);
+    $('wk-modal-mask').remove();
+    const cur = wkCur.mdName;
+    await loadWiki();          // 刷新列表（分类 chips）
+    wkDocs.find(x => x.mdName === cur) && openDoc(cur);
+  } catch (e) { showMsg('保存失败：' + e.message, false); }
+}
+
+// ---------------- init ----------------
+CF.renderHeader();
+CF.initUser();
+loadWiki().catch(e => showMsg('文档列表加载失败：' + e.message, false));
+</script>
+</body>
+</html>

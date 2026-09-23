@@ -14,6 +14,11 @@
 <div class="container">
   <div id="msg" class="msg"></div>
 
+  <div class="page-tabs">
+    <a class="ptab active">文件</a>
+    <a class="ptab" href="/wiki">WIKI</a>
+  </div>
+
   <div class="card admin-only" style="display:none">
     <h2>上传文件</h2>
     <div class="toolbar">
@@ -35,9 +40,11 @@
 // 路径逐段编码：name 可能含 '/'（子目录文件）与中文，'/' 不能编码（Tomcat 拒绝 %2F）
 function fmPath(name) { return name.split('/').map(encodeURIComponent).join('/'); }
 
-// MD 转换状态列：SUCCESS 显示产物名；FAILED 悬停显示原因 + 重试按钮；NONE（文本类）显示 —
+// MD 转换状态列：SUCCESS 显示产物名 + WIKI 阅读入口；FAILED 悬停显示原因 + 重试按钮；NONE（文本类）显示 —
 function fmMdCell(f) {
-  if (f.convertStatus === 'SUCCESS') return `<span title="${esc(f.mdName || '')}">✅ 已转MD</span>`;
+  if (f.convertStatus === 'SUCCESS')
+    return `<span title="${esc(f.mdName || '')}">✅ 已转MD</span>` +
+           `<a class="btn sm ghost" href="/wiki?doc=${encodeURIComponent(f.mdName || '')}">阅读</a>`;
   if (f.convertStatus === 'FAILED')
     return `<span title="${esc(f.convertMsg || '转换失败')}">❌ 转换失败</span>` +
            `<button class="btn sm" onclick="reconvertFile('${encodeURIComponent(f.name)}')">重试</button>`;

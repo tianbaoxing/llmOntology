@@ -34,6 +34,12 @@ public class PageController {
         return "forward:/pages/files.html";
     }
 
+    /** Wiki 知识库页（files-md/ 转换产物的只读呈现，仅 ADMIN） */
+    @GetMapping("/wiki")
+    public String wiki() {
+        return "forward:/pages/wiki.html";
+    }
+
     /** 备份恢复页（管理员功能，页面级权限由前端控制，接口层 403 兜底） */
     @GetMapping("/backup")
     public String backup() {

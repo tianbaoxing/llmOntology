@@ -11,6 +11,12 @@ body { font-family: "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #
 .tab.active { background: #f0f2f5; color: #1f2937; font-weight: 600; }
 .tab:hover:not(.active) { color: #fff; }
 a.tab { text-decoration: none; }
+/* 页内二级页签（知识库内 文件/WIKI 切换；样式与 eval 页一致，可作链接或 onclick） */
+.page-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.ptab { padding: 8px 22px; border-radius: 6px; cursor: pointer; background: #fff; color: #6b7280; border: 1px solid #e5e7eb; user-select: none; }
+.ptab.active { background: #2563eb; color: #fff; font-weight: 600; border-color: #2563eb; }
+a.ptab { text-decoration: none; }
+a.btn { text-decoration: none; }
 .user-box { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #d1d5db; }
 .user-box .logout { color: #9ca3af; cursor: pointer; text-decoration: none; border: 1px solid #4b5563; padding: 5px 12px; border-radius: 5px; }
 .user-box .logout:hover { color: #fff; border-color: #9ca3af; }

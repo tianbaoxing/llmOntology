@@ -16,14 +16,14 @@ import jakarta.servlet.http.HttpServletResponse;
  * - 公开接口：/api/session（登录登出/当前用户，敏感操作在 Controller 内校验）、/api/setup（初始化向导）、
  *   /api/app、/api/llm/**（LLM 专属，后续做 token 验证）、POST /api/users（自助注册）、
  *   PUT /api/users/me/password（自助改密，Controller 内校验会话）
- * - 页面（/、/data、/files、/backup、/chat、/dashboard、/session-detail、/users、/instances、/graph、/eval、/pages/**）：
- *   未登录 302 跳登录页；/users 与 /eval 仅 ADMIN（/data、/backup 页面级权限由前端控制，接口层 403 兜底）
- * - /api/** 其余：未登录 401 JSON；/api/users、/api/eval 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
+ * - 页面（/、/data、/files、/wiki、/backup、/chat、/dashboard、/session-detail、/users、/instances、/graph、/eval、/pages/**）：
+ *   未登录 302 跳登录页；/users、/eval 与 /wiki 仅 ADMIN（/data、/backup 页面级权限由前端控制，接口层 403 兜底）
+ * - /api/** 其余：未登录 401 JSON；/api/users、/api/eval、/api/wiki 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
  */
 public class AuthInterceptor implements HandlerInterceptor {
 
     /** 需登录的页面路由（静态资源 /pages/** 单独按前缀判断） */
-    private static final Set<String> PAGE_PATHS = Set.of("/", "/data", "/files", "/backup",
+    private static final Set<String> PAGE_PATHS = Set.of("/", "/data", "/files", "/wiki", "/backup",
             "/chat", "/dashboard", "/session-detail", "/users", "/instances", "/graph", "/eval");
 
     @Override
@@ -56,7 +56,8 @@ public class AuthInterceptor implements HandlerInterceptor {
                 return false;
             }
             if ((uri.equals("/users") || uri.equals("/pages/users.html")
-                    || uri.equals("/eval") || uri.equals("/pages/eval.html")) && !user.isAdmin()) {
+                    || uri.equals("/eval") || uri.equals("/pages/eval.html")
+                    || uri.equals("/wiki") || uri.equals("/pages/wiki.html")) && !user.isAdmin()) {
                 response.sendError(403);
                 return false;
             }
@@ -70,10 +71,11 @@ public class AuthInterceptor implements HandlerInterceptor {
                 return false;
             }
             // /api/dashboard 已放开为登录即可（统计当前用户自己的用量）；
-            // /api/eval 评测中心整体仅 ADMIN（页面与接口一致）；/api/skills Skills 管理、
+            // /api/eval 评测中心、/api/wiki Wiki 知识库整体仅 ADMIN（页面与接口一致）；/api/skills Skills 管理、
             // /api/admin 角色权限管理同样仅 ADMIN
             boolean adminOnly = uri.startsWith("/api/users") || uri.startsWith("/api/eval")
-                    || uri.startsWith("/api/skills") || uri.startsWith("/api/admin");
+                    || uri.startsWith("/api/skills") || uri.startsWith("/api/admin")
+                    || uri.startsWith("/api/wiki");
             if (!adminOnly && !isReadMethod(method)
                     && !uri.startsWith("/api/agent")) {
                 adminOnly = true;
