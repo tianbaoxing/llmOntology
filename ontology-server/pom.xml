@@ -20,6 +20,11 @@
             <groupId>com.conca</groupId>
             <artifactId>ontology-agentscope-studio</artifactId>
         </dependency>
+        <!-- agentkit 基础库：AgentDefinition/AgentBootstrapper/AgentPackageCodec/McpSupport（builder 编排与导出共用） -->
+        <dependency>
+            <groupId>com.conca</groupId>
+            <artifactId>ontology-agent-runtime</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

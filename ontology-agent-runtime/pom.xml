@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.conca</groupId>
+        <artifactId>ontology-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>ontology-agent-runtime</artifactId>
+    <name>ontology-agent-runtime</name>
+    <description>智能体定义模型 + HarnessAgent 装配器 + 导出包编解码（平台与独立 runner 共享，无 Spring 依赖）</description>
+
+    <dependencies>
+        <!-- AgentScope Harness：ReAct 循环 + 事件流（streamEvents），与 ontology-server 同源同版 -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-harness</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
+        <!-- OpenAI 兼容协议模型实现 -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-model-openai</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
+        <!-- agent.json / SSE payload 序列化（版本由 Boot BOM 统一管理） -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+    </dependencies>
+</project>

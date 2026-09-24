@@ -5,6 +5,7 @@ import java.time.Duration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,6 +42,20 @@ public class AgentScopeConfig {
 
     private static final Logger log = LoggerFactory.getLogger(AgentScopeConfig.class);
 
+    /**
+     * 平台内置 HTTP 工具（graph-query 管道等）回连本服务的 base-url。
+     * 解析优先级：app.agent.ontology-base-url → 环境变量 ONTOLOGY_BASE_URL → 本机回环端口。
+     * 主智能体与自建智能体注册表（AgentRegistry）共用，避免两处各算一份。
+     */
+    @Bean("llmBaseUrl")
+    public String llmBaseUrl(
+            @Value("${app.agent.ontology-base-url:${ONTOLOGY_BASE_URL:}}") String ontologyBaseUrl,
+            @Value("${server.port:9876}") int serverPort) {
+        return (ontologyBaseUrl == null || ontologyBaseUrl.isBlank())
+                ? "http://127.0.0.1:" + serverPort
+                : ontologyBaseUrl.trim().replaceAll("/+$", "");
+    }
+
     @Bean(destroyMethod = "close")
     public HarnessAgent harnessAgent(
             @Value("${app.title:图谱}") String title,
@@ -51,10 +66,9 @@ public class AgentScopeConfig {
             @Value("${app.agent.state-dir}") String stateDir,
             @Value("${app.agent.skills-dir:}") String skillsDir,
             @Value("${app.agent.studio-url:}") String studioUrl,
-            @Value("${server.port:9876}") int serverPort,
-            @Value("${app.agent.ontology-base-url:${ONTOLOGY_BASE_URL:}}") String ontologyBaseUrl,
             @Value("${app.mcp.weather.enabled:false}") boolean mcpWeatherEnabled,
             @Value("${app.mcp.weather.url:http://localhost:8766/mcp}") String mcpWeatherUrl,
+            @Qualifier("llmBaseUrl") String llmBaseUrl,
             DisjointRuleService disjointRuleService,
             ContentSecurityService contentSecurityService,
             RolePermissionService rolePermissionService) throws Exception {
@@ -90,11 +104,7 @@ public class AgentScopeConfig {
                 + "当问题涉及事实信息而不确定时，如实说明，不要编造。";
 
         Toolkit toolkit = new Toolkit();
-        // 哑 HTTP 管道：base-url 服务端固定，agent 只传 path（前缀白名单 /api/llm/）。
-        // 解析优先级：app.agent.ontology-base-url → 环境变量 ONTOLOGY_BASE_URL → 本机回环端口
-        String llmBaseUrl = (ontologyBaseUrl == null || ontologyBaseUrl.isBlank())
-                ? "http://127.0.0.1:" + serverPort
-                : ontologyBaseUrl.trim().replaceAll("/+$", "");
+        // 哑 HTTP 管道：base-url 服务端固定（llmBaseUrl Bean 统一解析），agent 只传 path（前缀白名单 /api/llm/）
         toolkit.registerTool(new HttpProxyTool(llmBaseUrl));
         // 互斥约束词典工具：agent 侧幻觉抑制。有 tool 就优先调工具；工具不可用时走
         // /api/llm/disjoint-rules HTTP 通道兜底。

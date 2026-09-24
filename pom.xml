@@ -21,6 +21,10 @@
     <modules>
         <!-- 内嵌 AgentScope Studio 对接源码（studio + tracing/telemetry） -->
         <module>ontology-agentscope-studio</module>
+        <!-- 智能体定义/装配/导出包编解码（平台与独立 runner 共享，不依赖 Spring） -->
+        <module>ontology-agent-runtime</module>
+        <!-- 独立运行时：导出 jar 的固化载体（shade 平铺依赖，java -jar 即跑） -->
+        <module>ontology-agent-runner</module>
         <!-- Spring Boot 主应用 -->
         <module>ontology-server</module>
     </modules>
@@ -43,6 +47,11 @@
             <dependency>
                 <groupId>com.conca</groupId>
                 <artifactId>ontology-agentscope-studio</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.conca</groupId>
+                <artifactId>ontology-agent-runtime</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

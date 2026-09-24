@@ -8,5 +8,7 @@ import jakarta.validation.constraints.Size;
 public record AgentChatRequest(
         @NotBlank(message = "消息内容不能为空")
         @Size(max = 8000, message = "消息内容过长")
-        String message) {
+        String message,
+        /** 自建智能体 id（可选）：空 = 平台主智能体，非空路由到 AgentRegistry 实例 */
+        String agentId) {
 }
