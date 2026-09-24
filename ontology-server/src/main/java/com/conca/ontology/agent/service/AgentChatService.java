@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
+import com.conca.ontology.builder.AgentRegistry;
 import com.conca.ontology.agent.config.AgentScopeConfig;
 import com.conca.ontology.agent.model.RewriteConfigFile;
 import com.conca.ontology.user.model.UserEntry;
@@ -92,6 +93,9 @@ public class AgentChatService {
     /** 进行中会话的所属用户（sessionId → userId），供停止接口校验归属并作用域中断 */
     private final Map<String, String> sessionOwners = new ConcurrentHashMap<>();
 
+    /** 进行中的自建智能体会话（sessionId → 实例引用）：stop 中断取 delegate 用（不持有所有权，release 走 doFinally） */
+    private final Map<String, HarnessAgent> sessionAgents = new ConcurrentHashMap<>();
+
     /** 反射缓存：HarnessAgent 持有的底层 ReActAgent（interrupt 需按其会话作用域触发） */
     private volatile ReActAgent delegateRef;
 
@@ -99,15 +103,18 @@ public class AgentChatService {
     private final RewriteConfigService rewriteConfigService;
     private final RolePermissionService rolePermissionService;
     private final UserService userService;
+    private final AgentRegistry agentRegistry;
 
     public AgentChatService(ObjectProvider<HarnessAgent> agentProvider,
             ContentSecurityService contentSecurityService, RewriteConfigService rewriteConfigService,
-            RolePermissionService rolePermissionService, UserService userService) {
+            RolePermissionService rolePermissionService, UserService userService,
+            AgentRegistry agentRegistry) {
         this.agentProvider = agentProvider;
         this.contentSecurityService = contentSecurityService;
         this.rewriteConfigService = rewriteConfigService;
         this.rolePermissionService = rolePermissionService;
         this.userService = userService;
+        this.agentRegistry = agentRegistry;
     }
 
     /** agent 是否已装配（OPENROUTER_API_KEY 已配置） */
@@ -138,7 +145,9 @@ public class AgentChatService {
         if (!runningSessions.contains(sessionId)) {
             return false;
         }
-        ReActAgent delegate = delegate();
+        // 自建智能体会话：实例引用直达 getDelegate；主智能体走反射缓存
+        HarnessAgent customAgent = sessionAgents.get(sessionId);
+        ReActAgent delegate = customAgent != null ? customAgent.getDelegate() : delegate();
         if (delegate == null) {
             log.warn("无法获取底层 ReActAgent，停止功能不可用（session={}）", sessionId);
             return false;
@@ -323,25 +332,55 @@ public class AgentChatService {
 
 
     /**
-     * 流式问答：订阅 streamEvents 并逐事件转发到 SseEmitter。
+     * 流式问答（主智能体）：订阅 streamEvents 并逐事件转发到 SseEmitter。
      * userId 为当前登录用户（会话/记忆按用户隔离，落盘在 workspace/{userId}/ 下）。
      */
     public SseEmitter chat(String sessionId, String message, String userId) {
+        return chat(sessionId, message, userId, null);
+    }
+
+    /**
+     * 流式问答（自建智能体路由）：agentId 为空走主智能体（改写管道 + 角色权限全量平台逻辑）；
+     * 非空走 AgentRegistry 实例。事件契约与主智能体完全一致（前端 chat 页零改动渲染），
+     * 差异仅两点：不经改写管道（自建 agent 语义自治）；上下文不注入角色权限
+     * （平台治理对自建 agent 仅保留内容安全中间件，装配期已挂）。
+     */
+    public SseEmitter chat(String sessionId, String message, String userId, String agentId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         String session = (sessionId == null || sessionId.isBlank()) ? UUID.randomUUID().toString() : sessionId;
+        boolean custom = agentId != null && !agentId.isBlank();
 
-        HarnessAgent agent = agentProvider.getIfAvailable();
-        if (agent == null) {
-            send(emitter, "error", Map.of("message", missingKeyMessage()));
-            emitter.complete();
-            return emitter;
+        HarnessAgent agent;
+        if (custom) {
+            try {
+                agent = agentRegistry.acquire(agentId);
+            } catch (Exception e) {
+                // 构建失败（密钥缺失/MCP 不通等）以 SSE error 事件回传，文案沿用分层中文错误
+                log.warn("自建智能体获取失败（agentId={}）：{}", agentId, e.getMessage());
+                send(emitter, "error", Map.of("message", safeMessage(e)));
+                emitter.complete();
+                return emitter;
+            }
+        } else {
+            agent = agentProvider.getIfAvailable();
+            if (agent == null) {
+                send(emitter, "error", Map.of("message", missingKeyMessage()));
+                emitter.complete();
+                return emitter;
+            }
         }
         if (!runningSessions.add(session)) {
+            if (custom) {
+                agentRegistry.release(agentId);
+            }
             send(emitter, "error", Map.of("message", "上一条消息还在处理中，请稍候。"));
             emitter.complete();
             return emitter;
         }
         sessionOwners.put(session, userId);
+        if (custom) {
+            sessionAgents.put(session, agent);
+        }
 
         send(emitter, "session", Map.of("sessionId", session));
 
@@ -362,20 +401,27 @@ public class AgentChatService {
         emitter.onCompletion(() -> {
             runningSessions.remove(session);
             sessionOwners.remove(session);
+            sessionAgents.remove(session);
             heartbeat.shutdownNow();
         });
 
-        RuntimeContext ctx = buildContext(userId, session);
+        RuntimeContext ctx = custom
+                ? RuntimeContext.builder().userId(userId).sessionId(session).build()
+                : buildContext(userId, session);
 
-        // 语义改写轮在主 agent 之前执行（LLM 阻塞调用 → boundedElastic 线程池，不占 servlet 线程）：
-        // 过程以 round/thinking 模拟思考事件实时推送，改写后文本替换用户消息送入 ReAct；
-        // 完整 trace 存 USER 消息 metadata（刷新后 AgentSessionService 还原原句并渲染改写卡片）
-        Disposable disposable = Mono.fromCallable(() -> prepareUserMsg(emitter, session, userId, message))
+        // 语义改写轮仅主智能体启用（自建 agent 用户消息原样送入，ContentSecurity 在装配期中间件拦截）
+        Disposable disposable = Mono.fromCallable(() -> custom
+                        ? Msg.builder().role(MsgRole.USER).textContent(message).build()
+                        : prepareUserMsg(emitter, session, userId, message))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMapMany(userMsg -> agent.streamEvents(userMsg, ctx))
                 .doFinally(signal -> {
                     runningSessions.remove(session);
                     sessionOwners.remove(session);
+                    sessionAgents.remove(session);
+                    if (custom) {
+                        agentRegistry.release(agentId);
+                    }
                     heartbeat.shutdownNow();
                     emitter.complete();
                 })

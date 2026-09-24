@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.builder.AgentRegistry;
 import com.conca.ontology.shared.web.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,18 +75,25 @@ public class AgentSessionService {
 
     private final ObjectProvider<HarnessAgent> agentProvider;
     private final AgentChatService agentChatService;
+    private final AgentRegistry agentRegistry;
     private final ObjectMapper mapper;
 
     public AgentSessionService(ObjectProvider<HarnessAgent> agentProvider,
-            AgentChatService agentChatService, ObjectMapper mapper) {
+            AgentChatService agentChatService, AgentRegistry agentRegistry, ObjectMapper mapper) {
         this.agentProvider = agentProvider;
         this.agentChatService = agentChatService;
+        this.agentRegistry = agentRegistry;
         this.mapper = mapper;
     }
 
     /** 会话列表（updateTime 倒序）；未配置 key 或目录为空均返回空列表 */
     public Map<String, Object> list(String userId) {
-        AgentStateStore store = storeOrNull();
+        return list(userId, null);
+    }
+
+    /** 会话列表（自建智能体路由：agentId 非空走该智能体独立 state 存储） */
+    public Map<String, Object> list(String userId, String agentId) {
+        AgentStateStore store = storeFor(agentId);
         if (store == null) {
             return Map.of("sessions", List.of());
         }
@@ -107,19 +115,30 @@ public class AgentSessionService {
 
     /** 单会话全部消息：未压缩会话直接渲染 state；被压缩会话双源合并（转录前缀+摘要卡片+保留尾部） */
     public Map<String, Object> messages(String userId, String sessionId) {
+        return messages(userId, null, sessionId);
+    }
+
+    /** 单会话全部消息（自建智能体路由：P0 不做转录双源合并，state 渲染，压缩历史降级） */
+    public Map<String, Object> messages(String userId, String agentId, String sessionId) {
         String id = validate(sessionId);
-        AgentState state = requireStore().get(userId, id, STATE_KEY, AgentState.class)
+        AgentStateStore store = requireStoreFor(agentId);
+        AgentState state = store.get(userId, id, STATE_KEY, AgentState.class)
                 .orElseThrow(() -> new ApiException(404, "会话不存在"));
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sessionId", id);
-        result.put("messages", mergedMessages(userId, id, state));
+        result.put("messages", mergedMessages(userId, agentId, id, state));
         return result;
     }
 
     /** 删除会话：进行中拒绝（409）→ 清 agent 记忆（官方 delete） */
     public Map<String, Object> delete(String userId, String sessionId) {
+        return delete(userId, null, sessionId);
+    }
+
+    /** 删除会话（自建智能体路由） */
+    public Map<String, Object> delete(String userId, String agentId, String sessionId) {
         String id = validate(sessionId);
-        AgentStateStore store = requireStore();
+        AgentStateStore store = requireStoreFor(agentId);
         if (agentChatService.isRunning(id)) {
             throw new ApiException(409, "会话正在处理中，请稍后再删除");
         }
@@ -136,6 +155,11 @@ public class AgentSessionService {
      * 流式回答进行中也可安全重命名；删除会话时随会话目录整体清理。
      */
     public Map<String, Object> rename(String userId, String sessionId, String title) {
+        return rename(userId, null, sessionId, title);
+    }
+
+    /** 重命名会话标题（自建智能体路由） */
+    public Map<String, Object> rename(String userId, String agentId, String sessionId, String title) {
         String id = validate(sessionId);
         String t = title == null ? "" : title.strip();
         if (t.isEmpty()) {
@@ -144,7 +168,7 @@ public class AgentSessionService {
         if (t.length() > SessionTitleState.TITLE_MAX) {
             throw new ApiException(400, "标题长度不能超过 " + SessionTitleState.TITLE_MAX + " 字");
         }
-        AgentStateStore store = requireStore();
+        AgentStateStore store = requireStoreFor(agentId);
         store.get(userId, id, STATE_KEY, AgentState.class)
                 .orElseThrow(() -> new ApiException(404, "会话不存在"));
         store.save(userId, id, SessionTitleState.STORE_KEY, SessionTitleState.of(t));
@@ -152,6 +176,22 @@ public class AgentSessionService {
     }
 
     // ---------------- 内部 ----------------
+
+    /** agentId 非空 → 自建智能体轻量存储；空 → 主智能体（未装配返回 null） */
+    private AgentStateStore storeFor(String agentId) {
+        if (agentId != null && !agentId.isBlank()) {
+            return agentRegistry.stateStoreOf(agentId);
+        }
+        return storeOrNull();
+    }
+
+    /** 同 storeFor，但主智能体未装配时报 503（读操作必须有明确失败语义） */
+    private AgentStateStore requireStoreFor(String agentId) {
+        if (agentId != null && !agentId.isBlank()) {
+            return agentRegistry.stateStoreOf(agentId);
+        }
+        return requireStore();
+    }
 
     private AgentStateStore storeOrNull() {
         HarnessAgent agent = agentProvider.getIfAvailable();
@@ -326,8 +366,13 @@ public class AgentSessionService {
      * 压缩前消息只存于 workspace 侧 log.jsonl（append-only 全量转录）。
      * 以保留尾部首条消息 id 为切割线读取转录前缀，拼装 [前缀, 摘要卡片, 尾部]。
      * 未压缩 / 转录不可用 / 切割线找不到 → 摘要卡片 + 纯 state 渲染（降级不报错）。
+     * 自建智能体：P0 不做转录合并（转录读取依赖主智能体 workspace 管理器），纯 state 渲染。
      */
-    private List<Map<String, Object>> mergedMessages(String userId, String sessionId, AgentState state) {
+    private List<Map<String, Object>> mergedMessages(String userId, String agentId,
+            String sessionId, AgentState state) {
+        if (agentId != null && !agentId.isBlank()) {
+            return mapMessages(state);
+        }
         CompactionHistory h = compactionHistory(userId, sessionId, state);
         if (h == null) {
             return mapMessages(state);

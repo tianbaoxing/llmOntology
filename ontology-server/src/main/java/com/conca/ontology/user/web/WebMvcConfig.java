@@ -12,6 +12,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new AuthInterceptor())
                 .addPathPatterns("/", "/login", "/data", "/files", "/wiki", "/backup",
-                        "/chat", "/dashboard", "/users", "/instances", "/graph", "/pages/**", "/api/**");
+                        "/chat", "/agents", "/dashboard", "/users", "/instances", "/graph", "/pages/**", "/api/**");
     }
 }

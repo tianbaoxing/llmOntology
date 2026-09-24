@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能体搭建</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="stylesheet" href="/pages/common.css">
+<style>
+.ag-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px 24px; max-width: 1100px; }
+.ag-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+.ag-head h2 { margin: 0; font-size: 16px; color: #166534; border-left: 3px solid #16a34a; padding-left: 10px; }
+.ag-hint { color: #9ca3af; font-size: 12px; font-weight: normal; margin-left: 8px; }
+.ag-field { margin-bottom: 16px; }
+.ag-field > label { display: block; color: #374151; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+.ag-field > label .hint { color: #9ca3af; font-weight: normal; margin-left: 8px; font-size: 12px; }
+.ag-field input[type=text], .ag-field input[type=password], .ag-field input[type=number],
+.ag-field select, .ag-field textarea {
+  width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px;
+  padding: 7px 10px; font-size: 13px; font-family: inherit;
+}
+.ag-field textarea { min-height: 90px; }
+.ag-field textarea.prompt { min-height: 160px; font-family: Consolas, Monaco, monospace; font-size: 12px; }
+.ag-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ag-grid3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 14px; }
+
+.ag-chipbar { display: flex; flex-wrap: wrap; gap: 8px; }
+.ag-chip { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid #d1d5db; border-radius: 999px;
+  padding: 5px 12px; font-size: 12px; cursor: pointer; user-select: none; color: #374151; background: #fff; }
+.ag-chip:hover { border-color: #2563eb; }
+.ag-chip.on { background: #eff6ff; border-color: #2563eb; color: #1e40af; }
+.ag-chip.on::before { content: "✓"; font-weight: bold; }
+.ag-chip .cdesc { color: #9ca3af; font-size: 11px; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ag-row { display: grid; gap: 8px; align-items: start; margin-bottom: 8px; }
+.ag-row.cols-http { grid-template-columns: 140px 1.4fr 1fr 110px 1fr auto; }
+.ag-row.cols-mcp { grid-template-columns: 140px 1fr auto auto; }
+.ag-row input, .ag-row select { border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 8px; font-size: 12px; width: 100%; box-sizing: border-box; }
+.ag-row button.del { padding: 6px 10px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.ag-row button.del:hover { background: #fee2e2; }
+.ag-row button.test { padding: 6px 10px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.ag-row button.test:hover { background: #dcfce7; }
+
+.ag-sub-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; background: #fff; }
+.ag-sub-card .ag-row.cols-sub { grid-template-columns: 150px 1fr 70px 110px auto; }
+.ag-sub-card textarea { min-height: 70px; }
+
+.ag-status { display: inline-block; border-radius: 999px; padding: 1px 9px; font-size: 11px; }
+.ag-status.test { background: #fef3c7; color: #92400e; }
+.ag-status.active { background: #dcfce7; color: #166534; }
+.ag-mini { font-size: 11px; color: #9ca3af; }
+.ag-ok { color: #16a34a; font-weight: 600; }
+.ag-err { color: #b91c1c; font-weight: 600; }
+
+.ag-section { border-top: 1px dashed #e5e7eb; padding-top: 14px; margin-top: 4px; }
+.ag-section > h3 { font-size: 13px; color: #1e40af; margin: 0 0 10px; }
+
+.ag-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 9999;
+  align-items: center; justify-content: center; }
+.ag-modal.open { display: flex; }
+.ag-modal-box { background: #fff; border-radius: 8px; width: 760px; max-width: 94vw; max-height: 88vh;
+  display: flex; flex-direction: column; padding: 16px 20px; }
+.ag-modal-box h3 { margin: 0 0 10px; color: #1e40af; display: flex; justify-content: space-between; align-items: center; }
+.ag-modal-box h3 .x { cursor: pointer; font-size: 18px; color: #6b7280; padding: 0 8px; }
+.ag-trial-log { flex: 1; overflow: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px;
+  font-size: 13px; line-height: 1.7; background: #f9fafb; }
+.ag-trial-log .u { color: #1e40af; margin: 8px 0 4px; font-weight: 600; }
+.ag-trial-log .think { color: #9ca3af; font-size: 12px; white-space: pre-wrap; }
+.ag-trial-log .tool { color: #92400e; font-size: 12px; font-family: Consolas, Monaco, monospace; }
+.ag-trial-log .ans { color: #111827; white-space: pre-wrap; }
+.ag-trial-log .err { color: #b91c1c; }
+.ag-trial-input { display: flex; gap: 8px; margin-top: 10px; }
+.ag-trial-input input { flex: 1; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 10px; font-size: 13px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: top; }
+th { color: #6b7280; font-weight: 600; white-space: nowrap; }
+td .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="ag-list-view" class="ag-wrap">
+    <div class="ag-head">
+      <h2>智能体列表 <span class="ag-hint">9 槽位定义：提示词 / 模型 / key / 技能 / MCP / 子 agent / 工具 / 开场白；平台内运行，可导出独立 jar</span></h2>
+      <button class="btn primary" onclick="agOpenCreate()">＋ 新建智能体</button>
+    </div>
+    <div id="ag-list-body">加载中…</div>
+  </div>
+
+  <div id="ag-form-view" class="ag-wrap" style="display:none">
+    <div class="ag-head">
+      <h2 id="ag-form-title">新建智能体</h2>
+      <div style="display:flex; gap:8px">
+        <button class="btn" onclick="agBackToList()">← 返回列表</button>
+        <button class="btn primary" onclick="agSave()">💾 保存</button>
+      </div>
+    </div>
+
+    <div class="ag-section" style="border-top:none; padding-top:0">
+      <h3>① 基本信息</h3>
+      <div class="ag-grid2">
+        <div class="ag-field">
+          <label>名称 <span class="hint">1-30 字</span></label>
+          <input type="text" id="ag-f-name" maxlength="30" placeholder="如：文物问答助手">
+        </div>
+        <div class="ag-field">
+          <label>描述 <span class="hint">≤200 字，会作为 agent 描述透出</span></label>
+          <input type="text" id="ag-f-desc" maxlength="200" placeholder="一句话说明这个智能体做什么">
+        </div>
+      </div>
+      <div class="ag-grid3">
+        <div class="ag-field">
+          <label>开场白 <span class="hint">≤500 字，仅展示，不注入提示词</span></label>
+          <input type="text" id="ag-f-greeting" maxlength="500" placeholder="你好，我可以帮你…">
+        </div>
+        <div class="ag-field">
+          <label>状态 <span class="hint">test=试运行（仅管理员可用）</span></label>
+          <select id="ag-f-status">
+            <option value="test">test（试运行）</option>
+            <option value="active">active（上架，所有人可在 AI 问答使用）</option>
+          </select>
+        </div>
+        <div class="ag-field">
+          <label>最大推理轮次 <span class="hint">0=默认 6，上限 20</span></label>
+          <input type="number" id="ag-f-maxiters" min="0" max="20" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="ag-section">
+      <h3>② 模型接入（OpenAI 兼容协议）</h3>
+      <div class="ag-grid3">
+        <div class="ag-field">
+          <label>大模型地址 baseUrl</label>
+          <input type="text" id="ag-f-baseurl" placeholder="https://openrouter.ai/api/v1">
+        </div>
+        <div class="ag-field">
+          <label>模型名</label>
+          <input type="text" id="ag-f-model" placeholder="deepseek/deepseek-chat">
+        </div>
+        <div class="ag-field">
+          <label>API Key <span class="hint" id="ag-f-key-hint">仅存密钥库，不回显</span></label>
+          <input type="password" id="ag-f-apikey" placeholder="sk-..." autocomplete="new-password">
+        </div>
+      </div>
+      <button class="btn sm" onclick="agTestModel()">🔌 测试连接</button>
+      <span id="ag-test-model-result" style="font-size:12px; margin-left:8px"></span>
+    </div>
+
+    <div class="ag-section">
+      <h3>③ 系统提示词</h3>
+      <div class="ag-field">
+        <textarea id="ag-f-sysprompt" class="prompt" maxlength="8000"
+          placeholder="你是「××」，请用中文回答…（留空则使用最小可用中文提示词）"></textarea>
+      </div>
+    </div>
+
+    <div class="ag-section">
+      <h3>④ 技能（平台技能库，保存时整目录拷贝到智能体工作区）</h3>
+      <div class="ag-chipbar" id="ag-skills-bar"></div>
+    </div>
+
+    <div class="ag-section">
+      <h3>⑤ 内置工具（平台白名单）</h3>
+      <div class="ag-chipbar" id="ag-tools-bar"></div>
+    </div>
+
+    <div class="ag-section">
+      <h3>⑥ HTTP 工具（数据化声明，导出后不依赖平台 Java 类；最多 10 个）</h3>
+      <div id="ag-http-rows"></div>
+      <button class="btn sm" onclick="agAddHttpTool()">＋ 添加 HTTP 工具</button>
+    </div>
+
+    <div class="ag-section">
+      <h3>⑦ MCP 外接（Streamable HTTP 优先，失败自动退回 SSE；最多 10 个）</h3>
+      <div id="ag-mcp-rows"></div>
+      <button class="btn sm" onclick="agAddMcp()">＋ 添加 MCP 端点</button>
+    </div>
+
+    <div class="ag-section">
+      <h3>⑧ 子智能体（声明式，运行时禁止模型自主 spawn；最多 3 个）</h3>
+      <div id="ag-sub-rows"></div>
+      <button class="btn sm" onclick="agAddSubagent()">＋ 添加子智能体</button>
+    </div>
+
+    <div style="margin-top:18px; display:flex; gap:8px">
+      <button class="btn primary" onclick="agSave()">💾 保存</button>
+      <button class="btn" onclick="agBackToList()">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 试运行对话框 -->
+<div class="ag-modal" id="ag-trial-modal">
+  <div class="ag-modal-box">
+    <h3><span id="ag-trial-title">试运行</span><span class="x" onclick="agCloseTrial()">×</span></h3>
+    <div class="ag-mini" style="margin-bottom:8px">
+      会话状态独立于正式对话；编辑/发布后试运行记忆自动清空。停止生成：关闭对话框即可（已生成内容会落盘）。
+    </div>
+    <div class="ag-trial-log" id="ag-trial-log"></div>
+    <div class="ag-trial-input">
+      <input type="text" id="ag-trial-input" maxlength="8000" placeholder="输入测试问题，回车发送"
+        onkeydown="if(event.key==='Enter')agTrialSend()">
+      <button class="btn primary" onclick="agTrialSend()">发送</button>
+    </div>
+  </div>
+</div>
+
+<script src="/pages/common.js"></script>
+<script>
+/* ---------- 状态 ---------- */
+let agOptions = null;      // {skills:[{name,description}], tools:[{name,description}]}
+let agEditing = null;      // null=新建；否则详情对象（编辑模式）
+let agHttpTools = [];      // [{name,description,endpoint,method,pathPrefix}]
+let agMcps = [];           // [{name,url,transport}]
+let agSubagents = [];      // [{name,description,emoji,color,prompt}]
+let agTrial = null;        // {agentId, sessionId, busy}
+
+/* ---------- 初始化 ---------- */
+document.addEventListener('DOMContentLoaded', agInit);
+async function agInit() {
+  CF.renderHeader({ titleSuffix: '' });
+  CF.initUser(async me => {
+    if (me.role !== 'ADMIN') { location.replace('/'); return; }
+    try {
+      agOptions = await api('GET', '/api/agents/options');
+      agRenderChips();
+      await agLoadList();
+    } catch (e) { showMsg('加载失败：' + e.message, false); }
+  });
+}
+
+/* ---------- 列表 ---------- */
+async function agLoadList() {
+  const list = await api('GET', '/api/agents');
+  const body = $('ag-list-body');
+  if (!list.length) {
+    body.innerHTML = '<div style="color:#9ca3af;font-size:13px;padding:20px 0">还没有智能体，点右上角「新建智能体」开始搭建。</div>';
+    return;
+  }
+  const rows = list.map(a => [
+    `<b>${esc(a.name)}</b><div class="ag-mini">${esc(a.id)} · v${a.version}</div>`,
+    esc(a.description || ''),
+    `<span class="ag-status ${esc(a.status)}">${esc(a.status)}</span>`,
+    a.hasKey ? '<span class="ag-ok">已配置</span>' : '<span class="ag-err">未配置</span>',
+    a.live ? '运行中' : '未加载',
+    esc(String(a.updatedAt || '').replace('T', ' ').slice(0, 19)),
+    `<div class="acts">
+      <button class="btn sm" onclick="agOpenEdit('${esc(a.id)}')">编辑</button>
+      <button class="btn sm" onclick="agOpenTrial('${esc(a.id)}', '${esc(a.name)}')">试运行</button>
+      <button class="btn sm" onclick="agExport('${esc(a.id)}','export')">导出 zip</button>
+      <button class="btn sm" onclick="agExport('${esc(a.id)}','export-jar')">导出 jar</button>
+      <button class="btn sm" onclick="agDelete('${esc(a.id)}','${esc(a.name)}')">删除</button>
+    </div>`
+  ]);
+  body.innerHTML = table(['名称', '描述', '状态', '密钥', '实例', '更新时间', '操作'], rows);
+}
+
+function agExport(id, kind) {
+  const a = document.createElement('a');
+  a.href = `/api/agents/${id}/${kind}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+async function agDelete(id, name) {
+  if (!confirm(`确认删除「${name}」？工作区、会话记忆与密钥将一并清理，不可恢复。`)) return;
+  try { await api('DELETE', '/api/agents/' + id); showMsg('已删除', true); await agLoadList(); }
+  catch (e) { showMsg('删除失败：' + e.message, false); }
+}
+
+/* ---------- 表单：打开 ---------- */
+function agOpenCreate() {
+  agEditing = null;
+  agHttpTools = []; agMcps = []; agSubagents = [];
+  $('ag-form-title').textContent = '新建智能体';
+  ['ag-f-name', 'ag-f-desc', 'ag-f-greeting', 'ag-f-baseurl', 'ag-f-model', 'ag-f-apikey', 'ag-f-sysprompt']
+    .forEach(id => { $(id).value = ''; });
+  $('ag-f-status').value = 'test';
+  $('ag-f-maxiters').value = '0';
+  $('ag-f-key-hint').textContent = '仅存密钥库，不回显';
+  $('ag-test-model-result').textContent = '';
+  agRenderChips(); agRenderHttpRows(); agRenderMcpRows(); agRenderSubRows();
+  agShowForm(true);
+}
+
+async function agOpenEdit(id) {
+  try {
+    const d = await api('GET', '/api/agents/' + id);
+    agEditing = d;
+    $('ag-form-title').textContent = `编辑：${d.name}（v${d.version} → v${d.version + 1}）`;
+    $('ag-f-name').value = d.name; $('ag-f-desc').value = d.description || '';
+    $('ag-f-greeting').value = d.greeting || ''; $('ag-f-sysprompt').value = d.sysPrompt || '';
+    $('ag-f-baseurl').value = d.baseUrl || ''; $('ag-f-model').value = d.modelName || '';
+    $('ag-f-apikey').value = '';
+    $('ag-f-key-hint').textContent = d.hasKey ? '留空 = 沿用已配置密钥' : '尚未配置密钥';
+    $('ag-f-status').value = d.status;
+    $('ag-f-maxiters').value = String(d.maxIters ?? 0);
+    agHttpTools = (d.httpTools || []).map(t => ({ ...t }));
+    agMcps = (d.mcps || []).map(m => ({ name: m.name || '', url: m.url || '', transport: m.transport || '' }));
+    agSubagents = (d.subagents || []).map(s => ({ ...s }));
+    agRenderChips(); agRenderHttpRows(); agRenderMcpRows(); agRenderSubRows();
+    $('ag-test-model-result').textContent = '';
+    agShowForm(true);
+  } catch (e) { showMsg('读取详情失败：' + e.message, false); }
+}
+
+function agShowForm(show) {
+  $('ag-list-view').style.display = show ? 'none' : '';
+  $('ag-form-view').style.display = show ? '' : 'none';
+  if (show) window.scrollTo(0, 0);
+}
+function agBackToList() { agShowForm(false); }
+
+/* ---------- 表单：技能/工具 chips ---------- */
+function agRenderChips() {
+  const skills = new Set(agEditing ? agEditing.skills : []);
+  $('ag-skills-bar').innerHTML = (agOptions.skills || []).map(s =>
+    `<span class="ag-chip${skills.has(s.name) ? ' on' : ''}" data-kind="skill" data-name="${esc(s.name)}"
+      onclick="agToggleChip(this)" title="${esc(s.description)}">${esc(s.name)}<span class="cdesc">${esc(s.description)}</span></span>`
+  ).join('') || '<span class="ag-mini">平台技能目录未配置或为空</span>';
+  const tools = new Set(agEditing ? agEditing.tools : []);
+  $('ag-tools-bar').innerHTML = (agOptions.tools || []).map(t =>
+    `<span class="ag-chip${tools.has(t.name) ? ' on' : ''}" data-kind="tool" data-name="${esc(t.name)}"
+      onclick="agToggleChip(this)" title="${esc(t.description)}">${esc(t.name)}<span class="cdesc">${esc(t.description)}</span></span>`
+  ).join('');
+}
+
+function agToggleChip(el) {
+  el.classList.toggle('on');
+}
+
+/* ---------- 表单：HTTP 工具行 ---------- */
+function agAddHttpTool() {
+  if (agHttpTools.length >= 10) { showMsg('HTTP 工具最多 10 个', false); return; }
+  agHttpTools.push({ name: '', description: '', endpoint: '', method: 'GET', pathPrefix: '/' });
+  agRenderHttpRows();
+}
+function agRenderHttpRows() {
+  $('ag-http-rows').innerHTML = agHttpTools.map((t, i) => `
+    <div class="ag-row cols-http">
+      <input type="text" placeholder="工具名（小写字母开头）" value="${esc(t.name)}" oninput="agHttpTools[${i}].name=this.value">
+      <input type="text" placeholder="描述（模型据此决定何时调用）" value="${esc(t.description)}" oninput="agHttpTools[${i}].description=this.value">
+      <input type="text" placeholder="端点 https://host/api" value="${esc(t.endpoint)}" oninput="agHttpTools[${i}].endpoint=this.value">
+      <select onchange="agHttpTools[${i}].method=this.value">
+        <option value="GET"${t.method === 'GET' ? ' selected' : ''}>GET</option>
+        <option value="POST"${t.method === 'POST' ? ' selected' : ''}>POST</option>
+      </select>
+      <input type="text" placeholder="path 白名单前缀 /" value="${esc(t.pathPrefix)}" oninput="agHttpTools[${i}].pathPrefix=this.value">
+      <button class="del" onclick="agHttpTools.splice(${i},1);agRenderHttpRows()">删除</button>
+    </div>`).join('');
+}
+
+/* ---------- 表单：MCP 行 ---------- */
+function agAddMcp() {
+  if (agMcps.length >= 10) { showMsg('MCP 端点最多 10 个', false); return; }
+  agMcps.push({ name: '', url: '', transport: '' });
+  agRenderMcpRows();
+}
+function agRenderMcpRows() {
+  $('ag-mcp-rows').innerHTML = agMcps.map((m, i) => `
+    <div class="ag-row cols-mcp">
+      <input type="text" placeholder="名称（如 weather）" value="${esc(m.name)}" oninput="agMcps[${i}].name=this.value">
+      <input type="text" placeholder="URL http://host/mcp" value="${esc(m.url)}" oninput="agMcps[${i}].url=this.value">
+      <button class="test" onclick="agTestMcp(${i})">测试</button>
+      <button class="del" onclick="agMcps.splice(${i},1);agRenderMcpRows()">删除</button>
+    </div>`).join('');
+}
+async function agTestMcp(i) {
+  const url = agMcps[i].url;
+  const out = $('ag-test-model-result');
+  out.textContent = 'MCP 探测中…'; out.className = 'ag-mini';
+  try {
+    const r = await api('POST', '/api/agents/test-mcp', { url });
+    out.textContent = r.ok ? `MCP 连接成功，远端工具：${(r.tools || []).join(', ') || '(无工具)'}`
+      : r.detail;
+    out.className = r.ok ? 'ag-ok' : 'ag-err';
+  } catch (e) { out.textContent = '失败：' + e.message; out.className = 'ag-err'; }
+}
+
+/* ---------- 表单：子智能体卡片 ---------- */
+function agAddSubagent() {
+  if (agSubagents.length >= 3) { showMsg('子智能体最多 3 个', false); return; }
+  agSubagents.push({ name: '', description: '', emoji: '🤖', color: 'blue', prompt: '' });
+  agRenderSubRows();
+}
+function agRenderSubRows() {
+  $('ag-sub-rows').innerHTML = agSubagents.map((s, i) => `
+    <div class="ag-sub-card">
+      <div class="ag-row cols-sub">
+        <input type="text" placeholder="名称（小写/数字/连字符）" value="${esc(s.name)}" oninput="agSubagents[${i}].name=this.value">
+        <input type="text" placeholder="描述（父 agent 据此分派）" value="${esc(s.description)}" oninput="agSubagents[${i}].description=this.value">
+        <input type="text" placeholder="🤖" value="${esc(s.emoji)}" oninput="agSubagents[${i}].emoji=this.value">
+        <select onchange="agSubagents[${i}].color=this.value">
+          ${['blue', 'green', 'purple', 'orange', 'red', 'teal'].map(c =>
+            `<option value="${c}"${s.color === c ? ' selected' : ''}>${c}</option>`).join('')}
+        </select>
+        <button class="del" onclick="agSubagents.splice(${i},1);agRenderSubRows()">删除</button>
+      </div>
+      <textarea placeholder="人格提示词（≤8000 字）" oninput="agSubagents[${i}].prompt=this.value">${esc(s.prompt)}</textarea>
+    </div>`).join('');
+}
+
+/* ---------- 模型连通性测试 ---------- */
+async function agTestModel() {
+  const out = $('ag-test-model-result');
+  const body = {
+    baseUrl: $('ag-f-baseurl').value.trim(),
+    modelName: $('ag-f-model').value.trim(),
+    apiKey: $('ag-f-apikey').value.trim()
+  };
+  if (!body.apiKey && agEditing && agEditing.hasKey) {
+    if (!confirm('Key 输入框为空（编辑模式）。测试连接需要密钥——用已保存的密钥无法直发，请在框中重新输入 Key 后测试。仍要继续吗？')) return;
+  }
+  out.textContent = '连接测试中…'; out.className = 'ag-mini';
+  try {
+    const r = await api('POST', '/api/agents/test-model', body);
+    out.textContent = r.detail;
+    out.className = r.ok ? 'ag-ok' : 'ag-err';
+  } catch (e) { out.textContent = '失败：' + e.message; out.className = 'ag-err'; }
+}
+
+/* ---------- 保存 ---------- */
+function agCollect() {
+  const skills = [...document.querySelectorAll('#ag-skills-bar .ag-chip.on')].map(el => el.dataset.name);
+  const tools = [...document.querySelectorAll('#ag-tools-bar .ag-chip.on')].map(el => el.dataset.name);
+  const maxIters = parseInt($('ag-f-maxiters').value, 10);
+  return {
+    name: $('ag-f-name').value.trim(),
+    description: $('ag-f-desc').value.trim(),
+    sysPrompt: $('ag-f-sysprompt').value,
+    greeting: $('ag-f-greeting').value.trim(),
+    baseUrl: $('ag-f-baseurl').value.trim(),
+    modelName: $('ag-f-model').value.trim(),
+    apiKey: $('ag-f-apikey').value.trim(),
+    maxIters: isNaN(maxIters) ? 0 : maxIters,
+    skills, tools,
+    httpTools: agHttpTools,
+    mcps: agMcps,
+    subagents: agSubagents,
+    status: $('ag-f-status').value
+  };
+}
+
+async function agSave() {
+  const req = agCollect();
+  try {
+    if (agEditing) {
+      const d = await api('PUT', '/api/agents/' + agEditing.id, req);
+      showMsg(`已保存：v${d.version}（实例已驱逐，下次访问按新定义装配）`, true);
+    } else {
+      const d = await api('POST', '/api/agents', req);
+      showMsg(`已创建：${d.id}（v${d.version}）`, true);
+    }
+    agShowForm(false);
+    await agLoadList();
+  } catch (e) { showMsg('保存失败：' + e.message, false); }
+}
+
+/* ---------- 试运行（SSE，与 AI 问答同事件契约） ---------- */
+function agOpenTrial(agentId, name) {
+  agTrial = { agentId, sessionId: 'trial-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), busy: false };
+  $('ag-trial-title').textContent = `试运行：${name}（${agentId}）`;
+  $('ag-trial-log').innerHTML = '';
+  $('ag-trial-input').value = '';
+  $('ag-trial-modal').classList.add('open');
+  $('ag-trial-input').focus();
+}
+function agCloseTrial() {
+  $('ag-trial-modal').classList.remove('open');
+  agTrial = null;
+}
+
+async function agTrialSend() {
+  if (!agTrial || agTrial.busy) return;
+  const input = $('ag-trial-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  agTrial.busy = true;
+  const log = $('ag-trial-log');
+  log.insertAdjacentHTML('beforeend', `<div class="u">${esc(text)}</div>`);
+  let ans = null, think = null;
+  const ensureAns = () => {
+    if (!ans) { ans = document.createElement('div'); ans.className = 'ans'; log.appendChild(ans); }
+    return ans;
+  };
+  const ensureThink = () => {
+    if (!think) { think = document.createElement('div'); think.className = 'think'; log.appendChild(think); }
+    return think;
+  };
+  try {
+    const res = await fetch(`/api/agent/sessions/${agTrial.sessionId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, agentId: agTrial.agentId })
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => null);
+      throw new Error(j && j.msg ? j.msg : ('HTTP ' + res.status));
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        let ev = '', data = '';
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('event:')) ev = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        if (!ev) continue;
+        let d = {};
+        try { d = JSON.parse(data); } catch (e) {}
+        if (ev === 'thinking') ensureThink().textContent += d.delta || '';
+        else if (ev === 'tool') {
+          if (d.phase === 'start') log.insertAdjacentHTML('beforeend',
+            `<div class="tool">🔧 ${esc(d.name || '')}（${esc(d.id || '')}）</div>`);
+          think = null; // 工具阶段后新开思考块
+        }
+        else if (ev === 'answer') { ensureAns().textContent += d.delta || ''; think = null; }
+        else if (ev === 'round' && d.phase === 'start') {
+          log.insertAdjacentHTML('beforeend', `<div class="ag-mini">— 第 ${log.querySelectorAll('.u').length} 轮 —</div>`);
+          ans = null; think = null;
+        }
+        else if (ev === 'done') log.insertAdjacentHTML('beforeend', `<div class="ag-mini">✓ 完成（tokens：${d.promptTokens || 0}+${d.completionTokens || 0}）</div>`);
+        else if (ev === 'error') log.insertAdjacentHTML('beforeend', `<div class="err">✗ ${esc(d.message || '生成失败')}</div>`);
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+  } catch (e) {
+    log.insertAdjacentHTML('beforeend', `<div class="err">✗ ${esc(e.message)}</div>`);
+  } finally {
+    if (agTrial) agTrial.busy = false;
+    log.scrollTop = log.scrollHeight;
+  }
+}
+</script>
+</body>
+</html>

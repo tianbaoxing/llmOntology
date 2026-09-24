@@ -52,6 +52,12 @@ public class PageController {
         return "forward:/pages/chat.html";
     }
 
+    /** 智能体搭建页（向导 + 列表 + 试运行，仅 ADMIN，AuthInterceptor 校验） */
+    @GetMapping("/agents")
+    public String agents() {
+        return "forward:/pages/agents.html";
+    }
+
     /** 驾驶舱页（AI 用量统计，页面级权限由前端控制，接口层 403 兜底） */
     @GetMapping("/dashboard")
     public String dashboard() {
