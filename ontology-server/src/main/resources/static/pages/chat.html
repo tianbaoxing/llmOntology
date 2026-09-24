@@ -156,6 +156,9 @@ textarea:focus { outline: none; border-color: #2563eb; }
 .ps-tag .x { font-weight: 700; }
 .pf-preview { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; font-size: 13px; white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow-y: auto; color: #374151; }
 .ps-tip { font-size: 12px; color: #9ca3af; margin-top: 6px; }
+/* 自建智能体开场白气泡徽标 */
+.greet-tag { display: inline-block; margin-bottom: 6px; padding: 1px 10px; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; font-size: 11px; }
+.agent-sel { font-size: 12px; border: 1px solid #d1d5db; border-radius: 6px; padding: 3px 8px; color: #374151; max-width: 220px; background: #fff; }
 </style>
 </head>
 <body>
@@ -180,6 +183,7 @@ textarea:focus { outline: none; border-color: #2563eb; }
     </div>
     <div class="input-area">
       <div class="tools-bar">
+        <select class="agent-sel" id="agent-sel" title="选择问答智能体（自建智能体来自「智能体搭建」页上架的实例）" style="display:none"></select>
         <div class="skills-row" id="skills-row"></div>
       </div>
       <div class="input-row">
@@ -432,6 +436,7 @@ const SS_KEY = 'agent-chat-session';
 // 会话级 token 累计：最后一条 assistant 记录额外展示总计
 let sessionTotals = { in: 0, out: 0, lastUi: null };
 let sessionId = localStorage.getItem(SS_KEY); // 先完成声明再调 newSessionId（其内部赋值本变量），避免 TDZ
+const restoredId = sessionId; // 页面加载时恢复的旧会话 id（null = 首访新会话，初始化时保持首屏提示）
 if (!sessionId) newSessionId();
 let streaming = false;
 let aborter = null;
@@ -1007,6 +1012,67 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// ---------- 多智能体（自建智能体来自「智能体搭建」页上架的实例） ----------
+const AGENT_KEY = 'agent-chat-agent'; // localStorage：当前选中的自建智能体 id（空 = 平台主智能体）
+let chatAgents = [];                  // /api/agents/for-chat 返回的上架智能体
+
+function currentAgentId() {
+  return localStorage.getItem(AGENT_KEY) || '';
+}
+
+/** 会话系列接口的 agentId 查询参数（主智能体时为空串） */
+function agentQuery() {
+  const id = currentAgentId();
+  return id ? ('?agentId=' + encodeURIComponent(id)) : '';
+}
+
+/** 拉取上架智能体并填充选择器；无上架项时保持隐藏，localStorage 里的失效选择同时清除 */
+async function loadChatAgents() {
+  try {
+    const res = await fetch('/api/agents/for-chat');
+    const j = await res.json();
+    chatAgents = (res.ok && j && j.code === 0 && j.data) || [];
+  } catch (e) {
+    chatAgents = [];
+  }
+  const sel = $('agent-sel');
+  if (!sel) return;
+  if (!chatAgents.length) {
+    localStorage.removeItem(AGENT_KEY);
+    return;
+  }
+  sel.innerHTML = '<option value="">平台智能体</option>' +
+      chatAgents.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+  const saved = currentAgentId();
+  if (saved && chatAgents.some(a => a.id === saved)) sel.value = saved;
+  else { sel.value = ''; localStorage.removeItem(AGENT_KEY); }
+  sel.style.display = '';
+  sel.addEventListener('change', onAgentSwitch);
+}
+
+/** 切换智能体：持久化选择并开新会话 + 重拉该智能体的会话列表（不同智能体的会话存储相互独立，历史不可续） */
+function onAgentSwitch() {
+  const sel = $('agent-sel');
+  if (sel.value) localStorage.setItem(AGENT_KEY, sel.value);
+  else localStorage.removeItem(AGENT_KEY);
+  startNewSession();
+  loadSessions(); // startNewSession 仅重渲染内存旧数据，必须重拉列表（否则侧边栏残留上一智能体的会话）
+}
+
+/** 渲染开场白为首条气泡（纯前端展示：不入消息历史、不占 msgIndex，与后端设计一致）；无开场白返回 false */
+function showGreeting(agentId) {
+  const g = chatAgents.find(a => a.id === agentId);
+  if (!g || !g.greeting) return false;
+  const el = addNode('<div class="msg-agent"><div class="answer"></div></div>');
+  const tag = document.createElement('span');
+  tag.className = 'greet-tag';
+  tag.title = '开场白（不占用会话历史）';
+  tag.textContent = '开场白';
+  el.insertBefore(tag, el.firstChild);
+  el.querySelector('.answer').textContent = g.greeting;
+  return true;
+}
+
 function scrollBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
@@ -1240,7 +1306,7 @@ async function send() {
     const res = await fetch('/api/agent/sessions/' + encodeURIComponent(sessionId) + '/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({ message: text, agentId: currentAgentId() || null }),
       signal: aborter.signal
     });
     if (!res.ok || !res.body) {
@@ -1308,7 +1374,7 @@ let lastClick = { id: null, ts: 0 };
 
 async function loadSessions() {
   try {
-    const res = await fetch('/api/agent/sessions');
+    const res = await fetch('/api/agent/sessions' + agentQuery());
     if (res.status === 401) { location.href = '/login'; return; }
     const j = await res.json();
     sessions = (j && j.data && j.data.sessions) || [];
@@ -1413,7 +1479,7 @@ function beginRename(titleEl, s) {
 /** 保存重命名：PUT title；成功更新本地缓存后重渲染（当前会话头部随 updateChatHead 联动），失败弹错恢复 */
 async function saveRename(s, title) {
   try {
-    const res = await fetch('/api/agent/sessions/' + encodeURIComponent(s.sessionId) + '/title', {
+    const res = await fetch('/api/agent/sessions/' + encodeURIComponent(s.sessionId) + '/title' + agentQuery(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title })
@@ -1437,12 +1503,12 @@ function updateChatHead() {
   el.title = el.textContent;
 }
 
-/** 开启新会话：换新 id、清空消息区、刷新列表（新会话按钮/恢复横幅共用） */
+/** 开启新会话：换新 id、清空消息区（自建智能体有开场白时渲染为首条气泡）、刷新列表（新会话按钮/智能体切换/恢复横幅共用） */
 function startNewSession() {
   if (streaming && aborter) aborter.abort();
   disposeAllCharts();
   newSessionId();
-  messagesEl.innerHTML = emptyTipHtml('已开启新会话');
+  if (!showGreeting(currentAgentId())) messagesEl.innerHTML = emptyTipHtml('已开启新会话');
   renderSessions();
   inputEl.focus();
 }
@@ -1515,13 +1581,13 @@ async function loadMessages() {
   msgSeq = 0; // 与 /messages 数组下标重新对齐（user/assistant 渲染顺序计数）
   let msgs = null;
   try {
-    const res = await fetch('/api/agent/sessions/' + encodeURIComponent(sessionId) + '/messages');
+    const res = await fetch('/api/agent/sessions/' + encodeURIComponent(sessionId) + '/messages' + agentQuery());
     if (res.status === 401) { location.href = '/login'; return; }
     const j = await res.json();
     if (res.ok && j.code === 0) msgs = j.data && j.data.messages;
   } catch (e) { /* 网络异常按无记录处理 */ }
   if (!msgs || !msgs.length) {
-    messagesEl.innerHTML = emptyTipHtml('当前会话暂无记录');
+    if (!showGreeting(currentAgentId())) messagesEl.innerHTML = emptyTipHtml('当前会话暂无记录');
     return;
   }
   sessionTotals = { in: 0, out: 0, lastUi: null };
@@ -1622,7 +1688,7 @@ async function deleteSession(id) {
   if (!confirm('删除该会话？聊天记录与 AI 记忆将一并清除，不可恢复。')) return;
   let j = null;
   try {
-    const res = await fetch('/api/agent/sessions/' + encodeURIComponent(id), { method: 'DELETE' });
+    const res = await fetch('/api/agent/sessions/' + encodeURIComponent(id) + agentQuery(), { method: 'DELETE' });
     j = await res.json();
     if (!res.ok || j.code !== 0) throw new Error(j.msg || 'HTTP ' + res.status);
   } catch (e) {
@@ -1632,7 +1698,7 @@ async function deleteSession(id) {
   if (id === sessionId) {
     newSessionId();
     disposeAllCharts();
-    messagesEl.innerHTML = emptyTipHtml('已开启新会话');
+    if (!showGreeting(currentAgentId())) messagesEl.innerHTML = emptyTipHtml('已开启新会话');
   }
   await loadSessions();
 }
@@ -1692,14 +1758,26 @@ if (searchInput) {
 }
 
 // 初始化：加载会话列表与用户提示词缓存；当前会话有记录则回看，并提示“已恢复旧会话”（await 后插横幅，避免被 loadMessages 清空）
+// 恢复的会话 id 不在当前智能体的列表（如上次用的是另一个智能体/主智能体）时按新会话处理，避免续写串台
 inputEl.focus();
 loadPrompts();
-loadSessions().then(async () => {
+// 先就绪智能体清单再拉会话列表：showGreeting 依赖 chatAgents（否则首访开场白可能不渲染）；
+// 失效选择也在此清除，避免 loadSessions 用旧 agentId 请求（loadChatAgents 全 catch 永不 reject，串行安全）
+loadChatAgents().then(() => loadSessions()).then(async () => {
   const cur = sessions.find(s => s.sessionId === sessionId);
   if (cur) {
     await loadMessages();
     showResumeTip(cur.title);
+    return;
   }
+  if (!restoredId) { // 首访新会话：保持首屏提示（选中的智能体有开场白时渲染为首条气泡）
+    showGreeting(currentAgentId());
+    return;
+  }
+  // 恢复的旧会话 id 不在当前智能体的列表（如上次用的是另一个智能体）：按新会话处理，避免续写串台
+  newSessionId();
+  disposeAllCharts();
+  if (!showGreeting(currentAgentId())) messagesEl.innerHTML = emptyTipHtml('已开启新会话');
 });
 </script>
 </body>
