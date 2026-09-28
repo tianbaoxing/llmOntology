@@ -77,7 +77,7 @@ public final class AgentBootstrapper {
             if (wrapper == null) continue;
             mcpClients.add(wrapper);
         }
-        HarnessAgent.Builder builder = HarnessAgent.builder().name(def.id()).description(def.description().isBlank() ? def.name() : def.description()).sysPrompt(AgentBootstrapper.effectivePrompt(def)).model((Model)chatModel).workspace(workspace).stateStore((AgentStateStore)new JsonFileAgentStateStore(stateDir)).maxIters(AgentBootstrapper.clampIters(def.maxIters())).toolkit(toolkit).middlewares(middlewares == null ? List.of() : middlewares).disableDynamicSubagents();
+        HarnessAgent.Builder builder = HarnessAgent.builder().name(def.id()).description(def.description().isBlank() ? def.name() : def.description()).sysPrompt(AgentBootstrapper.effectivePrompt(def)).model((Model)chatModel).workspace(workspace).stateStore((AgentStateStore)new JsonFileAgentStateStore(stateDir)).maxIters(AgentBootstrapper.clampIters(def.maxIters())).toolkit(toolkit).middlewares(middlewares == null ? List.of() : middlewares).disableDynamicSubagents().disableDefaultWorkspaceSkills();
         HarnessAgent agent = builder.build();
         log.info("\u667a\u80fd\u4f53\u5df2\u88c5\u914d\uff1a{}\uff08tools={}, skills={}, subagents={}\uff09", new Object[]{def.id(), toolkit.getToolNames(), def.skills(), def.subagents().size()});
         return new BuiltAgent(agent, mcpClients);

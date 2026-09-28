@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -194,11 +195,12 @@ public class AgentChatService {
      * 记忆工具开关切换后 Toolkit 增减，本清单随之变化）。
      */
     public List<Map<String, String>> listTools() {
-        List<Map<String, String>> tools = new ArrayList<>();
         HarnessAgent agent = agentProvider.getIfAvailable();
-        if (agent == null) {
-            return tools;
-        }
+        return agent == null ? new ArrayList<>() : listToolsOf(agent);
+    }
+
+    private List<Map<String, String>> listToolsOf(HarnessAgent agent) {
+        List<Map<String, String>> tools = new ArrayList<>();
         List<String> names = new ArrayList<>(agent.getToolkit().getToolNames());
         Collections.sort(names);
         for (String name : names) {
@@ -246,11 +248,12 @@ public class AgentChatService {
      * 跨仓库按 name 去重（workspace skills 与全局目录可能同名，取先注册的）。
      */
     public List<Map<String, String>> listSkills() {
-        List<Map<String, String>> skills = new ArrayList<>();
         HarnessAgent agent = agentProvider.getIfAvailable();
-        if (agent == null) {
-            return skills;
-        }
+        return agent == null ? new ArrayList<>() : listSkillsOf(agent);
+    }
+
+    private List<Map<String, String>> listSkillsOf(HarnessAgent agent) {
+        List<Map<String, String>> skills = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (AgentSkillRepository repo : agent.getSkillRepositories()) {
             for (AgentSkill skill : repo.getAllSkills()) {
@@ -271,11 +274,12 @@ public class AgentChatService {
      * 仅读已注册的子 agent 模板（不实例化）。chat 页并入技能行做展示。
      */
     public List<Map<String, String>> listSubagents() {
-        List<Map<String, String>> subs = new ArrayList<>();
         HarnessAgent agent = agentProvider.getIfAvailable();
-        if (agent == null) {
-            return subs;
-        }
+        return agent == null ? new ArrayList<>() : listSubagentsOf(agent);
+    }
+
+    private List<Map<String, String>> listSubagentsOf(HarnessAgent agent) {
+        List<Map<String, String>> subs = new ArrayList<>();
         var manager = agent.getSubagentAgentManager();
         if (manager == null) {
             return subs;
@@ -328,6 +332,64 @@ public class AgentChatService {
         return listSubagents().stream()
                 .filter(s -> !denied.contains(s.get("agentId")))
                 .toList();
+    }
+
+    // ---------------- 清单按智能体路由（chat 页三清单与所选智能体对应） ----------------
+
+    /**
+     * 工具清单（agentId 路由）：agentId 空 → 主智能体（角色过滤）；
+     * 非空 → 自建智能体装配实例的实际清单（不做角色过滤，与 chat 执行行为一致）。
+     */
+    public List<Map<String, String>> listTools(String role, String agentId) {
+        return isCustom(agentId) ? readCustom(agentId, this::listToolsOf) : listTools(role);
+    }
+
+    /** 技能清单（agentId 路由，同 {@link #listTools(String, String)}） */
+    public List<Map<String, String>> listSkills(String role, String agentId) {
+        return isCustom(agentId) ? readCustom(agentId, this::listSkillsOf) : listSkills(role);
+    }
+
+    /** 子 Agent 清单（agentId 路由，同 {@link #listTools(String, String)}） */
+    public List<Map<String, String>> listSubagents(String role, String agentId) {
+        return isCustom(agentId) ? readCustom(agentId, this::listSubagentsOf) : listSubagents(role);
+    }
+
+    /** agent 是否可用（自建智能体 = 可装配即视为可用；chat 页 agentAvailable 位，构建失败返回 false） */
+    public boolean isAvailable(String agentId) {
+        if (!isCustom(agentId)) {
+            return isAvailable();
+        }
+        try {
+            agentRegistry.acquire(agentId);
+            agentRegistry.release(agentId);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isCustom(String agentId) {
+        return agentId != null && !agentId.isBlank();
+    }
+
+    /**
+     * 自建智能体实例读取包装：acquire → 读 → release（实例留在注册表缓存复用，
+     * 空闲驱逐由 sweeper 统一管理）。构建失败（密钥缺失/MCP 不通等）返回空列表，
+     * 页面清单静默降级，不中断聊天。
+     */
+    private List<Map<String, String>> readCustom(String agentId,
+            Function<HarnessAgent, List<Map<String, String>>> reader) {
+        try {
+            HarnessAgent agent = agentRegistry.acquire(agentId);
+            try {
+                return reader.apply(agent);
+            } finally {
+                agentRegistry.release(agentId);
+            }
+        } catch (Exception e) {
+            log.warn("自建智能体清单读取失败（agentId={}）：{}", agentId, e.getMessage());
+            return List.of();
+        }
     }
 
 

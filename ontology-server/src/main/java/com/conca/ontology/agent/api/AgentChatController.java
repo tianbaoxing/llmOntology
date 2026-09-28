@@ -56,28 +56,31 @@ public class AgentChatController {
         this.agentBuilderService = agentBuilderService;
     }
 
-    /** 技能清单（按当前用户角色过滤被禁技能）；agent 未装配（未配置 key）时为空列表 */
+    /** 技能清单（?agentId= 自建智能体实例清单；主智能体按角色过滤被禁技能）；agent 未装配（未配置 key）时为空列表 */
     @GetMapping("/skills")
-    public ApiResponse<Map<String, Object>> skills(HttpSession session) {
+    public ApiResponse<Map<String, Object>> skills(HttpSession session,
+            @RequestParam(required = false) String agentId) {
         return ApiResponse.ok(Map.of(
-                "agentAvailable", agentChatService.isAvailable(),
-                "skills", agentChatService.listSkills(currentRole(session))));
+                "agentAvailable", agentChatService.isAvailable(agentId),
+                "skills", agentChatService.listSkills(currentRole(session), agentId)));
     }
 
-    /** 工具清单（按当前用户角色过滤被禁工具）；Toolkit 实时存活集，agent 未装配时为空列表 */
+    /** 工具清单（?agentId= 自建智能体实例清单；主智能体按角色过滤被禁工具）；Toolkit 实时存活集，agent 未装配时为空列表 */
     @GetMapping("/tools")
-    public ApiResponse<Map<String, Object>> tools(HttpSession session) {
+    public ApiResponse<Map<String, Object>> tools(HttpSession session,
+            @RequestParam(required = false) String agentId) {
         return ApiResponse.ok(Map.of(
-                "agentAvailable", agentChatService.isAvailable(),
-                "tools", agentChatService.listTools(currentRole(session))));
+                "agentAvailable", agentChatService.isAvailable(agentId),
+                "tools", agentChatService.listTools(currentRole(session), agentId)));
     }
 
-    /** 子 Agent 清单（按当前用户角色过滤被禁子代理；注册表模板数，不实例化） */
+    /** 子 Agent 清单（?agentId= 自建智能体实例清单；主智能体按角色过滤被禁子代理；注册表模板数，不实例化） */
     @GetMapping("/subagents")
-    public ApiResponse<Map<String, Object>> subagents(HttpSession session) {
+    public ApiResponse<Map<String, Object>> subagents(HttpSession session,
+            @RequestParam(required = false) String agentId) {
         return ApiResponse.ok(Map.of(
-                "agentAvailable", agentChatService.isAvailable(),
-                "subagents", agentChatService.listSubagents(currentRole(session))));
+                "agentAvailable", agentChatService.isAvailable(agentId),
+                "subagents", agentChatService.listSubagents(currentRole(session), agentId)));
     }
 
     /** 流式问答：agentId 留空 = 主智能体；非空 = 自建智能体（active 所有人，test 仅管理员试运行） */

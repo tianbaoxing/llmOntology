@@ -437,7 +437,8 @@ public class AgentBuilderService {
                     continue;
                 }
                 Map<String, String> m = new LinkedHashMap<>();
-                m.put("name", fm.getOrDefault("name", skillDir.getFileName().toString()));
+                // 技能 ID 统一口径 = 目录名（skillExists/copySkills 按目录拼路径，frontmatter name 仅供 harness 展示）
+                m.put("name", skillDir.getFileName().toString());
                 m.put("description", fm.getOrDefault("description", ""));
                 result.add(m);
             }
@@ -461,10 +462,20 @@ public class AgentBuilderService {
         for (i++; i < lines.length && !lines[i].strip().equals("---"); i++) {
             int c = lines[i].indexOf(':');
             if (c > 0) {
-                result.put(lines[i].substring(0, c).strip(), lines[i].substring(c + 1).strip());
+                result.put(lines[i].substring(0, c).strip(),
+                        unquote(lines[i].substring(c + 1).strip()));
             }
         }
         return result;
+    }
+
+    /** 去掉 YAML 值首尾成对的引号（name: "xxx" → xxx），避免引号进入路径/数据 */
+    private static String unquote(String s) {
+        if (s.length() >= 2
+                && ((s.startsWith("\"") && s.endsWith("\"")) || (s.startsWith("'") && s.endsWith("'")))) {
+            return s.substring(1, s.length() - 1);
+        }
+        return s;
     }
 
     private static String clip(String s) {

@@ -506,13 +506,12 @@ function retroEvalBtns() {
 }
 
 // ---------- 技能快捷插入 ----------
-// 技能清单来自 HarnessAgent 已装配的技能仓库（/api/agent/skills），
+// 技能清单来自所选智能体已装配的技能仓库（/api/agent/skills?agentId=），
 // 悬停 chip 显示 description，点击在光标处插入 /技能名
-loadSkills();
 
-/** 拉取技能清单并重渲染；转换/删除 skill 后调用，保证输入区 chip 与实际一致 */
+/** 拉取当前智能体的技能清单并重渲染；转换/删除 skill 或切换智能体后调用，保证输入区 chip 与实际一致 */
 function loadSkills() {
-  fetch('/api/agent/skills').then(r => r.json()).then(j => {
+  fetch('/api/agent/skills' + agentQuery()).then(r => r.json()).then(j => {
     if (j && j.code === 0) renderSkills(j.data && j.data.skills);
   }).catch(() => { /* 拉取失败时整行隐藏，不影响聊天 */ });
 }
@@ -552,15 +551,24 @@ function insertSkill(name) {
 }
 
 // ---------- 子 Agent 数量（并入技能行） ----------
-// 数量来自 HarnessAgent SubagentManager 注册表（/api/agent/subagents），纯展示不实例化；
+// 数量来自所选智能体 SubagentManager 注册表（/api/agent/subagents?agentId=），纯展示不实例化；
 // 仅当存在子 agent 时渲染（>0），避免出现「子Agent 0」噪音
-fetch('/api/agent/subagents').then(r => r.json()).then(j => {
-  if (j && j.code === 0) renderSubagents(j.data && j.data.subagents);
-}).catch(() => { /* 拉取失败不显示，不影响聊天 */ });
+
+/** 拉取当前智能体的子 Agent 清单并重渲染 chip（切换智能体后调用） */
+function loadSubagents() {
+  fetch('/api/agent/subagents' + agentQuery()).then(r => r.json()).then(j => {
+    if (j && j.code === 0) renderSubagents(j.data && j.data.subagents);
+  }).catch(() => { /* 拉取失败不显示，不影响聊天 */ });
+}
 
 function renderSubagents(subagents) {
   const row = $('skills-row');
-  if (!row || !Array.isArray(subagents) || !subagents.length) return;
+  if (!row) return;
+  row.querySelectorAll('.skill-chip.sub-chip').forEach(n => n.remove()); // 先清旧 chip（切换智能体重渲染）
+  if (!Array.isArray(subagents) || !subagents.length) {
+    if (!row.querySelector('.skill-chip')) row.classList.remove('show'); // 技能也为空时整行隐藏
+    return;
+  }
   const chip = document.createElement('span');
   chip.className = 'skill-chip sub-chip'; // sub-chip 标记：技能 chip 刷新时保留
   chip.textContent = '🤖 子Agent ' + subagents.length;
@@ -572,20 +580,26 @@ function renderSubagents(subagents) {
   if (!row.classList.contains('show')) row.classList.add('show');
 }
 
+/** 重拉当前智能体的技能/工具/子 Agent 三清单（初始化与切换智能体时调用，与选择器对应） */
+function refreshCapabilities() {
+  loadSkills();
+  loadTools();
+  loadSubagents();
+}
+
 // ---------- 工具清单拉取 ----------
-// 数据来自 Toolkit 实时存活集（GET /api/agent/tools），缓存到 toolCache，
+// 数据来自所选智能体 Toolkit 实时存活集（GET /api/agent/tools?agentId=），缓存到 toolCache，
 // 供输入框 "/" 快捷菜单过滤使用
 let toolCache = [];
 
+/** 拉取当前智能体的工具清单并刷新缓存（切换智能体后调用，"/" 菜单随之更新） */
 function loadTools() {
-  fetch('/api/agent/tools').then(r => r.json()).then(j => {
+  fetch('/api/agent/tools' + agentQuery()).then(r => r.json()).then(j => {
     if (j && j.code === 0 && j.data && j.data.agentAvailable) {
       toolCache = j.data.tools || [];
     }
   }).catch(() => { /* 拉取失败保持空列表 */ });
 }
-
-loadTools();
 
 // ---------- “/” 工具快捷菜单 ----------
 // 输入框中键入 / （或 /前缀）时在输入框上方弹出工具清单，点击或 Enter 选中后
@@ -1050,13 +1064,14 @@ async function loadChatAgents() {
   sel.addEventListener('change', onAgentSwitch);
 }
 
-/** 切换智能体：持久化选择并开新会话 + 重拉该智能体的会话列表（不同智能体的会话存储相互独立，历史不可续） */
+/** 切换智能体：持久化选择并开新会话 + 重拉该智能体的会话列表与三清单（技能/工具/子 Agent 与所选智能体对应） */
 function onAgentSwitch() {
   const sel = $('agent-sel');
   if (sel.value) localStorage.setItem(AGENT_KEY, sel.value);
   else localStorage.removeItem(AGENT_KEY);
   startNewSession();
   loadSessions(); // startNewSession 仅重渲染内存旧数据，必须重拉列表（否则侧边栏残留上一智能体的会话）
+  refreshCapabilities(); // 三清单同样按智能体隔离，切换后重拉
 }
 
 /** 渲染开场白为首条气泡（纯前端展示：不入消息历史、不占 msgIndex，与后端设计一致）；无开场白返回 false */
@@ -1761,9 +1776,9 @@ if (searchInput) {
 // 恢复的会话 id 不在当前智能体的列表（如上次用的是另一个智能体/主智能体）时按新会话处理，避免续写串台
 inputEl.focus();
 loadPrompts();
-// 先就绪智能体清单再拉会话列表：showGreeting 依赖 chatAgents（否则首访开场白可能不渲染）；
-// 失效选择也在此清除，避免 loadSessions 用旧 agentId 请求（loadChatAgents 全 catch 永不 reject，串行安全）
-loadChatAgents().then(() => loadSessions()).then(async () => {
+// 先就绪智能体清单再拉会话列表与三清单：showGreeting 依赖 chatAgents（否则首访开场白可能不渲染）；
+// 失效选择也在此清除，避免后续请求用旧 agentId（loadChatAgents 全 catch 永不 reject，串行安全）
+loadChatAgents().then(() => { refreshCapabilities(); return loadSessions(); }).then(async () => {
   const cur = sessions.find(s => s.sessionId === sessionId);
   if (cur) {
     await loadMessages();
