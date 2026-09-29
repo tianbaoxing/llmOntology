@@ -25,13 +25,13 @@ import com.conca.agentkit.McpSupport;
 import com.conca.ontology.builder.AgentRegistry;
 import com.conca.ontology.builder.dto.request.AgentSaveRequest;
 import com.conca.ontology.builder.model.AgentDefinitionStore;
-import com.conca.ontology.builder.model.AgentKeyStore;
 import com.conca.ontology.shared.web.ApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 智能体搭建编排：校验 → 落定义/密钥/工作区 → 维护注册表；导出 zip / 导出二次开发工程。
+ * 智能体搭建编排：校验 → 落定义/工作区 → 维护注册表；导出 zip / 导出二次开发工程。
  * 校验顺序：本地静态校验（[参数错误] 层）→ 连通性测试（test-model/test-mcp，可选）→ 保存。
+ * 模型密钥不落盘：统一经环境变量 AGENT_API_KEY 注入（AgentRegistry.requireEnvApiKey）。
  */
 @Service
 public class AgentBuilderService {
@@ -47,7 +47,6 @@ public class AgentBuilderService {
     private static final int MAX_SUBAGENTS = 3;
 
     private final AgentDefinitionStore store;
-    private final AgentKeyStore keyStore;
     private final AgentWorkspaceService workspaceService;
     private final AgentRegistry registry;
     private final AgentProjectExportService projectExporter;
@@ -57,13 +56,12 @@ public class AgentBuilderService {
     private final String minHarnessVersion;
     private final SecureRandom random = new SecureRandom();
 
-    public AgentBuilderService(AgentDefinitionStore store, AgentKeyStore keyStore,
+    public AgentBuilderService(AgentDefinitionStore store,
             AgentWorkspaceService workspaceService, AgentRegistry registry,
             AgentProjectExportService projectExporter, ObjectMapper mapper,
             @Value("${app.title:图谱}") String appTitle,
             @Value("${app.agents.min-harness-version:2.0.3}") String minHarnessVersion) {
         this.store = store;
-        this.keyStore = keyStore;
         this.workspaceService = workspaceService;
         this.registry = registry;
         this.projectExporter = projectExporter;
@@ -76,7 +74,7 @@ public class AgentBuilderService {
 
     /** 创建（id 自动生成，与目录/agent 名绑定后不可变） */
     public Map<String, Object> create(AgentSaveRequest req, String owner) {
-        validate(req, true);
+        validate(req);
         String id = "agent-" + randomHex(8);
         while (store.exists(id)) {
             id = "agent-" + randomHex(8);
@@ -89,18 +87,14 @@ public class AgentBuilderService {
                 req.projectName(), req.packageName(),
                 normalizeStatus(req.status()), owner, 1, minHarnessVersion, now, now());
         store.save(def);
-        keyStore.store(id, req.apiKey());
         workspaceService.prepare(def);
         return detail(def);
     }
 
-    /** 编辑（version+1 驱使注册表重建；apiKey 留空 = 沿用） */
+    /** 编辑（version+1 驱使注册表重建） */
     public Map<String, Object> update(String id, AgentSaveRequest req) {
         AgentDefinition old = store.require(id);
-        validate(req, false);
-        if (!req.apiKey().isBlank()) {
-            keyStore.store(id, req.apiKey());
-        }
+        validate(req);
         AgentDefinition def = new AgentDefinition(old.id(), req.name(), req.description(), req.sysPrompt(),
                 req.greeting(), new AgentDefinition.ModelConfig(req.baseUrl(), req.modelName(), ""),
                 req.maxIters() == null ? 0 : req.maxIters(), req.skills(), req.tools(),
@@ -119,16 +113,15 @@ public class AgentBuilderService {
         return detail(def);
     }
 
-    /** 删除（驱逐实例 → 清定义/工作区/状态/密钥） */
+    /** 删除（驱逐实例 → 清定义/工作区/状态） */
     public Map<String, Object> delete(String id) {
         store.require(id);
         registry.evict(id);
-        keyStore.delete(id);
         store.delete(id);
         return Map.of("deleted", id);
     }
 
-    /** 管理列表（含密钥配置状态） */
+    /** 管理列表（含实例存活状态） */
     public List<Map<String, Object>> listForAdmin() {
         List<Map<String, Object>> result = new ArrayList<>();
         for (AgentDefinition def : store.list()) {
@@ -139,7 +132,6 @@ public class AgentBuilderService {
             m.put("status", def.status());
             m.put("version", def.version());
             m.put("updatedAt", def.updatedAt());
-            m.put("hasKey", keyStore.exists(def.id()));
             m.put("live", registry.isLive(def.id()));
             result.add(m);
         }
@@ -164,7 +156,7 @@ public class AgentBuilderService {
         return result;
     }
 
-    /** 详情（定义不含密钥；hasKey 标记是否已配置） */
+    /** 详情（定义不含密钥；密钥统一经环境变量注入） */
     public Map<String, Object> detail(String id) {
         return detail(store.require(id));
     }
@@ -189,7 +181,6 @@ public class AgentBuilderService {
         m.put("status", def.status());
         m.put("version", def.version());
         m.put("updatedAt", def.updatedAt());
-        m.put("hasKey", keyStore.exists(def.id()));
         return m;
     }
 
@@ -212,17 +203,15 @@ public class AgentBuilderService {
         }
     }
 
-    /** 模型连通性：一条最小对话请求，区分 地址错 / key 错 / 模型名错 */
-    public Map<String, Object> testModel(String baseUrl, String modelName, String apiKey) {
+    /** 模型连通性：一条最小对话请求，区分 地址错 / key 错 / 模型名错；key 取环境变量 AGENT_API_KEY */
+    public Map<String, Object> testModel(String baseUrl, String modelName) {
         if (baseUrl == null || !HTTP_URL.matcher(baseUrl.strip()).matches()) {
             throw new ApiException(400, "base-url 必须以 http:// 或 https:// 开头");
         }
         if (modelName == null || modelName.isBlank()) {
             throw new ApiException(400, "模型名不能为空");
         }
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new ApiException(400, "API Key 不能为空");
-        }
+        String apiKey = AgentRegistry.requireEnvApiKey();
         try {
             String body = mapper.writeValueAsString(Map.of(
                     "model", modelName.strip(),
@@ -272,8 +261,9 @@ public class AgentBuilderService {
     /** L1 导出包（zip）：定义导出视图 + workspace（skills/subagents）+ sha256 清单 */
     public Path exportZip(String id) {
         AgentDefinition def = store.require(id);
-        if (!keyStore.exists(id)) {
-            throw new ApiException(400, "该智能体未配置密钥，无法导出（导出包使用 ${AGENT_API_KEY} 占位符，本地仍需密钥校验）");
+        if (!AgentRegistry.envApiKeyPresent()) {
+            throw new ApiException(400, "未检测到环境变量 AGENT_API_KEY，无法导出"
+                    + "（导出包使用 ${AGENT_API_KEY} 占位符，运行时需该环境变量注入密钥）");
         }
         try {
             Path zip = Files.createTempFile("agent-package-" + id, ".zip");
@@ -287,20 +277,21 @@ public class AgentBuilderService {
     /**
      * L2 导出工程（zip）：AgentScope 2.0 原生 Spring Boot 源码工程，
      * 槽位定义转 application.yml 配置驱动，workspace（skills/subagents）原样携带，导出后可深度二次开发。
-     * 密钥经 ${AGENT_API_KEY} 环境变量注入，不随工程携带（与 L1 同语义：本地需已配置密钥才可导出）。
+     * 密钥经 ${AGENT_API_KEY} 环境变量注入，不随工程携带（与 L1 同语义：本地需已设置该环境变量才可导出）。
      */
     public AgentProjectExportService.ExportedProject exportProject(String id) {
         AgentDefinition def = store.require(id);
-        if (!keyStore.exists(id)) {
-            throw new ApiException(400, "该智能体未配置密钥，无法导出（导出工程使用 ${AGENT_API_KEY} 环境变量注入，本地仍需密钥校验）");
+        if (!AgentRegistry.envApiKeyPresent()) {
+            throw new ApiException(400, "未检测到环境变量 AGENT_API_KEY，无法导出"
+                    + "（导出工程使用 ${AGENT_API_KEY} 环境变量注入密钥）");
         }
         return projectExporter.export(def, workspaceService.workspaceOf(id));
     }
 
     // ---------------- 校验 ----------------
 
-    /** 静态校验（[参数错误] 层）：创建与编辑共用；create 模式下 apiKey 必填 */
-    void validate(AgentSaveRequest req, boolean create) {
+    /** 静态校验（[参数错误] 层）：创建与编辑共用 */
+    void validate(AgentSaveRequest req) {
         requireLength("名称", req.name(), 1, 30);
         limitLength("描述", req.description(), 200);
         requireLength("系统提示词", req.sysPrompt(), 1, 8000);
@@ -309,9 +300,6 @@ public class AgentBuilderService {
             throw new ApiException(400, "大模型地址必须以 http:// 或 https:// 开头");
         }
         requireLength("模型名", req.modelName(), 1, 100);
-        if (create && req.apiKey().isBlank()) {
-            throw new ApiException(400, "API Key 不能为空");
-        }
         if (req.maxIters() != null && (req.maxIters() < 0 || req.maxIters() > 20)) {
             throw new ApiException(400, "最大推理轮次须在 0-20（0=默认 6）");
         }

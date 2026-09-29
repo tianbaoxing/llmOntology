@@ -6,7 +6,7 @@ import com.conca.agentkit.AgentDefinition;
 
 /**
  * 智能体创建/编辑请求（向导汇总表单）。
- * apiKey：创建必填；编辑留空 = 沿用已存密钥（三重防线：明文只进密钥库，不出接口）。
+ * 不含 apiKey：模型密钥统一经环境变量 AGENT_API_KEY 注入，不进表单、不落盘。
  */
 public record AgentSaveRequest(
         String name,
@@ -15,7 +15,6 @@ public record AgentSaveRequest(
         String greeting,
         String baseUrl,
         String modelName,
-        String apiKey,
         Integer maxIters,
         List<String> skills,
         List<String> tools,
@@ -33,7 +32,6 @@ public record AgentSaveRequest(
         greeting = nz(greeting);
         baseUrl = nz(baseUrl);
         modelName = nz(modelName);
-        apiKey = nz(apiKey);
         projectName = nz(projectName);
         packageName = nz(packageName);
         status = nz(status);

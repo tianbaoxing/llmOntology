@@ -26,7 +26,6 @@ import com.conca.ontology.agent.middleware.ContentSecurityMiddleware;
 import com.conca.ontology.agent.tool.ChartPluginTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.builder.model.AgentDefinitionStore;
-import com.conca.ontology.builder.model.AgentKeyStore;
 import com.conca.ontology.builder.service.AgentWorkspaceService;
 import com.conca.ontology.content.service.ContentSecurityService;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
@@ -51,6 +50,9 @@ public class AgentRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(AgentRegistry.class);
 
+    /** 模型密钥环境变量名（不落盘、不进定义，服务启动前设置） */
+    private static final String ENV_API_KEY = "AGENT_API_KEY";
+
     /** 内置工具白名单（向导勾选面；实例按需新建，全部为无状态工具） */
     public static final Map<String, String> BUILTIN_TOOLS = Map.of(
             "graph-query", "只读图谱查询管道（http_request_ontology_query，/api/llm/ 白名单），配合 ontology-query 技能使用",
@@ -68,7 +70,6 @@ public class AgentRegistry {
     }
 
     private final AgentDefinitionStore store;
-    private final AgentKeyStore keyStore;
     private final AgentWorkspaceService workspaceService;
     private final ContentSecurityService contentSecurityService;
     private final DisjointRuleService disjointRuleService;
@@ -79,13 +80,12 @@ public class AgentRegistry {
     private final long idleMillis;
     private final ScheduledExecutorService sweeper;
 
-    public AgentRegistry(AgentDefinitionStore store, AgentKeyStore keyStore,
+    public AgentRegistry(AgentDefinitionStore store,
             AgentWorkspaceService workspaceService, ContentSecurityService contentSecurityService,
             DisjointRuleService disjointRuleService,
             @Qualifier("llmBaseUrl") String llmBaseUrl,
             @Value("${app.agents.idle-minutes:30}") int idleMinutes) {
         this.store = store;
-        this.keyStore = keyStore;
         this.workspaceService = workspaceService;
         this.contentSecurityService = contentSecurityService;
         this.disjointRuleService = disjointRuleService;
@@ -163,9 +163,25 @@ public class AgentRegistry {
 
     // ---------------- 内部 ----------------
 
+    /** 环境变量 AGENT_API_KEY 是否已配置（导出前置校验用） */
+    public static boolean envApiKeyPresent() {
+        String key = System.getenv(ENV_API_KEY);
+        return key != null && !key.isBlank();
+    }
+
+    /** 模型密钥统一经环境变量 AGENT_API_KEY 注入（不落盘、不进定义）；未设置给确定性报错 */
+    public static String requireEnvApiKey() {
+        String key = System.getenv(ENV_API_KEY);
+        if (key == null || key.isBlank()) {
+            throw new ApiException(503, "模型密钥未配置：请设置环境变量 AGENT_API_KEY"
+                    + "（如 set AGENT_API_KEY=sk-xxxx你的密钥xxxx）后重启服务");
+        }
+        return key.strip();
+    }
+
     private AgentBootstrapper.BuiltAgent build(String agentId) {
         AgentDefinition def = store.require(agentId);
-        String apiKey = keyStore.require(agentId);
+        String apiKey = requireEnvApiKey();
         try {
             AgentBootstrapper.BuiltAgent built = AgentBootstrapper.build(
                     def, workspaceService.workspaceOf(agentId), workspaceService.stateDirOf(agentId),

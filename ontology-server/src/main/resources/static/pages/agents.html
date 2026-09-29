@@ -82,7 +82,7 @@ td .acts { display: flex; flex-wrap: wrap; gap: 6px; }
 <div class="wrap">
   <div id="ag-list-view" class="ag-wrap">
     <div class="ag-head">
-      <h2>智能体列表 <span class="ag-hint">9 槽位定义：提示词 / 模型 / key / 技能 / MCP / 子 agent / 工具 / 开场白；平台内运行，可导出二次开发工程</span></h2>
+      <h2>智能体列表 <span class="ag-hint">9 槽位定义：提示词 / 模型 / 技能 / MCP / 子 agent / 工具 / 开场白；密钥经环境变量 AGENT_API_KEY 注入；平台内运行，可导出二次开发工程</span></h2>
       <button class="btn primary" onclick="agOpenCreate()">＋ 新建智能体</button>
     </div>
     <div id="ag-list-body">加载中…</div>
@@ -130,7 +130,7 @@ td .acts { display: flex; flex-wrap: wrap; gap: 6px; }
 
     <div class="ag-section">
       <h3>② 模型接入（OpenAI 兼容协议）</h3>
-      <div class="ag-grid3">
+      <div class="ag-grid2">
         <div class="ag-field">
           <label>大模型地址 baseUrl</label>
           <input type="text" id="ag-f-baseurl" placeholder="https://openrouter.ai/api/v1">
@@ -139,11 +139,9 @@ td .acts { display: flex; flex-wrap: wrap; gap: 6px; }
           <label>模型名</label>
           <input type="text" id="ag-f-model" placeholder="deepseek/deepseek-chat">
         </div>
-        <div class="ag-field">
-          <label>API Key <span class="hint" id="ag-f-key-hint">仅存密钥库，不回显</span></label>
-          <input type="password" id="ag-f-apikey" placeholder="sk-..." autocomplete="new-password">
-        </div>
       </div>
+      <div class="ag-mini" style="margin-bottom:10px">API Key 无需填写：密钥经环境变量注入，服务启动前设置，如
+        <code>set AGENT_API_KEY=sk-xxxx你的密钥xxxx</code></div>
       <button class="btn sm" onclick="agTestModel()">🔌 测试连接</button>
       <span id="ag-test-model-result" style="font-size:12px; margin-left:8px"></span>
     </div>
@@ -257,7 +255,6 @@ async function agLoadList() {
     `<b>${esc(a.name)}</b><div class="ag-mini">${esc(a.id)} · v${a.version}</div>`,
     esc(a.description || ''),
     `<span class="ag-status ${esc(a.status)}">${esc(a.status)}</span>`,
-    a.hasKey ? '<span class="ag-ok">已配置</span>' : '<span class="ag-err">未配置</span>',
     a.live ? '运行中' : '未加载',
     esc(String(a.updatedAt || '').replace('T', ' ').slice(0, 19)),
     `<div class="acts">
@@ -268,7 +265,7 @@ async function agLoadList() {
       <button class="btn sm" onclick="agDelete('${esc(a.id)}','${esc(a.name)}')">删除</button>
     </div>`
   ]);
-  body.innerHTML = table(['名称', '描述', '状态', '密钥', '实例', '更新时间', '操作'], rows);
+  body.innerHTML = table(['名称', '描述', '状态', '实例', '更新时间', '操作'], rows);
 }
 
 function agExport(id, kind) {
@@ -290,12 +287,11 @@ function agOpenCreate() {
   agEditing = null;
   agHttpTools = []; agMcps = []; agSubagents = [];
   $('ag-form-title').textContent = '新建智能体';
-  ['ag-f-name', 'ag-f-desc', 'ag-f-greeting', 'ag-f-baseurl', 'ag-f-model', 'ag-f-apikey', 'ag-f-sysprompt',
+  ['ag-f-name', 'ag-f-desc', 'ag-f-greeting', 'ag-f-baseurl', 'ag-f-model', 'ag-f-sysprompt',
    'ag-f-projectname', 'ag-f-packagename']
     .forEach(id => { $(id).value = ''; });
   $('ag-f-status').value = 'test';
   $('ag-f-maxiters').value = '0';
-  $('ag-f-key-hint').textContent = '仅存密钥库，不回显';
   $('ag-test-model-result').textContent = '';
   agRenderChips(); agRenderHttpRows(); agRenderMcpRows(); agRenderSubRows();
   agShowForm(true);
@@ -309,8 +305,6 @@ async function agOpenEdit(id) {
     $('ag-f-name').value = d.name; $('ag-f-desc').value = d.description || '';
     $('ag-f-greeting').value = d.greeting || ''; $('ag-f-sysprompt').value = d.sysPrompt || '';
     $('ag-f-baseurl').value = d.baseUrl || ''; $('ag-f-model').value = d.modelName || '';
-    $('ag-f-apikey').value = '';
-    $('ag-f-key-hint').textContent = d.hasKey ? '留空 = 沿用已配置密钥' : '尚未配置密钥';
     $('ag-f-status').value = d.status;
     $('ag-f-maxiters').value = String(d.maxIters ?? 0);
     $('ag-f-projectname').value = d.projectName || '';
@@ -425,12 +419,8 @@ async function agTestModel() {
   const out = $('ag-test-model-result');
   const body = {
     baseUrl: $('ag-f-baseurl').value.trim(),
-    modelName: $('ag-f-model').value.trim(),
-    apiKey: $('ag-f-apikey').value.trim()
+    modelName: $('ag-f-model').value.trim()
   };
-  if (!body.apiKey && agEditing && agEditing.hasKey) {
-    if (!confirm('Key 输入框为空（编辑模式）。测试连接需要密钥——用已保存的密钥无法直发，请在框中重新输入 Key 后测试。仍要继续吗？')) return;
-  }
   out.textContent = '连接测试中…'; out.className = 'ag-mini';
   try {
     const r = await api('POST', '/api/agents/test-model', body);
@@ -451,7 +441,6 @@ function agCollect() {
     greeting: $('ag-f-greeting').value.trim(),
     baseUrl: $('ag-f-baseurl').value.trim(),
     modelName: $('ag-f-model').value.trim(),
-    apiKey: $('ag-f-apikey').value.trim(),
     maxIters: isNaN(maxIters) ? 0 : maxIters,
     skills, tools,
     httpTools: agHttpTools,

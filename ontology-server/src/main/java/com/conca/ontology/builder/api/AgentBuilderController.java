@@ -33,14 +33,14 @@ import jakarta.servlet.http.HttpSession;
 
 /**
  * 智能体搭建管理入口（/api/agents，仅 ADMIN；for-chat 登录即可）：
- * GET    /api/agents                    → 管理列表（含密钥配置/实例存活状态）
+ * GET    /api/agents                    → 管理列表（含实例存活状态）
  * POST   /api/agents                    → 创建（9 槽位表单）
  * GET    /api/agents/options            → 向导选项面（平台技能清单 + 内置工具白名单）
  * GET    /api/agents/for-chat           → chat 页可选清单（登录即可，仅 active）
  * GET    /api/agents/{id}               → 详情（不含密钥）
- * PUT    /api/agents/{id}               → 编辑（version+1 驱使注册表重建；apiKey 留空=沿用）
- * DELETE /api/agents/{id}               → 删除（驱逐实例 → 清定义/工作区/密钥）
- * POST   /api/agents/test-model         → 模型连通性测试（key 只测不存）
+ * PUT    /api/agents/{id}               → 编辑（version+1 驱使注册表重建）
+ * DELETE /api/agents/{id}               → 删除（驱逐实例 → 清定义/工作区）
+ * POST   /api/agents/test-model         → 模型连通性测试（key 取环境变量 AGENT_API_KEY）
  * POST   /api/agents/test-mcp           → MCP 端点握手探测（返回远端工具清单）
  * GET    /api/agents/{id}/export         → L1 导出包下载（zip）
  * GET    /api/agents/{id}/export-project → L2 导出工程下载（AgentScope 2.0 原生源码工程 zip）
@@ -55,7 +55,7 @@ public class AgentBuilderController {
         this.builderService = builderService;
     }
 
-    /** 管理列表（含 hasKey/live 诊断位） */
+    /** 管理列表（含 live 诊断位） */
     @GetMapping
     public ApiResponse<List<Map<String, Object>>> list(HttpSession session) {
         requireAdmin(session);
@@ -84,7 +84,7 @@ public class AgentBuilderController {
         return ApiResponse.ok(builderService.create(request, SessionUser.of(session).userId()));
     }
 
-    /** 详情（定义不含密钥明文，hasKey 标记是否已配置） */
+    /** 详情（定义不含密钥；密钥统一经环境变量 AGENT_API_KEY 注入） */
     @GetMapping("/{id}")
     public ApiResponse<Map<String, Object>> detail(@PathVariable String id, HttpSession session) {
         requireAdmin(session);
@@ -99,20 +99,19 @@ public class AgentBuilderController {
         return ApiResponse.ok(builderService.update(id, request));
     }
 
-    /** 删除（驱逐实例 → 清定义/工作区/状态/密钥） */
+    /** 删除（驱逐实例 → 清定义/工作区/状态） */
     @DeleteMapping("/{id}")
     public ApiResponse<Map<String, Object>> delete(@PathVariable String id, HttpSession session) {
         requireAdmin(session);
         return ApiResponse.ok(builderService.delete(id));
     }
 
-    /** 模型连通性测试：一条最小对话请求，区分 地址错 / key 错 / 模型名错 */
+    /** 模型连通性测试：一条最小对话请求，区分 地址错 / key 错 / 模型名错；key 取环境变量 AGENT_API_KEY */
     @PostMapping("/test-model")
     public ApiResponse<Map<String, Object>> testModel(@RequestBody TestModelRequest request,
             HttpSession session) {
         requireAdmin(session);
-        return ApiResponse.ok(builderService.testModel(
-                request.baseUrl(), request.modelName(), request.apiKey()));
+        return ApiResponse.ok(builderService.testModel(request.baseUrl(), request.modelName()));
     }
 
     /** MCP 端点握手探测：返回远端工具清单 */
