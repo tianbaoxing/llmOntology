@@ -24,6 +24,7 @@ import com.conca.ontology.builder.dto.request.AgentSaveRequest;
 import com.conca.ontology.builder.dto.request.TestMcpRequest;
 import com.conca.ontology.builder.dto.request.TestModelRequest;
 import com.conca.ontology.builder.service.AgentBuilderService;
+import com.conca.ontology.builder.service.AgentProjectExportService;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.user.web.SessionUser;
@@ -41,8 +42,8 @@ import jakarta.servlet.http.HttpSession;
  * DELETE /api/agents/{id}               → 删除（驱逐实例 → 清定义/工作区/密钥）
  * POST   /api/agents/test-model         → 模型连通性测试（key 只测不存）
  * POST   /api/agents/test-mcp           → MCP 端点握手探测（返回远端工具清单）
- * GET    /api/agents/{id}/export        → L1 导出包下载（zip）
- * GET    /api/agents/{id}/export-jar    → L2 独立 jar 下载（java -jar 即跑）
+ * GET    /api/agents/{id}/export         → L1 导出包下载（zip）
+ * GET    /api/agents/{id}/export-project → L2 导出工程下载（AgentScope 2.0 原生源码工程 zip）
  */
 @RestController
 @RequestMapping("/api/agents")
@@ -131,18 +132,19 @@ public class AgentBuilderController {
                 id + ".zip", MediaType.parseMediaType("application/zip"));
     }
 
-    /** L2 独立 jar 下载（预构建 runtime + 内嵌 agent-package.zip；运行时需 AGENT_API_KEY） */
-    @GetMapping("/{id}/export-jar")
-    public ResponseEntity<StreamingResponseBody> exportJar(@PathVariable String id,
+    /** L2 导出工程下载（AgentScope 2.0 原生 Spring Boot 源码工程 zip，导出后可深度二次开发；密钥经 AGENT_API_KEY 注入） */
+    @GetMapping("/{id}/export-project")
+    public ResponseEntity<StreamingResponseBody> exportProject(@PathVariable String id,
             HttpSession session) {
         requireAdmin(session);
-        return streamAttachment(builderService.exportJar(id),
-                id + ".jar", MediaType.parseMediaType("application/java-archive"));
+        AgentProjectExportService.ExportedProject project = builderService.exportProject(id);
+        return streamAttachment(project.zip(), project.filename(),
+                MediaType.parseMediaType("application/zip"));
     }
 
     // ---------------- 内部 ----------------
 
-    /** 流式回写临时产物，写完即删（jar 可达数十 MB，不整包进内存） */
+    /** 流式回写临时产物，写完即删（工程 zip 可达数十 MB，不整包进内存） */
     private static ResponseEntity<StreamingResponseBody> streamAttachment(Path file, String filename,
             MediaType type) {
         long size;

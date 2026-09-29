@@ -22,6 +22,8 @@ public record AgentSaveRequest(
         List<AgentDefinition.HttpToolConfig> httpTools,
         List<AgentDefinition.McpConfig> mcps,
         List<AgentDefinition.SubagentSpec> subagents,
+        String projectName,
+        String packageName,
         String status) {
 
     public AgentSaveRequest {
@@ -32,6 +34,8 @@ public record AgentSaveRequest(
         baseUrl = nz(baseUrl);
         modelName = nz(modelName);
         apiKey = nz(apiKey);
+        projectName = nz(projectName);
+        packageName = nz(packageName);
         status = nz(status);
         skills = skills == null ? List.of() : skills;
         tools = tools == null ? List.of() : tools;

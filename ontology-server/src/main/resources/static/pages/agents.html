@@ -82,7 +82,7 @@ td .acts { display: flex; flex-wrap: wrap; gap: 6px; }
 <div class="wrap">
   <div id="ag-list-view" class="ag-wrap">
     <div class="ag-head">
-      <h2>智能体列表 <span class="ag-hint">9 槽位定义：提示词 / 模型 / key / 技能 / MCP / 子 agent / 工具 / 开场白；平台内运行，可导出独立 jar</span></h2>
+      <h2>智能体列表 <span class="ag-hint">9 槽位定义：提示词 / 模型 / key / 技能 / MCP / 子 agent / 工具 / 开场白；平台内运行，可导出二次开发工程</span></h2>
       <button class="btn primary" onclick="agOpenCreate()">＋ 新建智能体</button>
     </div>
     <div id="ag-list-body">加载中…</div>
@@ -184,6 +184,20 @@ td .acts { display: flex; flex-wrap: wrap; gap: 6px; }
       <button class="btn sm" onclick="agAddSubagent()">＋ 添加子智能体</button>
     </div>
 
+    <div class="ag-section">
+      <h3>⑨ 导出命名（可留空；导出 AgentScope 2.0 源码工程时生效）</h3>
+      <div class="ag-grid2">
+        <div class="ag-field">
+          <label>工程名 <span class="hint">仅英文字母，≤50 位；留空 = agent-&lt;id&gt;-project</span></label>
+          <input type="text" id="ag-f-projectname" maxlength="50" placeholder="如 MuseumAgent">
+        </div>
+        <div class="ag-field">
+          <label>Java 包名 <span class="hint">小写字母开头，如 com.example.agent；留空 = com.agentexport</span></label>
+          <input type="text" id="ag-f-packagename" maxlength="100" placeholder="如 com.example.museum">
+        </div>
+      </div>
+    </div>
+
     <div style="margin-top:18px; display:flex; gap:8px">
       <button class="btn primary" onclick="agSave()">💾 保存</button>
       <button class="btn" onclick="agBackToList()">取消</button>
@@ -250,7 +264,7 @@ async function agLoadList() {
       <button class="btn sm" onclick="agOpenEdit('${esc(a.id)}')">编辑</button>
       <button class="btn sm" onclick="agOpenTrial('${esc(a.id)}', '${esc(a.name)}')">试运行</button>
       <button class="btn sm" onclick="agExport('${esc(a.id)}','export')">导出 zip</button>
-      <button class="btn sm" onclick="agExport('${esc(a.id)}','export-jar')">导出 jar</button>
+      <button class="btn sm" onclick="agExport('${esc(a.id)}','export-project')">导出工程</button>
       <button class="btn sm" onclick="agDelete('${esc(a.id)}','${esc(a.name)}')">删除</button>
     </div>`
   ]);
@@ -276,7 +290,8 @@ function agOpenCreate() {
   agEditing = null;
   agHttpTools = []; agMcps = []; agSubagents = [];
   $('ag-form-title').textContent = '新建智能体';
-  ['ag-f-name', 'ag-f-desc', 'ag-f-greeting', 'ag-f-baseurl', 'ag-f-model', 'ag-f-apikey', 'ag-f-sysprompt']
+  ['ag-f-name', 'ag-f-desc', 'ag-f-greeting', 'ag-f-baseurl', 'ag-f-model', 'ag-f-apikey', 'ag-f-sysprompt',
+   'ag-f-projectname', 'ag-f-packagename']
     .forEach(id => { $(id).value = ''; });
   $('ag-f-status').value = 'test';
   $('ag-f-maxiters').value = '0';
@@ -298,6 +313,8 @@ async function agOpenEdit(id) {
     $('ag-f-key-hint').textContent = d.hasKey ? '留空 = 沿用已配置密钥' : '尚未配置密钥';
     $('ag-f-status').value = d.status;
     $('ag-f-maxiters').value = String(d.maxIters ?? 0);
+    $('ag-f-projectname').value = d.projectName || '';
+    $('ag-f-packagename').value = d.packageName || '';
     agHttpTools = (d.httpTools || []).map(t => ({ ...t }));
     agMcps = (d.mcps || []).map(m => ({ name: m.name || '', url: m.url || '', transport: m.transport || '' }));
     agSubagents = (d.subagents || []).map(s => ({ ...s }));
@@ -440,6 +457,8 @@ function agCollect() {
     httpTools: agHttpTools,
     mcps: agMcps,
     subagents: agSubagents,
+    projectName: $('ag-f-projectname').value.trim(),
+    packageName: $('ag-f-packagename').value.trim(),
     status: $('ag-f-status').value
   };
 }

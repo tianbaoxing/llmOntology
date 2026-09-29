@@ -15,9 +15,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -33,7 +30,7 @@ import com.conca.ontology.shared.web.ApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 智能体搭建编排：校验 → 落定义/密钥/工作区 → 维护注册表；导出 zip / 导出独立 jar。
+ * 智能体搭建编排：校验 → 落定义/密钥/工作区 → 维护注册表；导出 zip / 导出二次开发工程。
  * 校验顺序：本地静态校验（[参数错误] 层）→ 连通性测试（test-model/test-mcp，可选）→ 保存。
  */
 @Service
@@ -41,33 +38,36 @@ public class AgentBuilderService {
 
     private static final Pattern TOOL_NAME = Pattern.compile("^[a-z][a-z0-9_]{0,63}$");
     private static final Pattern HTTP_URL = Pattern.compile("^https?://.+$");
+    /** 导出工程名：仅英文字母（Maven artifactId 兼容），留空回退 agent-<id>-project */
+    private static final Pattern PROJECT_NAME = Pattern.compile("^[A-Za-z]{1,50}$");
+    /** Java 包名：小写段式（com.example.agent），留空回退 com.agentexport */
+    private static final Pattern JAVA_PACKAGE = Pattern.compile("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$");
     private static final int MAX_HTTP_TOOLS = 10;
     private static final int MAX_MCPS = 10;
     private static final int MAX_SUBAGENTS = 3;
-    private static final String PACKAGE_ENTRY = "agent-package.zip";
 
     private final AgentDefinitionStore store;
     private final AgentKeyStore keyStore;
     private final AgentWorkspaceService workspaceService;
     private final AgentRegistry registry;
+    private final AgentProjectExportService projectExporter;
     private final ObjectMapper mapper;
 
-    private final String runtimeJar;
     private final String exportedBy;
     private final String minHarnessVersion;
     private final SecureRandom random = new SecureRandom();
 
     public AgentBuilderService(AgentDefinitionStore store, AgentKeyStore keyStore,
-            AgentWorkspaceService workspaceService, AgentRegistry registry, ObjectMapper mapper,
-            @Value("${app.agents.runtime-jar:runtime/agent-runner.jar}") String runtimeJar,
+            AgentWorkspaceService workspaceService, AgentRegistry registry,
+            AgentProjectExportService projectExporter, ObjectMapper mapper,
             @Value("${app.title:图谱}") String appTitle,
             @Value("${app.agents.min-harness-version:2.0.3}") String minHarnessVersion) {
         this.store = store;
         this.keyStore = keyStore;
         this.workspaceService = workspaceService;
         this.registry = registry;
+        this.projectExporter = projectExporter;
         this.mapper = mapper;
-        this.runtimeJar = runtimeJar;
         this.exportedBy = appTitle + "（llmOntology）";
         this.minHarnessVersion = minHarnessVersion;
     }
@@ -86,7 +86,8 @@ public class AgentBuilderService {
                 req.greeting(), new AgentDefinition.ModelConfig(req.baseUrl(), req.modelName(), ""),
                 req.maxIters() == null ? 0 : req.maxIters(), req.skills(), req.tools(),
                 req.httpTools(), req.mcps(), req.subagents(),
-                normalizeStatus(req.status()), owner, 1, minHarnessVersion, now, now);
+                req.projectName(), req.packageName(),
+                normalizeStatus(req.status()), owner, 1, minHarnessVersion, now, now());
         store.save(def);
         keyStore.store(id, req.apiKey());
         workspaceService.prepare(def);
@@ -104,6 +105,7 @@ public class AgentBuilderService {
                 req.greeting(), new AgentDefinition.ModelConfig(req.baseUrl(), req.modelName(), ""),
                 req.maxIters() == null ? 0 : req.maxIters(), req.skills(), req.tools(),
                 req.httpTools(), req.mcps(), req.subagents(),
+                req.projectName(), req.packageName(),
                 normalizeStatus(req.status()), old.owner(), old.version() + 1,
                 minHarnessVersion, old.createdAt(), now());
         store.save(def);
@@ -182,6 +184,8 @@ public class AgentBuilderService {
         m.put("httpTools", def.httpTools());
         m.put("mcps", def.mcps());
         m.put("subagents", def.subagents());
+        m.put("projectName", def.projectName());
+        m.put("packageName", def.packageName());
         m.put("status", def.status());
         m.put("version", def.version());
         m.put("updatedAt", def.updatedAt());
@@ -281,54 +285,16 @@ public class AgentBuilderService {
     }
 
     /**
-     * 导出独立 jar：复制预构建 runtime jar + 追加 agent-package.zip 条目（秒级，无现场编译），
-     * 追加后冒烟自检（重开定位条目 + sha256 校验），产物 java -jar 即跑。
+     * L2 导出工程（zip）：AgentScope 2.0 原生 Spring Boot 源码工程，
+     * 槽位定义转 application.yml 配置驱动，workspace（skills/subagents）原样携带，导出后可深度二次开发。
+     * 密钥经 ${AGENT_API_KEY} 环境变量注入，不随工程携带（与 L1 同语义：本地需已配置密钥才可导出）。
      */
-    public Path exportJar(String id) {
-        Path zip = exportZip(id);
-        Path runtime = Path.of(runtimeJar);
-        if (!Files.isRegularFile(runtime)) {
-            throw new ApiException(501, "运行时骨架 jar 不存在（" + runtime
-                    + "）：请先执行 .\\mvnw.cmd -pl ontology-agent-runner -am -DskipTests package");
+    public AgentProjectExportService.ExportedProject exportProject(String id) {
+        AgentDefinition def = store.require(id);
+        if (!keyStore.exists(id)) {
+            throw new ApiException(400, "该智能体未配置密钥，无法导出（导出工程使用 ${AGENT_API_KEY} 环境变量注入，本地仍需密钥校验）");
         }
-        try {
-            byte[] zipBytes = Files.readAllBytes(zip);
-            String zipSha = AgentPackageCodec.sha256(zipBytes);
-            Path out = Files.createTempFile("agent-export-" + id, ".jar");
-            // 重写追加：复制骨架全部条目（跳过同名残留），末尾加 agent-package.zip
-            try (ZipInputStream in = new ZipInputStream(Files.newInputStream(runtime), StandardCharsets.UTF_8);
-                 ZipOutputStream jos = new ZipOutputStream(Files.newOutputStream(out), StandardCharsets.UTF_8)) {
-                ZipEntry e;
-                while ((e = in.getNextEntry()) != null) {
-                    if (PACKAGE_ENTRY.equals(e.getName())) {
-                        continue;
-                    }
-                    jos.putNextEntry(new ZipEntry(e.getName()));
-                    in.transferTo(jos);
-                    jos.closeEntry();
-                }
-                jos.putNextEntry(new ZipEntry(PACKAGE_ENTRY));
-                jos.write(zipBytes);
-                jos.closeEntry();
-            }
-            // 冒烟自检：条目可定位 + sha256 与源包一致
-            try (ZipInputStream check = new ZipInputStream(Files.newInputStream(out), StandardCharsets.UTF_8)) {
-                ZipEntry e;
-                boolean found = false;
-                while ((e = check.getNextEntry()) != null) {
-                    if (PACKAGE_ENTRY.equals(e.getName())) {
-                        found = AgentPackageCodec.sha256(check.readAllBytes()).equals(zipSha);
-                        break;
-                    }
-                }
-                if (!found) {
-                    throw new ApiException(500, "导出 jar 自检失败：内嵌包校验不通过");
-                }
-            }
-            return out;
-        } catch (IOException e) {
-            throw new ApiException(500, "导出 jar 生成失败：" + e.getMessage());
-        }
+        return projectExporter.export(def, workspaceService.workspaceOf(id));
     }
 
     // ---------------- 校验 ----------------
@@ -395,6 +361,12 @@ public class AgentBuilderService {
             }
             requireLength("子智能体提示词", s.prompt(), 1, 8000);
             limitLength("子智能体描述", s.description(), 200);
+        }
+        if (!req.projectName().isBlank() && !PROJECT_NAME.matcher(req.projectName()).matches()) {
+            throw new ApiException(400, "导出工程名非法（仅英文字母，1-50 位）：" + req.projectName());
+        }
+        if (!req.packageName().isBlank() && !JAVA_PACKAGE.matcher(req.packageName()).matches()) {
+            throw new ApiException(400, "Java 包名非法（小写字母开头，段内仅小写字母/数字/下划线）：" + req.packageName());
         }
     }
 

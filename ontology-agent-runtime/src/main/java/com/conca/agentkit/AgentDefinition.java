@@ -5,7 +5,7 @@ package com.conca.agentkit;
 
 import java.util.List;
 
-public record AgentDefinition(String id, String name, String description, String sysPrompt, String greeting, ModelConfig model, int maxIters, List<String> skills, List<String> tools, List<HttpToolConfig> httpTools, List<McpConfig> mcps, List<SubagentSpec> subagents, String status, String owner, int version, String minHarnessVersion, String createdAt, String updatedAt) {
+public record AgentDefinition(String id, String name, String description, String sysPrompt, String greeting, ModelConfig model, int maxIters, List<String> skills, List<String> tools, List<HttpToolConfig> httpTools, List<McpConfig> mcps, List<SubagentSpec> subagents, String projectName, String packageName, String status, String owner, int version, String minHarnessVersion, String createdAt, String updatedAt) {
     public static final String STATUS_TEST = "test";
     public static final String STATUS_ACTIVE = "active";
     public static final String EXPORT_API_KEY_REF = "${AGENT_API_KEY}";
@@ -21,6 +21,8 @@ public record AgentDefinition(String id, String name, String description, String
         httpTools = AgentDefinition.nullToEmpty(httpTools);
         mcps = AgentDefinition.nullToEmpty(mcps);
         subagents = AgentDefinition.nullToEmpty(subagents);
+        projectName = AgentDefinition.blankToEmpty(projectName);
+        packageName = AgentDefinition.blankToEmpty(packageName);
         status = AgentDefinition.blankToEmpty(status);
         owner = AgentDefinition.blankToEmpty(owner);
         minHarnessVersion = AgentDefinition.blankToEmpty(minHarnessVersion);
@@ -30,11 +32,11 @@ public record AgentDefinition(String id, String name, String description, String
 
     public AgentDefinition forExport() {
         ModelConfig m = this.model == null ? new ModelConfig("", "", "") : this.model;
-        return new AgentDefinition(this.id, this.name, this.description, this.sysPrompt, this.greeting, new ModelConfig(m.baseUrl(), m.modelName(), EXPORT_API_KEY_REF), this.maxIters, this.skills, this.tools, this.httpTools, this.mcps, this.subagents, this.status, this.owner, this.version, this.minHarnessVersion, this.createdAt, this.updatedAt);
+        return new AgentDefinition(this.id, this.name, this.description, this.sysPrompt, this.greeting, new ModelConfig(m.baseUrl(), m.modelName(), EXPORT_API_KEY_REF), this.maxIters, this.skills, this.tools, this.httpTools, this.mcps, this.subagents, this.projectName, this.packageName, this.status, this.owner, this.version, this.minHarnessVersion, this.createdAt, this.updatedAt);
     }
 
     public AgentDefinition withVersion(int newVersion, String time) {
-        return new AgentDefinition(this.id, this.name, this.description, this.sysPrompt, this.greeting, this.model, this.maxIters, this.skills, this.tools, this.httpTools, this.mcps, this.subagents, this.status, this.owner, newVersion, this.minHarnessVersion, this.createdAt, time);
+        return new AgentDefinition(this.id, this.name, this.description, this.sysPrompt, this.greeting, this.model, this.maxIters, this.skills, this.tools, this.httpTools, this.mcps, this.subagents, this.projectName, this.packageName, this.status, this.owner, newVersion, this.minHarnessVersion, this.createdAt, time);
     }
 
     private static String blankToEmpty(String s) {
