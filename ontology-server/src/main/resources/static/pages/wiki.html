@@ -48,6 +48,14 @@
 .md-body pre code { background: none; padding: 0; }
 .md-body a { color: #2563eb; }
 .md-body img { max-width: 100%; }
+/* 搜索命中列表：片段 + 高亮 */
+.wk-item-s { font-size: 12px; color: #6b7280; margin-top: 2px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wk-item-t mark, .wk-item-s mark, .md-body mark { background: #fef08a; padding: 0 1px; color: inherit; }
+/* 图谱实体链接：与正文普通 a 区分（下划线虚线），按层配色——概念层蓝 / 实例层绿（与 index.html 概念关系图一致） */
+.wk-ent { text-decoration: underline dotted; text-underline-offset: 3px; font-weight: 500; }
+.wk-ent:hover { text-decoration-style: solid; }
+.wk-ent-con { color: #3b82f6; }
+.wk-ent-ins { color: #22c55e; }
 /* 编辑元信息弹窗 */
 .wk-modal-mask { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .wk-modal { background: #fff; border-radius: 10px; width: min(460px, 92vw); padding: 20px; }
@@ -70,7 +78,7 @@
   <div class="card">
     <div class="wk-grid">
       <div class="wk-side">
-        <input class="wk-q" id="wk-q" placeholder="搜索标题 / 元信息" oninput="renderList()">
+        <input class="wk-q" id="wk-q" placeholder="搜索标题 / 元信息 / 正文" oninput="onSearchInput()">
         <div class="wk-cats" id="wk-cats"></div>
         <div id="wk-list"></div>
       </div>
@@ -91,9 +99,13 @@
 <script>
 // ---------------- WIKI 知识库 ----------------
 // 数据源：/api/wiki（SUCCESS 条目 + 元信息合并）；渲染：marked + DOMPurify（与 chat 页同栈）
+// P1：全文搜索（/api/wiki/search，防抖 300ms）+ 正文实体链接（/api/wiki/doc 的 entities，DOMPurify 后包裹）
 let wkDocs = [];        // 列表缓存
-let wkCur = null;       // 当前文档（含 content）
+let wkCur = null;       // 当前文档（含 content + entities）
 let wkCat = '';         // 当前分类过滤（空 = 全部）
+let wkSearchQ = '';      // 服务端搜索关键词（空 = 本地过滤模式）
+let wkSearchHits = null; // 搜索命中列表
+let wkSearchTimer = null;
 
 // 路径逐段编码（与 files 页一致：'/' 不能编码，Tomcat 拒绝 %2F）
 function wkPath(name) { return name.split('/').map(encodeURIComponent).join('/'); }
@@ -148,6 +160,48 @@ function renderList() {
     : '<div class="wk-empty">无匹配文档</div>';
 }
 
+// ---------------- 全文搜索（P1） ----------------
+// 防抖 300ms：空输入回本地过滤模式；非空调 /api/wiki/search（正文 + 标题/元信息加权）
+function onSearchInput() {
+  const v = $('wk-q').value.trim();
+  clearTimeout(wkSearchTimer);
+  wkSearchTimer = setTimeout(async () => {
+    if (!v) {
+      wkSearchQ = ''; wkSearchHits = null;
+      $('wk-cats').style.display = '';
+      renderList();
+      return;
+    }
+    try {
+      const d = await api('GET', '/api/wiki/search?q=' + encodeURIComponent(v));
+      if ($('wk-q').value.trim() !== v) return;   // 输入已变化，丢弃过期响应
+      wkSearchQ = v; wkSearchHits = d.docs || [];
+      $('wk-cats').style.display = 'none';        // 搜索为全局匹配，分类 chips 暂隐（清空恢复）
+      renderSearchList();
+    } catch (e) { showMsg('搜索失败：' + e.message, false); }
+  }, 300);
+}
+
+// 命中列表：标题 + 片段（mark 高亮）+ 命中数；点击 openDoc（正文关键词同样高亮）
+function renderSearchList() {
+  const kw = wkSearchQ;
+  $('wk-list').innerHTML = wkSearchHits.length ? wkSearchHits.map(d => `
+    <div class="wk-item${wkCur && wkCur.mdName === d.mdName ? ' on' : ''}" onclick="openDoc('${encodeURIComponent(d.mdName)}')">
+      <div class="wk-item-t">${hl(esc(d.title), kw)}</div>
+      ${d.snippets && d.snippets.length ? `<div class="wk-item-s">${hl(esc(d.snippets[0].text), kw)}</div>` : ''}
+      <div class="wk-item-d">${d.hits} 次命中${d.source ? ' · ' + esc(d.source) : ''}</div>
+    </div>`).join('')
+    : '<div class="wk-empty">无匹配文档</div>';
+}
+
+// 已 esc 的文本上对关键词加 <mark>（关键词同样经 esc，实体名保持一致）
+function hl(escaped, kw) {
+  if (!kw) return escaped;
+  return escaped.replace(new RegExp(escReg(esc(kw)), 'gi'), m => '<mark>' + m + '</mark>');
+}
+
+function escReg(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
 // ---------------- 阅读 ----------------
 async function openDoc(encName) {
   const name = decodeURIComponent(encName);
@@ -177,8 +231,78 @@ function renderDoc() {
   let html;
   try { html = window.marked.parse(raw); } catch (e) { html = '<p>' + esc(raw) + '</p>'; }
   $('wk-body').innerHTML = DOMPurify.sanitize(html);
+  markSearchKw();        // 搜索态：正文关键词 <mark> 高亮
+  linkEntities();        // P1：正文命中的图谱实体包裹链接（后端 entities 已筛，前端只包裹不匹配）
   buildToc();
-  renderList();
+  if (wkSearchQ) renderSearchList(); else renderList();
+}
+
+// DOMPurify 渲染后的文本节点遍历包裹：跳过 a/code/pre/h1-h3 内文本
+// （防新 XSS 面、避免与 TOC 锚点/正文链接嵌套冲突）；build 返回 null 表示该命中跳过
+function wrapTextNodes(root, re, build) {
+  const skip = new Set(['A', 'CODE', 'PRE', 'H1', 'H2', 'H3']);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const targets = [];
+  while (walker.nextNode()) {
+    const n = walker.currentNode;
+    let p = n.parentElement, bad = false;
+    while (p && p !== root) { if (skip.has(p.tagName)) { bad = true; break; } p = p.parentElement; }
+    if (!bad && n.nodeValue.trim()) targets.push(n);
+  }
+  targets.forEach(node => {
+    const text = node.nodeValue;
+    re.lastIndex = 0;
+    const frag = document.createDocumentFragment();
+    let last = 0, m, wrapped = false;
+    while ((m = re.exec(text)) !== null) {
+      const el = build(m[1], m.index, text);
+      if (!el) continue;                       // 跳过本次命中（lastIndex 已推进）
+      wrapped = true;
+      frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      frag.appendChild(el);
+      last = m.index + m[1].length;
+    }
+    if (!wrapped) return;
+    frag.appendChild(document.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag, node);
+  });
+}
+
+// 搜索关键词正文高亮（搜索态打开文档时）
+function markSearchKw() {
+  if (!wkSearchQ) return;
+  wrapTextNodes($('wk-body'), new RegExp('(' + escReg(wkSearchQ) + ')', 'gi'), t => {
+    const el = document.createElement('mark');
+    el.textContent = t;
+    return el;
+  });
+}
+
+// 图谱实体链接：名称最长优先交替匹配（后端已按 MD 原文筛出该篇命中实体，此处为渲染后 DOM 的同名包裹）
+// 概念层蓝 / 实例层绿，跳转 /instances 对应类过滤列表（q 为 CONTAINS 模糊匹配）
+function linkEntities() {
+  const ents = (wkCur && wkCur.entities) || [];
+  if (!ents.length) return;
+  const byName = new Map();
+  ents.forEach(e => { const k = e.name.toLowerCase(); if (!byName.has(k)) byName.set(k, e); });
+  const names = [...byName.keys()].sort((a, b) => b.length - a.length);
+  const re = new RegExp('(' + names.map(escReg).join('|') + ')', 'gi');
+  wrapTextNodes($('wk-body'), re, (t, idx, full) => {
+    const e = byName.get(t.toLowerCase());
+    if (!e) return null;
+    // 纯 ASCII 名称须词边界：前后不能是字母/数字（与后端匹配规则一致，如 Era 不命中 generated 内部）
+    if (/^[\x00-\x7F]+$/.test(t)) {
+      const prev = idx > 0 ? full[idx - 1] : '';
+      const next = idx + t.length < full.length ? full[idx + t.length] : '';
+      if (/[a-z0-9]/i.test(prev) || /[a-z0-9]/i.test(next)) return null;
+    }
+    const a = document.createElement('a');
+    a.href = '/instances?label=' + encodeURIComponent(e.label) + '&page=1&q=' + encodeURIComponent(e.name);
+    a.className = 'wk-ent ' + (e.layer === 'instance' ? 'wk-ent-ins' : 'wk-ent-con');
+    a.title = '查看图谱实例（' + (e.layer === 'instance' ? '实例层' : '概念层') + '）：' + e.name;
+    a.textContent = t;
+    return a;
+  });
 }
 
 // 目录：h1-h3 生成锚点（右侧栏，窄屏隐藏）

@@ -133,6 +133,14 @@ curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/graph/nodes/batch" -H "Content-Type
 { "label": "Era", "items": [ { "name": "明" }, { "name": "明永乐" } ] }
 ```
 
+**来源文件溯源（sourceFile）**：本次建图数据来自某上传文件时，在批次 JSON 顶层带 `sourceFile` 字段，服务端会注入每个节点的 `_sourceFile` 属性（供 wiki 页「相关文档」反向溯源）：
+
+```json
+{ "label": "Era", "sourceFile": "三星堆陨铁器分析报告.docx", "items": [ { "name": "明" } ] }
+```
+
+**`sourceFile` 必须取 `GET /api/llm/files` 返回的 `originName`（原始上传文件名），不能取 `name`**——二进制文件转换成功后 `name` 是 MD 名（如 `报告.docx.md`），与 wiki 文档的 sourceName 对不上会导致反向溯源全部落空。单条写入（`POST /api/llm/graph/nodes`）时在节点 `props` 里直接带 `_sourceFile` 即可（值同样为 originName）。
+
 ```json
 # 批量关系（from/to 为两端 keyProp 值；两端节点须已存在）
 { "type": "SUB_ERA_OF", "fromLabel": "Era", "toLabel": "Era",

@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.wiki.dto.request.WikiMetaRequest;
+import com.conca.ontology.wiki.dto.result.WikiBySourceResult;
 import com.conca.ontology.wiki.dto.result.WikiDocResult;
 import com.conca.ontology.wiki.dto.result.WikiMetaUpdateResult;
+import com.conca.ontology.wiki.dto.result.WikiSearchResult;
 import com.conca.ontology.wiki.dto.view.WikiListView;
 import com.conca.ontology.wiki.service.WikiService;
 
@@ -44,11 +46,31 @@ public class WikiController {
     }
 
     @Operation(summary = "单篇文档", description = "name 为 MD 文件名（查询参数，可含中文/空格）；"
-            + "返回 MD 原文，前端 marked + DOMPurify 渲染。")
+            + "返回 MD 原文，前端 marked + DOMPurify 渲染；"
+            + "entities 为正文实际命中的图谱实体（概念层 + 实例层，结果缓存随重转失效），前端包裹链接跳 /instances。")
     @GetMapping("/doc")
     public ApiResponse<WikiDocResult> doc(
             @Parameter(description = "MD 文件名", example = "报告.docx.md") @RequestParam String name) {
         return ApiResponse.ok(wikiService.doc(name));
+    }
+
+    @Operation(summary = "全文搜索", description = "逐篇扫描 SUCCESS 状态的 MD 正文，toLower 包含匹配；"
+            + "加权分 = 标题 ×40 + 元信息 ×20 + 正文单次 ×1（降序，标题命中的文档排在纯正文命中之前）；"
+            + "每篇最多 3 个命中片段，结果上限 50 篇；空白关键词返回空列表。")
+    @GetMapping("/search")
+    public ApiResponse<WikiSearchResult> search(
+            @Parameter(description = "关键词", example = "陨铁") @RequestParam String q) {
+        return ApiResponse.ok(wikiService.search(q));
+    }
+
+    @Operation(summary = "按来源文件查相关文档", description = "实例详情反向溯源：按节点的 _sourceFile"
+            + "（原始上传文件名）匹配文档 sourceName（两侧均源自 FileEntry.name，字符串相等）；"
+            + "供 instances 页实例展开属性区的「相关文档」块懒加载。")
+    @GetMapping("/by-source")
+    public ApiResponse<WikiBySourceResult> bySource(
+            @Parameter(description = "原始上传文件名", example = "三星堆陨铁器分析报告.docx")
+            @RequestParam String file) {
+        return ApiResponse.ok(wikiService.bySource(file));
     }
 
     @Operation(summary = "编辑元信息", description = "{*name} 为 MD 文件名（支持子目录路径，入参带前导斜杠需截去）；"

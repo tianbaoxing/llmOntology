@@ -11,6 +11,7 @@ import org.neo4j.driver.EagerResult;
 import org.neo4j.driver.Record;
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.graph.dto.view.EntityDictEntry;
 import com.conca.ontology.graph.dto.view.GraphStatsView;
 import com.conca.ontology.graph.dto.view.NeighborGroupsView;
 import com.conca.ontology.graph.dto.view.NeighborsView;
@@ -102,6 +103,35 @@ public class GraphQueryService {
                     r.get("key"), (Map<String, Object>) r.get("props")));
         }
         return new NodesPageView(label, keyProp, total, p, s, (total + s - 1) / s, rows);
+    }
+
+    /**
+     * 实体词典：单条 Cypher 扫描全部类，返回全量节点的 label/key/name/layer
+     * （概念层 + 实例层同覆盖；name 取值与 instances 页一致）。
+     * 仅服务层内部调用，不暴露 HTTP 端点。
+     */
+    @SuppressWarnings("unchecked")
+    public List<EntityDictEntry> entityDict() {
+        QueryResult result = query(
+                "MATCH (n) RETURN labels(n)[0] AS label, properties(n) AS props ORDER BY label", null);
+        List<EntityDictEntry> dict = new ArrayList<>(result.rows().size());
+        for (Map<String, Object> r : result.rows()) {
+            String label = (String) r.get("label");
+            ClassDef cls = schema.classOf(label);
+            if (cls == null) {
+                continue;   // 白名单外的孤儿 label 跳过（理论不应存在，写入时已校验）
+            }
+            Map<String, Object> props = (Map<String, Object>) r.get("props");
+            Object key = props.get(cls.keyProp());
+            if (key == null) {
+                continue;
+            }
+            Object name = props.get("title") != null ? props.get("title")
+                    : props.get("name") != null ? props.get("name")
+                    : props.get("cnName") != null ? props.get("cnName") : key;
+            dict.add(new EntityDictEntry(label, key, String.valueOf(name), cls.layer()));
+        }
+        return dict;
     }
 
     public QueryResult nodeDetail(String label, String key) {

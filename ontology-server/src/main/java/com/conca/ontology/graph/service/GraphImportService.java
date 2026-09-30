@@ -81,10 +81,15 @@ public class GraphImportService {
         if (req.items().size() > batchLimit) {
             throw new ApiException(400, "items exceed batch-limit " + batchLimit);
         }
+        // 批次来源文件：服务端注入每个 item 的 _sourceFile（批次级填充，比 LLM 逐条携带可靠）
+        String srcFile = req.sourceFile() == null ? null : req.sourceFile().strip();
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Map<String, Object> item : req.items()) {
             if (item == null || item.get(keyProp) == null || String.valueOf(item.get(keyProp)).isBlank()) {
                 throw new ApiException(400, "item missing key prop `" + keyProp + "`");
+            }
+            if (srcFile != null && !srcFile.isEmpty()) {
+                item.put("_sourceFile", srcFile);
             }
             rows.add(item);
         }

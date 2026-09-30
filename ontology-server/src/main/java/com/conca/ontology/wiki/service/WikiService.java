@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,8 +23,10 @@ import com.conca.ontology.file.model.FileEntry;
 import com.conca.ontology.file.service.FileStorageService;
 import com.conca.ontology.file.service.MdConvertService;
 import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.wiki.dto.result.WikiBySourceResult;
 import com.conca.ontology.wiki.dto.result.WikiDocResult;
 import com.conca.ontology.wiki.dto.result.WikiMetaUpdateResult;
+import com.conca.ontology.wiki.dto.result.WikiSearchResult;
 import com.conca.ontology.wiki.dto.view.WikiDocView;
 import com.conca.ontology.wiki.dto.view.WikiListView;
 import com.conca.ontology.wiki.model.WikiMetaEntry;
@@ -49,18 +52,28 @@ public class WikiService {
     private static final Pattern P_AUTHOR = Pattern.compile("作者：\\s*([^\\s，。；;|]+)");
     private static final List<String> BINARY_EXTS = List.of(".pdf", ".docx", ".doc", ".xls", ".xlsx");
 
+    /** 搜索加权：标题命中 ×40 > 元信息命中 ×20 > 正文单次命中 ×1（借鉴 WeKnora 搜索字段优先级） */
+    private static final int SCORE_TITLE = 40;
+    private static final int SCORE_META = 20;
+    /** 搜索防御上限（结果篇数 / 每篇片段数 / 片段前后扩展字符数） */
+    private static final int SEARCH_MAX_DOCS = 50;
+    private static final int MAX_SNIPPETS = 3;
+    private static final int SNIPPET_PAD = 40;
+
     private final FileStorageService fileStorageService;
     private final MdConvertService convertService;
     private final ObjectMapper mapper;
+    private final WikiEntityService entityService;
 
     @Value("${app.wiki-metadata-file:data/wiki-metadata.json}")
     private String metadataFile;
 
     public WikiService(FileStorageService fileStorageService, MdConvertService convertService,
-            ObjectMapper mapper) {
+            ObjectMapper mapper, WikiEntityService entityService) {
         this.fileStorageService = fileStorageService;
         this.convertService = convertService;
         this.mapper = mapper;
+        this.entityService = entityService;
     }
 
     /** 文档列表（先与文件元数据对账并清理孤儿，再逐篇抽取/合并元信息） */
@@ -77,7 +90,7 @@ public class WikiService {
         return new WikiListView(mf.version(), docs);
     }
 
-    /** 单篇文档（MD 原文 + 合并元信息） */
+    /** 单篇文档（MD 原文 + 合并元信息 + 正文命中的图谱实体） */
     public synchronized WikiDocResult doc(String mdName) {
         FileEntry e = findSuccess(mdName, successEntries());
         WikiMetaEntry meta = byMdName(loadMetadata()).get(mdName);
@@ -86,7 +99,58 @@ public class WikiService {
         return new WikiDocResult(e.mdName(), e.name(), extractTitle(body, e.mdName()),
                 extract(P_DATE, body), extract(P_SOURCE, body), extract(P_AUTHOR, body),
                 meta == null ? null : meta.category(), meta == null ? null : meta.tags(),
-                e.convertedAt(), content);
+                e.convertedAt(), content,
+                entityService.match(e.mdName(), e.convertedAt(), body));
+    }
+
+    /**
+     * 全文搜索：逐篇读取 SUCCESS 的 MD 原文，toLower 包含匹配；
+     * 加权分 = 标题命中 ×40 + 元信息（来源/分类/标签/作者/时间）命中 ×20 + 正文每次命中 ×1，降序。
+     * 空白关键词返回空列表（不报错）；结果上限 50 篇。
+     */
+    public synchronized WikiSearchResult search(String q) {
+        String kw = q == null ? "" : q.strip().toLowerCase();
+        if (kw.isEmpty()) {
+            return new WikiSearchResult(q, List.of());
+        }
+        List<FileEntry> entries = successEntries();
+        Map<String, WikiMetaEntry> manual = byMdName(loadMetadata());
+        List<SearchHit> hits = new ArrayList<>();
+        for (FileEntry e : entries) {
+            String content = readMd(e);
+            String body = stripSourceLine(content);
+            String lc = body.toLowerCase();
+            long bodyHits = countOccurrences(lc, kw);
+            String title = extractTitle(body, e.mdName());
+            boolean titleHit = title != null && title.toLowerCase().contains(kw);
+            WikiMetaEntry meta = manual.get(e.mdName());
+            boolean metaHit = metaHit(meta, body, kw);
+            if (!titleHit && !metaHit && bodyHits == 0) {
+                continue;
+            }
+            long score = (titleHit ? SCORE_TITLE : 0) + (metaHit ? SCORE_META : 0) + bodyHits;
+            hits.add(new SearchHit(score, bodyHits, new WikiSearchResult.Doc(
+                    e.mdName(), e.name(), title, extract(P_DATE, body), extract(P_SOURCE, body),
+                    meta == null ? null : meta.category(), meta == null ? null : meta.tags(),
+                    bodyHits, snippets(lc, body, kw))));
+        }
+        hits.sort(HIT_ORDER);
+        List<WikiSearchResult.Doc> docs = hits.stream()
+                .limit(SEARCH_MAX_DOCS)
+                .map(h -> h.doc)
+                .toList();
+        return new WikiSearchResult(q, docs);
+    }
+
+    /** 反向溯源：按来源上传文件名查相关文档（两侧均源自 FileEntry.name，字符串相等即匹配） */
+    public synchronized WikiBySourceResult bySource(String file) {
+        if (file == null || file.isBlank()) {
+            throw new ApiException(400, "缺少 file 参数");
+        }
+        List<WikiDocView> docs = list().docs().stream()
+                .filter(d -> file.equals(d.sourceName()))
+                .toList();
+        return new WikiBySourceResult(docs);
     }
 
     /** 编辑元信息（category 置空、tags 置空即清除；孤儿清理后 upsert，version +1） */
@@ -106,6 +170,72 @@ public class WikiService {
     }
 
     // ---------------- 内部 ----------------
+
+    /** 搜索中间结构：加权分排序（标题/元信息命中的文档始终排在纯正文命中之前；同分按命中次数） */
+    private record SearchHit(long score, long hits, WikiSearchResult.Doc doc) {
+    }
+
+    private static final Comparator<SearchHit> HIT_ORDER =
+            Comparator.comparingLong(SearchHit::score).reversed()
+                    .thenComparing(Comparator.comparingLong(SearchHit::hits).reversed());
+
+    /** 无重叠计数出现次数（kw 与文本均已 toLower） */
+    private static long countOccurrences(String lcText, String kw) {
+        long n = 0;
+        int idx = 0;
+        while ((idx = lcText.indexOf(kw, idx)) >= 0) {
+            n++;
+            idx += kw.length();
+        }
+        return n;
+    }
+
+    /** 元信息命中：手工维护（分类/标签）+ 正文抽取（来源/作者/发布时间）任一包含关键词 */
+    private boolean metaHit(WikiMetaEntry meta, String body, String kw) {
+        if (meta != null) {
+            if (meta.category() != null && meta.category().toLowerCase().contains(kw)) {
+                return true;
+            }
+            if (meta.tags() != null) {
+                for (String t : meta.tags()) {
+                    if (t != null && t.toLowerCase().contains(kw)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return containsIgnoreCase(extract(P_SOURCE, body), kw)
+                || containsIgnoreCase(extract(P_AUTHOR, body), kw)
+                || containsIgnoreCase(extract(P_DATE, body), kw);
+    }
+
+    private static boolean containsIgnoreCase(String s, String kw) {
+        return s != null && s.toLowerCase().contains(kw);
+    }
+
+    /** 命中片段：以命中点为中心前后各 ~40 字符；相邻命中（相距 < 40 字符）合并为一段；每篇最多 3 段 */
+    private static List<WikiSearchResult.Snippet> snippets(String lc, String body, String kw) {
+        List<int[]> ranges = new ArrayList<>();
+        int idx = 0;
+        while ((idx = lc.indexOf(kw, idx)) >= 0) {
+            int end = idx + kw.length();
+            if (!ranges.isEmpty() && idx - ranges.get(ranges.size() - 1)[1] < SNIPPET_PAD) {
+                ranges.get(ranges.size() - 1)[1] = end;
+            } else {
+                ranges.add(new int[]{idx, end});
+            }
+            idx = end;
+        }
+        List<WikiSearchResult.Snippet> out = new ArrayList<>(Math.min(MAX_SNIPPETS, ranges.size()));
+        for (int i = 0; i < Math.min(MAX_SNIPPETS, ranges.size()); i++) {
+            int[] r = ranges.get(i);
+            int s = Math.max(0, r[0] - SNIPPET_PAD);
+            int e = Math.min(body.length(), r[1] + SNIPPET_PAD);
+            String text = (s > 0 ? "…" : "") + body.substring(s, e) + (e < body.length() ? "…" : "");
+            out.add(new WikiSearchResult.Snippet(text));
+        }
+        return out;
+    }
 
     /** SUCCESS 条目（保持文件列表顺序）；顺带触发文件对账与 MD 转换补齐 */
     private List<FileEntry> successEntries() {
