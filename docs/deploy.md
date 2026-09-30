@@ -53,6 +53,8 @@ cd c:\me\kaiyuan\history\llmOntology
 # 注意：studio 模块首次或变更后需先装入本地仓库（-am 连父 POM 一起装入，
 # 否则解析 studio 的 pom 时找不到 ontology-parent）：
 #   .\mvnw.cmd -pl ontology-agentscope-studio -am install "-DskipTests" -q
+
+cd c:\me\kaiyuan\history\llmOntology
 .\mvnw.cmd -pl ontology-server spring-boot:run
 .\mvnw.cmd -pl ontology-server spring-boot:run "-Dspring-boot.run.arguments=--app.agent.studio-url=http://127.0.0.1:3000"
 .\mvnw.cmd -pl ontology-server spring-boot:run "-Dspring-boot.run.arguments=--app.agent.studio-url=http://127.0.0.1:12080"
