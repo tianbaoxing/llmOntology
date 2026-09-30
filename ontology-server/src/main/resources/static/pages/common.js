@@ -78,8 +78,11 @@ const CF = (() => {
   /** ADMIN 专属页面：普通用户直访时前端跳回概览（接口层另有 403 兜底；/users 由后端 403；驾驶舱为全员自助统计；备份在 /data 二级 Tab） */
   const ADMIN_PAGES = new Set(['/eval', '/files', '/data', '/agents']);
 
+  /** 二级页面 → 一级菜单路径别名（如 /wiki 属于知识库 /files，保持一级菜单高亮） */
+  const MENU_ALIAS = { '/wiki': '/files' };
+
   function renderHeader(opts = {}) {
-    const cur = location.pathname;
+    const cur = MENU_ALIAS[location.pathname] || location.pathname;
     const tabs = MENU.map(m =>
       `<a class="tab${m.path === cur ? ' active' : ''}${m.admin ? ' admin-tab' : ''}"` +
       `${m.admin ? ' style="display:none"' : ''} href="${m.path}">${m.label}</a>`).join('');
