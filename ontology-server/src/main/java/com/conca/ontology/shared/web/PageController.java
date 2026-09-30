@@ -40,12 +40,6 @@ public class PageController {
         return "forward:/pages/wiki.html";
     }
 
-    /** 备份恢复页（管理员功能，页面级权限由前端控制，接口层 403 兜底） */
-    @GetMapping("/backup")
-    public String backup() {
-        return "forward:/pages/backup.html";
-    }
-
     /** AI 问答页（SSE 流式） */
     @GetMapping("/chat")
     public String chat() {

@@ -352,6 +352,7 @@
     <a class="ptab" data-tab="rewrite" onclick="switchTab('rewrite')">语义改写配置</a>
     <a class="ptab" data-tab="quality" onclick="switchTab('quality')">图谱诊断</a>
     <a class="ptab" data-tab="dedup" onclick="switchTab('dedup')">实体去重</a>
+    <a class="ptab" data-tab="backup" onclick="switchTab('backup')">备份</a>
   </div>
 
   <!-- Tab 1：图数据 -->
@@ -789,6 +790,28 @@
       </div>
     </div>
   </div>
+
+  <!-- Tab：备份恢复（自 /backup 一级菜单迁入） -->
+  <div id="tab-backup" style="display:none">
+    <div class="card">
+      <h2>立即备份</h2>
+      <div class="toolbar">
+        <button class="btn" id="bk-btn" onclick="startBackup()">立即备份</button>
+        <span class="muted">备份图数据库全量（节点/关系）+ data 配置三 JSON + 上传文件目录，打包为单个 zip 存于 backups/ 目录</span>
+      </div>
+      <div id="bk-progress-wrap" style="display:none">
+        <div style="background:#e5e7eb;border-radius:5px;height:18px;overflow:hidden">
+          <div id="bk-bar" style="background:#2563eb;height:100%;width:0%;transition:width .3s"></div>
+        </div>
+        <div class="muted" style="margin-top:6px" id="bk-detail"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>备份列表</h2>
+      <div class="muted" style="margin-bottom:10px">列表由 backups/ 目录文件名解析（时间-节点数-关系数-文件数-schema版本）；下载可将 zip 留存到其他位置</div>
+      <div id="bk-list"></div>
+    </div>
+  </div>
 </div>
 
 <script src="/pages/common.js"></script>
@@ -809,6 +832,8 @@ let qualityTabLoaded = false;
 let gqChartClasses = null;   // echarts 实例，遵循销毁重建
 let gqChartRels = null;
 let dedupTabLoaded = false;
+let backupTabLoaded = false;
+let bkTaskId = null;        // 备份任务轮询句柄
 let dpCacheResult = null;    // 最近一次扫描结果（前端缓存，用于筛选切换不重新拉取）
 let dpFilter = 'ALL';
 let dpRuleSets = [];         // 规则集索引
@@ -826,6 +851,7 @@ function switchTab(name) {
   $('tab-rewrite').style.display = name === 'rewrite' ? '' : 'none';
   $('tab-quality').style.display = name === 'quality' ? '' : 'none';
   $('tab-dedup').style.display = name === 'dedup' ? '' : 'none';
+  $('tab-backup').style.display = name === 'backup' ? '' : 'none';
   if (name === 'schema' && !schemaTabLoaded) {
     schemaTabLoaded = true;
     loadSchemaPanel().catch(e => showMsg('加载失败：' + e.message, false));
@@ -852,6 +878,10 @@ function switchTab(name) {
       dpInitLabelSelect();
       dpRefresh();
     }).catch(e => showMsg('加载失败：' + e.message, false));
+  }
+  if (name === 'backup' && !backupTabLoaded) {
+    backupTabLoaded = true;
+    loadBackups().catch(e => showMsg('备份列表加载失败：' + e.message, false));
   }
   // 若切换到质量诊断页，echarts 容器需要重绘（display 从 none → block 尺寸才对）
   if (name === 'quality') {
@@ -2657,6 +2687,59 @@ function dpRenderNodeRowInner(c) {
 function dpOpenNode(label, keyEnc) {
   const url = '/graph?label=' + encodeURIComponent(label) + '&key=' + keyEnc;
   window.open(url, '_blank');
+}
+
+// ---------------- 备份恢复（自 /backup 页迁入） ----------------
+async function startBackup() {
+  try {
+    const d = await api('POST', '/api/backups');
+    bkTaskId = d.taskId;
+  } catch (e) { return showMsg('启动失败：' + e.message, false); }
+  $('bk-btn').disabled = true;
+  $('bk-progress-wrap').style.display = 'block';
+  $('bk-bar').style.width = '0%';
+  $('bk-detail').textContent = '准备中';
+  pollBackup();
+}
+
+function pollBackup() {
+  api('GET', '/api/backups/tasks/' + encodeURIComponent(bkTaskId)).then(p => {
+    $('bk-bar').style.width = p.percent + '%';
+    $('bk-detail').textContent = p.detail + '（' + p.percent + '%）';
+    if (p.status === 'running') { setTimeout(pollBackup, 800); return; }
+    $('bk-btn').disabled = false;
+    if (p.status === 'success') {
+      $('bk-detail').textContent = '备份完成：' + p.backupName;
+      showMsg('备份完成：' + p.backupName, true);
+      loadBackups().catch(() => {});
+    } else {
+      showMsg('备份失败：' + (p.error || '未知错误'), false);
+    }
+  }).catch(e => {
+    $('bk-btn').disabled = false;
+    showMsg('进度获取失败：' + e.message, false);
+  });
+}
+
+async function loadBackups() {
+  const d = await api('GET', '/api/backups');
+  $('bk-list').innerHTML = d.backups.length ? table(
+    ['备份文件', '时间', '大小', '节点', '关系', '文件数', 'schema版本', '操作'],
+    d.backups.map(b => [
+      code(b.name), esc(b.time), fmtSize(b.size), b.nodeCount, b.relCount, b.fileCount, 'v' + b.schemaVersion,
+      `<a class="btn sm" href="/api/backups/${encodeURIComponent(b.name)}/file">下载</a>` +
+      `<button class="btn sm danger" onclick="deleteBackup('${encodeURIComponent(b.name)}')">删除</button>`
+    ])) : '<div class="muted">暂无备份</div>';
+}
+
+async function deleteBackup(encName) {
+  const name = decodeURIComponent(encName);
+  if (!confirm('确认删除备份「' + name + '」？删除后不可恢复')) return;
+  doAction(async () => {
+    const d = await api('DELETE', '/api/backups/' + encodeURIComponent(name));
+    loadBackups().catch(() => {});
+    return d;
+  });
 }
 
 // ---------------- init ----------------

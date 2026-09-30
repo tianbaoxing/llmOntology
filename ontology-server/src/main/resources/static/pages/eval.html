@@ -3996,7 +3996,7 @@ try {
     } else {
       document.querySelectorAll('.admin-tab').forEach(el => el.remove());
       document.querySelectorAll('.admin-only').forEach(el => el.remove());
-      if (new Set(['/eval', '/files', '/data', '/backup']).has(location.pathname)) {
+      if (new Set(['/eval', '/files', '/data']).has(location.pathname)) {
         console.error('[initUserSafe] 非管理员访问评测页：role=', me.role, '即将跳 /');
         console.trace('[initUserSafe] 非管理员拦截栈');
         if (!confirm('[调试] 当前用户角色非 ADMIN（' + me.role + '），是否允许跳概览？（取消 = 留在当前页继续排查）')) return;

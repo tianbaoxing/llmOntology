@@ -73,11 +73,10 @@ const CF = (() => {
     { path: '/eval', label: '评测中心', admin: true },
     { path: '/files', label: '知识库', admin: true },
     { path: '/data', label: '图谱管理', admin: true },
-    { path: '/backup', label: '备份', admin: true },
     { path: '/users', label: '用户管理', admin: true }
   ];
-  /** ADMIN 专属页面：普通用户直访时前端跳回概览（接口层另有 403 兜底；/users 由后端 403；驾驶舱为全员自助统计） */
-  const ADMIN_PAGES = new Set(['/eval', '/files', '/data', '/backup', '/agents']);
+  /** ADMIN 专属页面：普通用户直访时前端跳回概览（接口层另有 403 兜底；/users 由后端 403；驾驶舱为全员自助统计；备份在 /data 二级 Tab） */
+  const ADMIN_PAGES = new Set(['/eval', '/files', '/data', '/agents']);
 
   function renderHeader(opts = {}) {
     const cur = location.pathname;

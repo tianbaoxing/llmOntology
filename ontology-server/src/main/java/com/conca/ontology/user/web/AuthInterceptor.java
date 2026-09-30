@@ -16,14 +16,14 @@ import jakarta.servlet.http.HttpServletResponse;
  * - 公开接口：/api/session（登录登出/当前用户，敏感操作在 Controller 内校验）、/api/setup（初始化向导）、
  *   /api/app、/api/llm/**（LLM 专属，后续做 token 验证）、POST /api/users（自助注册）、
  *   PUT /api/users/me/password（自助改密，Controller 内校验会话）
- * - 页面（/、/data、/files、/wiki、/backup、/chat、/dashboard、/session-detail、/users、/instances、/graph、/eval、/pages/**）：
- *   未登录 302 跳登录页；/users、/eval 与 /wiki 仅 ADMIN（/data、/backup 页面级权限由前端控制，接口层 403 兜底）
+ * - 页面（/、/data、/files、/wiki、/chat、/dashboard、/session-detail、/users、/instances、/graph、/eval、/pages/**）：
+ *   未登录 302 跳登录页；/users、/eval 与 /wiki 仅 ADMIN（/data 页面级权限由前端控制，接口层 403 兜底；备份为其二级 Tab）
  * - /api/** 其余：未登录 401 JSON；/api/users、/api/eval、/api/wiki 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
  */
 public class AuthInterceptor implements HandlerInterceptor {
 
-    /** 需登录的页面路由（静态资源 /pages/** 单独按前缀判断） */
-    private static final Set<String> PAGE_PATHS = Set.of("/", "/data", "/files", "/wiki", "/backup",
+    /** 需登录的页面路由（静态资源 /pages/** 单独按前缀判断；备份功能在 /data 页二级 Tab，接口 /api/backups 仍受保护） */
+    private static final Set<String> PAGE_PATHS = Set.of("/", "/data", "/files", "/wiki",
             "/chat", "/dashboard", "/session-detail", "/users", "/instances", "/graph", "/eval");
 
     @Override
