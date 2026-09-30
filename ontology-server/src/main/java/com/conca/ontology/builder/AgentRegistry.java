@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,7 +27,9 @@ import com.conca.ontology.agent.middleware.ContentSecurityMiddleware;
 import com.conca.ontology.agent.tool.ChartPluginTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.builder.model.AgentDefinitionStore;
+import com.conca.ontology.builder.service.AgentBuilderService;
 import com.conca.ontology.builder.service.AgentWorkspaceService;
+import com.conca.ontology.builder.tool.AgentBuilderTool;
 import com.conca.ontology.content.service.ContentSecurityService;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 import com.conca.ontology.disjoint.tool.DisjointRulesTool;
@@ -57,7 +60,8 @@ public class AgentRegistry {
     public static final Map<String, String> BUILTIN_TOOLS = Map.of(
             "graph-query", "只读图谱查询管道（http_request_ontology_query，/api/llm/ 白名单），配合 ontology-query 技能使用",
             "chart-plugin", "图表插件（对话中渲染图表）",
-            "disjoint-rules", "互斥约束词典查询（本体类不相交规则，抑制幻觉）");
+            "disjoint-rules", "互斥约束词典查询（本体类不相交规则，抑制幻觉）",
+            "agent-builder", "智能体搭建管道（agent_builder，创建/编辑/删除自定义智能体，变更字段合并语义）");
 
     private static final class Entry {
         final AgentBootstrapper.BuiltAgent built;
@@ -73,6 +77,12 @@ public class AgentRegistry {
     private final AgentWorkspaceService workspaceService;
     private final ContentSecurityService contentSecurityService;
     private final DisjointRuleService disjointRuleService;
+    /**
+     * AgentBuilderService 经 ObjectProvider 延迟解析：其构造器已注入本注册表，
+     * 直接构造注入会形成循环依赖（Spring Boot 2.6+ 默认禁止）；
+     * 实例装配（builtinTools）发生在首次对话时，届时容器早已就绪。
+     */
+    private final ObjectProvider<AgentBuilderService> builderServiceProvider;
     private final String llmBaseUrl;
 
     private final Map<String, Entry> cache = new ConcurrentHashMap<>();
@@ -83,12 +93,14 @@ public class AgentRegistry {
     public AgentRegistry(AgentDefinitionStore store,
             AgentWorkspaceService workspaceService, ContentSecurityService contentSecurityService,
             DisjointRuleService disjointRuleService,
+            ObjectProvider<AgentBuilderService> builderServiceProvider,
             @Qualifier("llmBaseUrl") String llmBaseUrl,
             @Value("${app.agents.idle-minutes:30}") int idleMinutes) {
         this.store = store;
         this.workspaceService = workspaceService;
         this.contentSecurityService = contentSecurityService;
         this.disjointRuleService = disjointRuleService;
+        this.builderServiceProvider = builderServiceProvider;
         this.llmBaseUrl = llmBaseUrl;
         this.idleMillis = Math.max(1, idleMinutes) * 60_000L;
         this.sweeper = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -205,6 +217,7 @@ public class AgentRegistry {
                 case "graph-query" -> tools.add(new HttpProxyTool(llmBaseUrl));
                 case "chart-plugin" -> tools.add(new ChartPluginTool());
                 case "disjoint-rules" -> tools.add(new DisjointRulesTool(disjointRuleService));
+                case "agent-builder" -> tools.add(new AgentBuilderTool(builderServiceProvider.getObject()));
                 default -> throw new ApiException(400, "内置工具不在白名单：" + name);
             }
         }
