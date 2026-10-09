@@ -105,6 +105,15 @@ neo4j:
   authentication:
     username: neo4j
     password: neo4j2026
+  # 连接池显式参数（driver 5.x 默认：100 连接 / 60s 获取超时，本地单用户收紧为 30）
+  pool:
+    max-connection-pool-size: 30
+    # 从池内取连接的等待上限，超限报错（而非无限排队）
+    connection-acquisition-timeout-seconds: 30
+    # 建立单条连接（socket）超时，本地回环 15s 足够
+    connection-timeout-seconds: 15
+    # 连接最长存活时间：防休眠/网络抖动后的半开连接被复用
+    max-connection-lifetime-minutes: 30
 
 graph:
   batch-limit: 10000
