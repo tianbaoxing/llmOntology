@@ -17,6 +17,28 @@ spring:
     # 登录会话有效期（内存会话，重启需重新登录）
     session:
       timeout: 24h
+  # MySQL 持久化（P0）：平台数据从 JSON 文件迁入；本地 Docker mysql:8.0 容器 ontology-mysql
+  # （宿主机端口 13306；3306 已被本机 MySQL 5.7 占用，5.7 不受 Flyway 9.x 社区版支持故弃用）
+  datasource:
+    url: jdbc:mysql://localhost:13306/ontology?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 与 neo4j 池同风格：本地单用户收紧
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 15000
+      max-lifetime: 1800000
+
+# MyBatis-Plus（P0）：主键均为业务键（非自增），下划线列 ↔ 驼峰字段
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: input
 
 app:
   # 管理页标题，启动可覆盖：--app.title=xxx 或环境变量 APP_TITLE
@@ -51,6 +73,10 @@ app:
     # 独立 rewrite agent 的工作区与会话留痕目录（每次改写独立会话，可回查完整 prompt 与输出）
     workspace-dir: data/rewrite-workspace
     state-dir: data/rewrite-state
+  # JSON → MySQL 存量迁移（P0 骨架）：启动末尾逐项检查——目标表空且 JSON 存在则导入并归档为
+  # .migrated；表空且无 JSON 则执行各迁移器的默认初始化；表非空跳过（幂等）。失败阻断启动
+  migration:
+    json-import-enabled: true
   # 备份：zip 存放目录（相对 cwd，可用绝对路径覆盖）；文件名编码统计信息（backup-时间-n节点-r关系-f文件-v版本.zip）
   backup-dir: backups
   # 评测 LLM judge（二期）：base-url/api-key/model 缺省复用 app.agent 同名配置

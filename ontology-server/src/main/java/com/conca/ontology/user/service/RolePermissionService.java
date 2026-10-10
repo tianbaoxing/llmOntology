@@ -1,10 +1,6 @@
 package com.conca.ontology.user.service;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,21 +8,21 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.user.model.RolePermissionsFile;
+import com.conca.ontology.user.entity.SysRolePermission;
+import com.conca.ontology.user.mapper.SysRolePermissionMapper;
 import com.conca.ontology.user.model.RoleRule;
 import com.conca.ontology.user.model.UserEntry;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 角色权限管理：data/role-permissions.json 唯一事实源
- * （version + tmp 原子写 + synchronized，与 UserService 同款风格），
+ * 角色权限管理：MySQL sys_role_permission 唯一事实源（P1 起，由 JSON 文件迁移而来），
  * 黑名单模式——清单命中的 tool / skill / subagent 对该角色禁用。
  *
- * ADMIN 固定全量放行：判定入口短路，不读配置文件，误改文件不影响管理员。
+ * ADMIN 固定全量放行：判定入口短路，不查库，误改数据不影响管理员。
  * 规则修改即时生效：RolePermissionMiddleware 每次工具调用实时判定，
  * SkillFilter 每次会话构建时重新读取，无需重启。
  *
@@ -41,28 +37,31 @@ public class RolePermissionService {
 
     private static final Logger log = LoggerFactory.getLogger(RolePermissionService.class);
 
-    private final ObjectMapper mapper;
+    private final SysRolePermissionMapper ruleMapper;
 
-    @Value("${app.auth.role-permissions-file:data/role-permissions.json}")
-    private String permissionsFile;
-
-    public RolePermissionService(ObjectMapper mapper) {
-        this.mapper = mapper;
+    public RolePermissionService(SysRolePermissionMapper ruleMapper) {
+        this.ruleMapper = ruleMapper;
     }
 
     // ---------------- 查询 ----------------
 
     /** 全部角色规则 */
-    public synchronized Map<String, RoleRule> all() {
-        return load().roles();
+    public Map<String, RoleRule> all() {
+        Map<String, RoleRule> roles = new LinkedHashMap<>();
+        for (SysRolePermission row : ruleMapper.selectList(
+                new LambdaQueryWrapper<SysRolePermission>().orderByAsc(SysRolePermission::getRole))) {
+            roles.put(row.getRole(), toRule(row));
+        }
+        return roles;
     }
 
     /** 指定角色的规则；ADMIN / 未知角色返回空规则（全放行） */
-    public synchronized RoleRule ruleOf(String role) {
+    public RoleRule ruleOf(String role) {
         if (role == null || UserEntry.ROLE_ADMIN.equals(role)) {
             return RoleRule.EMPTY;
         }
-        return load().roles().getOrDefault(role, RoleRule.EMPTY);
+        SysRolePermission row = ruleMapper.selectById(role);
+        return row == null ? RoleRule.EMPTY : toRule(row);
     }
 
     public boolean isDeniedTool(String role, String toolName) {
@@ -79,7 +78,7 @@ public class RolePermissionService {
         return matchesDeniedSkill(ruleOf(role).deniedSkills(), skillId);
     }
 
-    /** skillId 纯匹配（无 IO，供中间件逐调用判定，避免循环内重复读文件） */
+    /** skillId 纯匹配（无 IO，供中间件逐调用判定，避免循环内重复查库） */
     public static boolean matchesDeniedSkill(List<String> deniedSkills, String skillId) {
         if (skillId == null || skillId.isBlank()) {
             return false;
@@ -114,8 +113,9 @@ public class RolePermissionService {
 
     // ---------------- 更新（ADMIN） ----------------
 
-    /** 更新角色规则并落盘；ADMIN 拒绝（代码级全放行，配置无意义） */
-    public synchronized void update(String role, RoleRule rule) {
+    /** 更新角色规则（UPSERT）；ADMIN 拒绝（代码级全放行，配置无意义） */
+    @Transactional
+    public void update(String role, RoleRule rule) {
         if (role == null || role.isBlank()) {
             throw new ApiException(400, "角色不能为空");
         }
@@ -124,58 +124,24 @@ public class RolePermissionService {
             throw new ApiException(400, "ADMIN 角色固定全量放行，无需配置");
         }
         RoleRule safe = rule == null ? RoleRule.EMPTY : rule;
-        RolePermissionsFile current = load();
-        Map<String, RoleRule> roles = new LinkedHashMap<>(current.roles());
-        roles.put(normalized, safe);
-        save(new RolePermissionsFile(current.version() + 1, roles));
+        SysRolePermission row = new SysRolePermission();
+        row.setRole(normalized);
+        row.setDeniedTools(safe.deniedTools());
+        row.setDeniedSkills(safe.deniedSkills());
+        row.setDeniedSubagents(safe.deniedSubagents());
+        row.setUpdateTime(LocalDateTime.now());
+        if (ruleMapper.selectById(normalized) == null) {
+            ruleMapper.insert(row);
+        } else {
+            ruleMapper.updateById(row);
+        }
         log.info("角色权限已更新：{} -> tools={} skills={} subagents={}",
                 normalized, safe.deniedTools(), safe.deniedSkills(), safe.deniedSubagents());
     }
 
-    // ---------------- 文件读写 ----------------
+    // ---------------- 内部 ----------------
 
-    /** 读取；文件不存在时落盘默认规则（USER 禁用 build_chart / ontology-builder / academic-anthropologist） */
-    private RolePermissionsFile load() {
-        Path p = Path.of(permissionsFile).toAbsolutePath().normalize();
-        if (!Files.isRegularFile(p)) {
-            RolePermissionsFile init = defaultFile();
-            try {
-                save(init);
-            } catch (Exception e) {
-                // 落盘失败降级：仅本次以内存默认规则运行，下次启动重试初始化
-                log.warn("角色权限默认文件写入失败（本次以默认规则运行）：{}", e.getMessage());
-            }
-            return init;
-        }
-        try {
-            RolePermissionsFile f = mapper.readValue(
-                    Files.readString(p, StandardCharsets.UTF_8), RolePermissionsFile.class);
-            return new RolePermissionsFile(f.version(), f.roles());
-        } catch (IOException e) {
-            throw new ApiException(500, "角色权限文件读取失败: " + e.getMessage());
-        }
-    }
-
-    private void save(RolePermissionsFile f) {
-        Path p = Path.of(permissionsFile).toAbsolutePath().normalize();
-        try {
-            if (p.getParent() != null) {
-                Files.createDirectories(p.getParent());
-            }
-            Path tmp = p.resolveSibling(p.getFileName() + ".tmp");
-            Files.writeString(tmp,
-                    mapper.writerWithDefaultPrettyPrinter().writeValueAsString(f),
-                    StandardCharsets.UTF_8);
-            Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            throw new ApiException(500, "角色权限文件写入失败: " + e.getMessage());
-        }
-    }
-
-    private static RolePermissionsFile defaultFile() {
-        return new RolePermissionsFile(1, Map.of(UserEntry.ROLE_USER, new RoleRule(
-                List.of("build_chart"),
-                List.of("ontology-builder"),
-                List.of("academic-anthropologist"))));
+    private static RoleRule toRule(SysRolePermission row) {
+        return new RoleRule(row.getDeniedTools(), row.getDeniedSkills(), row.getDeniedSubagents());
     }
 }
