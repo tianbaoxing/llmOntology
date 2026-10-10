@@ -46,9 +46,10 @@ app:
   # 用户认证：用户文件（不存在时首个 ADMIN 由登录页"系统初始化"向导创建）
   auth:
     users-file: data/users.json
-  # 上传文件：实体目录 + 元数据文件 + 允许的扩展名白名单（文本类，排除视频/音频/图片）
+  # 上传文件：实体目录 + 元数据表 file_metadata + 允许的扩展名白名单（文本类，排除视频/音频/图片）
   upload-dir: files
   upload-allowed-ext: pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx
+  # 存量迁移源文件（file_metadata 表）
   metadata-file: data/file-metadata.json
   # 二进制文件自动转 Markdown（LLM 只读 MD，不读原件）：
   # md-dir 为 MD 输出目录（镜像 upload-dir 相对路径，命名 <原文件全名>.md）；

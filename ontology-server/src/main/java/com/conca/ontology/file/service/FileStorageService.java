@@ -1,11 +1,11 @@
 package com.conca.ontology.file.service;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,22 +18,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.file.dto.result.FileDeleteResult;
 import com.conca.ontology.file.dto.view.FileListView;
 import com.conca.ontology.file.dto.result.FileUpdateResult;
 import com.conca.ontology.file.dto.result.FileUploadResult;
-import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.file.entity.FileMetadataRow;
+import com.conca.ontology.file.mapper.FileMetadataMapper;
 import com.conca.ontology.file.model.FileEntry;
-import com.conca.ontology.file.model.FileMetadataFile;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.conca.ontology.file.model.FileEntryConverter;
+import com.conca.ontology.shared.web.ApiException;
 
 /**
- * 上传文件管理：文件实体存 app.upload-dir（默认 files/），元数据存 data/file-metadata.json（唯一事实源）。
- * 列表查询前先 reconcile（目录新文件补录、已消失文件剔除），保证 JSON 与磁盘一致；
- * 每次元数据变更 version + 1 并原子落盘（tmp + rename）。
+ * 上传文件管理：文件实体存 app.upload-dir（默认 files/），元数据存 file_metadata 表（每文件一行，P4）。
+ * 列表查询前先 reconcile（目录新文件补录、已消失文件剔除），保证库与磁盘一致；
+ * 行级 CRUD + 同名覆盖保留原位置（自增 id 兼作列表顺序，无全局 version）。
  * 二进制文件（pdf/word/excel）同步转 Markdown 存 files-md/（MdConvertService）：
  * 上传即转、对账补转（存量/被删 MD 自动重建，FAILED 不自动重试）、删除连带删 MD。
  */
@@ -41,10 +43,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class FileStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
-    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private final ObjectMapper mapper;
     private final MdConvertService convertService;
+    private final FileMetadataMapper fileMapper;
+    private final TransactionTemplate txTemplate;
 
     @Value("${app.upload-dir:files}")
     private String uploadDir;
@@ -52,18 +54,18 @@ public class FileStorageService {
     @Value("${app.upload-allowed-ext:pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx}")
     private String allowedExt;
 
-    @Value("${app.metadata-file:data/file-metadata.json}")
-    private String metadataFile;
-
-    public FileStorageService(ObjectMapper mapper, MdConvertService convertService) {
-        this.mapper = mapper;
+    public FileStorageService(MdConvertService convertService, FileMetadataMapper fileMapper,
+            TransactionTemplate txTemplate) {
         this.convertService = convertService;
+        this.fileMapper = fileMapper;
+        this.txTemplate = txTemplate;
     }
 
     /** 全量列表（先与磁盘对账、补齐 MD 转换再返回；供 admin 页与 LLM 共用） */
     public synchronized FileListView list() {
-        FileMetadataFile mf = ensureConverted(reconcile());
-        return new FileListView(mf.version(), mf.files());
+        List<FileEntry> files = ensureConverted(reconcile()).stream()
+                .map(FileEntryConverter::toModel).toList();
+        return new FileListView(files);
     }
 
     /** 上传：白名单校验 → 原子落盘（同名覆盖）→ 元数据 upsert → 同步转 MD（失败不阻塞上传） */
@@ -96,14 +98,20 @@ public class FileStorageService {
             } finally {
                 Files.deleteIfExists(tmp);
             }
-            FileEntry entry = new FileEntry(name, target.toAbsolutePath().toString(),
-                    Files.size(target), ext, cleanDesc(description), now(), null, null, null, null);
-            // 先 upsert（reconcile 对账历史文件），再统一补转换（新文件在此转，避免重复转换）
-            FileMetadataFile next = ensureConverted(upsert(reconcile(), entry));
-            persist(next);
-            FileEntry finalEntry = find(next, name);
+            FileMetadataRow row = new FileMetadataRow();
+            row.setName(name);
+            row.setPath(target.toAbsolutePath().toString());
+            row.setSize(Files.size(target));
+            row.setExt(ext);
+            row.setDescription(cleanDesc(description));
+            row.setUploadedAt(LocalDateTime.now());
+            // 先对账（补录历史文件），再 upsert 本条，最后统一补转换（新文件在此转，避免重复转换）
+            reconcile();
+            upsert(row);
+            FileMetadataRow finalRow = requireRow(ensureConverted(loadRows()), name);
+            FileEntry finalEntry = FileEntryConverter.toModel(finalRow);
             log.info("file uploaded: {} ({} bytes, convert: {})", name, finalEntry.size(), finalEntry.convertStatus());
-            return new FileUploadResult(next.version(), finalEntry);
+            return new FileUploadResult(finalEntry);
         } catch (ApiException e) {
             throw e;
         } catch (IOException e) {
@@ -113,25 +121,15 @@ public class FileStorageService {
 
     /** 编辑文件说明（保留转换字段） */
     public synchronized FileUpdateResult updateDescription(String name, String description) {
-        FileMetadataFile mf = reconcile();
-        FileEntry found = find(mf, name);
-        List<FileEntry> files = new ArrayList<>();
-        for (FileEntry e : mf.files()) {
-            files.add(e.name().equals(name)
-                    ? new FileEntry(e.name(), e.path(), e.size(), e.ext(),
-                            cleanDesc(description), e.uploadedAt(),
-                            e.mdName(), e.convertStatus(), e.convertMsg(), e.convertedAt())
-                    : e);
-        }
-        FileMetadataFile next = new FileMetadataFile(mf.version() + 1, files);
-        persist(next);
-        return new FileUpdateResult(next.version(), find(next, name));
+        FileMetadataRow row = requireRow(reconcile(), name);
+        row.setDescription(cleanDesc(description));
+        fileMapper.updateById(row);
+        return new FileUpdateResult(FileEntryConverter.toModel(row));
     }
 
     /** 删除：文件实体 + 对应 MD + 元数据记录一并移除 */
     public synchronized FileDeleteResult delete(String name) {
-        FileMetadataFile mf = reconcile();
-        FileEntry found = find(mf, name);
+        FileMetadataRow row = requireRow(reconcile(), name);
         try {
             Path dir = uploadPath();
             Path target = dir.resolve(name).normalize();
@@ -144,27 +142,19 @@ public class FileStorageService {
         } catch (IOException e) {
             throw new ApiException(500, "删除文件失败: " + e.getMessage());
         }
-        List<FileEntry> files = new ArrayList<>(mf.files());
-        files.removeIf(e -> e.name().equals(name));
-        FileMetadataFile next = new FileMetadataFile(mf.version() + 1, files);
-        persist(next);
+        fileMapper.deleteById(row.getId());
         log.info("file deleted: {}", name);
-        return new FileDeleteResult(next.version(), found.name());
+        return new FileDeleteResult(row.getName());
     }
 
     /** 手动重试转换（FAILED 修复后使用；强制重转，先删旧 MD） */
     public synchronized FileUpdateResult reconvert(String name) {
-        FileMetadataFile mf = reconcile();
-        FileEntry found = find(mf, name);
-        if (!convertService.shouldConvert(found.ext())) {
-            throw new ApiException(400, "该类型无需转换: " + found.ext());
+        FileMetadataRow row = requireRow(reconcile(), name);
+        if (!convertService.shouldConvert(row.getExt())) {
+            throw new ApiException(400, "该类型无需转换: " + row.getExt());
         }
-        FileEntry converted = convertEntry(found, true);
-        List<FileEntry> files = mf.files().stream()
-                .map(e -> e.name().equals(name) ? converted : e).toList();
-        FileMetadataFile next = new FileMetadataFile(mf.version() + 1, files);
-        persist(next);
-        return new FileUpdateResult(next.version(), converted);
+        convertRow(row, true);
+        return new FileUpdateResult(FileEntryConverter.toModel(row));
     }
 
     /** MD 绝对路径（LLM 视图用；入参 mdName） */
@@ -174,15 +164,15 @@ public class FileStorageService {
 
     // ---------------- 内部 ----------------
 
-    /** 目录与元数据对账：磁盘新文件补录（说明留空，时间取 mtime），已消失文件剔除 */
-    private FileMetadataFile reconcile() {
+    /** 目录与元数据对账：磁盘新文件补录（说明留空，时间取 mtime），已消失文件剔除；变更原子提交 */
+    private List<FileMetadataRow> reconcile() {
         Path dir = uploadPath();
-        Map<String, FileEntry> byName = new LinkedHashMap<>();
-        FileMetadataFile mf = loadMetadata();
-        for (FileEntry e : mf.files()) {
-            byName.put(e.name(), e);
+        Map<String, FileMetadataRow> byName = new LinkedHashMap<>();
+        for (FileMetadataRow row : loadRows()) {
+            byName.put(row.getName(), row);
         }
-        boolean changed = false;
+        List<FileMetadataRow> added = new ArrayList<>();
+        List<Long> removedIds = new ArrayList<>();
         try {
             Files.createDirectories(dir);
             List<Path> diskFiles;
@@ -196,129 +186,112 @@ public class FileStorageService {
                 onDisk.add(rel);
                 if (!byName.containsKey(rel)) {
                     try {
-                        byName.put(rel, new FileEntry(rel, p.toAbsolutePath().toString(),
-                                Files.size(p), extOf(rel), "",
-                                LocalDateTime.ofInstant(
-                                        Files.getLastModifiedTime(p).toInstant(), ZoneId.systemDefault())
-                                        .format(TIME_FMT),
-                                null, null, null, null));
-                        changed = true;
+                        FileMetadataRow row = new FileMetadataRow();
+                        row.setName(rel);
+                        row.setPath(p.toAbsolutePath().toString());
+                        row.setSize(Files.size(p));
+                        row.setExt(extOf(rel));
+                        row.setDescription("");
+                        row.setUploadedAt(LocalDateTime.ofInstant(
+                                Files.getLastModifiedTime(p).toInstant(), ZoneId.systemDefault()));
+                        byName.put(rel, row);
+                        added.add(row);
                     } catch (IOException ignore) {
                         // 读不到大小/时间的文件跳过
                     }
                 }
             }
             // 元数据里有、磁盘上没有的 → 剔除
-            for (String n : byName.keySet().stream().filter(n -> !onDisk.contains(n)).toList()) {
-                byName.remove(n);
-                changed = true;
+            for (FileMetadataRow row : byName.values().stream()
+                    .filter(r -> !onDisk.contains(r.getName())).toList()) {
+                byName.remove(row.getName());
+                removedIds.add(row.getId());
             }
         } catch (IOException e) {
             throw new ApiException(500, "扫描文件目录失败: " + e.getMessage());
         }
-        FileMetadataFile result = new FileMetadataFile(mf.version(), new ArrayList<>(byName.values()));
-        if (changed) {
-            result = new FileMetadataFile(mf.version() + 1, result.files());
-            persist(result);
+        if (!added.isEmpty() || !removedIds.isEmpty()) {
+            txTemplate.executeWithoutResult(tx -> {
+                added.forEach(fileMapper::insert);
+                removedIds.forEach(fileMapper::deleteById);
+            });
         }
-        return result;
+        return new ArrayList<>(byName.values());
     }
 
     /**
-     * MD 转换对账（reconcile 之后统一执行）：
+     * MD 转换对账（reconcile 之后统一执行，逐行落库）：
      * - 文本类 → 回填 NONE；二进制缺 MD 且非 FAILED → 转换（存量历史文件/被删 MD 自动补）；
      * - MD 已存在但状态缺失 → 直接回填 SUCCESS（避免重复转换）；FAILED 不自动重试（reconvert 手动触发）。
      */
-    private FileMetadataFile ensureConverted(FileMetadataFile mf) {
-        List<FileEntry> files = new ArrayList<>();
-        boolean changed = false;
-        for (FileEntry e : mf.files()) {
-            FileEntry out = e;
-            if (!convertService.shouldConvert(e.ext())) {
-                if (!FileEntry.STATUS_NONE.equals(e.convertStatus())) {
-                    out = withConvert(e, null, FileEntry.STATUS_NONE, null, null);
-                    changed = true;
+    private List<FileMetadataRow> ensureConverted(List<FileMetadataRow> rows) {
+        for (FileMetadataRow row : rows) {
+            if (!convertService.shouldConvert(row.getExt())) {
+                if (!FileEntry.STATUS_NONE.equals(row.getConvertStatus())) {
+                    applyConvert(row, null, FileEntry.STATUS_NONE, null, null);
+                    fileMapper.updateById(row);
                 }
             } else {
-                out = convertEntry(e, false);
-                changed |= !sameConvert(e, out);
+                convertRow(row, false);
             }
-            files.add(out);
         }
-        if (changed) {
-            FileMetadataFile next = new FileMetadataFile(mf.version() + 1, files);
-            persist(next);
-            return next;
-        }
-        return mf;
+        return rows;
     }
 
-    /** 单条目转换：force=true 强制重转（先删旧 MD）；force=false 仅在缺 MD 且非 FAILED 时转换 */
-    private FileEntry convertEntry(FileEntry e, boolean force) {
-        String mdName = convertService.mdNameOf(e.name());
+    /** 单行转换：force=true 强制重转（先删旧 MD）；force=false 仅在缺 MD 且非 FAILED 时转换 */
+    private void convertRow(FileMetadataRow row, boolean force) {
+        String mdName = convertService.mdNameOf(row.getName());
         Path mdPath = convertService.mdPathOf(mdName);
         boolean mdExists = Files.exists(mdPath);
-        if (!force && (mdExists || FileEntry.STATUS_FAILED.equals(e.convertStatus()))) {
+        if (!force && (mdExists || FileEntry.STATUS_FAILED.equals(row.getConvertStatus()))) {
             // MD 在而状态缺失（旧数据/中间态）→ 回填；FAILED 且无 MD → 不动
-            if (mdExists && !FileEntry.STATUS_SUCCESS.equals(e.convertStatus())) {
-                return withConvert(e, mdName, FileEntry.STATUS_SUCCESS, null, convertService.mtimeOf(mdPath));
+            if (mdExists && !FileEntry.STATUS_SUCCESS.equals(row.getConvertStatus())) {
+                applyConvert(row, mdName, FileEntry.STATUS_SUCCESS, null,
+                        FileEntryConverter.parseTime(convertService.mtimeOf(mdPath)));
+                fileMapper.updateById(row);
             }
-            return e;
+            return;
         }
         MdConvertService.ConvertResult r = convertService.convertAndWrite(
-                Path.of(e.path()), e.name());
-        return withConvert(e, mdName, r.status(), r.msg(),
-                FileEntry.STATUS_SUCCESS.equals(r.status()) ? now() : null);
+                Path.of(row.getPath()), row.getName());
+        applyConvert(row, mdName, r.status(), r.msg(),
+                FileEntry.STATUS_SUCCESS.equals(r.status()) ? LocalDateTime.now() : null);
+        fileMapper.updateById(row);
     }
 
-    private static FileEntry withConvert(FileEntry e, String mdName, String status, String msg, String convertedAt) {
-        return new FileEntry(e.name(), e.path(), e.size(), e.ext(), e.description(), e.uploadedAt(),
-                mdName, status, msg, convertedAt);
+    private static void applyConvert(FileMetadataRow row, String mdName, String status, String msg,
+            LocalDateTime convertedAt) {
+        row.setMdName(mdName);
+        row.setConvertStatus(status);
+        row.setConvertMsg(msg);
+        row.setConvertedAt(convertedAt);
     }
 
-    private static boolean sameConvert(FileEntry a, FileEntry b) {
-        return java.util.Objects.equals(a.mdName(), b.mdName())
-                && java.util.Objects.equals(a.convertStatus(), b.convertStatus())
-                && java.util.Objects.equals(a.convertMsg(), b.convertMsg())
-                && java.util.Objects.equals(a.convertedAt(), b.convertedAt());
-    }
-
-    private FileMetadataFile upsert(FileMetadataFile mf, FileEntry entry) {
-        Map<String, FileEntry> byName = new LinkedHashMap<>();
-        for (FileEntry e : mf.files()) {
-            byName.put(e.name(), e);
+    /** upsert：同 name 覆盖保留原位置（不动 id），新 name 追加尾部（自增） */
+    private void upsert(FileMetadataRow row) {
+        FileMetadataRow existing = selectByName(row.getName());
+        if (existing != null) {
+            row.setId(existing.getId());
+            fileMapper.updateById(row);
+        } else {
+            fileMapper.insert(row);
         }
-        byName.put(entry.name(), entry);
-        return new FileMetadataFile(mf.version() + 1, new ArrayList<>(byName.values()));
     }
 
-    private FileEntry find(FileMetadataFile mf, String name) {
-        return mf.files().stream().filter(e -> e.name().equals(name)).findFirst()
+    private FileMetadataRow selectByName(String name) {
+        return fileMapper.selectOne(Wrappers.<FileMetadataRow>lambdaQuery()
+                .eq(FileMetadataRow::getName, name));
+    }
+
+    /** 全量行（按 id 序 = 列表顺序） */
+    private List<FileMetadataRow> loadRows() {
+        return fileMapper.selectList(Wrappers.<FileMetadataRow>lambdaQuery()
+                .orderByAsc(FileMetadataRow::getId));
+    }
+
+    private FileMetadataRow requireRow(List<FileMetadataRow> rows, String name) {
+        return rows.stream().filter(r -> r.getName().equals(name)).findFirst()
                 .orElseThrow(() -> new ApiException(404, "文件不存在: " + name));
-    }
-
-    private void persist(FileMetadataFile mf) {
-        try {
-            Path file = metadataPath();
-            Files.createDirectories(file.getParent());
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), mf);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to save file metadata: " + metadataFile, e);
-        }
-    }
-
-    private FileMetadataFile loadMetadata() {
-        Path file = metadataPath();
-        if (Files.notExists(file)) {
-            return new FileMetadataFile(0, List.of());
-        }
-        try {
-            return mapper.readValue(file.toFile(), FileMetadataFile.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load file metadata: " + file.toAbsolutePath(), e);
-        }
     }
 
     private Set<String> allowedExts() {
@@ -345,15 +318,7 @@ public class FileStorageService {
         return s;
     }
 
-    private static String now() {
-        return LocalDateTime.now().format(TIME_FMT);
-    }
-
     private Path uploadPath() {
         return Path.of(uploadDir).toAbsolutePath().normalize();
-    }
-
-    private Path metadataPath() {
-        return Path.of(metadataFile).toAbsolutePath();
     }
 }

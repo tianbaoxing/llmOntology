@@ -38,7 +38,7 @@ public class LlmFileController {
                 .filter(f -> !FileEntry.STATUS_FAILED.equals(f.convertStatus()))
                 .map(this::toView)
                 .toList();
-        return ApiResponse.ok(new LlmFileListView(list.version(), files));
+        return ApiResponse.ok(new LlmFileListView(files));
     }
 
     private LlmFileEntryView toView(FileEntry f) {
