@@ -1,7 +1,5 @@
 package com.conca.ontology.disjoint.service;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -9,46 +7,48 @@ import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.disjoint.dto.view.DisjointConflictView;
-import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.disjoint.dto.view.DisjointRulesView;
+import com.conca.ontology.disjoint.entity.RuleDisjoint;
+import com.conca.ontology.disjoint.mapper.RuleDisjointMapper;
 import com.conca.ontology.disjoint.model.DisjointRule;
-import com.conca.ontology.disjoint.model.DisjointRuleFile;
+import com.conca.ontology.shared.web.ApiException;
 
+/**
+ * 互斥约束词典：MySQL rule_disjoint 多行表为唯一事实源
+ * （P2 起由 disjoint-rules.json 迁移而来，每条规则一行，无全局 version）。
+ * 按规则 ID upsert；规则 ID 字典序即展示序（原文件内声明顺序 R001..Rnnn）。
+ */
 @Service
 public class DisjointRuleService {
 
     private static final Logger log = LoggerFactory.getLogger(DisjointRuleService.class);
     private static final Pattern BRACKET = Pattern.compile("【([^】]+)】");
 
-    private final ObjectMapper mapper;
+    private final RuleDisjointMapper ruleMapper;
 
-    @Value("${graph.disjoint-rules-file:data/disjoint-rules.json}")
-    private String disjointRulesFile;
-
-    public DisjointRuleService(ObjectMapper mapper) {
-        this.mapper = mapper;
+    public DisjointRuleService(RuleDisjointMapper ruleMapper) {
+        this.ruleMapper = ruleMapper;
     }
 
-    public DisjointRuleFile loadAll() {
-        Path file = filePath();
-        if (Files.notExists(file)) {
-            return new DisjointRuleFile(0, List.of());
-        }
-        return read(file);
+    public DisjointRulesView loadAll() {
+        return new DisjointRulesView(listOrdered());
     }
 
     public DisjointRule get(String id) {
-        return loadAll().rules().stream()
-                .filter(r -> id.equals(r.id()))
-                .findFirst()
-                .orElseThrow(() -> new ApiException(404, "规则不存在: " + id));
+        RuleDisjoint row = ruleMapper.selectById(id);
+        if (row == null) {
+            throw new ApiException(404, "规则不存在: " + id);
+        }
+        return new DisjointRule(row.getId(), row.getText());
     }
 
-    public synchronized DisjointRuleFile save(DisjointRule rule) {
+    @Transactional
+    public DisjointRulesView save(DisjointRule rule) {
         if (rule.id() == null || rule.id().isBlank()) {
             throw new ApiException(400, "规则 ID 不能为空");
         }
@@ -59,31 +59,29 @@ public class DisjointRuleService {
         if (items.size() < 2) {
             throw new ApiException(400, "规则至少需要 2 个候选项（用【】包裹，如：不能同时是【青铜】且【瓷】）");
         }
-        Path file = filePath();
-        DisjointRuleFile pf = Files.exists(file) ? read(file) : new DisjointRuleFile(0, List.of());
-        List<DisjointRule> rules = new ArrayList<>(pf.rules());
-        int idx = -1;
-        for (int i = 0; i < rules.size(); i++) {
-            if (rule.id().equals(rules.get(i).id())) { idx = i; break; }
+        RuleDisjoint existing = ruleMapper.selectById(rule.id());
+        RuleDisjoint row = existing != null ? existing : new RuleDisjoint();
+        if (existing == null) {
+            row.setId(rule.id());
         }
-        if (idx >= 0) rules.set(idx, rule);
-        else rules.add(rule);
-        DisjointRuleFile next = new DisjointRuleFile(pf.version() + 1, rules);
-        write(file, next);
-        log.info("disjoint rule saved: {} (version {}, {} items parsed)", rule.id(), next.version(), items.size());
-        return next;
+        row.setText(rule.text());
+        row.setUpdateTime(LocalDateTime.now());
+        if (existing == null) {
+            ruleMapper.insert(row);
+        } else {
+            ruleMapper.updateById(row);
+        }
+        log.info("disjoint rule saved: {} ({} items parsed)", rule.id(), items.size());
+        return loadAll();
     }
 
-    public synchronized DisjointRuleFile delete(String id) {
-        Path file = filePath();
-        DisjointRuleFile pf = Files.exists(file) ? read(file) : new DisjointRuleFile(0, List.of());
-        List<DisjointRule> rules = new ArrayList<>(pf.rules());
-        boolean removed = rules.removeIf(r -> id.equals(r.id()));
-        if (!removed) throw new ApiException(404, "规则不存在: " + id);
-        DisjointRuleFile next = new DisjointRuleFile(pf.version() + 1, rules);
-        write(file, next);
-        log.info("disjoint rule deleted: {} (version {})", id, next.version());
-        return next;
+    @Transactional
+    public DisjointRulesView delete(String id) {
+        if (ruleMapper.deleteById(id) <= 0) {
+            throw new ApiException(404, "规则不存在: " + id);
+        }
+        log.info("disjoint rule deleted: {}", id);
+        return loadAll();
     }
 
     /** 从【】中解析候选项 */
@@ -100,9 +98,8 @@ public class DisjointRuleService {
 
     /** 生成下一个自增 ID：R + 三位补零 */
     public String nextId() {
-        DisjointRuleFile all = loadAll();
         int max = 0;
-        for (DisjointRule r : all.rules()) {
+        for (DisjointRule r : listOrdered()) {
             String id = r.id();
             if (id != null && id.length() > 1 && id.startsWith("R")) {
                 try { max = Math.max(max, Integer.parseInt(id.substring(1))); }
@@ -116,7 +113,7 @@ public class DisjointRuleService {
     public List<DisjointConflictView> checkConflicts(String text) {
         List<DisjointConflictView> out = new ArrayList<>();
         if (text == null || text.isBlank()) return out;
-        for (DisjointRule r : loadAll().rules()) {
+        for (DisjointRule r : listOrdered()) {
             List<String> items = parseItems(r.text());
             if (items.size() < 2) continue;
             List<String> hits = new ArrayList<>();
@@ -130,26 +127,9 @@ public class DisjointRuleService {
         return out;
     }
 
-    private DisjointRuleFile read(Path file) {
-        try {
-            return mapper.readValue(file.toFile(), DisjointRuleFile.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load disjoint rules file: " + file.toAbsolutePath(), e);
-        }
-    }
-
-    private void write(Path file, DisjointRuleFile next) {
-        try {
-            Files.createDirectories(file.getParent());
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), next);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to save disjoint rules file: " + file.toAbsolutePath(), e);
-        }
-    }
-
-    private Path filePath() {
-        return Path.of(disjointRulesFile).toAbsolutePath();
+    private List<DisjointRule> listOrdered() {
+        return ruleMapper
+                .selectList(new LambdaQueryWrapper<RuleDisjoint>().orderByAsc(RuleDisjoint::getId))
+                .stream().map(r -> new DisjointRule(r.getId(), r.getText())).toList();
     }
 }

@@ -7,8 +7,8 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.conca.ontology.disjoint.dto.view.DisjointRulesView;
 import com.conca.ontology.disjoint.model.DisjointRule;
-import com.conca.ontology.disjoint.model.DisjointRuleFile;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.agentscope.core.agent.RuntimeContext;
@@ -55,10 +55,9 @@ public class DisjointRulesTool {
                     + "无参数，调用一次返回全部规则。")
     public String list(RuntimeContext ctx) {
         try {
-            DisjointRuleFile f = service.loadAll();
+            DisjointRulesView f = service.loadAll();
             StringBuilder sb = new StringBuilder();
             sb.append("# 互斥约束词典（DisjointClasses 简化版 · CRM-ACA 建模红线）\n");
-            sb.append("version: ").append(f.version()).append('\n');
             sb.append("count: ").append(f.rules().size()).append('\n');
             sb.append("## LLM 必须遵守的判定规则\n");
             sb.append("拿到本列表后，在你输出任何事实性结论/写入任何图谱数据之前，执行以下比对：\n");

@@ -1,7 +1,5 @@
 package com.conca.ontology.graph.service;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -11,10 +9,10 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.graph.dto.result.ClassDeleteResult;
 import com.conca.ontology.graph.dto.view.ClassDetailView;
 import com.conca.ontology.graph.dto.view.ClassSummary;
@@ -24,16 +22,25 @@ import com.conca.ontology.graph.dto.result.QueryResult;
 import com.conca.ontology.graph.dto.view.RelationDetail;
 import com.conca.ontology.graph.dto.view.RelationView;
 import com.conca.ontology.graph.dto.view.SchemaView;
+import com.conca.ontology.graph.entity.GraphClass;
+import com.conca.ontology.graph.entity.GraphClassProp;
+import com.conca.ontology.graph.entity.GraphRelDef;
+import com.conca.ontology.graph.entity.GraphSchemaMeta;
+import com.conca.ontology.graph.mapper.GraphClassMapper;
+import com.conca.ontology.graph.mapper.GraphClassPropMapper;
+import com.conca.ontology.graph.mapper.GraphRelDefMapper;
+import com.conca.ontology.graph.mapper.GraphSchemaMetaMapper;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.graph.model.ClassDef;
 import com.conca.ontology.graph.model.GraphSchema;
+import com.conca.ontology.graph.model.GraphSchemaConverter;
 import com.conca.ontology.graph.model.PropertyDef;
 import com.conca.ontology.graph.model.RelationDef;
-import com.conca.ontology.graph.model.SchemaFile;
 
 /**
- * 概念层（schema）CRUD：graph-schema.json 为唯一事实源。
- * 首次启动初始化为空 schema（全新部署无预置概念）；每次变更原子落盘并热更新 GraphSchema 白名单。
+ * 概念层（schema）CRUD：MySQL 三表（graph_class / graph_class_prop / graph_rel_def）+
+ * graph_schema_meta 为唯一事实源（P2 起，由 graph-schema.json 迁移而来）。
+ * 每次变更整表事务重写并热更新 GraphSchema 白名单（对齐原整文件原子落盘语义）。
  * 删除保护：类被其他类关系引用 / 库中仍有实例 → 409。
  */
 @Service
@@ -44,41 +51,41 @@ public class SchemaService {
     private final GraphSchema schema;
     private final GraphQueryService queryService;
     private final GraphImportService importService;
-    private final ObjectMapper mapper;
-
-    @Value("${graph.schema-file:data/graph-schema.json}")
-    private String schemaFile;
+    private final GraphClassMapper classMapper;
+    private final GraphClassPropMapper propMapper;
+    private final GraphRelDefMapper relMapper;
+    private final GraphSchemaMetaMapper metaMapper;
+    private final TransactionTemplate txTemplate;
 
     private volatile int version = 1;
 
     public SchemaService(GraphSchema schema, GraphQueryService queryService,
-                         GraphImportService importService, ObjectMapper mapper) {
+                         GraphImportService importService, GraphClassMapper classMapper,
+                         GraphClassPropMapper propMapper, GraphRelDefMapper relMapper,
+                         GraphSchemaMetaMapper metaMapper, TransactionTemplate txTemplate) {
         this.schema = schema;
         this.queryService = queryService;
         this.importService = importService;
-        this.mapper = mapper;
+        this.classMapper = classMapper;
+        this.propMapper = propMapper;
+        this.relMapper = relMapper;
+        this.metaMapper = metaMapper;
+        this.txTemplate = txTemplate;
     }
 
-    /** 启动加载：外部文件不存在则初始化为空 schema（全新部署，概念层由用户按场景构建） */
+    /** 启动加载：MySQL 唯一事实源；meta 缺行时初始化空 schema v1（全新部署，概念层由用户按场景构建） */
     public void init() {
-        Path file = schemaPath();
         try {
-            if (Files.notExists(file)) {
-                Files.createDirectories(file.getParent());
-                mapper.writerWithDefaultPrettyPrinter()
-                        .writeValue(file.toFile(), new SchemaFile(1, List.of()));
-                log.info("empty schema file initialized: {}", file.toAbsolutePath());
-            }
-            SchemaFile sf = mapper.readValue(file.toFile(), SchemaFile.class);
-            this.version = sf.version();
-            schema.reload(sf.classes());
-            log.info("schema loaded: {} classes (version {})", schema.allClasses().size(), version);
+            this.version = ensureMeta();
+            List<ClassDef> classes = loadClasses();
+            schema.reload(classes);
+            log.info("schema loaded: {} classes (version {})", classes.size(), version);
         } catch (Exception e) {
-            throw new IllegalStateException("failed to load schema file: " + file.toAbsolutePath(), e);
+            throw new IllegalStateException("failed to load schema from db", e);
         }
     }
 
-    /** 当前 schema 文件版本号（备份文件名 v 段数据源） */
+    /** 当前 schema 版本号（备份文件名 v 段数据源） */
     public int version() {
         return version;
     }
@@ -318,22 +325,70 @@ public class SchemaService {
 
     // ---------------- persistence & counts ----------------
 
-    /** 原子落盘：临时文件 + rename，成功后热更新注册表 */
-    private void save(List<ClassDef> classes) {
-        Path file = schemaPath();
-        try {
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), new SchemaFile(version + 1, classes));
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            version = version + 1;
-            schema.reload(classes);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to save schema file: " + file.toAbsolutePath(), e);
+    /** meta 行存在返回其 version；缺失则初始化 version=1 空行（幂等，GraphSchemaMigrator.initDefaults 同语义） */
+    private int ensureMeta() {
+        GraphSchemaMeta meta = metaMapper.selectById(GraphSchemaMeta.SINGLETON_ID);
+        if (meta != null) {
+            return meta.getVersion();
+        }
+        metaMapper.insert(metaRow(1));
+        return 1;
+    }
+
+    private void upsertMeta(int version) {
+        GraphSchemaMeta meta = metaMapper.selectById(GraphSchemaMeta.SINGLETON_ID);
+        if (meta == null) {
+            metaMapper.insert(metaRow(version));
+        } else {
+            metaMapper.updateById(metaRow(version));
         }
     }
 
-    private Path schemaPath() {
-        return Path.of(schemaFile).toAbsolutePath();
+    private static GraphSchemaMeta metaRow(int version) {
+        GraphSchemaMeta meta = new GraphSchemaMeta();
+        meta.setId(GraphSchemaMeta.SINGLETON_ID);
+        meta.setVersion(version);
+        meta.setUpdateTime(LocalDateTime.now());
+        return meta;
+    }
+
+    /** 三表按 ord 读出并组装为声明顺序的 ClassDef 列表 */
+    private List<ClassDef> loadClasses() {
+        List<GraphClass> classes = classMapper.selectList(Wrappers.<GraphClass>lambdaQuery()
+                .orderByAsc(GraphClass::getOrd));
+        List<GraphClassProp> props = propMapper.selectList(Wrappers.<GraphClassProp>lambdaQuery()
+                .orderByAsc(GraphClassProp::getClassName, GraphClassProp::getOrd));
+        List<GraphRelDef> rels = relMapper.selectList(Wrappers.<GraphRelDef>lambdaQuery()
+                .orderByAsc(GraphRelDef::getFromClass, GraphRelDef::getOrd));
+        return GraphSchemaConverter.toClassDefs(classes, props, rels);
+    }
+
+    /**
+     * 原子落库：事务内三表整表重写 + meta version+1（对齐原「临时文件 + rename 整文件落盘」语义；
+     * 数据量为个位数类，整表重写成本可忽略），提交成功后热更新注册表。
+     */
+    private void save(List<ClassDef> classes) {
+        int next = version + 1;
+        txTemplate.executeWithoutResult(status -> {
+            classMapper.delete(Wrappers.emptyWrapper());
+            propMapper.delete(Wrappers.emptyWrapper());
+            relMapper.delete(Wrappers.emptyWrapper());
+            for (int i = 0; i < classes.size(); i++) {
+                ClassDef c = classes.get(i);
+                classMapper.insert(GraphSchemaConverter.toClassRow(c, i));
+                List<PropertyDef> props = c.properties() == null ? List.of() : c.properties();
+                for (int j = 0; j < props.size(); j++) {
+                    propMapper.insert(GraphSchemaConverter.toPropRow(c.name(), props.get(j), j));
+                }
+                List<RelationDef> rels = c.relations() == null ? List.of() : c.relations();
+                for (int k = 0; k < rels.size(); k++) {
+                    relMapper.insert(GraphSchemaConverter.toRelRow(c.name(), rels.get(k), k));
+                }
+            }
+            upsertMeta(next);
+        });
+        version = next;
+        schema.reload(classes);
     }
 
     private Map<String, Long> nodeCounts() {

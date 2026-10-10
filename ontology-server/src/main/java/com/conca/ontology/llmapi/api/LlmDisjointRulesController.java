@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.disjoint.dto.DisjointCheckRequest;
 import com.conca.ontology.disjoint.dto.view.DisjointConflictView;
-import com.conca.ontology.disjoint.model.DisjointRuleFile;
+import com.conca.ontology.disjoint.dto.view.DisjointRulesView;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,9 +29,9 @@ public class LlmDisjointRulesController {
     }
 
     @Operation(summary = "全量规则（免登录，只读）",
-            description = "返回版本号 + 全部互斥约束规则原文。用于需要把规则注入 LLM 上下文的场景。")
+            description = "返回全部互斥约束规则原文（按规则 ID 字典序）。用于需要把规则注入 LLM 上下文的场景。")
     @GetMapping
-    public ApiResponse<DisjointRuleFile> all() {
+    public ApiResponse<DisjointRulesView> all() {
         return ApiResponse.ok(service.loadAll());
     }
 

@@ -1,89 +1,76 @@
 package com.conca.ontology.graph.service;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.graph.dto.request.ProfileSaveRequest;
 import com.conca.ontology.graph.dto.result.ProfileSaveResult;
 import com.conca.ontology.graph.dto.view.ProfileView;
+import com.conca.ontology.graph.entity.OntologyProfileItem;
+import com.conca.ontology.graph.mapper.OntologyProfileItemMapper;
 import com.conca.ontology.graph.model.ProfileEntry;
-import com.conca.ontology.graph.model.ProfileFile;
 
 /**
- * 构建期问询记录（用户画像 / ontology 画像）：ontology-profile.json 为唯一事实源。
- * 按 key upsert（同 key 重复问答覆盖，保留最新画像）；每次变更 version + 1 并原子落盘。
+ * 构建期问询记录（用户画像 / ontology 画像）：MySQL ontology_profile 多行表为唯一事实源
+ * （P2 起由 ontology-profile.json 迁移而来，每条问答一行，无全局 version）。
+ * 按 key upsert（同 key 覆盖且保留原位置，新 key 追加在尾部）；updatedAt 存 ISO-8601 原文保留纳秒精度。
  */
 @Service
 public class ProfileService {
 
     private static final Logger log = LoggerFactory.getLogger(ProfileService.class);
 
-    private final ObjectMapper mapper;
+    private final OntologyProfileItemMapper itemMapper;
 
-    @Value("${graph.profile-file:data/ontology-profile.json}")
-    private String profileFile;
-
-    public ProfileService(ObjectMapper mapper) {
-        this.mapper = mapper;
+    public ProfileService(OntologyProfileItemMapper itemMapper) {
+        this.itemMapper = itemMapper;
     }
 
-    /** 全量读取（文件不存在返回空结构，供 LLM 回看构建上下文） */
+    /** 全量读取（无行返回空列表，供 LLM 回看构建上下文；按首次创建顺序） */
     public ProfileView load() {
-        Path file = profilePath();
-        if (Files.notExists(file)) {
-            return new ProfileView(0, List.of());
-        }
-        ProfileFile pf = read(file);
-        return new ProfileView(pf.version(), pf.items());
+        List<ProfileEntry> items = itemMapper
+                .selectList(new LambdaQueryWrapper<OntologyProfileItem>()
+                        .orderByAsc(OntologyProfileItem::getId))
+                .stream().map(ProfileService::toEntry).toList();
+        return new ProfileView(items);
     }
 
-    /** 批量 upsert：按 key 覆盖已有条目，原子落盘 */
-    public synchronized ProfileSaveResult save(ProfileSaveRequest req) {
-        Path file = profilePath();
-        ProfileFile pf = Files.exists(file) ? read(file) : new ProfileFile(0, List.of());
-        Map<String, ProfileEntry> byKey = new LinkedHashMap<>();
-        for (ProfileEntry e : pf.items()) {
-            byKey.put(e.key(), e);
-        }
+    /** 批量 upsert：按 key 覆盖已有条目（原位置），新 key 追加，事务原子 */
+    @Transactional
+    public ProfileSaveResult save(ProfileSaveRequest req) {
         String now = LocalDateTime.now().toString();
         for (ProfileSaveRequest.Item item : req.items()) {
             String phase = item.phase() == null || item.phase().isBlank() ? "intake" : item.phase();
-            byKey.put(item.key(), new ProfileEntry(phase, item.key(), item.question(), item.answer(), now));
+            OntologyProfileItem row = itemMapper.selectOne(new LambdaQueryWrapper<OntologyProfileItem>()
+                    .eq(OntologyProfileItem::getItemKey, item.key()));
+            if (row == null) {
+                row = new OntologyProfileItem();
+                row.setItemKey(item.key());
+                fill(row, phase, item, now);
+                itemMapper.insert(row);
+            } else {
+                fill(row, phase, item, now);
+                itemMapper.updateById(row);
+            }
         }
-        List<ProfileEntry> items = new ArrayList<>(byKey.values());
-        ProfileFile next = new ProfileFile(pf.version() + 1, items);
-        try {
-            Files.createDirectories(file.getParent());
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), next);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to save profile file: " + file.toAbsolutePath(), e);
-        }
-        log.info("profile saved: {} entries (version {})", items.size(), next.version());
-        return new ProfileSaveResult(next.version(), items.size());
+        int count = Math.toIntExact(itemMapper.selectCount(null));
+        log.info("profile saved: {} entries", count);
+        return new ProfileSaveResult(count);
     }
 
-    private ProfileFile read(Path file) {
-        try {
-            return mapper.readValue(file.toFile(), ProfileFile.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load profile file: " + file.toAbsolutePath(), e);
-        }
+    private static void fill(OntologyProfileItem row, String phase, ProfileSaveRequest.Item item, String now) {
+        row.setPhase(phase);
+        row.setQuestion(item.question());
+        row.setAnswer(item.answer());
+        row.setUpdatedAt(now);
     }
 
-    private Path profilePath() {
-        return Path.of(profileFile).toAbsolutePath();
+    private static ProfileEntry toEntry(OntologyProfileItem r) {
+        return new ProfileEntry(r.getPhase(), r.getItemKey(), r.getQuestion(), r.getAnswer(), r.getUpdatedAt());
     }
 }

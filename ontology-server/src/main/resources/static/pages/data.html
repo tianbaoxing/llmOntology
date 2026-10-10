@@ -468,7 +468,6 @@
       </div>
 
       <div class="toolbar" style="margin-bottom:10px">
-        <span class="muted" id="dj-version">版本：-</span>
         <span class="muted" id="dj-count"></span>
       </div>
       <div id="dj-list"></div>
@@ -823,7 +822,7 @@ let schemaTabLoaded = false;
 let disjointTabLoaded = false;
 let rewriteTabLoaded = false;
 let contentSecurityTabLoaded = false;
-let disjointData = null;   // {version, rules}
+let disjointData = null;   // {rules}
 let rewriteData = null;    // {version, pipeline, features}
 let djEditingId = null;    // 正在编辑的 id；null = 新增
 let csRulesData = null;    // {version, rules}
@@ -1078,7 +1077,6 @@ function removeClass(name) {
 // ---------------- 互斥约束（极简版） ----------------
 async function loadDisjointPanel() {
   disjointData = await api('GET', '/api/disjoint-rules');
-  $('dj-version').textContent = '版本：' + disjointData.version;
   renderDisjointList();
   if (!djEditingId) {
     const nextId = await api('GET', '/api/disjoint-rules/next-id');
@@ -1161,7 +1159,6 @@ function saveRule() {
   doAction(async () => {
     const r = await api('POST', '/api/disjoint-rules', { id, text });
     disjointData = r;
-    $('dj-version').textContent = '版本：' + r.version;
     resetEditor();
     renderDisjointList();
     return { saved: id, items };
@@ -1173,7 +1170,6 @@ function deleteRule(id) {
   doAction(async () => {
     const r = await api('DELETE', '/api/disjoint-rules/' + encodeURIComponent(id));
     disjointData = r;
-    $('dj-version').textContent = '版本：' + r.version;
     if (djEditingId === id) resetEditor();
     renderDisjointList();
     return r;

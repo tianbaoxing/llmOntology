@@ -1,7 +1,7 @@
 # llmOntology 平台数据迁移方案（JSON 文件 → MySQL）
 
-> 本文是**持续性迁移规范**：P0+P1 已实施完成，P2 起各期照此执行，不再逐期重新设计。
-> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅
+> 本文是**持续性迁移规范**：P0+P1+P2 已实施完成，P3 起各期照此执行，不再逐期重新设计。
+> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅
 
 ## 1. 基础设施（已定，勿改）
 
@@ -55,16 +55,9 @@ JsonMigrator（接口）                      JsonMigrationRunner（ApplicationR
 |---|---|---|---|
 | P0 | 依赖/datasource/Flyway/迁移骨架 | flyway_schema_history | — |
 | P1 | 用户系统 | sys_user（5 行）、sys_role_permission（1 行） | users.json、role-permissions.json |
+| P2 | 图谱配置 | graph_schema_meta（1 行，全局 version）+ graph_class（10 行）/ graph_class_prop（30 行）/ graph_rel_def（16 行）；ontology_profile（11 行，每条问答一行，无全局 version——V3 调整，去 JSON 列）；rule_dedup（1 行，3 个 JSON 列）；rule_disjoint（12 行，每条规则一行，无全局 version——V4 调整，去 JSON 列） | graph-schema.json、ontology-profile.json、dedup-rules.json、disjoint-rules.json |
 
 ## 5. 待迁移清单（按期）
-
-### P2 图谱配置（~20 KB）
-| 源文件 | 目标表 | 说明 |
-|---|---|---|
-| data/graph-schema.json (11.1K) | graph_class / graph_class_prop / graph_rel_def | classes→properties/relations 嵌套拆 3 表；rel 的 props 用 JSON 列 |
-| data/ontology-profile.json (6.4K) | ontology_profile | 单行配置表 |
-| data/dedup-rules.json (0.9K) | rule_dedup | 规则行表 |
-| data/disjoint-rules.json (1.4K) | rule_disjoint | 规则行表 |
 
 ### P3 内容安全 + 改写配置
 | 源文件 | 目标表 | 说明 |

@@ -8,8 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
+import com.conca.ontology.disjoint.dto.view.DisjointRulesView;
 import com.conca.ontology.disjoint.model.DisjointRule;
-import com.conca.ontology.disjoint.model.DisjointRuleFile;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,9 +26,9 @@ public class DisjointRulesController {
         this.service = service;
     }
 
-    @Operation(summary = "全量规则（含 version）", description = "读取完整 disjoint-rules.json")
+    @Operation(summary = "全量规则", description = "读取全部互斥约束规则（按规则 ID 字典序）")
     @GetMapping
-    public ApiResponse<DisjointRuleFile> getAll() {
+    public ApiResponse<DisjointRulesView> getAll() {
         return ApiResponse.ok(service.loadAll());
     }
 
@@ -46,13 +46,13 @@ public class DisjointRulesController {
 
     @Operation(summary = "新增/覆盖规则", description = "id 唯一；存在即覆盖，不存在即新增。校验：text 中【】包裹的候选项至少 2 个。")
     @PostMapping
-    public ApiResponse<DisjointRuleFile> save(@RequestBody DisjointRule rule) {
+    public ApiResponse<DisjointRulesView> save(@RequestBody DisjointRule rule) {
         return ApiResponse.ok(service.save(rule));
     }
 
     @Operation(summary = "删除规则")
     @DeleteMapping("/{id}")
-    public ApiResponse<DisjointRuleFile> delete(@PathVariable String id) {
+    public ApiResponse<DisjointRulesView> delete(@PathVariable String id) {
         return ApiResponse.ok(service.delete(id));
     }
 }

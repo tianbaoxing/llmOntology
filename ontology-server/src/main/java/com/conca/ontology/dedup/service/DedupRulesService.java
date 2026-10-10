@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 
 import com.conca.ontology.dedup.model.DedupExactMode;
 import com.conca.ontology.dedup.model.DedupLabelConfig;
-import com.conca.ontology.dedup.model.DedupRulesFileStore;
+import com.conca.ontology.dedup.model.DedupRulesStore;
 import com.conca.ontology.dedup.model.DedupRuleset;
 import com.conca.ontology.dedup.model.DedupRulesIndexItem;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage;
@@ -25,11 +25,11 @@ import jakarta.annotation.PostConstruct;
 @Service
 public class DedupRulesService {
 
-    private final DedupRulesFileStore store;
+    private final DedupRulesStore store;
     private final GraphSchema schema;
     private final NormalizeAliasStage normalizeStage;
 
-    public DedupRulesService(DedupRulesFileStore store, GraphSchema schema, NormalizeAliasStage normalizeStage) {
+    public DedupRulesService(DedupRulesStore store, GraphSchema schema, NormalizeAliasStage normalizeStage) {
         this.store = store;
         this.schema = schema;
         this.normalizeStage = normalizeStage;

@@ -29,16 +29,16 @@ public class ProfileController {
     }
 
     @Operation(summary = "全量问询记录",
-            description = "读取全部问答条目（phase/key/question/answer/updatedAt）。LLM 构建各阶段回看上下文用。"
-                    + "文件不存在时返回 version=0 + 空列表。")
+            description = "读取全部问答条目（phase/key/question/answer/updatedAt，按首次创建顺序）。LLM 构建各阶段回看上下文用。"
+                    + "无记录时返回空列表。")
     @GetMapping("/profile")
     public ApiResponse<ProfileView> profile() {
         return ApiResponse.ok(profileService.load());
     }
 
     @Operation(summary = "批量保存问答",
-            description = "按 key upsert：同 key 覆盖已有条目（phase 缺省为 intake），全部条目原子落盘。"
-                    + "返回保存后的版本号与全量条目总数。")
+            description = "按 key upsert：同 key 覆盖已有条目（原位置，phase 缺省为 intake），新 key 追加，事务原子。"
+                    + "返回保存后的全量条目总数。")
     @PostMapping("/profile")
     public ApiResponse<ProfileSaveResult> save(@Valid @RequestBody ProfileSaveRequest req) {
         return ApiResponse.ok(profileService.save(req));
