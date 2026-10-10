@@ -26,8 +26,8 @@ import jakarta.annotation.PreDestroy;
  * 无工具/技能/子代理），sysPrompt = 功能提示词 + 输出格式提示词（页面可改，热生效）。
  * 聊天接入见 AgentChatService：主 agent 启动前先跑改写轮（过程模拟 thinking 推流）。
  *
- * agent 按（type, configVersion）懒构建缓存：配置每次保存 version+1，
- * 首次调用按新版本重建（旧 agent 关闭，进行中调用降级放行原文，不阻断聊天）。
+ * agent 按（type, sysPrompt）懒构建缓存：提示词被修改保存后，
+ * 首次调用按新 sysPrompt 重建（旧 agent 关闭，进行中调用降级放行原文，不阻断聊天）。
  * 每次改写独立 sessionId（userId=rewrite-<type>），会话留痕落 state-dir，
  * 供回查每次改写的完整 prompt 与输出；AgentTraceMiddleware 输出调用日志。
  *
@@ -62,7 +62,7 @@ public class RewriteAgentHolder {
 
     private final Map<String, CachedAgent> cache = new HashMap<>();
 
-    private record CachedAgent(int configVersion, HarnessAgent agent) {
+    private record CachedAgent(String sysPrompt, HarnessAgent agent) {
     }
 
     /** 是否具备构建条件（key 未配置时改写不可用） */
@@ -71,19 +71,18 @@ public class RewriteAgentHolder {
     }
 
     /**
-     * 取某项功能的改写 agent：同 configVersion 命中缓存；版本变化（提示词被修改保存）则重建。
+     * 取某项功能的改写 agent：同 sysPrompt 命中缓存；提示词变化（被修改保存）则重建。
      *
-     * @param type         功能类型（RewriteConfigService 常量）
-     * @param sysPrompt    功能提示词 + 输出格式提示词
-     * @param configVersion 当前配置版本（构建缓存键）
+     * @param type      功能类型（RewriteConfigService 常量）
+     * @param sysPrompt 功能提示词 + 输出格式提示词（构建缓存键）
      */
-    public synchronized HarnessAgent agent(String type, String sysPrompt, int configVersion) {
+    public synchronized HarnessAgent agent(String type, String sysPrompt) {
         CachedAgent cached = cache.get(type);
-        if (cached != null && cached.configVersion() == configVersion) {
+        if (cached != null && cached.sysPrompt().equals(sysPrompt)) {
             return cached.agent();
         }
         HarnessAgent built = build(type, sysPrompt);
-        cache.put(type, new CachedAgent(configVersion, built));
+        cache.put(type, new CachedAgent(sysPrompt, built));
         if (cached != null) {
             closeQuietly(cached.agent());
         }

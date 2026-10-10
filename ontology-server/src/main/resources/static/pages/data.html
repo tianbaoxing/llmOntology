@@ -578,7 +578,6 @@
             <option value="in">已加入 Allowlist</option>
             <option value="out">未加入 Allowlist</option>
           </select>
-          <span class="muted" id="cs-r-version">版本：-</span>
           <span class="muted" id="cs-r-count"></span>
         </div>
         <div id="cs-rules"></div>
@@ -596,7 +595,7 @@
         管道顺序：<code>错别字 → 术语 → 上下文 → 语义</code>（上下文改写会自动携带会话最近历史）。
       </div>
       <div class="toolbar" style="margin:8px 0 12px">
-        <span class="muted" id="rw-version">版本：-</span>
+        <span class="muted" id="rw-status"></span>
       </div>
       <div id="rw-cards"></div>
     </div>
@@ -823,10 +822,10 @@ let disjointTabLoaded = false;
 let rewriteTabLoaded = false;
 let contentSecurityTabLoaded = false;
 let disjointData = null;   // {rules}
-let rewriteData = null;    // {version, pipeline, features}
+let rewriteData = null;    // {pipeline, features}
 let djEditingId = null;    // 正在编辑的 id；null = 新增
-let csRulesData = null;    // {version, rules}
-let csAllowlistData = null; // {version, ruleIds}
+let csRulesData = null;    // {rules}
+let csAllowlistData = null; // {ruleIds}
 let qualityTabLoaded = false;
 let gqChartClasses = null;   // echarts 实例，遵循销毁重建
 let gqChartRels = null;
@@ -1220,9 +1219,8 @@ async function loadRewritePanel() {
 
 function renderRewriteCards() {
   if (!rewriteData) return;
-  $('rw-version').textContent = '版本：' + rewriteData.version;
   const enabledCount = RW_ORDER.filter(t => rewriteData.features[t]?.enabled).length;
-  $('rw-version').textContent += `（已启用 ${enabledCount}/4 项）`;
+  $('rw-status').textContent = `已启用 ${enabledCount}/4 项`;
   $('rw-cards').innerHTML = RW_ORDER.map(t => {
     const f = rewriteData.features[t] || {};
     const meta = RW_META[t];
@@ -1258,7 +1256,7 @@ function saveRewrite(t) {
     const r = await api('PUT', '/api/rewrite-config', body);
     rewriteData = r;
     renderRewriteCards();
-    return { saved: RW_META[t].label, version: r.version };
+    return { saved: RW_META[t].label };
   });
 }
 
@@ -1278,7 +1276,6 @@ async function loadCsPanel() {
 
 async function loadCsRules() {
   csRulesData = await api('GET', '/api/content-security/rules');
-  $('cs-r-version').textContent = '版本：' + csRulesData.version;
   renderCsRules();
 }
 
@@ -1370,11 +1367,10 @@ function csAddRule() {
   if (!body.pattern) return showMsg('pattern 不能为空', false);
   doAction(async () => {
     csRulesData = await api('POST', '/api/content-security/rules', body);
-    $('cs-r-version').textContent = '版本：' + csRulesData.version;
     csResetRuleForm();
     csToggleAddForm(false);
     renderCsRules();
-    return { added: body.id, version: csRulesData.version };
+    return { added: body.id };
   });
 }
 
@@ -1383,7 +1379,6 @@ function csDeleteRule(idEnc) {
   if (!confirm('确认删除规则：' + id + '？\n（删除后立即生效 reloadAll）')) return;
   doAction(async () => {
     csRulesData = await api('DELETE', '/api/content-security/rules/' + idEnc);
-    $('cs-r-version').textContent = '版本：' + csRulesData.version;
     renderCsRules();
     return csRulesData;
   });
@@ -1394,7 +1389,7 @@ function csQuickAddAlw(idEnc) {
   doAction(async () => {
     csAllowlistData = await api('POST', '/api/content-security/allowlist', { ruleId: id });
     renderCsRules();
-    return { allowlisted: id, version: csAllowlistData.version };
+    return { allowlisted: id };
   });
 }
 

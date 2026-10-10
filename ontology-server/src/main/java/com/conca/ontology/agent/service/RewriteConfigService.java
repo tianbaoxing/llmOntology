@@ -1,8 +1,6 @@
 package com.conca.ontology.agent.service;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,9 +10,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.agent.entity.RewriteConfigItem;
+import com.conca.ontology.agent.mapper.RewriteConfigItemMapper;
 import com.conca.ontology.agent.service.RewriteAgentHolder;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.agent.model.RewriteConfigFile;
+import com.conca.ontology.agent.model.RewriteConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -25,7 +25,7 @@ import io.agentscope.core.model.ChatUsage;
 import io.agentscope.harness.agent.HarnessAgent;
 
 /**
- * 语义改写配置与执行服务（data/rewrite-config.json，原子读写 + 版本号）。
+ * 语义改写配置与执行服务（MySQL rewrite_config 表，每功能一行，无全局 version）。
  *
  * 4 项功能（页面「语义改写配置」Tab 各一张卡片）：
  * - semantic 语义改写 / typo 错别字改写 / term 术语改写 / context 上下文改写
@@ -113,9 +113,7 @@ public class RewriteConfigService {
 
     private final ObjectMapper mapper;
     private final RewriteAgentHolder agentHolder;
-
-    @Value("${app.rewrite.config-file:data/rewrite-config.json}")
-    private String configFile;
+    private final RewriteConfigItemMapper itemMapper;
 
     @Value("${app.agent.api-key:}")
     private String apiKey;
@@ -123,23 +121,29 @@ public class RewriteConfigService {
     @Value("${app.rewrite.timeout-seconds:30}")
     private int timeoutSeconds;
 
-    public RewriteConfigService(ObjectMapper mapper, RewriteAgentHolder agentHolder) {
+    public RewriteConfigService(ObjectMapper mapper, RewriteAgentHolder agentHolder,
+            RewriteConfigItemMapper itemMapper) {
         this.mapper = mapper;
         this.agentHolder = agentHolder;
+        this.itemMapper = itemMapper;
     }
 
     // ---------------- 配置读写 ----------------
 
-    public RewriteConfigFile loadAll() {
-        Path file = filePath();
-        if (Files.notExists(file)) {
-            return defaults();
+    /** 全量配置（缺失功能键内存兜底默认值，对齐原「文件不存在返回内置默认」语义） */
+    public RewriteConfig loadAll() {
+        Map<String, RewriteConfigItem> rows = new LinkedHashMap<>();
+        for (RewriteConfigItem row : itemMapper.selectList(null)) {
+            rows.put(row.getFeature(), row);
         }
-        try {
-            return normalize(mapper.readValue(file.toFile(), RewriteConfigFile.class));
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load rewrite config file: " + file.toAbsolutePath(), e);
+        Map<String, RewriteConfig.Feature> features = new LinkedHashMap<>();
+        for (String type : ALL_TYPES) {
+            RewriteConfigItem row = rows.get(type);
+            features.put(type, row != null
+                    ? new RewriteConfig.Feature(row.getEnabled(), row.getPrompt())
+                    : defaultFeature(type));
         }
+        return new RewriteConfig(features);
     }
 
     /** 页面视图：配置 + 只读输出格式提示词 + 管道顺序 */
@@ -147,17 +151,17 @@ public class RewriteConfigService {
         return view(loadAll());
     }
 
-    private ConfigView view(RewriteConfigFile cfg) {
+    private ConfigView view(RewriteConfig cfg) {
         Map<String, FeatureView> features = new LinkedHashMap<>();
         for (String type : ALL_TYPES) {
-            RewriteConfigFile.Feature f = cfg.features().get(type);
+            RewriteConfig.Feature f = cfg.features().get(type);
             features.put(type, new FeatureView(f.enabled(), f.prompt(), OUTPUT_FORMATS.get(type)));
         }
-        return new ConfigView(cfg.version(), PIPELINE_ORDER, features);
+        return new ConfigView(PIPELINE_ORDER, features);
     }
 
-    /** 保存（部分更新：缺省功能沿用现值；校验通过后 version+1 原子写入） */
-    public ConfigView save(Map<String, RewriteConfigFile.Feature> features) {
+    /** 保存（部分更新：缺省功能行不动；提交项校验通过后行级 upsert，聊天管道热生效） */
+    public ConfigView save(Map<String, RewriteConfig.Feature> features) {
         if (features == null || features.isEmpty()) {
             throw new ApiException(400, "features 不能为空");
         }
@@ -166,62 +170,37 @@ public class RewriteConfigService {
                 throw new ApiException(400, "未知功能类型: " + key);
             }
         }
-        RewriteConfigFile current = loadAll();
-        Map<String, RewriteConfigFile.Feature> merged = new LinkedHashMap<>();
         for (String type : ALL_TYPES) {
-            RewriteConfigFile.Feature incoming = features.get(type);
+            RewriteConfig.Feature incoming = features.get(type);
             if (incoming == null) {
-                merged.put(type, current.features().get(type));
                 continue;
             }
             String prompt = incoming.prompt() == null ? "" : incoming.prompt().trim();
             if (prompt.isBlank()) {
                 throw new ApiException(400, FEATURE_LABELS.get(type) + "：提示词不能为空");
             }
-            merged.put(type, new RewriteConfigFile.Feature(incoming.enabled(), prompt));
+            upsert(type, incoming.enabled(), prompt);
         }
-        RewriteConfigFile next = new RewriteConfigFile(current.version() + 1, merged);
-        write(next);
-        log.info("rewrite config saved (version {})", next.version());
-        return view(next);
+        log.info("rewrite config saved: {}", features.keySet());
+        return view(loadAll());
     }
 
-    private RewriteConfigFile defaults() {
-        Map<String, RewriteConfigFile.Feature> features = new LinkedHashMap<>();
-        for (String type : ALL_TYPES) {
-            features.put(type, defaultFeature(type));
-        }
-        return new RewriteConfigFile(0, features);
-    }
-
-    private static RewriteConfigFile.Feature defaultFeature(String type) {
-        return new RewriteConfigFile.Feature(false, DEFAULT_PROMPTS.get(type));
-    }
-
-    /** 补齐缺失功能键（容错手改配置文件；旧版本残留 mode 等字段读取时忽略） */
-    private RewriteConfigFile normalize(RewriteConfigFile raw) {
-        Map<String, RewriteConfigFile.Feature> merged = new LinkedHashMap<>();
-        for (String type : ALL_TYPES) {
-            merged.put(type, raw.features() != null && raw.features().containsKey(type)
-                    ? raw.features().get(type) : defaultFeature(type));
-        }
-        return new RewriteConfigFile(raw.version(), merged);
-    }
-
-    private void write(RewriteConfigFile next) {
-        try {
-            Path file = filePath();
-            Files.createDirectories(file.getParent());
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), next);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to save rewrite config file: " + filePath().toAbsolutePath(), e);
+    private void upsert(String type, boolean enabled, String prompt) {
+        RewriteConfigItem existing = itemMapper.selectById(type);
+        RewriteConfigItem row = existing != null ? existing : new RewriteConfigItem();
+        row.setFeature(type);
+        row.setEnabled(enabled);
+        row.setPrompt(prompt);
+        row.setUpdatedAt(LocalDateTime.now());
+        if (existing == null) {
+            itemMapper.insert(row);
+        } else {
+            itemMapper.updateById(row);
         }
     }
 
-    private Path filePath() {
-        return Path.of(configFile).toAbsolutePath();
+    private static RewriteConfig.Feature defaultFeature(String type) {
+        return new RewriteConfig.Feature(false, DEFAULT_PROMPTS.get(type));
     }
 
     // ---------------- 单项执行 ----------------
@@ -234,9 +213,9 @@ public class RewriteConfigService {
         if (text == null || text.isBlank()) {
             throw new ApiException(400, "测试文本不能为空");
         }
-        RewriteConfigFile cfg = loadAll();
+        RewriteConfig cfg = loadAll();
         long t0 = System.currentTimeMillis();
-        StepResult r = executeStep(cfg.version(), type, cfg.features().get(type), text.trim(), history);
+        StepResult r = executeStep(type, cfg.features().get(type), text.trim(), history);
         return new RewriteResult(type, r.step().rewrittenText(), r.step().explanation(),
                 System.currentTimeMillis() - t0);
     }
@@ -246,7 +225,7 @@ public class RewriteConfigService {
      * 独立 rewrite-<type> agent 单次调用，返回改写步骤（含 token 用量）。
      * 失败抛异常（调用方决定降级或上抛）。
      */
-    public StepResult executeStep(int configVersion, String type, RewriteConfigFile.Feature feature,
+    public StepResult executeStep(String type, RewriteConfig.Feature feature,
             String text, List<String> history) {
         if (feature == null) {
             throw new ApiException(400, "未知功能类型: " + type);
@@ -256,7 +235,7 @@ public class RewriteConfigService {
         }
         String sysPrompt = feature.prompt() + "\n\n" + OUTPUT_FORMATS.get(type);
         String userContent = buildUserContent(text, TYPE_CONTEXT.equals(type) ? history : List.of());
-        HarnessAgent agent = agentHolder.agent(type, sysPrompt, configVersion);
+        HarnessAgent agent = agentHolder.agent(type, sysPrompt);
         Msg userMsg = Msg.builder().role(MsgRole.USER).textContent(userContent).build();
         RuntimeContext rc = RuntimeContext.builder()
                 .userId("rewrite-" + type)
@@ -395,7 +374,7 @@ public class RewriteConfigService {
     public record FeatureView(boolean enabled, String prompt, String outputFormat) {
     }
 
-    public record ConfigView(int version, List<String> pipeline, Map<String, FeatureView> features) {
+    public record ConfigView(List<String> pipeline, Map<String, FeatureView> features) {
     }
 
     /** 测试接口返回 */

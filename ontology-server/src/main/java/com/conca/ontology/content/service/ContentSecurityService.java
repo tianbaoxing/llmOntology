@@ -1,8 +1,6 @@
 package com.conca.ontology.content.service;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -19,10 +17,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.content.entity.RuleContentSecurity;
+import com.conca.ontology.content.mapper.RuleContentSecurityMapper;
 import com.conca.ontology.content.model.*;
 import com.conca.ontology.content.dto.result.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.Msg;
@@ -70,12 +70,6 @@ public class ContentSecurityService {
         WHITESPACE_RE = Pattern.compile("\\s+");
     }
 
-    @Value("${app.content-security.rules-file:data/content-security-rules.json}")
-    private String rulesFile;
-
-    @Value("${app.content-security.allowlist-file:data/content-security-allowlist.json}")
-    private String legacyAllowlistFile;
-
     @Value("${app.content-security.block-threshold:0.8}")
     private double blockThreshold;
 
@@ -88,15 +82,15 @@ public class ContentSecurityService {
     @Value("${app.content-security.variant-layer-enabled:true}")
     private boolean variantLayerEnabled;
 
-    private final ObjectMapper mapper;
+    private final RuleContentSecurityMapper ruleMapper;
 
     private transient Map<String, Pattern> compiledPatterns;
     private transient Map<String, Pattern> compiledGlobalPatterns;
     private transient List<ContentSecurityRule> allRules;
     private transient Set<String> allowlistedIds;
 
-    public ContentSecurityService(ObjectMapper mapper) {
-        this.mapper = mapper;
+    public ContentSecurityService(RuleContentSecurityMapper ruleMapper) {
+        this.ruleMapper = ruleMapper;
         this.compiledPatterns = new HashMap<>();
         this.compiledGlobalPatterns = new HashMap<>();
         this.allRules = new ArrayList<>();
@@ -105,61 +99,13 @@ public class ContentSecurityService {
 
     @PostConstruct
     public synchronized void reloadAll() {
-        migrateLegacyAllowlistIfNeeded();
         loadRulesInternal();
     }
 
-    // ========== 文件装载内部方法 ==========
-
-    private void migrateLegacyAllowlistIfNeeded() {
-        Path rulesPath = Path.of(rulesFile).toAbsolutePath();
-        Path legacyPath = Path.of(legacyAllowlistFile).toAbsolutePath();
-        if (Files.notExists(legacyPath)) return;
-        try {
-            ContentSecurityRuleFile rf = Files.exists(rulesPath)
-                    ? mapper.readValue(rulesPath.toFile(), ContentSecurityRuleFile.class)
-                    : new ContentSecurityRuleFile(0, List.of());
-            ContentSecurityAllowlistFile af = mapper.readValue(legacyPath.toFile(), ContentSecurityAllowlistFile.class);
-            Set<String> legacyIds = new HashSet<>(af.ruleIds() != null ? af.ruleIds() : List.of());
-            if (legacyIds.isEmpty()) {
-                Files.deleteIfExists(legacyPath);
-                log.info("content security legacy allowlist empty, removed file");
-                return;
-            }
-            List<ContentSecurityRule> rules = new ArrayList<>(rf.rules() != null ? rf.rules() : List.of());
-            boolean changed = false;
-            for (int i = 0; i < rules.size(); i++) {
-                ContentSecurityRule r = rules.get(i);
-                if (legacyIds.contains(r.id()) && !r.allowlistedEffective()) {
-                    rules.set(i, new ContentSecurityRule(r.id(), r.category(), r.severity(), r.action(),
-                            r.description(), r.pattern(), Boolean.TRUE));
-                    changed = true;
-                }
-            }
-            if (changed) {
-                ContentSecurityRuleFile next = new ContentSecurityRuleFile(rf.version() + 1, rules);
-                writeRules(rulesPath, next);
-            }
-            Files.deleteIfExists(legacyPath);
-            log.info("content security legacy allowlist migrated: {} ids merged into rules file, legacy file removed", legacyIds.size());
-        } catch (Exception e) {
-            log.warn("failed to migrate legacy content security allowlist ({}): {}", legacyPath, e.getMessage());
-        }
-    }
+    // ========== 装载内部方法 ==========
 
     private void loadRulesInternal() {
-        Path file = Path.of(rulesFile).toAbsolutePath();
-        ContentSecurityRuleFile rf;
-        if (Files.notExists(file)) {
-            rf = new ContentSecurityRuleFile(0, List.of());
-        } else {
-            try {
-                rf = mapper.readValue(file.toFile(), ContentSecurityRuleFile.class);
-            } catch (Exception e) {
-                throw new IllegalStateException("failed to load content security rules file: " + file, e);
-            }
-        }
-        allRules = rf.rules() != null ? new ArrayList<>(rf.rules()) : new ArrayList<>();
+        allRules = new ArrayList<>(listRules());
         allowlistedIds = new HashSet<>();
         for (ContentSecurityRule r : allRules) {
             if (r.allowlistedEffective()) allowlistedIds.add(r.id());
@@ -501,137 +447,111 @@ public class ContentSecurityService {
 
     // ========== CRUD 管理方法 ==========
 
-    public ContentSecurityRuleFile loadAllRules() {
-        Path file = Path.of(rulesFile).toAbsolutePath();
-        if (Files.notExists(file)) {
-            return new ContentSecurityRuleFile(0, List.of());
-        }
-        try {
-            return mapper.readValue(file.toFile(), ContentSecurityRuleFile.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to read rules file: " + file, e);
-        }
+    public ContentSecurityRulesView loadAllRules() {
+        return new ContentSecurityRulesView(listRules());
     }
 
-    public ContentSecurityAllowlistFile loadAllowlist() {
-        List<String> ids = allRules.stream()
-                .filter(ContentSecurityRule::allowlistedEffective)
-                .map(ContentSecurityRule::id)
-                .toList();
-        int version = loadAllRules().version();
-        return new ContentSecurityAllowlistFile(version, ids);
+    public ContentSecurityAllowlistView loadAllowlist() {
+        return allowlistView();
     }
 
-    public synchronized ContentSecurityRuleFile addRule(ContentSecurityRule rule) {
+    public synchronized ContentSecurityRulesView addRule(ContentSecurityRule rule) {
         if (rule == null || rule.id() == null || rule.id().isBlank()) {
             throw new ApiException(400, "规则 ID 不能为空");
         }
-        Path file = Path.of(rulesFile).toAbsolutePath();
-        ContentSecurityRuleFile rf = Files.exists(file) ? readRules(file) : new ContentSecurityRuleFile(0, List.of());
-        List<ContentSecurityRule> rules = new ArrayList<>(rf.rules());
-        for (ContentSecurityRule r : rules) {
-            if (r.id().equals(rule.id())) {
-                throw new ApiException(409, "规则 ID 已存在: " + rule.id());
-            }
+        if (ruleMapper.selectById(rule.id()) != null) {
+            throw new ApiException(409, "规则 ID 已存在: " + rule.id());
         }
-        Boolean alw = rule.allowlisted() != null ? rule.allowlisted() : Boolean.FALSE;
-        rules.add(new ContentSecurityRule(rule.id(), rule.category(), rule.severity(), rule.action(),
-                rule.description(), rule.pattern(), alw));
-        ContentSecurityRuleFile next = new ContentSecurityRuleFile(rf.version() + 1, rules);
-        writeRules(file, next);
+        RuleContentSecurity row = new RuleContentSecurity();
+        row.setId(rule.id());
+        row.setCategory(rule.category());
+        row.setSeverity(rule.severity().name());
+        row.setAction(rule.action().name());
+        row.setDescription(rule.description());
+        row.setPattern(rule.pattern());
+        row.setAllowlisted(rule.allowlisted() != null ? rule.allowlisted() : Boolean.FALSE);
+        row.setOrd(nextOrd());
+        row.setUpdatedAt(LocalDateTime.now());
+        ruleMapper.insert(row);
         reloadAll();
-        return next;
+        return loadAllRules();
     }
 
-    public synchronized ContentSecurityRuleFile deleteRule(String ruleId) {
+    public synchronized ContentSecurityRulesView deleteRule(String ruleId) {
         if (ruleId == null || ruleId.isBlank()) {
             throw new ApiException(400, "规则 ID 不能为空");
         }
-        Path file = Path.of(rulesFile).toAbsolutePath();
-        ContentSecurityRuleFile rf = Files.exists(file) ? readRules(file) : new ContentSecurityRuleFile(0, List.of());
-        List<ContentSecurityRule> rules = new ArrayList<>(rf.rules());
-        boolean removed = rules.removeIf(r -> r.id().equals(ruleId));
-        if (!removed) throw new ApiException(404, "规则不存在: " + ruleId);
-        ContentSecurityRuleFile next = new ContentSecurityRuleFile(rf.version() + 1, rules);
-        writeRules(file, next);
+        if (ruleMapper.selectById(ruleId) == null) {
+            throw new ApiException(404, "规则不存在: " + ruleId);
+        }
+        ruleMapper.deleteById(ruleId);
         reloadAll();
-        return next;
+        return loadAllRules();
     }
 
-    public synchronized ContentSecurityAllowlistFile addAllowlist(String ruleId) {
+    public synchronized ContentSecurityAllowlistView addAllowlist(String ruleId) {
         if (ruleId == null || ruleId.isBlank()) {
             throw new ApiException(400, "规则 ID 不能为空");
         }
-        Path file = Path.of(rulesFile).toAbsolutePath();
-        ContentSecurityRuleFile rf = Files.exists(file) ? readRules(file) : new ContentSecurityRuleFile(0, List.of());
-        List<ContentSecurityRule> rules = new ArrayList<>(rf.rules());
-        boolean found = false;
-        for (int i = 0; i < rules.size(); i++) {
-            ContentSecurityRule r = rules.get(i);
-            if (r.id().equals(ruleId)) {
-                if (r.allowlistedEffective()) {
-                    throw new ApiException(409, "规则 ID 已在 allowlist: " + ruleId);
-                }
-                rules.set(i, new ContentSecurityRule(r.id(), r.category(), r.severity(), r.action(),
-                        r.description(), r.pattern(), Boolean.TRUE));
-                found = true;
-                break;
-            }
+        RuleContentSecurity row = ruleMapper.selectById(ruleId);
+        if (row == null) {
+            throw new ApiException(404, "规则不存在: " + ruleId);
         }
-        if (!found) throw new ApiException(404, "规则不存在: " + ruleId);
-        ContentSecurityRuleFile next = new ContentSecurityRuleFile(rf.version() + 1, rules);
-        writeRules(file, next);
+        if (Boolean.TRUE.equals(row.getAllowlisted())) {
+            throw new ApiException(409, "规则 ID 已在 allowlist: " + ruleId);
+        }
+        row.setAllowlisted(Boolean.TRUE);
+        row.setUpdatedAt(LocalDateTime.now());
+        ruleMapper.updateById(row);
         reloadAll();
-        return new ContentSecurityAllowlistFile(next.version(),
-                next.rules().stream().filter(ContentSecurityRule::allowlistedEffective).map(ContentSecurityRule::id).toList());
+        return allowlistView();
     }
 
-    public synchronized ContentSecurityAllowlistFile removeAllowlist(String ruleId) {
+    public synchronized ContentSecurityAllowlistView removeAllowlist(String ruleId) {
         if (ruleId == null || ruleId.isBlank()) {
             throw new ApiException(400, "规则 ID 不能为空");
         }
-        Path file = Path.of(rulesFile).toAbsolutePath();
-        ContentSecurityRuleFile rf = Files.exists(file) ? readRules(file) : new ContentSecurityRuleFile(0, List.of());
-        List<ContentSecurityRule> rules = new ArrayList<>(rf.rules());
-        boolean found = false;
-        for (int i = 0; i < rules.size(); i++) {
-            ContentSecurityRule r = rules.get(i);
-            if (r.id().equals(ruleId)) {
-                if (!r.allowlistedEffective()) {
-                    throw new ApiException(404, "规则 ID 不在 allowlist: " + ruleId);
-                }
-                rules.set(i, new ContentSecurityRule(r.id(), r.category(), r.severity(), r.action(),
-                        r.description(), r.pattern(), Boolean.FALSE));
-                found = true;
-                break;
-            }
+        RuleContentSecurity row = ruleMapper.selectById(ruleId);
+        if (row == null) {
+            throw new ApiException(404, "规则不存在: " + ruleId);
         }
-        if (!found) throw new ApiException(404, "规则不存在: " + ruleId);
-        ContentSecurityRuleFile next = new ContentSecurityRuleFile(rf.version() + 1, rules);
-        writeRules(file, next);
+        if (!Boolean.TRUE.equals(row.getAllowlisted())) {
+            throw new ApiException(404, "规则 ID 不在 allowlist: " + ruleId);
+        }
+        row.setAllowlisted(Boolean.FALSE);
+        row.setUpdatedAt(LocalDateTime.now());
+        ruleMapper.updateById(row);
         reloadAll();
-        return new ContentSecurityAllowlistFile(next.version(),
-                next.rules().stream().filter(ContentSecurityRule::allowlistedEffective).map(ContentSecurityRule::id).toList());
+        return allowlistView();
     }
 
-    // ========== 文件读写辅助方法 ==========
+    // ========== 存取辅助方法 ==========
 
-    private ContentSecurityRuleFile readRules(Path file) {
-        try {
-            return mapper.readValue(file.toFile(), ContentSecurityRuleFile.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load rules file: " + file.toAbsolutePath(), e);
-        }
+    /** 按声明顺序读取全部规则（ord 升序，即原文件内顺序） */
+    private List<ContentSecurityRule> listRules() {
+        return ruleMapper.selectList(new LambdaQueryWrapper<RuleContentSecurity>()
+                        .orderByAsc(RuleContentSecurity::getOrd))
+                .stream().map(ContentSecurityService::toRule).toList();
     }
 
-    private void writeRules(Path file, ContentSecurityRuleFile next) {
-        try {
-            Files.createDirectories(file.getParent());
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), next);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to save rules file: " + file.toAbsolutePath(), e);
-        }
+    private static ContentSecurityRule toRule(RuleContentSecurity row) {
+        return new ContentSecurityRule(row.getId(), row.getCategory(),
+                ContentSeverity.valueOf(row.getSeverity()), ContentDecision.valueOf(row.getAction()),
+                row.getDescription(), row.getPattern(), row.getAllowlisted());
+    }
+
+    private ContentSecurityAllowlistView allowlistView() {
+        return new ContentSecurityAllowlistView(listRules().stream()
+                .filter(ContentSecurityRule::allowlistedEffective)
+                .map(ContentSecurityRule::id)
+                .toList());
+    }
+
+    /** 下一个展示顺序（当前最大 ord + 1，新增规则追加尾部） */
+    private int nextOrd() {
+        return ruleMapper.selectList(null).stream()
+                .map(RuleContentSecurity::getOrd)
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
     }
 }

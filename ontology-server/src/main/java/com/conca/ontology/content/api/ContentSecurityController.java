@@ -11,9 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.content.model.ContentSecurityAllowlistFile;
+import com.conca.ontology.content.model.ContentSecurityAllowlistView;
 import com.conca.ontology.content.model.ContentSecurityRule;
-import com.conca.ontology.content.model.ContentSecurityRuleFile;
+import com.conca.ontology.content.model.ContentSecurityRulesView;
 import com.conca.ontology.content.dto.result.ContentSecurityCheckResult;
 import com.conca.ontology.content.dto.result.PromptInjectionScanResult;
 import com.conca.ontology.content.service.ContentSecurityService;
@@ -34,39 +34,39 @@ public class ContentSecurityController {
         this.securityService = securityService;
     }
 
-    @Operation(summary = "全量规则（含 version）", description = "读取完整 content-security-rules.json")
+    @Operation(summary = "全量规则", description = "读取全部内容安全规则（rule_content_security 表，按声明顺序）")
     @GetMapping("/rules")
-    public ApiResponse<ContentSecurityRuleFile> getAllRules() {
+    public ApiResponse<ContentSecurityRulesView> getAllRules() {
         return ApiResponse.ok(securityService.loadAllRules());
     }
 
     @Operation(summary = "新增自定义规则", description = "body = ContentSecurityRule JSON；ID 唯一")
     @PostMapping("/rules")
-    public ApiResponse<ContentSecurityRuleFile> addRule(@RequestBody ContentSecurityRule rule) {
+    public ApiResponse<ContentSecurityRulesView> addRule(@RequestBody ContentSecurityRule rule) {
         return ApiResponse.ok(securityService.addRule(rule));
     }
 
     @Operation(summary = "删除自定义规则", description = "按 ruleId 删除；内置规则也允许删（删完 reload 生效）")
     @DeleteMapping("/rules/{ruleId}")
-    public ApiResponse<ContentSecurityRuleFile> deleteRule(@PathVariable String ruleId) {
+    public ApiResponse<ContentSecurityRulesView> deleteRule(@PathVariable String ruleId) {
         return ApiResponse.ok(securityService.deleteRule(ruleId));
     }
 
-    @Operation(summary = "allowlist 规则 ID 数组", description = "读取 content-security-allowlist.json")
+    @Operation(summary = "allowlist 规则 ID 数组", description = "读取已加入 allowlist 的规则 ID")
     @GetMapping("/allowlist")
-    public ApiResponse<ContentSecurityAllowlistFile> getAllowlist() {
+    public ApiResponse<ContentSecurityAllowlistView> getAllowlist() {
         return ApiResponse.ok(securityService.loadAllowlist());
     }
 
     @Operation(summary = "添加 allowlist", description = "body: { \"ruleId\": \"xxx\" }")
     @PostMapping("/allowlist")
-    public ApiResponse<ContentSecurityAllowlistFile> addAllowlist(@RequestBody Map<String, String> body) {
+    public ApiResponse<ContentSecurityAllowlistView> addAllowlist(@RequestBody Map<String, String> body) {
         return ApiResponse.ok(securityService.addAllowlist(body.get("ruleId")));
     }
 
     @Operation(summary = "移出 allowlist")
     @DeleteMapping("/allowlist/{ruleId}")
-    public ApiResponse<ContentSecurityAllowlistFile> removeAllowlist(@PathVariable String ruleId) {
+    public ApiResponse<ContentSecurityAllowlistView> removeAllowlist(@PathVariable String ruleId) {
         return ApiResponse.ok(securityService.removeAllowlist(ruleId));
     }
 

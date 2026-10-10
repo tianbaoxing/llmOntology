@@ -23,7 +23,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
 import com.conca.ontology.builder.AgentRegistry;
 import com.conca.ontology.agent.config.AgentScopeConfig;
-import com.conca.ontology.agent.model.RewriteConfigFile;
+import com.conca.ontology.agent.model.RewriteConfig;
 import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.user.service.RolePermissionService;
 import com.conca.ontology.user.service.UserService;
@@ -541,9 +541,8 @@ public class AgentChatService {
             if (contentSecurityService.checkUserMessages(List.of(original)).shouldBlock()) {
                 return original;
             }
-            RewriteConfigFile cfg = rewriteConfigService.loadAll();
-            boolean anyEnabled = cfg.features().values().stream().anyMatch(RewriteConfigFile.Feature::enabled);
-            if (!anyEnabled) {
+            RewriteConfig cfg = rewriteConfigService.loadAll();
+            if (!cfg.anyEnabled()) {
                 return original;
             }
             return rewriteWithThinking(emitter, session, userId, cfg, message);
@@ -560,7 +559,7 @@ public class AgentChatService {
      * 展示行与历史回放共用 RewriteConfigService.stepLine（刷新前后形态一致）。
      */
     private Msg rewriteWithThinking(SseEmitter emitter, String session, String userId,
-            RewriteConfigFile cfg, String message) {
+            RewriteConfig cfg, String message) {
         List<String> history = historyForRewrite(userId, session, cfg);
         String replyId = "rewrite-" + UUID.randomUUID().toString().substring(0, 8);
         long inTokens = 0;
@@ -571,13 +570,13 @@ public class AgentChatService {
         send(emitter, "round", Map.of("phase", "start", "replyId", replyId));
         sendThinking(emitter, "原句：" + message + "\n");
         for (String type : RewriteConfigService.PIPELINE_ORDER) {
-            RewriteConfigFile.Feature f = cfg.features().get(type);
+            RewriteConfig.Feature f = cfg.features().get(type);
             PipelineStep step;
             if (f == null || !f.enabled()) {
                 step = new PipelineStep(type, RewriteConfigService.STATUS_SKIPPED, null, null, null, 0, 0);
             } else {
                 try {
-                    StepResult r = rewriteConfigService.executeStep(cfg.version(), type, f, current, history);
+                    StepResult r = rewriteConfigService.executeStep(type, f, current, history);
                     step = r.step();
                     inTokens += r.promptTokens();
                     outTokens += r.completionTokens();
@@ -618,8 +617,8 @@ public class AgentChatService {
     }
 
     /** 上下文改写启用时读取会话最近历史（USER 行还原改写前原句，保持真实对话） */
-    private List<String> historyForRewrite(String userId, String session, RewriteConfigFile cfg) {
-        RewriteConfigFile.Feature f = cfg.features().get(RewriteConfigService.TYPE_CONTEXT);
+    private List<String> historyForRewrite(String userId, String session, RewriteConfig cfg) {
+        RewriteConfig.Feature f = cfg.features().get(RewriteConfigService.TYPE_CONTEXT);
         if (f == null || !f.enabled()) {
             return List.of();
         }

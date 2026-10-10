@@ -58,13 +58,13 @@ app:
   convert-ext: pdf,doc,docx,xls,xlsx
   convert-min-chars: 50
   content-security:
+    # 存量迁移源文件（rule_content_security 表）；检测阈值与策略
     rules-file: data/content-security-rules.json
-    allowlist-file: data/content-security-allowlist.json
     block-threshold: 0.8
     review-threshold: 0.5
     review-strategy: block
     variant-layer-enabled: true
-  # 语义改写（/data 页「语义改写配置」Tab）：4 项功能配置文件 + 调用参数
+  # 语义改写（/data 页「语义改写配置」Tab）：存量迁移源文件（rewrite_config 表）+ 调用参数
   rewrite:
     config-file: data/rewrite-config.json
     # 单次改写 LLM 调用超时与输出上限（独立 rewrite agent 与单项测试共用）

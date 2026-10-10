@@ -1,7 +1,7 @@
 # llmOntology 平台数据迁移方案（JSON 文件 → MySQL）
 
-> 本文是**持续性迁移规范**：P0+P1+P2 已实施完成，P3 起各期照此执行，不再逐期重新设计。
-> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅
+> 本文是**持续性迁移规范**：P0+P1+P2+P3 已实施完成，P4 起各期照此执行，不再逐期重新设计。
+> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅ P3 ✅
 
 ## 1. 基础设施（已定，勿改）
 
@@ -56,14 +56,9 @@ JsonMigrator（接口）                      JsonMigrationRunner（ApplicationR
 | P0 | 依赖/datasource/Flyway/迁移骨架 | flyway_schema_history | — |
 | P1 | 用户系统 | sys_user（5 行）、sys_role_permission（1 行） | users.json、role-permissions.json |
 | P2 | 图谱配置 | graph_schema_meta（1 行，全局 version）+ graph_class（10 行）/ graph_class_prop（30 行）/ graph_rel_def（16 行）；ontology_profile（11 行，每条问答一行，无全局 version——V3 调整，去 JSON 列）；rule_dedup（1 行，3 个 JSON 列）；rule_disjoint（12 行，每条规则一行，无全局 version——V4 调整，去 JSON 列） | graph-schema.json、ontology-profile.json、dedup-rules.json、disjoint-rules.json |
+| P3 | 内容安全 + 改写配置 | rule_content_security（30 行，每条规则一行，无全局 version；allowlist 为行内 allowlisted 标记列，ord 列保序）；rewrite_config（4 行，每功能一行，无全局 version） | content-security-rules.json、rewrite-config.json |
 
 ## 5. 待迁移清单（按期）
-
-### P3 内容安全 + 改写配置
-| 源文件 | 目标表 | 说明 |
-|---|---|---|
-| data/content-security-rules.json (9.9K) | rule_content_security | 含 allowlist 子清单（JSON 列或子表） |
-| data/rewrite-config.json (1.5K) | rewrite_config | 4 个功能开关行 |
 
 ### P4 文件/文档元数据
 | 源文件 | 目标表 | 说明 |

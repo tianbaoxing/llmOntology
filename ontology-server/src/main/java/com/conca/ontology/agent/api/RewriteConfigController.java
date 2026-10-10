@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.agent.model.RewriteConfigFile;
+import com.conca.ontology.agent.model.RewriteConfig;
 import com.conca.ontology.agent.service.RewriteConfigService;
 import com.conca.ontology.agent.service.RewriteConfigService.ConfigView;
 import com.conca.ontology.agent.service.RewriteConfigService.RewriteResult;
@@ -31,15 +31,15 @@ public class RewriteConfigController {
         this.service = service;
     }
 
-    @Operation(summary = "查询改写配置", description = "4 项功能配置 + 只读输出格式提示词 + version + 管道顺序；"
-            + "配置文件不存在时返回内置默认（全部未启用）")
+    @Operation(summary = "查询改写配置", description = "4 项功能配置 + 只读输出格式提示词 + 管道顺序；"
+            + "配置行缺失时返回内置默认（全部未启用）")
     @GetMapping
     public ApiResponse<ConfigView> get() {
         return ApiResponse.ok(service.view());
     }
 
     @Operation(summary = "保存改写配置（部分更新）", description = "body: {\"features\":{\"semantic\":{\"enabled\":true,"
-            + "\"prompt\":\"...\"}}}；缺省功能沿用现值；version+1 原子写入，聊天管道热生效")
+            + "\"prompt\":\"...\"}}}；缺省功能沿用现值；行级保存，聊天管道热生效")
     @PutMapping
     public ApiResponse<ConfigView> save(@RequestBody SaveBody body) {
         return ApiResponse.ok(service.save(body.features()));
@@ -53,7 +53,7 @@ public class RewriteConfigController {
     }
 
     /** 保存请求体 */
-    public record SaveBody(Map<String, RewriteConfigFile.Feature> features) {
+    public record SaveBody(Map<String, RewriteConfig.Feature> features) {
     }
 
     /** 测试请求体 */
