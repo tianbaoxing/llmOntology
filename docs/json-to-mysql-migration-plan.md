@@ -1,7 +1,7 @@
 # llmOntology 平台数据迁移方案（JSON 文件 → MySQL）
 
 > 本文是**持续性迁移规范**：P0~P4 已实施完成，P5 起各期照此执行，不再逐期重新设计。
-> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅ P3 ✅ P4 ✅
+> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅ P3 ✅ P4 ✅ P5（user_prompt ✅ / agent_definition 待做）
 
 ## 1. 基础设施（已定，勿改）
 
@@ -58,6 +58,7 @@ JsonMigrator（接口）                      JsonMigrationRunner（ApplicationR
 | P2 | 图谱配置 | graph_schema_meta（1 行，全局 version）+ graph_class（10 行）/ graph_class_prop（30 行）/ graph_rel_def（16 行）；ontology_profile（11 行，每条问答一行，无全局 version——V3 调整，去 JSON 列）；rule_dedup（1 行，3 个 JSON 列）；rule_disjoint（12 行，每条规则一行，无全局 version——V4 调整，去 JSON 列） | graph-schema.json、ontology-profile.json、dedup-rules.json、disjoint-rules.json |
 | P3 | 内容安全 + 改写配置 | rule_content_security（30 行，每条规则一行，无全局 version；allowlist 为行内 allowlisted 标记列，ord 列保序）；rewrite_config（4 行，每功能一行，无全局 version） | content-security-rules.json、rewrite-config.json |
 | P4 | 文件元数据 + 技能使用分析 | file_metadata（7 行，每文件一行，无全局 version；自增 id 兼作列表顺序，uk_name 唯一键；转换四列可空 + updateStrategy=IGNORED 支持清空回写；FileListView/LlmFileListView 及三个 Result DTO 已删 version 字段）；skill_analysis（3 行，每技能一行，无全局 version；skill_name 主键；analyzed_at/content_hash 可空（keyInfo-only 记录），analyzed_at 存 ISO 原文保纳秒；tools 拆 used/not_used 两列，六个清单列类型化 JSON 保序，hidden* 三列 NULLable 保真旧数据） | file-metadata.json、skill-analysis.json |
+| P5a | 用户提示词 | user_prompt（1 行，每条提示词一行，无全局 version；id 为源 UUID 主键，user_id 取自源文件名，idx_user_updated 覆盖列表查询；update/delete 以 id+userId 双条件定位保持用户隔离；**首个目录型迁移源**：JsonMigrationRunner 判断由 isRegularFile 放宽为 exists，归档整个 prompts 目录为 prompts.migrated） | data/prompts/（按用户一文件） |
 
 ## 5. 待迁移清单（按期）
 
@@ -70,7 +71,7 @@ JsonMigrator（接口）                      JsonMigrationRunner（ApplicationR
 ### P5 提示词 + 智能体定义
 | 源文件 | 目标表 | 说明 |
 |---|---|---|
-| data/prompts/*.json（按用户一文件，现 1 个） | user_prompt | id/user_id/title/content |
+| ~~data/prompts/*.json（按用户一文件，现 1 个）~~ ✅ 已迁移 | user_prompt | id/user_id/title/content + created_at/updated_at；无全局 version |
 | data/agents/{id}/agent.json（现 3 个） | agent_definition | agent_id 主键 + definition JSON 列；workspace/、state/ **目录结构保留**（框架仍用） |
 
 ### P6 评测
