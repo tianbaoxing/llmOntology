@@ -82,7 +82,7 @@ app:
   backup-dir: backups
   # 评测 LLM judge（二期）：base-url/api-key/model 缺省复用 app.agent 同名配置
   eval:
-    # 自定义评测器定义文件（用户提示词驱动的 LLM 评测器，页面增删改，启动时装载注册）
+    # 自定义评测器存量迁移源（P6 起 DB 化，仅 CustomGraderMigrator 启动导入用；已归档 .migrated 则跳过）
     custom-graders-file: data/eval/custom-graders.json
     # 样本级通过阈值（样本均分 ≥ 此值且无 error 记通过），summary 通过率与回归对比翻转矩阵同口径
     pass-threshold: 0.8

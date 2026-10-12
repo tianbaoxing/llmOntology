@@ -1,107 +1,70 @@
 package com.conca.ontology.eval.service;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.conca.ontology.eval.entity.CustomGraderEntity;
+import com.conca.ontology.eval.mapper.CustomGraderMapper;
 import com.conca.ontology.eval.model.CustomGraderDefinition;
 import com.conca.ontology.shared.web.ApiException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
-import jakarta.annotation.PostConstruct;
-
+/**
+ * 自定义评测器持久层（MySQL custom_grader，P6 起替代 data/eval/custom-graders.json 单文件）：
+ * 每评测器一行（name 主键），行级 CRUD（find 单行查询 / all 按名称字典序，与注册表 TreeMap 同序）。
+ * 校验逻辑（validate）与 409/404 文案不变；CRUD 保留 synchronized（find+insert 竞态防护，对齐原实现并发语义）。
+ */
 @Component
 public class CustomGraderStore {
-
-    private static final Logger log = LoggerFactory.getLogger(CustomGraderStore.class);
 
     private static final Pattern NAME_RE = Pattern.compile("^[a-z0-9_]{3,32}$");
     private static final Pattern PLACEHOLDER_RE = Pattern.compile("\\{\\{(\\w+)}}");
     private static final List<String> PLACEHOLDERS = List.of("query", "answer", "reference", "context", "rubric");
     private static final int PROMPT_LIMIT = 4000;
 
-    private final ObjectMapper mapper;
-    private final List<CustomGraderDefinition> defs = new ArrayList<>();
+    private final CustomGraderMapper graderMapper;
 
-    @Value("${app.eval.custom-graders-file:data/eval/custom-graders.json}")
-    private String file;
-
-    public CustomGraderStore(ObjectMapper mapper) {
-        this.mapper = mapper;
-    }
-
-    @PostConstruct
-    void load() {
-        Path p = Path.of(file);
-        if (!Files.isRegularFile(p)) {
-            return;
-        }
-        try {
-            CustomGraderDefinition[] arr = mapper.readValue(p.toFile(), CustomGraderDefinition[].class);
-            for (CustomGraderDefinition d : arr) {
-                defs.add(d);
-            }
-            log.info("loaded {} custom graders from {}", defs.size(), file);
-        } catch (IOException e) {
-            throw new IllegalStateException("自定义评测器文件解析失败（" + file + "）: " + e.getMessage(), e);
-        }
+    public CustomGraderStore(CustomGraderMapper graderMapper) {
+        this.graderMapper = graderMapper;
     }
 
     public synchronized List<CustomGraderDefinition> all() {
-        return new ArrayList<>(defs);
+        List<CustomGraderDefinition> list = new ArrayList<>();
+        for (CustomGraderEntity e : graderMapper.selectList(Wrappers.<CustomGraderEntity>lambdaQuery()
+                .orderByAsc(CustomGraderEntity::getName))) {
+            list.add(e.toModel());
+        }
+        return list;
     }
 
     public synchronized CustomGraderDefinition find(String name) {
-        return defs.stream().filter(d -> d.name().equals(name)).findFirst().orElse(null);
+        CustomGraderEntity e = graderMapper.selectById(name);
+        return e == null ? null : e.toModel();
     }
 
     public synchronized CustomGraderDefinition create(CustomGraderDefinition def) {
         if (find(def.name()) != null) {
             throw new ApiException(409, "自定义评测器已存在: " + def.name());
         }
-        defs.add(def);
-        persist();
+        graderMapper.insert(CustomGraderEntity.of(def));
         return def;
     }
 
     public synchronized CustomGraderDefinition update(String name, CustomGraderDefinition next) {
-        for (int i = 0; i < defs.size(); i++) {
-            if (defs.get(i).name().equals(name)) {
-                defs.set(i, next);
-                persist();
-                return next;
-            }
+        if (find(name) == null) {
+            throw new ApiException(404, "自定义评测器不存在: " + name);
         }
-        throw new ApiException(404, "自定义评测器不存在: " + name);
+        graderMapper.updateById(CustomGraderEntity.of(next));
+        return next;
     }
 
     public synchronized void delete(String name) {
-        if (!defs.removeIf(d -> d.name().equals(name))) {
+        if (graderMapper.deleteById(name) == 0) {
             throw new ApiException(404, "自定义评测器不存在: " + name);
-        }
-        persist();
-    }
-
-    private void persist() {
-        Path p = Path.of(file);
-        try {
-            Files.createDirectories(p.toAbsolutePath().getParent());
-            Path tmp = p.resolveSibling(p.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), defs);
-            Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            throw new ApiException(500, "写入自定义评测器文件失败: " + e.getMessage());
         }
     }
 

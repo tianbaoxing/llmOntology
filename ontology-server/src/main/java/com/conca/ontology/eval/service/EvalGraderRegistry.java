@@ -6,6 +6,8 @@ import java.util.TreeMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.Grader;
@@ -29,10 +31,22 @@ public class EvalGraderRegistry {
         for (Grader g : graderBeans) {
             graders.put(g.name(), g);
         }
+        log.info("EvalGraderRegistry initialized with {} built-in graders", graders.size());
+    }
+
+    /**
+     * 自定义评测器注册延迟到 ApplicationReadyEvent（P6 存储 DB 化后必须）：
+     * 本 Bean 构造期早于 JsonMigrationRunner（ApplicationRunner），构造时查表会漏掉
+     * 存量迁移尚未导入的定义；ready 事件在所有 Runner 完成后发布，此时读表已含全量数据。
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    void registerCustomGraders() {
+        int count = 0;
         for (CustomGraderDefinition d : customGraderStore.all()) {
             graders.put(d.name(), new CustomLlmGrader(judgeClient, d));
+            count++;
         }
-        log.info("EvalGraderRegistry initialized with {} graders", graders.size());
+        log.info("registered {} custom graders from custom_grader table", count);
     }
 
     public Map<String, Grader> graders() {

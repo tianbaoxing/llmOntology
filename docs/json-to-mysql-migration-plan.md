@@ -62,6 +62,7 @@ P5b 起骨架支持**混合目录源**：目录常驻但仅部分文件需迁移
 | P4 | 文件元数据 + 技能使用分析 | file_metadata（7 行，每文件一行，无全局 version；自增 id 兼作列表顺序，uk_name 唯一键；转换四列可空 + updateStrategy=IGNORED 支持清空回写；FileListView/LlmFileListView 及三个 Result DTO 已删 version 字段）；skill_analysis（3 行，每技能一行，无全局 version；skill_name 主键；analyzed_at/content_hash 可空（keyInfo-only 记录），analyzed_at 存 ISO 原文保纳秒；tools 拆 used/not_used 两列，六个清单列类型化 JSON 保序，hidden* 三列 NULLable 保真旧数据） | file-metadata.json、skill-analysis.json |
 | P5a | 用户提示词 | user_prompt（1 行，每条提示词一行，无全局 version；id 为源 UUID 主键，user_id 取自源文件名，idx_user_updated 覆盖列表查询；update/delete 以 id+userId 双条件定位保持用户隔离；**首个目录型迁移源**：JsonMigrationRunner 判断由 isRegularFile 放宽为 exists，归档整个 prompts 目录为 prompts.migrated） | data/prompts/（按用户一文件） |
 | P5b | 智能体定义 | agent_definition（3 行，每智能体一行；agent_id 主键，model 拆 base_url/model_name/api_key_ref 三列，skills/tools/httpTools/mcps/subagents 五个类型化 JSON 保序列，created_at/updated_at 存 ISO 原文保纳秒，idx_updated_at 支撑列表倒序；行内 version 为每智能体独立定义版本（编辑 +1）故保留，非遗留全局 version；**首个混合目录源**：骨架新增 sourcePresent()/archive() 默认方法，AgentDefinitionMigrator 覆盖二者，仅归档各 {id}/agent.json 为 agent.json.migrated，workspace/state 目录保留文件系统；AgentDefinitionStore 存储层替换，dirOf/validateId/404 文案不变，delete 改为删行+best-effort 清目录（DB 为准）；AgentDefinition 为外部框架 record（agentkit），经 Converter 互转零修改） | data/agents/{id}/agent.json（3 个） |
+| P6a | 自定义评测器 | custom_grader（1 行，每评测器一行；name 主键，弃文档初稿 definition JSON 列改扁平拆列——description/mode/prompt + created_at/updated_at 存 ISO 原文保纳秒；created_at NULLable 保真新建记录缺省 null 语义（validate 不设创建时间），updated_at 恒有值 NOT NULL；CustomGraderStore 存储层替换，all 按名称字典序（与注册表 TreeMap 同序），validate/409/404 文案不变；**连锁调整**：EvalGraderRegistry 自定义评测器注册从构造器移至 ApplicationReadyEvent——Bean 构造期早于 JsonMigrationRunner（ApplicationRunner），构造时查表会漏掉存量迁移未导入的定义，ready 事件在所有 Runner 之后触发保证全量注册，create/update/delete 的 registerCustom/replaceCustom/removeCustom 热更新路径不变） | data/eval/custom-graders.json |
 
 ## 5. 待迁移清单（按期）
 
@@ -80,9 +81,9 @@ P5b 起骨架支持**混合目录源**：目录常驻但仅部分文件需迁移
 ### P6 评测
 | 源文件 | 目标表 | 说明 |
 |---|---|---|
-| data/eval/custom-graders.json | custom_grader | name 主键 + definition JSON 列 |
+| ~~data/eval/custom-graders.json (2K)~~ ✅ 已迁移 | custom_grader | name 主键；扁平拆列（弃 definition JSON 列）；EvalGraderRegistry 注册移至 ApplicationReadyEvent |
 | data/eval/results/eval-*.json（现 12 个） | eval_run + eval_run_sample | 每任务一文件拆两表；listRuns 由文件名扫描改 ORDER BY created_at |
-| data/eval/datasets/*.jsonl（3 个） | （待定） | 建议入库拆 dataset/dataset_sample；或保留文件——**实施 P6 前与用户确认** |
+| data/eval/datasets/*.jsonl（现 3 个） | dataset + dataset_sample | **已确认（2026-10-12）：入库拆两表**，与其他迁移保持一致（备份走 DB 导出、列表走 SQL）；评测引擎读数据集改为查表拼装 |
 
 ### P7 备份恢复适配
 - BackupService zip 增加 `db/` 目录（全表导出 JSONL）；恢复 = 导表 + 还原 files 目录。
