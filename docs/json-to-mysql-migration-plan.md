@@ -1,7 +1,7 @@
 # llmOntology 平台数据迁移方案（JSON 文件 → MySQL）
 
-> 本文是**持续性迁移规范**：P0~P4 已实施完成，P5 起各期照此执行，不再逐期重新设计。
-> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅ P3 ✅ P4 ✅ P5（user_prompt ✅ / agent_definition 待做）
+> 本文是**持续性迁移规范**：P0~P5 已实施完成，P6 起各期照此执行，不再逐期重新设计。
+> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅ P3 ✅ P4 ✅ P5 ✅（user_prompt + agent_definition）
 
 ## 1. 基础设施（已定，勿改）
 
@@ -25,13 +25,15 @@
 
 ```
 JsonMigrator（接口）                      JsonMigrationRunner（ApplicationRunner）
-├─ name()          日志标识               启动末尾（Flyway 建表之后）逐项调度：
-├─ sourceFile()    源 JSON 路径            ① 表非空 → 跳过（幂等）；JSON 仍在则 WARN
-├─ targetTableEmpty() 目标表是否空          ② 表空 + JSON 存在 → importAll() + 归档
-├─ importAll()     JSON → 表（@Transactional）│      （rename 为 *.migrated，保留回退现场）
-└─ initDefaults()  全新部署默认数据         ③ 表空 + 无 JSON → initDefaults()
-                                          ④ 任一失败 → 抛异常阻断启动
+├─ name()            日志标识             启动末尾（Flyway 建表之后）逐项调度：
+├─ sourceFile()      源 JSON 路径          ① 表非空 → 跳过（幂等）；源仍在则 WARN
+├─ targetTableEmpty() 目标表是否空        ② 表空 + 源存在 → importAll() + archive()
+├─ importAll()       JSON → 表（@Transactional）│  （默认整体 rename *.migrated 保回退现场）
+├─ initDefaults()    全新部署默认数据     ③ 表空 + 无源 → initDefaults()
+├─ sourcePresent()   源是否待迁移（默认 exists）④ 任一失败 → 抛异常阻断启动
+└─ archive()         归档（默认整体 rename；混合目录源逐文件归档）
 ```
+P5b 起骨架支持**混合目录源**：目录常驻但仅部分文件需迁移（如 data/agents 的 workspace/state 长期存在），实现覆盖 `sourcePresent()`（是否存在至少一份待迁移文件）与 `archive()`（逐文件 rename，保留目录骨架）。
 
 各期只需新增（以 P2 图谱配置为例）：
 1. `V(n)__xxx.sql` 建表脚本
@@ -59,6 +61,7 @@ JsonMigrator（接口）                      JsonMigrationRunner（ApplicationR
 | P3 | 内容安全 + 改写配置 | rule_content_security（30 行，每条规则一行，无全局 version；allowlist 为行内 allowlisted 标记列，ord 列保序）；rewrite_config（4 行，每功能一行，无全局 version） | content-security-rules.json、rewrite-config.json |
 | P4 | 文件元数据 + 技能使用分析 | file_metadata（7 行，每文件一行，无全局 version；自增 id 兼作列表顺序，uk_name 唯一键；转换四列可空 + updateStrategy=IGNORED 支持清空回写；FileListView/LlmFileListView 及三个 Result DTO 已删 version 字段）；skill_analysis（3 行，每技能一行，无全局 version；skill_name 主键；analyzed_at/content_hash 可空（keyInfo-only 记录），analyzed_at 存 ISO 原文保纳秒；tools 拆 used/not_used 两列，六个清单列类型化 JSON 保序，hidden* 三列 NULLable 保真旧数据） | file-metadata.json、skill-analysis.json |
 | P5a | 用户提示词 | user_prompt（1 行，每条提示词一行，无全局 version；id 为源 UUID 主键，user_id 取自源文件名，idx_user_updated 覆盖列表查询；update/delete 以 id+userId 双条件定位保持用户隔离；**首个目录型迁移源**：JsonMigrationRunner 判断由 isRegularFile 放宽为 exists，归档整个 prompts 目录为 prompts.migrated） | data/prompts/（按用户一文件） |
+| P5b | 智能体定义 | agent_definition（3 行，每智能体一行；agent_id 主键，model 拆 base_url/model_name/api_key_ref 三列，skills/tools/httpTools/mcps/subagents 五个类型化 JSON 保序列，created_at/updated_at 存 ISO 原文保纳秒，idx_updated_at 支撑列表倒序；行内 version 为每智能体独立定义版本（编辑 +1）故保留，非遗留全局 version；**首个混合目录源**：骨架新增 sourcePresent()/archive() 默认方法，AgentDefinitionMigrator 覆盖二者，仅归档各 {id}/agent.json 为 agent.json.migrated，workspace/state 目录保留文件系统；AgentDefinitionStore 存储层替换，dirOf/validateId/404 文案不变，delete 改为删行+best-effort 清目录（DB 为准）；AgentDefinition 为外部框架 record（agentkit），经 Converter 互转零修改） | data/agents/{id}/agent.json（3 个） |
 
 ## 5. 待迁移清单（按期）
 
@@ -72,7 +75,7 @@ JsonMigrator（接口）                      JsonMigrationRunner（ApplicationR
 | 源文件 | 目标表 | 说明 |
 |---|---|---|
 | ~~data/prompts/*.json（按用户一文件，现 1 个）~~ ✅ 已迁移 | user_prompt | id/user_id/title/content + created_at/updated_at；无全局 version |
-| data/agents/{id}/agent.json（现 3 个） | agent_definition | agent_id 主键 + definition JSON 列；workspace/、state/ **目录结构保留**（框架仍用） |
+| ~~data/agents/{id}/agent.json（现 3 个）~~ ✅ 已迁移 | agent_definition | 22 列拆列方案（V9）；workspace/、state/ **目录结构保留**（框架仍用） |
 
 ### P6 评测
 | 源文件 | 目标表 | 说明 |
