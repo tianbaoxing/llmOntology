@@ -1,88 +1,52 @@
 package com.conca.ontology.skill;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.shared.web.ApiException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import jakarta.annotation.PostConstruct;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.conca.ontology.skill.entity.SkillAnalysisEntity;
+import com.conca.ontology.skill.mapper.SkillAnalysisMapper;
 
 /**
- * 技能分析结果持久层：data/skill-analysis.json（单文件对象，skills 按技能名索引）。
- * 启动时加载（文件损坏 fail-fast，避免空 map 覆盖保存造成历史分析丢失），
- * 保存走 tmp + 原子 rename（对齐 CustomGraderStore 落盘策略）。
- * 分析结果不缓存于内存之外：每次保存全量写盘，数据量极小（每技能一个对象）。
+ * 技能分析结果持久层（MySQL skill_analysis，P4 起替代 data/skill-analysis.json 单文件）：
+ * 每技能一行，行级 CRUD（get 单行查询 / put 行级 upsert / all 全表按技能名序）。
+ * 记录级语义不变：keyInfo-only 记录（仅保存识别关键词、尚未检测）analyzedAt/contentHash 为 NULL；
+ * hidden* 忽略清单 NULL 保真（旧数据缺字段）。put 保留 synchronized（读-改-写串行，对齐原实现并发语义）。
  */
 @Component
 public class SkillAnalysisStore {
 
-    private static final Logger log = LoggerFactory.getLogger(SkillAnalysisStore.class);
+    private final SkillAnalysisMapper skillMapper;
 
-    private final ObjectMapper mapper;
-    private final Map<String, SkillAnalysis> data = new LinkedHashMap<>();
-
-    /** 默认 data/skill-analysis.json（相对 cwd）；可用 app.skill-analysis-file 覆盖 */
-    @Value("${app.skill-analysis-file:data/skill-analysis.json}")
-    private String file;
-
-    public SkillAnalysisStore(ObjectMapper mapper) {
-        this.mapper = mapper;
+    public SkillAnalysisStore(SkillAnalysisMapper skillMapper) {
+        this.skillMapper = skillMapper;
     }
 
-    @PostConstruct
-    void load() {
-        Path p = Path.of(file);
-        if (!Files.isRegularFile(p)) {
-            return; // 尚无分析结果
+    public SkillAnalysis get(String name) {
+        SkillAnalysisEntity e = skillMapper.selectById(name);
+        return e == null ? null : SkillAnalysisConverter.toModel(e);
+    }
+
+    /** 全部分析结果（技能名 → 分析记录，按主键技能名排序） */
+    public Map<String, SkillAnalysis> all() {
+        Map<String, SkillAnalysis> out = new LinkedHashMap<>();
+        List<SkillAnalysisEntity> rows = skillMapper.selectList(Wrappers.<SkillAnalysisEntity>lambdaQuery()
+                .orderByAsc(SkillAnalysisEntity::getSkillName));
+        for (SkillAnalysisEntity e : rows) {
+            out.put(e.getSkillName(), SkillAnalysisConverter.toModel(e));
         }
-        try {
-            JsonNode root = mapper.readTree(p.toFile());
-            JsonNode skills = root.path("skills");
-            if (skills.isObject()) {
-                skills.fields().forEachRemaining(e ->
-                        data.put(e.getKey(), mapper.convertValue(e.getValue(), SkillAnalysis.class)));
-            }
-            log.info("loaded {} skill analysis from {}", data.size(), file);
-        } catch (IOException e) {
-            // fail-fast：损坏文件若静默清空，下次保存会把已有分析全部覆盖丢失
-            throw new IllegalStateException("技能分析文件解析失败（" + file + "）: " + e.getMessage(), e);
-        }
-    }
-
-    public synchronized SkillAnalysis get(String name) {
-        return data.get(name);
-    }
-
-    public synchronized Map<String, SkillAnalysis> all() {
-        return new LinkedHashMap<>(data);
+        return out;
     }
 
     public synchronized void put(String name, SkillAnalysis analysis) {
-        data.put(name, analysis);
-        persist();
-    }
-
-    private void persist() {
-        Path p = Path.of(file);
-        try {
-            Files.createDirectories(p.toAbsolutePath().getParent());
-            Path tmp = p.resolveSibling(p.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter()
-                    .writeValue(tmp.toFile(), Map.of("version", 1, "skills", data));
-            Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            throw new ApiException(500, "写入技能分析文件失败: " + e.getMessage());
+        SkillAnalysisEntity row = SkillAnalysisConverter.toEntity(name, analysis);
+        if (skillMapper.selectById(name) == null) {
+            skillMapper.insert(row);
+        } else {
+            skillMapper.updateById(row);
         }
     }
 }

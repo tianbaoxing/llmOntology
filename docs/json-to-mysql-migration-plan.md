@@ -1,7 +1,7 @@
 # llmOntology 平台数据迁移方案（JSON 文件 → MySQL）
 
-> 本文是**持续性迁移规范**：P0+P1+P2+P3 已实施完成，P4 起各期照此执行，不再逐期重新设计。
-> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅ P3 ✅
+> 本文是**持续性迁移规范**：P0~P4 已实施完成，P5 起各期照此执行，不再逐期重新设计。
+> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅ P3 ✅ P4 ✅
 
 ## 1. 基础设施（已定，勿改）
 
@@ -57,14 +57,15 @@ JsonMigrator（接口）                      JsonMigrationRunner（ApplicationR
 | P1 | 用户系统 | sys_user（5 行）、sys_role_permission（1 行） | users.json、role-permissions.json |
 | P2 | 图谱配置 | graph_schema_meta（1 行，全局 version）+ graph_class（10 行）/ graph_class_prop（30 行）/ graph_rel_def（16 行）；ontology_profile（11 行，每条问答一行，无全局 version——V3 调整，去 JSON 列）；rule_dedup（1 行，3 个 JSON 列）；rule_disjoint（12 行，每条规则一行，无全局 version——V4 调整，去 JSON 列） | graph-schema.json、ontology-profile.json、dedup-rules.json、disjoint-rules.json |
 | P3 | 内容安全 + 改写配置 | rule_content_security（30 行，每条规则一行，无全局 version；allowlist 为行内 allowlisted 标记列，ord 列保序）；rewrite_config（4 行，每功能一行，无全局 version） | content-security-rules.json、rewrite-config.json |
+| P4 | 文件元数据 + 技能使用分析 | file_metadata（7 行，每文件一行，无全局 version；自增 id 兼作列表顺序，uk_name 唯一键；转换四列可空 + updateStrategy=IGNORED 支持清空回写；FileListView/LlmFileListView 及三个 Result DTO 已删 version 字段）；skill_analysis（3 行，每技能一行，无全局 version；skill_name 主键；analyzed_at/content_hash 可空（keyInfo-only 记录），analyzed_at 存 ISO 原文保纳秒；tools 拆 used/not_used 两列，六个清单列类型化 JSON 保序，hidden* 三列 NULLable 保真旧数据） | file-metadata.json、skill-analysis.json |
 
 ## 5. 待迁移清单（按期）
 
 ### P4 文件/文档元数据
 | 源文件 | 目标表 | 说明 |
 |---|---|---|
-| data/file-metadata.json (3.1K) | file_metadata | files/ 与 files-md/ **本体保留文件系统**（LLM 按路径访问，硬约束），只迁元数据 |
-| data/skill-analysis.json (4.2K) | skill_analysis | skill_name 主键 + content JSON 列 |
+| ~~data/file-metadata.json (3.1K)~~ ✅ 已迁移 | file_metadata | files/ 与 files-md/ **本体保留文件系统**（LLM 按路径访问，硬约束），只迁元数据 |
+| ~~data/skill-analysis.json (4.2K)~~ ✅ 已迁移 | skill_analysis | skill_name 主键；按字段拆列（放弃单 content JSON 列）：tools 拆 used/not_used，六个清单列类型化 JSON 保序，hidden* 可空保真 |
 
 ### P5 提示词 + 智能体定义
 | 源文件 | 目标表 | 说明 |
