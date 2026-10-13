@@ -6,6 +6,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -25,15 +28,20 @@ import java.util.zip.ZipOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import com.conca.ontology.graph.service.GraphQueryService;
 import com.conca.ontology.graph.service.SchemaService;
 import com.conca.ontology.shared.web.ApiException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 备份：图数据库全量（nodes/rels JSONL，eid 关联两端）+ data 三个 JSON + 上传文件目录，打包为单个 zip。
+ * 备份：图数据库全量（nodes/rels JSONL，eid 关联两端）+ MySQL 业务表（db/{table}.jsonl，
+ * 表清单 information_schema 自动发现，排除 flyway_schema_history，P8+ 新表零改动自动进备份）
+ * + data 运行时目录（排除 *.migrated 归档——已 DB 化数据走 db/ 导出）+ 上传文件目录，打包为单个 zip。
  * zip 文件名编码统计信息（backup-时间-n节点数-r关系数-f文件数-v版本.zip），列表即文件名解析，无需额外索引。
  * 异步执行 + 内存进度（percent/phase/detail），同一时间仅允许一个任务。
  * 临时工作目录 backups/.tmp-{taskId}/，完成后 zip 先写 .tmp 再 rename（半成品不进列表）。
@@ -53,7 +61,7 @@ public class BackupService {
     public static final class Task {
         public final String id;
         volatile String status = "running";   // running | success | failed
-        volatile String phase = "init";       // init | nodes | rels | files | zip | done
+        volatile String phase = "init";       // init | nodes | rels | db | files | zip | done
         volatile String detail = "准备中";
         volatile int percent = 0;
         volatile String error;
@@ -67,6 +75,7 @@ public class BackupService {
     private final GraphQueryService queryService;
     private final SchemaService schemaService;
     private final ObjectMapper mapper;
+    private final JdbcTemplate jdbc;
 
     @Value("${app.backup-dir:backups}")
     private String backupDir;
@@ -84,10 +93,12 @@ public class BackupService {
         return t;
     });
 
-    public BackupService(GraphQueryService queryService, SchemaService schemaService, ObjectMapper mapper) {
+    public BackupService(GraphQueryService queryService, SchemaService schemaService, ObjectMapper mapper,
+            JdbcTemplate jdbc) {
         this.queryService = queryService;
         this.schemaService = schemaService;
         this.mapper = mapper;
+        this.jdbc = jdbc;
     }
 
     // ---------------- 任务控制 ----------------
@@ -133,6 +144,7 @@ public class BackupService {
 
             long nodeCount = exportNodes(task, tmpDir.resolve("graph/nodes.jsonl"));
             long relCount = exportRels(task, tmpDir.resolve("graph/rels.jsonl"));
+            long tableCount = exportTables(task, tmpDir.resolve("db"));
             long fileCount = copyDataAndFiles(task, tmpDir);
             String name = zipAll(task, tmpDir, nodeCount, relCount, fileCount);
 
@@ -141,8 +153,8 @@ public class BackupService {
             task.detail = "备份完成";
             task.percent = 100;
             task.status = "success";
-            log.info("backup finished: {} -> {} (n={} r={} f={} v={})",
-                    task.id, name, nodeCount, relCount, fileCount, schemaService.version());
+            log.info("backup finished: {} -> {} (n={} r={} t={} f={} v={})",
+                    task.id, name, nodeCount, relCount, tableCount, fileCount, schemaService.version());
         } catch (Exception e) {
             task.status = "failed";
             task.error = e.getMessage();
@@ -181,14 +193,13 @@ public class BackupService {
                 count += rows.size();
                 skip += rows.size();
                 task.detail = "导出节点 " + count + "/" + total;
-                task.percent = (int) (40.0 * count / Math.max(total, 1));
+                task.percent = (int) (35.0 * count / Math.max(total, 1));
             }
         }
         return count;
     }
 
     /** 导出全部关系：每行 {"type":..,"fromLabel":..,"fromEid":..,"toLabel":..,"toEid":..,"props":{..}} */
-    /** 递归复制 data 目录全部内容 + 上传文件目录到临时目录，返回复制的文件数 */
     private long exportRels(Task task, Path outFile) throws IOException {
         task.phase = "rels";
         long total = scalar("MATCH ()-[r]->() RETURN count(r) AS c");
@@ -213,20 +224,72 @@ public class BackupService {
                 count += rows.size();
                 skip += rows.size();
                 task.detail = "导出关系 " + count + "/" + total;
-                task.percent = 40 + (int) (40.0 * count / Math.max(total, 1));
+                task.percent = 35 + (int) (35.0 * count / Math.max(total, 1));
             }
         }
         return count;
     }
 
-    /** 复制 data 四个 JSON（schema/profile/文件元数据/用户，存在才复制）+ 上传文件目录到临时目录，返回复制的文件数 */
+    /**
+     * 导出全部业务表为 db/{table}.jsonl（每行一 JSON 对象，列名→值）。
+     * 表清单 information_schema 自动发现（排除 flyway_schema_history 迁移簿记——恢复时目标库
+     * Flyway 自管，带上必然 checksum 冲突），后续期次新增表零改动自动进备份。
+     * 空表也写空 .jsonl 占位（恢复时区分"0 行"与"表缺失"）。
+     */
+    private long exportTables(Task task, Path dbDir) throws IOException {
+        task.phase = "db";
+        Files.createDirectories(dbDir);
+        List<String> tables = jdbc.queryForList(
+                "SELECT table_name FROM information_schema.tables "
+                        + "WHERE table_schema = DATABASE() AND table_name <> 'flyway_schema_history' "
+                        + "ORDER BY table_name", String.class);
+        long done = 0;
+        for (String table : tables) {
+            task.detail = "导出数据表 " + (done + 1) + "/" + tables.size() + "：" + table;
+            Path out = dbDir.resolve(table + ".jsonl");
+            try (BufferedWriter w = Files.newBufferedWriter(out, StandardCharsets.UTF_8)) {
+                try {
+                    jdbc.query("SELECT * FROM `" + table + "`", rs -> {
+                        try {
+                            w.write(rowLine(rs));
+                            w.newLine();
+                        } catch (IOException e) {
+                            // lambda 只允许抛 SQLException，写文件失败以此上抛（cause 链保留）
+                            throw new SQLException("写出 " + table + ".jsonl 失败", e);
+                        }
+                    });
+                } catch (DataAccessException e) {
+                    throw new IllegalStateException("导出表失败: " + table, e);
+                }
+            }
+            done++;
+            task.percent = 70 + (int) (5.0 * done / tables.size());
+        }
+        return tables.size();
+    }
+
+    /** 结果集当前行 → JSON 行：列名→值（JSON 列字符串转嵌套结构，DATETIME 由 mapper 序列化为 ISO） */
+    private String rowLine(ResultSet rs) throws SQLException, JsonProcessingException {
+        ResultSetMetaData md = rs.getMetaData();
+        Map<String, Object> line = new LinkedHashMap<>();
+        for (int i = 1; i <= md.getColumnCount(); i++) {
+            Object v = rs.getObject(i);
+            if ("JSON".equalsIgnoreCase(md.getColumnTypeName(i)) && v != null) {
+                v = mapper.readTree(v.toString());
+            }
+            line.put(md.getColumnLabel(i), v);
+        }
+        return mapper.writeValueAsString(line);
+    }
+
+    /** 递归复制 data 运行时目录（排除 *.migrated 归档——已 DB 化数据走 db/ 导出，死档不进备份）+ 上传文件目录到临时目录，返回复制的文件数 */
     private long copyDataAndFiles(Task task, Path tmpDir) throws IOException {
         task.phase = "files";
         List<Path> sources = new ArrayList<>();
         Path dataRoot = Path.of(dataDir).toAbsolutePath().normalize();
         if (Files.isDirectory(dataRoot)) {
             try (Stream<Path> walk = Files.walk(dataRoot)) {
-                walk.filter(Files::isRegularFile).forEach(sources::add);
+                walk.filter(Files::isRegularFile).filter(p -> !inMigrated(dataRoot, p)).forEach(sources::add);
             }
         }
         Path srcDir = Path.of(uploadDir).toAbsolutePath().normalize();
@@ -249,7 +312,7 @@ public class BackupService {
             Files.copy(src, dest, StandardCopyOption.REPLACE_EXISTING);
             count++;
             task.detail = "复制文件 " + count + "/" + total;
-            task.percent = 80 + (int) (10.0 * count / Math.max(total, 1));
+            task.percent = 75 + (int) (10.0 * count / Math.max(total, 1));
         }
         return count;
     }
@@ -275,7 +338,7 @@ public class BackupService {
                     zos.closeEntry();
                     count++;
                     task.detail = "压缩打包 " + count + "/" + total;
-                    task.percent = 90 + (int) (10.0 * count / Math.max(total, 1));
+                    task.percent = 85 + (int) (15.0 * count / Math.max(total, 1));
                 }
             }
             Files.move(zipTmp, backupPath().resolve(name),
@@ -363,6 +426,17 @@ public class BackupService {
         // 20260820-153045 -> 2026-08-20 15:30:45
         return stamp.replaceAll("^(\\d{4})(\\d{2})(\\d{2})-(\\d{2})(\\d{2})(\\d{2})$",
                 "$1-$2-$3 $4:$5:$6");
+    }
+
+    /** 路径（相对 data 根）任一层级以 .migrated 结尾——迁移归档文件本体或归档目录内的文件 */
+    private static boolean inMigrated(Path root, Path p) {
+        Path rel = root.relativize(p);
+        for (int i = 0; i < rel.getNameCount(); i++) {
+            if (rel.getName(i).toString().endsWith(".migrated")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void deleteRecursively(Path dir) {
