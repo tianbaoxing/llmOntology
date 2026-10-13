@@ -72,6 +72,13 @@
             <artifactId>agentscope-extensions-model-openai</artifactId>
             <version>${agentscope.version}</version>
         </dependency>
+        <!-- AgentScope 官方 MySQL 状态存储扩展（P8）：MysqlAgentStateStore，
+             每智能体一张 agent_state_* 表，建表由框架幂等完成（createIfNotExist） -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-mysql</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
         <!-- OpenAPI 3 文档 + Swagger UI（/swagger-ui.html，免登录） -->
         <dependency>
             <groupId>org.springdoc</groupId>

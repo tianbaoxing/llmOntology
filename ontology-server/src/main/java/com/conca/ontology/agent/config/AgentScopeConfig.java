@@ -14,8 +14,8 @@ import com.conca.ontology.agent.tool.ChartPluginTool;
 import com.conca.ontology.disjoint.tool.DisjointRulesTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
+import com.conca.ontology.shared.db.MySqlAgentStateStores;
 
-import io.agentscope.core.state.JsonFileAgentStateStore;
 import io.agentscope.core.studio.StudioManager;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tool.mcp.McpClientBuilder;
@@ -63,12 +63,12 @@ public class AgentScopeConfig {
             @Value("${app.agent.api-key:}") String apiKey,
             @Value("${app.agent.model}") String model,
             @Value("${app.agent.workspace-dir}") String workspaceDir,
-            @Value("${app.agent.state-dir}") String stateDir,
             @Value("${app.agent.skills-dir:}") String skillsDir,
             @Value("${app.agent.studio-url:}") String studioUrl,
             @Value("${app.mcp.weather.enabled:false}") boolean mcpWeatherEnabled,
             @Value("${app.mcp.weather.url:http://localhost:8766/mcp}") String mcpWeatherUrl,
             @Qualifier("llmBaseUrl") String llmBaseUrl,
+            javax.sql.DataSource dataSource,
             DisjointRuleService disjointRuleService,
             ContentSecurityService contentSecurityService,
             RolePermissionService rolePermissionService) throws Exception {
@@ -86,7 +86,6 @@ public class AgentScopeConfig {
                 .build();
 
         Files.createDirectories(Path.of(workspaceDir));
-        Files.createDirectories(Path.of(stateDir));
         // 框架固定约定：工作区技能目录 = <workspace>/skills（SKILLS_DIR 常量，目录名不可改）；
         // 加载前有 isDirectory 检查，必须预先创建才会被识别
         Files.createDirectories(Path.of(workspaceDir, "skills"));
@@ -124,7 +123,7 @@ public class AgentScopeConfig {
                 .sysPrompt(sysPrompt)
                 .model(chatModel)
                 .workspace(Path.of(workspaceDir))
-                .stateStore(new JsonFileAgentStateStore(Path.of(stateDir)))
+                .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.MAIN))
                 .maxIters(6)
                 .toolkit(toolkit)
                 .middleware(new ContentSecurityMiddleware(contentSecurityService))

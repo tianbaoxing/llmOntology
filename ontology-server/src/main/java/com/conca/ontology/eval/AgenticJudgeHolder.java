@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 import io.agentscope.core.model.ExecutionConfig;
 import io.agentscope.core.model.GenerateOptions;
-import io.agentscope.core.state.JsonFileAgentStateStore;
+import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
 
@@ -28,7 +28,7 @@ import jakarta.annotation.PreDestroy;
  * - 仅注册 EvalProxyTool 一个只读工具，禁用其余全部执行能力（shell/文件/记忆/
  *   技能/子代理），maxIters=5（取证无需长链路）；
  * - 无技能加载——端点速查直接内置 sysPrompt（评测 agent 不依赖 skills 目录）；
- * - 会话留痕落独立 state-dir（userId=eval-agentic），AgentTraceMiddleware 输出轨迹日志；
+ * - 会话留痕落 MySQL（agent_state_agentic_judge 表，userId=eval-agentic），AgentTraceMiddleware 输出轨迹日志；
  * - 刻意不注册为 Spring bean：避免与主问答 agent 形成 HarnessAgent 双候选。
  * key 未配置时 agent 为 null（grader 前置校验 + EvalService 409 提前拦截）。
  */
@@ -61,8 +61,8 @@ public class AgenticJudgeHolder {
     @Value("${app.eval.agent.workspace-dir:data/eval/agentic-workspace}")
     private String workspaceDir;
 
-    @Value("${app.eval.agent.state-dir:data/eval/agentic-judge-state}")
-    private String stateDir;
+    @org.springframework.beans.factory.annotation.Autowired
+    private javax.sql.DataSource dataSource;
 
     @Value("${app.agent.ontology-base-url:${ONTOLOGY_BASE_URL:}}")
     private String ontologyBaseUrl;
@@ -118,7 +118,6 @@ public class AgenticJudgeHolder {
                     .build();
 
             Files.createDirectories(Path.of(workspaceDir));
-            Files.createDirectories(Path.of(stateDir));
 
             String llmBaseUrl = (ontologyBaseUrl == null || ontologyBaseUrl.isBlank())
                     ? "http://127.0.0.1:" + serverPort
@@ -134,7 +133,7 @@ public class AgenticJudgeHolder {
                     .sysPrompt(sysPrompt())
                     .model(chatModel)
                     .workspace(Path.of(workspaceDir))
-                    .stateStore(new JsonFileAgentStateStore(Path.of(stateDir)))
+                    .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.AGENTIC_JUDGE))
                     .maxIters(maxIters)
                     .checkRunning(false)
                     .toolkit(toolkit)
@@ -159,8 +158,8 @@ public class AgenticJudgeHolder {
                     .disableWorkspaceContext()
                     .disableAtPathExpansion()
                     .build();
-            log.info("agentic judge agent 已装配（model={}，取证上限 {} 次，留痕目录 {}）",
-                    model, maxQueries, stateDir);
+            log.info("agentic judge agent 已装配（model={}，取证上限 {} 次，留痕表 agent_state_agentic_judge）",
+                    model, maxQueries);
         } catch (Exception e) {
             agent = null;
             log.warn("agentic judge agent 装配失败，Agentic 取证评测将不可用：{}", e.getMessage(), e);

@@ -9,10 +9,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import com.conca.agentkit.AgentDefinition;
 import com.conca.ontology.builder.model.AgentDefinitionStore;
+import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import com.conca.ontology.shared.web.ApiException;
 
 /**
@@ -33,12 +35,15 @@ public class AgentWorkspaceService {
 
     private final AgentDefinitionStore store;
     private final Path platformSkillsDir;
+    private final JdbcTemplate jdbcTemplate;
 
     public AgentWorkspaceService(AgentDefinitionStore store,
-            @Value("${app.agent.skills-dir:}") String platformSkillsDir) {
+            @Value("${app.agent.skills-dir:}") String platformSkillsDir,
+            JdbcTemplate jdbcTemplate) {
         this.store = store;
         this.platformSkillsDir = (platformSkillsDir == null || platformSkillsDir.isBlank())
                 ? null : Path.of(platformSkillsDir);
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /** 平台技能库目录（向导技能清单/拷贝源） */
@@ -65,30 +70,21 @@ public class AgentWorkspaceService {
         return store.dirOf(agentId).resolve("workspace");
     }
 
-    /** 会话状态目录 */
-    public Path stateDirOf(String agentId) {
-        return store.dirOf(agentId).resolve("state");
-    }
-
-    /** 清空会话状态目录内容（目录本身保留）：test 期间的会话都是试运行临时会话，编辑/发布从零开始 */
+    /**
+     * 清空试运行会话状态（agent_state_{agentId} 表整表清空）：
+     * test 期间的会话都是试运行临时会话，编辑/发布从零开始。
+     * 表不存在 = 从未有会话，视为已清空（对齐原「state 目录不存在直接返回」语义）。
+     */
     public void clearState(String agentId) {
-        Path state = stateDirOf(agentId);
-        if (!Files.exists(state)) {
+        store.dirOf(agentId); // 触发 id 校验（表名拼接前置）
+        String table = MySqlAgentStateStores.tableNameOf(agentId);
+        Integer exists = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
+                Integer.class, MySqlAgentStateStores.DATABASE_NAME, table);
+        if (exists == null || exists == 0) {
             return;
         }
-        try (Stream<Path> walk = Files.walk(state)) {
-            walk.sorted(Comparator.reverseOrder())
-                    .filter(p -> !p.equals(state))
-                    .forEach(p -> {
-                        try {
-                            Files.deleteIfExists(p);
-                        } catch (IOException ignored) {
-                            // 尽力清理，清理失败不阻断保存流程
-                        }
-                    });
-        } catch (IOException e) {
-            throw new ApiException(500, "试运行会话清理失败：" + e.getMessage());
-        }
+        jdbcTemplate.execute("DELETE FROM `" + MySqlAgentStateStores.DATABASE_NAME + "`.`" + table + "`");
     }
 
     /** 平台技能目录是否存在（存在才允许勾选） */

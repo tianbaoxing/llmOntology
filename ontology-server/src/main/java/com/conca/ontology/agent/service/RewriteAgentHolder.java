@@ -12,9 +12,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.agent.service.RewriteConfigService;
+import com.conca.ontology.shared.db.MySqlAgentStateStores;
 
 import io.agentscope.core.model.ExecutionConfig;
-import io.agentscope.core.state.JsonFileAgentStateStore;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
 
@@ -28,7 +28,7 @@ import jakarta.annotation.PreDestroy;
  *
  * agent 按（type, sysPrompt）懒构建缓存：提示词被修改保存后，
  * 首次调用按新 sysPrompt 重建（旧 agent 关闭，进行中调用降级放行原文，不阻断聊天）。
- * 每次改写独立 sessionId（userId=rewrite-<type>），会话留痕落 state-dir，
+ * 每次改写独立 sessionId（userId=rewrite-<type>），会话留痕落 MySQL（agent_state_rewrite 表），
  * 供回查每次改写的完整 prompt 与输出；AgentTraceMiddleware 输出调用日志。
  *
  * 刻意不注册为 Spring bean：避免与主问答 agent（AgentScopeConfig#harnessAgent）
@@ -51,8 +51,8 @@ public class RewriteAgentHolder {
     @Value("${app.rewrite.workspace-dir:data/rewrite-workspace}")
     private String workspaceDir;
 
-    @Value("${app.rewrite.state-dir:data/rewrite-state}")
-    private String stateDir;
+    @org.springframework.beans.factory.annotation.Autowired
+    private javax.sql.DataSource dataSource;
 
     @Value("${app.rewrite.timeout-seconds:30}")
     private int timeoutSeconds;
@@ -92,7 +92,6 @@ public class RewriteAgentHolder {
     private HarnessAgent build(String type, String sysPrompt) {
         try {
             Files.createDirectories(Path.of(workspaceDir));
-            Files.createDirectories(Path.of(stateDir));
             OpenAIChatModel chatModel = OpenAIChatModel.builder()
                     .baseUrl(baseUrl)
                     .apiKey(apiKey)
@@ -110,7 +109,7 @@ public class RewriteAgentHolder {
                     .sysPrompt(sysPrompt)
                     .model(chatModel)
                     .workspace(Path.of(workspaceDir))
-                    .stateStore(new JsonFileAgentStateStore(Path.of(stateDir)))
+                    .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.REWRITE))
                     .maxIters(1)
                     .checkRunning(false)
                     .modelExecutionConfig(ExecutionConfig.builder()

@@ -11,12 +11,15 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.agentkit.AgentDefinition;
 import com.conca.ontology.builder.entity.AgentDefinitionEntity;
 import com.conca.ontology.builder.mapper.AgentDefinitionMapper;
+import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import com.conca.ontology.shared.web.ApiException;
 
 /**
@@ -34,10 +37,13 @@ public class AgentDefinitionStore {
 
     private final Path root;
     private final AgentDefinitionMapper agentMapper;
+    private final JdbcTemplate jdbcTemplate;
 
-    public AgentDefinitionStore(@Value("${app.agents.dir:data/agents}") String dir, AgentDefinitionMapper agentMapper) {
+    public AgentDefinitionStore(@Value("${app.agents.dir:data/agents}") String dir, AgentDefinitionMapper agentMapper,
+            JdbcTemplate jdbcTemplate) {
         this.root = Path.of(dir);
         this.agentMapper = agentMapper;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /** 保存（新建或覆盖整份定义；workspace 布局由 AgentWorkspaceService 负责） */
@@ -83,9 +89,9 @@ public class AgentDefinitionStore {
     }
 
     /**
-     * 删除定义与整个数据目录（workspace/state 随目录整体清理）：
-     * 先删表行（DB 为准，定义即刻不存在），再清理目录（文件系统不可回滚，
-     * 清理失败仅告警——残留目录为无害垃圾，不阻断删除流程）。
+     * 删除定义、会话状态表与整个数据目录：
+     * 先删表行（DB 为准，定义即刻不存在），再清会话表与目录（不可回滚，
+     * 失败仅告警——残留为无害垃圾，不阻断删除流程）。
      */
     public void delete(String id) {
         validateId(id);
@@ -93,6 +99,7 @@ public class AgentDefinitionStore {
             throw new ApiException(404, "智能体不存在：" + id);
         }
         agentMapper.deleteById(id);
+        dropStateTable(id);
         cleanupDir(id);
         log.info("智能体已删除：{}", id);
     }
@@ -106,6 +113,16 @@ public class AgentDefinitionStore {
     static void validateId(String id) {
         if (id == null || !ID.matcher(id).matches()) {
             throw new ApiException(400, "智能体 ID 非法：仅允许小写字母/数字/连字符，长度 1-39，以字母或数字开头");
+        }
+    }
+
+    /** 会话状态表清理（best-effort：表可能尚未建过，DROP 失败仅告警不阻断删除） */
+    private void dropStateTable(String id) {
+        try {
+            jdbcTemplate.execute("DROP TABLE IF EXISTS `" + MySqlAgentStateStores.DATABASE_NAME + "`.`"
+                    + MySqlAgentStateStores.tableNameOf(id) + "`");
+        } catch (DataAccessException e) {
+            log.warn("清理智能体会话状态表失败（{}）：{}", id, e.getMessage());
         }
     }
 

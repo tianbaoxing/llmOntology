@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 import io.agentscope.core.model.ExecutionConfig;
 import io.agentscope.core.model.GenerateOptions;
-import io.agentscope.core.state.JsonFileAgentStateStore;
+import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
 
@@ -22,7 +22,7 @@ import jakarta.annotation.PreDestroy;
  * judge 专用 HarnessAgent 持有者（评测二期重构：JudgeClient 由裸 HTTP 切换为 agent 通道）：
  * 纯 LLM 判分管道——禁用全部执行能力（shell/文件/记忆/技能/子代理/工具配置），
  * 仅保留模型调用与会话持久化，使 judge 调用获得与主 agent 一致的监控基建：
- * 会话留痕落 state-dir（可回查每次判分的 prompt 与回复）+ AgentTraceMiddleware 日志。
+ * 会话留痕落 MySQL（agent_state_judge 表，可回查每次判分的 prompt 与回复）+ AgentTraceMiddleware 日志。
  *
  * 刻意不注册为 Spring bean：避免与主问答 agent（AgentScopeConfig#harnessAgent）
  * 形成 HarnessAgent 双候选，注入主流程的 ObjectProvider&lt;HarnessAgent&gt; 一行不改。
@@ -51,8 +51,8 @@ public class JudgeAgentHolder {
     @Value("${app.eval.judge.workspace-dir:data/eval/judge-workspace}")
     private String workspaceDir;
 
-    @Value("${app.eval.judge.state-dir:data/eval/judge-state}")
-    private String stateDir;
+    @org.springframework.beans.factory.annotation.Autowired
+    private javax.sql.DataSource dataSource;
 
     @Value("${app.title:图谱}")
     private String title;
@@ -84,7 +84,6 @@ public class JudgeAgentHolder {
                     .build();
 
             Files.createDirectories(Path.of(workspaceDir));
-            Files.createDirectories(Path.of(stateDir));
 
             agent = HarnessAgent.builder()
                     .name("eval-judge")
@@ -95,7 +94,7 @@ public class JudgeAgentHolder {
                             + "禁止输出 JSON 以外的任何内容。")
                     .model(chatModel)
                     .workspace(Path.of(workspaceDir))
-                    .stateStore(new JsonFileAgentStateStore(Path.of(stateDir)))
+                    .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.JUDGE))
                     .maxIters(1)
                     .checkRunning(false)
                     // 模型调用超时与重试：重试语义由 JudgeClient 显式控制（3s 退避重试 1 次），
@@ -121,7 +120,7 @@ public class JudgeAgentHolder {
                     .disableWorkspaceContext()
                     .disableAtPathExpansion()
                     .build();
-            log.info("judge agent 已装配（model={}，判分会话留痕目录 {}）", model, stateDir);
+            log.info("judge agent 已装配（model={}，判分会话留痕表 agent_state_judge）", model);
         } catch (Exception e) {
             agent = null;
             log.warn("judge agent 装配失败，LLM 判分将不可用：{}", e.getMessage(), e);

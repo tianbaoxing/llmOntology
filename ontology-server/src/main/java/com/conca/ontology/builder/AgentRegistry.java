@@ -2,8 +2,6 @@ package com.conca.ontology.builder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,10 +31,10 @@ import com.conca.ontology.builder.tool.AgentBuilderTool;
 import com.conca.ontology.content.service.ContentSecurityService;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 import com.conca.ontology.disjoint.tool.DisjointRulesTool;
+import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import com.conca.ontology.shared.web.ApiException;
 
 import io.agentscope.core.state.AgentStateStore;
-import io.agentscope.core.state.JsonFileAgentStateStore;
 import io.agentscope.harness.agent.HarnessAgent;
 import jakarta.annotation.PreDestroy;
 
@@ -84,6 +82,7 @@ public class AgentRegistry {
      */
     private final ObjectProvider<AgentBuilderService> builderServiceProvider;
     private final String llmBaseUrl;
+    private final javax.sql.DataSource dataSource;
 
     private final Map<String, Entry> cache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Object> locks = new ConcurrentHashMap<>();
@@ -95,6 +94,7 @@ public class AgentRegistry {
             DisjointRuleService disjointRuleService,
             ObjectProvider<AgentBuilderService> builderServiceProvider,
             @Qualifier("llmBaseUrl") String llmBaseUrl,
+            javax.sql.DataSource dataSource,
             @Value("${app.agents.idle-minutes:30}") int idleMinutes) {
         this.store = store;
         this.workspaceService = workspaceService;
@@ -102,6 +102,7 @@ public class AgentRegistry {
         this.disjointRuleService = disjointRuleService;
         this.builderServiceProvider = builderServiceProvider;
         this.llmBaseUrl = llmBaseUrl;
+        this.dataSource = dataSource;
         this.idleMillis = Math.max(1, idleMinutes) * 60_000L;
         this.sweeper = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "agent-registry-sweeper");
@@ -160,17 +161,11 @@ public class AgentRegistry {
 
     /**
      * 轻量会话存储（不构建实例、零网络副作用）：自建智能体的会话列表/历史/删除/重命名。
-     * 与装配实例共用同一 state 目录（JsonFileAgentStateStore 文件互操作），读写一致。
+     * 与装配实例共用同一 MySQL 会话表（agent_state_{agentId}，官方 MysqlAgentStateStore），读写一致。
      */
     public AgentStateStore stateStoreOf(String agentId) {
         store.require(agentId);
-        Path stateDir = workspaceService.stateDirOf(agentId);
-        try {
-            Files.createDirectories(stateDir);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return new JsonFileAgentStateStore(stateDir);
+        return MySqlAgentStateStores.create(dataSource, agentId);
     }
 
     // ---------------- 内部 ----------------
@@ -196,7 +191,7 @@ public class AgentRegistry {
         String apiKey = requireEnvApiKey();
         try {
             AgentBootstrapper.BuiltAgent built = AgentBootstrapper.build(
-                    def, workspaceService.workspaceOf(agentId), workspaceService.stateDirOf(agentId),
+                    def, workspaceService.workspaceOf(agentId), MySqlAgentStateStores.create(dataSource, agentId),
                     apiKey, builtinTools(def),
                     List.of(new ContentSecurityMiddleware(contentSecurityService)),
                     null);
