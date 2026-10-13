@@ -1,7 +1,7 @@
 # llmOntology 平台数据迁移方案（JSON 文件 → MySQL）
 
-> 本文是**持续性迁移规范**：P0~P5 已实施完成，P6 起各期照此执行，不再逐期重新设计。
-> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅ P3 ✅ P4 ✅ P5 ✅（user_prompt + agent_definition）
+> 本文是**持续性迁移规范**：P0~P6 已实施完成，P7 起各期照此执行，不再逐期重新设计。
+> 实施日期：2026-10-10 ｜ 进度：P0 ✅ P1 ✅ P2 ✅ P3 ✅ P4 ✅ P5 ✅ P6 ✅（custom_grader + eval_run + dataset）
 
 ## 1. 基础设施（已定，勿改）
 
@@ -64,6 +64,7 @@ P5b 起骨架支持**混合目录源**：目录常驻但仅部分文件需迁移
 | P5b | 智能体定义 | agent_definition（3 行，每智能体一行；agent_id 主键，model 拆 base_url/model_name/api_key_ref 三列，skills/tools/httpTools/mcps/subagents 五个类型化 JSON 保序列，created_at/updated_at 存 ISO 原文保纳秒，idx_updated_at 支撑列表倒序；行内 version 为每智能体独立定义版本（编辑 +1）故保留，非遗留全局 version；**首个混合目录源**：骨架新增 sourcePresent()/archive() 默认方法，AgentDefinitionMigrator 覆盖二者，仅归档各 {id}/agent.json 为 agent.json.migrated，workspace/state 目录保留文件系统；AgentDefinitionStore 存储层替换，dirOf/validateId/404 文案不变，delete 改为删行+best-effort 清目录（DB 为准）；AgentDefinition 为外部框架 record（agentkit），经 Converter 互转零修改） | data/agents/{id}/agent.json（3 个） |
 | P6a | 自定义评测器 | custom_grader（1 行，每评测器一行；name 主键，弃文档初稿 definition JSON 列改扁平拆列——description/mode/prompt + created_at/updated_at 存 ISO 原文保纳秒；created_at NULLable 保真新建记录缺省 null 语义（validate 不设创建时间），updated_at 恒有值 NOT NULL；CustomGraderStore 存储层替换，all 按名称字典序（与注册表 TreeMap 同序），validate/409/404 文案不变；**连锁调整**：EvalGraderRegistry 自定义评测器注册从构造器移至 ApplicationReadyEvent——Bean 构造期早于 JsonMigrationRunner（ApplicationRunner），构造时查表会漏掉存量迁移未导入的定义，ready 事件在所有 Runner 之后触发保证全量注册，create/update/delete 的 registerCustom/replaceCustom/removeCustom 热更新路径不变） | data/eval/custom-graders.json |
 | P6b | 评测结果 | eval_run（12 行，每任务一行，run_id 主键=文件名）+ eval_run_sample（100 行，每样本一行；自增 id 兼作 samples 数组原序，UNIQUE(run_id,sample_id)）；三代结果文件 schema 泛化——老 4 文件 status/judge/human*/datasetHash/percent NULL 保真（读路径 NULL 列省略键、老代 status 按 success 处理、summary 按 8 键还原；新 6 文件全字段齐备、summary 12 键）；summary 拆 12 列全 NULLable（judge 嵌套整 JSON 列，error/agent_error 用 TEXT 无长度上限）；样本拆列——query/answer MEDIUMTEXT、reference_response JSON（Object 类型保真 String 或嵌套 JSON 值）、tool_calls/scores 类型化 JSON NOT NULL（缺失归一 []）、rounds/durationMs/promptTokens/completionTokens NOT NULL（缺失归一 0）、turns/dialogue/responseSource/tolerance/agent_error NULLable 省略键、**老格式 samples[].expected 死字段直接丢弃（用户拍板）**；started_at/finished_at 存 ISO 原文保纳秒；EvalRunService 存储层替换（公共签名/400/404/409 文案不变）：start 首写 INSERT running 行（僵尸检测改查表 interrupted）、writeTaskMeta 改 UPDATE（null 不覆盖）、completeRun TransactionTemplate 批量插样本后更新 run 行、humanScore 落库（pending 递减+全评完状态翻 success，metadata 纳秒往返）、deleteRun tx 删两表（remaining 回归，deletedBytes=0 前端不消费）、readResult 按 NULL 列省略键重建原文件键序（progress/download 语义与源文件逐键一致）；EvalController.download 改调 exportResult（删 requireResultFile）；listRuns 改 runMapper ORDER BY run_id 倒序（=原文件名倒序，含 _live/_zombie/interrupted 语义）；application.yml 增 app.eval.result-dir 迁移源键；无 initDefaults（零行=无历史任务）；**目录源整体归档**：results 整目录 rename 为 results.migrated（P5a 先例），EvalRunMigrator 覆盖 sourcePresent()（目录内含 eval-{date}-{time}-{hex}.json 即视为存在） | data/eval/results/eval-*.json（12 个） |
+| P6c | 评测数据集 | dataset（3 行，每数据集一行，name 主键=原 .jsonl 文件名；不加 created_at——源无时间戳 UI 不显示，样本数走 COUNT(*) 派生）+ dataset_sample（17 行，每非空行一样本；自增 id 兼作文件行序，seq=按 id 升序行号，中删后自然前移=原文件删行语义，KEY(dataset_name,id)；sample_id NULLable 无 UNIQUE——原行无 id 键读取按 line-{seq} 兜底，id 查重走写路径预检 409 文案不变；query/response NULLable 多轮样本无此键、reference_response JSON Object 保真、turns/skills/tools/mcps 类型化 JSON **NULL=原行无此键**（区别于 eval_run_sample 的 NOT NULL 归一[]——数据集以文件行保真为先）、rubric NULLable 保真；全列 updateStrategy=IGNORED 支持整行覆写清空回写）；EvalDatasetService 存储层替换（公共签名/校验/400/404/409 文案/响应键序不变）：readAllSamples→rowsOf+viewRow 视图重建（raw 按原文件键序重建，**17/17 行与源文件字节级一致**）、buildSampleLine→buildSampleEntity（id 自动生成/查重含 line-{seq} 伪 id 同构）、update/delete 按 seq 定位行、loadSamples 查表拼装（评测引擎零改动）、requireDataset Path→void（RE 校验+404 不变）、删 datasetPath/countLines 文件 API；连锁：EvalCustomGraderService.findGraderReferences 文件扫描→datasetService.searchGraderReferences 查表（needle `"名"` 在 raw JSON 转义下数组值命中/文本内嵌引号不命中，与原文件 contains 语义逐字节等价，输出「数据集名 第N行」格式不变）；EvalDatasetMigrator @Order(90)（目录源整体归档 datasets.migrated，行解析 DatasetSampleEntity.of 与 loadSamples 同构、坏行阻断启动）；application.yml 增 app.eval.dataset-dir；无 initDefaults | data/eval/datasets/*.jsonl（3 个） |
 
 ## 5. 待迁移清单（按期）
 
@@ -84,7 +85,7 @@ P5b 起骨架支持**混合目录源**：目录常驻但仅部分文件需迁移
 |---|---|---|
 | ~~data/eval/custom-graders.json (2K)~~ ✅ 已迁移 | custom_grader | name 主键；扁平拆列（弃 definition JSON 列）；EvalGraderRegistry 注册移至 ApplicationReadyEvent |
 | ~~data/eval/results/eval-*.json（现 12 个）~~ ✅ 已迁移 | eval_run + eval_run_sample | 每任务一文件拆两表；listRuns 由文件名扫描改 ORDER BY run_id 倒序（run_id=文件名，字典序=时间序，规划初稿的 created_at 未采用） |
-| data/eval/datasets/*.jsonl（现 3 个） | dataset + dataset_sample | **已确认（2026-10-12）：入库拆两表**，与其他迁移保持一致（备份走 DB 导出、列表走 SQL）；评测引擎读数据集改为查表拼装 |
+| ~~data/eval/datasets/*.jsonl（现 3 个）~~ ✅ 已迁移 | dataset + dataset_sample | 已确认（2026-10-12）：入库拆两表；评测引擎 loadSamples 改查表拼装（EvalRunService 零改动） |
 
 ### P7 备份恢复适配
 - BackupService zip 增加 `db/` 目录（全表导出 JSONL）；恢复 = 导表 + 还原 files 目录。

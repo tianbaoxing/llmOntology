@@ -1,14 +1,9 @@
 package com.conca.ontology.eval.service;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,29 +149,8 @@ public class EvalCustomGraderService {
         return m;
     }
 
+    /** 引用扫描下放数据集域（P6 起查表，替代原目录逐文件 contains 扫描；输出格式不变） */
     private List<String> findGraderReferences(String name) {
-        List<String> refs = new ArrayList<>();
-        Path dir = datasetService.datasetPath();
-        if (!Files.isDirectory(dir)) {
-            return refs;
-        }
-        String needle = "\"" + name + "\"";
-        try (Stream<Path> s = Files.list(dir)) {
-            for (Path p : s.filter(Files::isRegularFile)
-                    .filter(x -> x.getFileName().toString().endsWith(".jsonl")).toList()) {
-                try {
-                    List<String> lines = Files.readAllLines(p, StandardCharsets.UTF_8);
-                    for (int i = 0; i < lines.size(); i++) {
-                        if (lines.get(i).contains(needle)) {
-                            refs.add(p.getFileName() + " 第" + (i + 1) + "行");
-                        }
-                    }
-                } catch (IOException ignore) {
-                }
-            }
-        } catch (IOException e) {
-            throw new ApiException(500, "扫描数据集目录失败: " + e.getMessage());
-        }
-        return refs;
+        return datasetService.searchGraderReferences(name);
     }
 }

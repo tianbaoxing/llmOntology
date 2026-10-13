@@ -1,35 +1,36 @@
 package com.conca.ontology.eval.service;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.agent.service.AgentSessionService;
 import com.conca.ontology.eval.dto.request.EvalSampleRequest;
 import com.conca.ontology.eval.dto.result.FromChatSampleResult;
+import com.conca.ontology.eval.entity.DatasetEntity;
+import com.conca.ontology.eval.entity.DatasetSampleEntity;
+import com.conca.ontology.eval.mapper.DatasetMapper;
+import com.conca.ontology.eval.mapper.DatasetSampleMapper;
 import com.conca.ontology.eval.model.EvalSample;
 import com.conca.ontology.shared.web.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+/**
+ * 评测数据集服务（P6 起存储层 DB 化：dataset + dataset_sample 两表，原为 data/eval/datasets/*.jsonl 整文件读写）。
+ * 行序语义保真：自增 id 兼作原文件行序，seq = 按 id 升序行号，中删后自然前移 = 原文件删行语义；
+ * NULL 键保真：原行无此键 → 列 NULL，回读 raw/视图按原键序重建、NULL 键省略。
+ * 公共方法签名、校验、文案、响应结构均与文件版一致（Controller/前端零改动）。
+ */
 @Service
 public class EvalDatasetService {
 
@@ -38,38 +39,37 @@ public class EvalDatasetService {
 
     private final ObjectMapper mapper;
     private final AgentSessionService agentSessionService;
+    private final DatasetMapper datasetMapper;
+    private final DatasetSampleMapper sampleMapper;
 
-    public EvalDatasetService(ObjectMapper mapper, AgentSessionService agentSessionService) {
+    public EvalDatasetService(ObjectMapper mapper,
+            AgentSessionService agentSessionService, DatasetMapper datasetMapper,
+            DatasetSampleMapper sampleMapper) {
         this.mapper = mapper;
         this.agentSessionService = agentSessionService;
+        this.datasetMapper = datasetMapper;
+        this.sampleMapper = sampleMapper;
     }
-
-    @Value("${app.eval.dataset-dir:data/eval/datasets}")
-    private String datasetDir;
 
     public Map<String, Object> listDatasets() {
         List<Map<String, Object>> list = new ArrayList<>();
-        Path dir = datasetPath();
-        if (!Files.isDirectory(dir)) {
-            return Map.of("datasets", list);
-        }
-        try (Stream<Path> s = Files.list(dir)) {
-            for (Path p : s.filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith(".jsonl"))
-                    .sorted(Comparator.comparing((Path p) -> p.getFileName().toString())).toList()) {
-                Map<String, Object> d = new LinkedHashMap<>();
-                d.put("name", p.getFileName().toString());
-                d.put("count", countLines(p));
-                list.add(d);
+        try {
+            for (DatasetEntity d : datasetMapper.selectList(
+                    Wrappers.<DatasetEntity>lambdaQuery().orderByAsc(DatasetEntity::getName))) {
+                Map<String, Object> ds = new LinkedHashMap<>();
+                ds.put("name", d.getName());
+                ds.put("count", sampleMapper.selectCount(Wrappers.<DatasetSampleEntity>lambdaQuery()
+                        .eq(DatasetSampleEntity::getDatasetName, d.getName())));
+                list.add(ds);
             }
-        } catch (IOException e) {
+        } catch (RuntimeException e) {
             throw new ApiException(500, "扫描数据集目录失败: " + e.getMessage());
         }
         return Map.of("datasets", list);
     }
 
     public Map<String, Object> datasetPreview(String name, int limit) {
-        List<Map<String, Object>> all = readAllSamples(requireDataset(name));
+        List<Map<String, Object>> all = readAllSamples(name);
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("name", name);
         m.put("samples", all.subList(0, Math.min(all.size(), Math.max(1, limit))));
@@ -77,7 +77,7 @@ public class EvalDatasetService {
     }
 
     public Map<String, Object> datasetSamples(String name, int page, int pageSize) {
-        List<Map<String, Object>> all = readAllSamples(requireDataset(name));
+        List<Map<String, Object>> all = readAllSamples(name);
         int size = Math.min(Math.max(pageSize, 1), 100);
         int total = all.size();
         int pages = Math.max((total + size - 1) / size, 1);
@@ -125,347 +125,339 @@ public class EvalDatasetService {
     }
 
     public synchronized Map<String, Object> addSample(String name, EvalSampleRequest req) {
-        Path p = requireDataset(name);
-        String line = buildSampleLine(req, p, -1);
+        requireDataset(name);
+        DatasetSampleEntity e = buildSampleEntity(name, req, null);
         try {
-            Files.write(p, (line + "\n").getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        } catch (IOException e) {
-            throw new ApiException(500, "写入数据集失败: " + e.getMessage());
+            sampleMapper.insert(e);
+        } catch (RuntimeException ex) {
+            throw new ApiException(500, "写入数据集失败: " + ex.getMessage());
         }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("name", name);
-        m.put("total", countLines(p));
+        m.put("total", countOf(name));
         return m;
     }
 
     public synchronized Map<String, Object> updateSample(String name, int seq, EvalSampleRequest req) {
-        Path p = requireDataset(name);
-        List<String> lines = readPhysicalLines(p);
-        int idx = indexOfSeq(lines, seq);
-        if (idx < 0) {
-            throw new ApiException(404, "样本不存在: 第 " + seq + " 条（数据集可能已被修改，请刷新）");
+        requireDataset(name);
+        DatasetSampleEntity target = rowBySeq(rowsOf(name), seq);
+        DatasetSampleEntity e = buildSampleEntity(name, req, target.getId());
+        e.setId(target.getId());
+        try {
+            sampleMapper.updateById(e);
+        } catch (RuntimeException ex) {
+            throw new ApiException(500, "写入数据集失败: " + ex.getMessage());
         }
-        lines.set(idx, buildSampleLine(req, p, seq));
-        rewrite(p, lines);
         return Map.of("name", name, "seq", seq);
     }
 
     public synchronized Map<String, Object> deleteSample(String name, int seq) {
-        Path p = requireDataset(name);
-        List<String> lines = readPhysicalLines(p);
-        int idx = indexOfSeq(lines, seq);
-        if (idx < 0) {
-            throw new ApiException(404, "样本不存在: 第 " + seq + " 条（数据集可能已被修改，请刷新）");
+        requireDataset(name);
+        DatasetSampleEntity target = rowBySeq(rowsOf(name), seq);
+        try {
+            sampleMapper.deleteById(target.getId());
+        } catch (RuntimeException ex) {
+            throw new ApiException(500, "写入数据集失败: " + ex.getMessage());
         }
-        lines.remove(idx);
-        rewrite(p, lines);
-        return Map.of("name", name, "seq", seq, "total", countLines(p));
+        return Map.of("name", name, "seq", seq, "total", countOf(name));
     }
 
     public synchronized Map<String, Object> createDataset(String name) {
         if (name == null || !DATASET_NAME_RE.matcher(name).matches()) {
             throw new ApiException(400, "非法数据集文件名: " + name + "（须形如 my-ds.jsonl）");
         }
-        Path p = datasetPath().resolve(name).normalize();
-        if (!p.startsWith(datasetPath())) {
-            throw new ApiException(400, "非法数据集文件名: " + name);
-        }
-        if (Files.exists(p)) {
+        if (datasetMapper.selectById(name) != null) {
             throw new ApiException(409, "数据集已存在: " + name);
         }
         try {
-            Files.createDirectories(datasetPath());
-            Files.createFile(p);
-        } catch (IOException e) {
+            datasetMapper.insert(new DatasetEntity(name));
+        } catch (RuntimeException e) {
             throw new ApiException(500, "创建数据集失败: " + e.getMessage());
         }
         return Map.of("name", name, "count", 0);
     }
 
     public List<EvalSample> loadSamples(String dataset) throws IOException {
-        Path p = requireDataset(dataset);
+        requireDataset(dataset);
         List<EvalSample> list = new ArrayList<>();
-        int lineNo = 0;
-        try (var reader = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                lineNo++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                try {
-                    JsonNode node = mapper.readTree(line);
-                    JsonNode ref = node.path("reference_response");
-                    Object refObj = ref.isMissingNode() || ref.isNull()
-                            ? null : mapper.convertValue(ref, Object.class);
-                    List<EvalSample.Turn> turns = parseTurns(node.path("turns"));
-                    List<String> skills = parseStringList(node.path("skills"));
-                    List<String> tools = parseStringList(node.path("tools"));
-                    List<String> mcps = parseStringList(node.path("mcps"));
-                    list.add(new EvalSample(
-                            node.path("id").asText("line-" + lineNo),
-                            node.path("query").asText(""),
-                            node.path("response").asText(null),
-                            refObj,
-                            node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null,
-                            node.path("rubric").asText(null),
-                            turns, skills, tools, mcps));
-                } catch (Exception e) {
-                    list.add(new EvalSample("line-" + lineNo,
-                            "[数据行解析失败] " + e.getMessage(), null, null, null, null, List.of(),
-                            null, null, null));
-                }
-            }
+        int seq = 0;
+        for (DatasetSampleEntity e : rowsOf(dataset)) {
+            seq++;
+            list.add(new EvalSample(
+                    e.getSampleId() != null ? e.getSampleId() : "line-" + seq,
+                    e.getQuery() == null ? "" : e.getQuery(),
+                    e.getResponse(),
+                    e.getReferenceResponse(),
+                    e.getTolerance(),
+                    e.getRubric(),
+                    e.getTurns() == null ? List.of() : toTurns(e.getTurns()),
+                    e.getSkills(),
+                    e.getTools(),
+                    e.getMcps()));
         }
         return list;
     }
 
-    public Path datasetPath() {
-        return Path.of(datasetDir).toAbsolutePath().normalize();
-    }
-
-    public Path requireDataset(String name) {
+    /** 校验数据集名并确认存在（原 requireDataset 文案不变；404 = 表无该行） */
+    public void requireDataset(String name) {
         if (name == null || !DATASET_NAME_RE.matcher(name).matches()) {
             throw new ApiException(400, "非法数据集文件名: " + name);
         }
-        Path p = datasetPath().resolve(name).normalize();
-        if (!p.startsWith(datasetPath())) {
-            throw new ApiException(400, "非法数据集文件名: " + name);
-        }
-        if (!Files.isRegularFile(p)) {
+        if (datasetMapper.selectById(name) == null) {
             throw new ApiException(404, "数据集不存在: " + name);
         }
-        return p;
     }
 
-    public long countLines(Path p) {
-        try (Stream<String> s = Files.lines(p, StandardCharsets.UTF_8)) {
-            return s.filter(l -> !l.isBlank()).count();
-        } catch (IOException e) {
-            return -1;
-        }
-    }
-
-    private List<Map<String, Object>> readAllSamples(Path p) {
-        List<Map<String, Object>> samples = new ArrayList<>();
-        int seq = 0;
-        try (var reader = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.isBlank()) {
-                    continue;
+    /**
+     * 全库搜索引用了指定名称（带双引号精确匹配）的样本行，返回「数据集名 第N行」引用清单
+     * （自定义评测器删除前置校验用，替代原目录逐文件 contains 扫描，输出格式不变）。
+     */
+    public List<String> searchGraderReferences(String graderName) {
+        String needle = "\"" + graderName + "\"";
+        List<String> refs = new ArrayList<>();
+        for (DatasetEntity d : datasetMapper.selectList(
+                Wrappers.<DatasetEntity>lambdaQuery().orderByAsc(DatasetEntity::getName))) {
+            int seq = 0;
+            for (DatasetSampleEntity e : rowsOf(d.getName())) {
+                seq++;
+                if (buildRaw(e).contains(needle)) {
+                    refs.add(d.getName() + " 第" + seq + "行");
                 }
-                samples.add(parseSampleRow(line, ++seq));
             }
-        } catch (IOException e) {
+        }
+        return refs;
+    }
+
+    // ---------------- 内部：行读取与视图重建 ----------------
+
+    private List<DatasetSampleEntity> rowsOf(String name) {
+        return sampleMapper.selectList(Wrappers.<DatasetSampleEntity>lambdaQuery()
+                .eq(DatasetSampleEntity::getDatasetName, name)
+                .orderByAsc(DatasetSampleEntity::getId));
+    }
+
+    private long countOf(String name) {
+        return sampleMapper.selectCount(Wrappers.<DatasetSampleEntity>lambdaQuery()
+                .eq(DatasetSampleEntity::getDatasetName, name));
+    }
+
+    /** 按 seq（id 升序行号）定位行，越界文案与原 indexOfSeq 未命中一致 */
+    private static DatasetSampleEntity rowBySeq(List<DatasetSampleEntity> rows, int seq) {
+        if (seq < 1 || seq > rows.size()) {
+            throw new ApiException(404, "样本不存在: 第 " + seq + " 条（数据集可能已被修改，请刷新）");
+        }
+        return rows.get(seq - 1);
+    }
+
+    private List<Map<String, Object>> readAllSamples(String name) {
+        requireDataset(name);
+        try {
+            List<Map<String, Object>> samples = new ArrayList<>();
+            int seq = 0;
+            for (DatasetSampleEntity e : rowsOf(name)) {
+                samples.add(viewRow(e, ++seq));
+            }
+            return samples;
+        } catch (RuntimeException e) {
             throw new ApiException(500, "读取数据集失败: " + e.getMessage());
         }
-        return samples;
     }
 
-    private Map<String, Object> parseSampleRow(String line, int seq) {
+    /** 实体 → 样本视图行（键集与键序同原 parseSampleRow；DB 行恒为合法结构，valid 恒 true） */
+    private Map<String, Object> viewRow(DatasetSampleEntity e, int seq) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("seq", seq);
-        row.put("raw", line);
-        try {
-            JsonNode node = mapper.readTree(line);
-            row.put("id", node.path("id").asText("line-" + seq));
-            JsonNode turnsNode = node.path("turns");
-            if (turnsNode.isArray() && turnsNode.size() >= 2) {
-                StringBuilder q = new StringBuilder("【多轮 " + turnsNode.size() + " 轮】");
-                for (int i = 0; i < turnsNode.size(); i++) {
-                    q.append(" 轮").append(i + 1).append("：").append(turnsNode.get(i).path("query").asText(""));
-                }
-                row.put("sampleType", "multi");
-                row.put("query", q.toString());
-                row.put("turnsCount", turnsNode.size());
-                row.put("turns", mapper.convertValue(turnsNode, List.class));
-            } else {
-                row.put("sampleType", "single");
-                row.put("query", node.path("query").asText(""));
-                row.put("turnsCount", 0);
-                row.put("turns", List.of());
+        row.put("raw", buildRaw(e));
+        row.put("id", e.getSampleId() != null ? e.getSampleId() : "line-" + seq);
+        if (e.getTurns() != null) {
+            StringBuilder q = new StringBuilder("【多轮 " + e.getTurns().size() + " 轮】");
+            for (int i = 0; i < e.getTurns().size(); i++) {
+                Object tq = e.getTurns().get(i).get("query");
+                q.append(" 轮").append(i + 1).append("：").append(tq instanceof String s ? s : "");
             }
-            row.put("response", node.path("response").asText(null));
-            JsonNode ref = node.path("reference_response");
-            row.put("referenceResponse",
-                    ref.isMissingNode() || ref.isNull() ? null
-                            : ref.isTextual() ? ref.asText() : mapper.writeValueAsString(ref));
-            row.put("tolerance", node.path("tolerance").isNumber() ? node.path("tolerance").asDouble() : null);
-            row.put("skills", parseStringList(node.path("skills")));
-            row.put("tools", parseStringList(node.path("tools")));
-            row.put("mcps", parseStringList(node.path("mcps")));
-            row.put("valid", true);
-        } catch (Exception e) {
-            row.put("valid", false);
-            row.put("error", "JSON 解析失败: " + e.getMessage());
+            row.put("sampleType", "multi");
+            row.put("query", q.toString());
+            row.put("turnsCount", e.getTurns().size());
+            row.put("turns", e.getTurns());
+        } else {
+            row.put("sampleType", "single");
+            row.put("query", e.getQuery() == null ? "" : e.getQuery());
+            row.put("turnsCount", 0);
+            row.put("turns", List.of());
         }
+        row.put("response", e.getResponse());
+        row.put("referenceResponse", refView(e.getReferenceResponse()));
+        row.put("tolerance", e.getTolerance());
+        row.put("skills", e.getSkills());
+        row.put("tools", e.getTools());
+        row.put("mcps", e.getMcps());
+        row.put("valid", true);
         return row;
     }
 
-    private String buildSampleLine(EvalSampleRequest req, Path p, int excludeSeq) {
+    /** 参考答案展示形态（同原 parseSampleRow：文本原样、非文本序列化为 JSON 串） */
+    private String refView(Object v) {
+        if (v == null) {
+            return null;
+        }
+        if (v instanceof String s) {
+            return s;
+        }
+        return mapper.valueToTree(v).toString();
+    }
+
+    /** 按原文件行键序重建 raw JSONL 行（NULL 列省略键，与原 buildSampleLine 写出键序一致） */
+    private String buildRaw(DatasetSampleEntity e) {
+        ObjectNode n = mapper.createObjectNode();
+        if (e.getSampleId() != null) {
+            n.put("id", e.getSampleId());
+        }
+        if (e.getQuery() != null) {
+            n.put("query", e.getQuery());
+        }
+        if (e.getResponse() != null) {
+            n.put("response", e.getResponse());
+        }
+        if (e.getTurns() != null) {
+            n.set("turns", mapper.valueToTree(e.getTurns()));
+        }
+        if (e.getReferenceResponse() != null) {
+            n.set("reference_response", mapper.valueToTree(e.getReferenceResponse()));
+        }
+        if (e.getTolerance() != null) {
+            n.put("tolerance", e.getTolerance());
+        }
+        if (e.getSkills() != null) {
+            n.set("skills", mapper.valueToTree(e.getSkills()));
+        }
+        if (e.getTools() != null) {
+            n.set("tools", mapper.valueToTree(e.getTools()));
+        }
+        if (e.getMcps() != null) {
+            n.set("mcps", mapper.valueToTree(e.getMcps()));
+        }
+        if (e.getRubric() != null) {
+            n.put("rubric", e.getRubric());
+        }
+        return n.toString();
+    }
+
+    // ---------------- 内部：写路径（校验与文案同原 buildSampleLine） ----------------
+
+    /** 请求 → 样本实体（excludeRowId 为编辑场景排除自身；id 查重含 line-{seq} 伪 id，与原全行扫描同构） */
+    private DatasetSampleEntity buildSampleEntity(String name, EvalSampleRequest req, Long excludeRowId) {
         String id = req.id() == null ? "" : req.id().trim();
         if (id.isEmpty()) {
             id = "q-" + STAMP.format(LocalDateTime.now()) + "-"
                     + Integer.toHexString((int) (System.currentTimeMillis() & 0xfff));
         }
-        for (Map<String, Object> r : readAllSamples(p)) {
-            if ((int) r.get("seq") != excludeSeq && id.equals(r.get("id"))) {
+        int seq = 0;
+        for (DatasetSampleEntity r : rowsOf(name)) {
+            seq++;
+            if (excludeRowId != null && excludeRowId.equals(r.getId())) {
+                continue;
+            }
+            String rid = r.getSampleId() != null ? r.getSampleId() : "line-" + seq;
+            if (id.equals(rid)) {
                 throw new ApiException(409, "id 已存在: " + id);
             }
         }
-        try {
-            ObjectNode node = mapper.createObjectNode();
-            node.put("id", id);
-            String sampleType = req.sampleType() == null ? "" : req.sampleType().trim().toLowerCase();
-            List<EvalSampleRequest.TurnRequest> turns = req.turns() == null ? List.of() : req.turns();
-            if (!sampleType.isEmpty() && !"single".equals(sampleType) && !"multi".equals(sampleType)) {
-                throw new ApiException(400, "sampleType 仅支持 single 或 multi");
+        DatasetSampleEntity e = new DatasetSampleEntity();
+        e.setDatasetName(name);
+        e.setSampleId(id);
+        String sampleType = req.sampleType() == null ? "" : req.sampleType().trim().toLowerCase();
+        List<EvalSampleRequest.TurnRequest> turns = req.turns() == null ? List.of() : req.turns();
+        if (!sampleType.isEmpty() && !"single".equals(sampleType) && !"multi".equals(sampleType)) {
+            throw new ApiException(400, "sampleType 仅支持 single 或 multi");
+        }
+        boolean isMulti = "multi".equals(sampleType) || (sampleType.isEmpty() && !turns.isEmpty());
+        if (isMulti) {
+            if (turns.size() < 2) {
+                throw new ApiException(400, "多轮样本至少需要 2 轮");
             }
-            boolean isMulti = "multi".equals(sampleType) || (sampleType.isEmpty() && !turns.isEmpty());
-            if (isMulti) {
-                if (turns.size() < 2) {
-                    throw new ApiException(400, "多轮样本至少需要 2 轮");
+            List<Map<String, Object>> ts = new ArrayList<>();
+            for (int i = 0; i < turns.size(); i++) {
+                EvalSampleRequest.TurnRequest turn = turns.get(i);
+                String q = turn == null || turn.query() == null ? "" : turn.query().trim();
+                if (q.isBlank()) {
+                    throw new ApiException(400, "第 " + (i + 1) + " 轮 query 不能为空");
                 }
-                ArrayNode arr = node.putArray("turns");
-                for (int i = 0; i < turns.size(); i++) {
-                    EvalSampleRequest.TurnRequest turn = turns.get(i);
-                    String q = turn == null || turn.query() == null ? "" : turn.query().trim();
-                    if (q.isBlank()) {
-                        throw new ApiException(400, "第 " + (i + 1) + " 轮 query 不能为空");
-                    }
-                    ObjectNode t = arr.addObject();
-                    t.put("query", q);
-                    if (turn != null && turn.response() != null && !turn.response().isBlank()) {
-                        t.put("response", turn.response().trim());
-                    }
+                Map<String, Object> t = new LinkedHashMap<>();
+                t.put("query", q);
+                if (turn != null && turn.response() != null && !turn.response().isBlank()) {
+                    t.put("response", turn.response().trim());
                 }
-            } else {
-                if (req.query() == null || req.query().isBlank()) {
-                    throw new ApiException(400, "query 不能为空");
-                }
-                node.put("query", req.query().trim());
-                if (req.response() != null && !req.response().isBlank()) {
-                    node.put("response", req.response().trim());
-                }
+                ts.add(t);
             }
-            String type = req.referenceType() == null ? "" : req.referenceType().trim();
-            if (!type.isEmpty()) {
-                String text = req.referenceText() == null ? "" : req.referenceText().trim();
-                switch (type) {
-                    case "string" -> node.put("reference_response", text);
-                    case "number" -> {
-                        try {
-                            if (text.matches("-?\\d+")) {
-                                node.put("reference_response", Long.parseLong(text));
-                            } else {
-                                node.put("reference_response", Double.parseDouble(text));
-                            }
-                        } catch (NumberFormatException e) {
-                            throw new ApiException(400, "数字类型解析失败: " + text);
+            e.setTurns(ts);
+        } else {
+            if (req.query() == null || req.query().isBlank()) {
+                throw new ApiException(400, "query 不能为空");
+            }
+            e.setQuery(req.query().trim());
+            if (req.response() != null && !req.response().isBlank()) {
+                e.setResponse(req.response().trim());
+            }
+        }
+        String type = req.referenceType() == null ? "" : req.referenceType().trim();
+        if (!type.isEmpty()) {
+            String text = req.referenceText() == null ? "" : req.referenceText().trim();
+            switch (type) {
+                case "string" -> e.setReferenceResponse(text);
+                case "number" -> {
+                    try {
+                        if (text.matches("-?\\d+")) {
+                            e.setReferenceResponse(Long.parseLong(text));
+                        } else {
+                            e.setReferenceResponse(Double.parseDouble(text));
                         }
+                    } catch (NumberFormatException ex) {
+                        throw new ApiException(400, "数字类型解析失败: " + text);
                     }
-                    case "array" -> {
-                        JsonNode arr;
-                        try {
-                            arr = mapper.readTree(text);
-                        } catch (Exception e) {
-                            throw new ApiException(400, "数组类型解析失败（须形如 [\"北宋\",\"唐代\"]）");
-                        }
-                        if (!arr.isArray()) {
-                            throw new ApiException(400, "数组类型须形如 [\"北宋\",\"唐代\"]");
-                        }
-                        node.set("reference_response", arr);
-                    }
-                    default -> throw new ApiException(400, "未知 referenceType: " + type + "（string|number|array）");
                 }
-            }
-            if (req.tolerance() != null) {
-                node.put("tolerance", req.tolerance());
-            }
-            writeStringList(node, "skills", req.skills());
-            writeStringList(node, "tools", req.tools());
-            writeStringList(node, "mcps", req.mcps());
-            return mapper.writeValueAsString(node);
-        } catch (ApiException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ApiException(500, "样本序列化失败: " + e.getMessage());
-        }
-    }
-
-    private List<String> readPhysicalLines(Path p) {
-        try {
-            return Files.readAllLines(p, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new ApiException(500, "读取数据集失败: " + e.getMessage());
-        }
-    }
-
-    private int indexOfSeq(List<String> lines, int seq) {
-        int n = 0;
-        for (int i = 0; i < lines.size(); i++) {
-            if (!lines.get(i).isBlank() && ++n == seq) {
-                return i;
+                case "array" -> {
+                    JsonNode arr;
+                    try {
+                        arr = mapper.readTree(text);
+                    } catch (Exception ex) {
+                        throw new ApiException(400, "数组类型解析失败（须形如 [\"北宋\",\"唐代\"]）");
+                    }
+                    if (!arr.isArray()) {
+                        throw new ApiException(400, "数组类型须形如 [\"北宋\",\"唐代\"]");
+                    }
+                    e.setReferenceResponse(mapper.convertValue(arr, Object.class));
+                }
+                default -> throw new ApiException(400, "未知 referenceType: " + type + "（string|number|array）");
             }
         }
-        return -1;
+        if (req.tolerance() != null) {
+            e.setTolerance(req.tolerance());
+        }
+        e.setSkills(cleanList(req.skills()));
+        e.setTools(cleanList(req.tools()));
+        e.setMcps(cleanList(req.mcps()));
+        return e;
     }
 
-    private void rewrite(Path p, List<String> lines) {
-        Path tmp = p.resolveSibling(p.getFileName() + ".tmp");
-        try {
-            Files.write(tmp, lines, StandardCharsets.UTF_8);
-            Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            try {
-                Files.deleteIfExists(tmp);
-            } catch (IOException ignore) {
-            }
-            throw new ApiException(500, "写入数据集失败: " + e.getMessage());
-        }
-    }
-
-    private List<EvalSample.Turn> parseTurns(JsonNode turnsNode) {
-        if (turnsNode == null || !turnsNode.isArray()) {
-            return List.of();
-        }
-        if (turnsNode.size() == 1) {
-            throw new IllegalArgumentException("turns 仅 1 轮，请改用单轮 query/response 字段");
-        }
-        List<EvalSample.Turn> turns = new ArrayList<>();
-        for (JsonNode t : turnsNode) {
-            String q = t.path("query").asText("");
-            if (q.isBlank()) {
-                throw new IllegalArgumentException("turns 中存在 query 为空的轮次");
-            }
-            turns.add(new EvalSample.Turn(q, t.path("response").asText(null)));
-        }
-        return turns;
-    }
-
-    private static List<String> parseStringList(JsonNode node) {
-        if (node == null || node.isMissingNode() || node.isNull() || !node.isArray()) {
+    /** 字符串清单清洗（语义同原 writeStringList：空/全空白 → 不写该键 → NULL） */
+    private static List<String> cleanList(List<String> list) {
+        if (list == null || list.isEmpty()) {
             return null;
         }
-        List<String> list = new ArrayList<>();
-        for (JsonNode e : node) {
-            if (e.isTextual()) {
-                String s = e.asText();
-                if (s != null && !s.isBlank()) list.add(s);
-            }
-        }
-        return list.isEmpty() ? null : list;
-    }
-
-    private static void writeStringList(ObjectNode node, String key, List<String> list) {
-        if (list == null || list.isEmpty()) return;
         List<String> clean = list.stream()
                 .filter(s -> s != null && !s.isBlank())
                 .toList();
-        if (clean.isEmpty()) return;
-        ArrayNode arr = node.putArray(key);
-        clean.forEach(arr::add);
+        return clean.isEmpty() ? null : clean;
+    }
+
+    /** turns JSON 列 → 多轮 record（行已过写路径/迁移校验，无需再抛错） */
+    private static List<EvalSample.Turn> toTurns(List<Map<String, Object>> turns) {
+        List<EvalSample.Turn> list = new ArrayList<>();
+        for (Map<String, Object> t : turns) {
+            Object q = t.get("query");
+            Object r = t.get("response");
+            list.add(new EvalSample.Turn(q instanceof String s ? s : "", r instanceof String s ? s : null));
+        }
+        return list;
     }
 }
