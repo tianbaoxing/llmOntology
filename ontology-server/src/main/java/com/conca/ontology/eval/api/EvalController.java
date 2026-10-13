@@ -1,10 +1,7 @@
 package com.conca.ontology.eval.api;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -230,13 +227,13 @@ public class EvalController {
     }
 
     @GetMapping("/runs/{id}/file")
-    @Operation(summary = "下载评测结果", description = "下载完整结果 JSON（样本明细 + 轨迹 + 各评测器得分）")
-    public ResponseEntity<Resource> download(@PathVariable String id) {
-        Path path = runService.requireResultFile(id);
+    @Operation(summary = "下载评测结果", description = "下载完整结果 JSON（样本明细 + 轨迹 + 各评测器得分；P6 起从库重建输出）")
+    public ResponseEntity<byte[]> download(@PathVariable String id) {
+        byte[] body = runService.exportResult(id);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + id + ".json\"")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new FileSystemResource(path));
+                .body(body);
     }
 
     @DeleteMapping("/runs/{id}")

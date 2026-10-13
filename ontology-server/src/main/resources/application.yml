@@ -84,6 +84,8 @@ app:
   eval:
     # 自定义评测器存量迁移源（P6 起 DB 化，仅 CustomGraderMigrator 启动导入用；已归档 .migrated 则跳过）
     custom-graders-file: data/eval/custom-graders.json
+    # 评测结果存量迁移源目录（P6 起任务结果 DB 化，仅 EvalRunMigrator 启动导入用；已归档 .migrated 则跳过）
+    result-dir: data/eval/results
     # 样本级通过阈值（样本均分 ≥ 此值且无 error 记通过），summary 通过率与回归对比翻转矩阵同口径
     pass-threshold: 0.8
     judge:

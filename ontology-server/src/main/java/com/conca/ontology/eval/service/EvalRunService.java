@@ -2,9 +2,6 @@ package com.conca.ontology.eval.service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -13,23 +10,27 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.agent.service.AgentSessionService;
 import com.conca.ontology.eval.AgenticJudgeHolder;
 import com.conca.ontology.eval.Grader;
 import com.conca.ontology.eval.JudgeClient;
+import com.conca.ontology.eval.entity.EvalRunEntity;
+import com.conca.ontology.eval.entity.EvalRunSampleEntity;
+import com.conca.ontology.eval.mapper.EvalRunMapper;
+import com.conca.ontology.eval.mapper.EvalRunSampleMapper;
 import com.conca.ontology.eval.model.AgentRecord;
 import com.conca.ontology.eval.model.EvalSample;
 import com.conca.ontology.eval.model.EvalTask;
@@ -37,7 +38,6 @@ import com.conca.ontology.eval.model.GraderInput;
 import com.conca.ontology.eval.model.GraderScore;
 import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.shared.web.ApiException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
@@ -58,6 +58,12 @@ import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.harness.agent.HarnessAgent;
 
+/**
+ * 评测任务存储层（P6 起 DB 化：eval_run + eval_run_sample，替代 data/eval/results/*.json）。
+ * 运行态任务 start 时 INSERT（status=running），进度 UPDATE，完成时样本批量 INSERT + 任务行
+ * UPDATE（TransactionTemplate 单事务）；历史读路径按原结果文件语义重建 Map（NULL 的 key 省略，
+ * status NULL 按 success 处理），公共签名与 404/409 文案不变。
+ */
 @Service
 public class EvalRunService {
 
@@ -65,7 +71,6 @@ public class EvalRunService {
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final long AGENT_TIMEOUT_MINUTES = 5;
     private static final Pattern RUN_ID_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{1,3}$");
-    private static final Pattern RUN_FILE_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{1,3}\\.json$");
     private static final int TRUNCATE = 500;
 
     private final ObjectProvider<HarnessAgent> agentProvider;
@@ -75,9 +80,9 @@ public class EvalRunService {
     private final AgentSessionService agentSessionService;
     private final EvalGraderRegistry graderRegistry;
     private final EvalDatasetService datasetService;
-
-    @Value("${app.eval.result-dir:data/eval/results}")
-    private String resultDir;
+    private final EvalRunMapper runMapper;
+    private final EvalRunSampleMapper sampleMapper;
+    private final TransactionTemplate txTemplate;
 
     @Value("${app.eval.pass-threshold:0.8}")
     private double passThreshold;
@@ -94,7 +99,8 @@ public class EvalRunService {
     public EvalRunService(ObjectProvider<HarnessAgent> agentProvider,
             ObjectMapper mapper, JudgeClient judgeClient, AgenticJudgeHolder agenticJudgeHolder,
             AgentSessionService agentSessionService, EvalGraderRegistry graderRegistry,
-            EvalDatasetService datasetService) {
+            EvalDatasetService datasetService,
+            EvalRunMapper runMapper, EvalRunSampleMapper sampleMapper, TransactionTemplate txTemplate) {
         this.agentProvider = agentProvider;
         this.mapper = mapper;
         this.judgeClient = judgeClient;
@@ -102,6 +108,9 @@ public class EvalRunService {
         this.agentSessionService = agentSessionService;
         this.graderRegistry = graderRegistry;
         this.datasetService = datasetService;
+        this.runMapper = runMapper;
+        this.sampleMapper = sampleMapper;
+        this.txTemplate = txTemplate;
     }
 
     public synchronized Map<String, Object> start(String dataset, List<String> graderNames, Integer judgeRuns, String userId) {
@@ -109,27 +118,12 @@ public class EvalRunService {
         if (t != null && "running".equals(t.status)) {
             throw new ApiException(409, "已有评测任务进行中，请等待完成（任务 id：" + t.id + "，当前进度：" + t.detail + "）");
         }
-        Path dir = resultPath();
-        if (Files.isDirectory(dir)) {
-            try (Stream<Path> s = Files.list(dir)) {
-                for (Path p : s.filter(Files::isRegularFile)
-                        .filter(p -> RUN_FILE_RE.matcher(p.getFileName().toString()).matches())
-                        .toList()) {
-                    try {
-                        Map<String, Object> saved = mapper.readValue(p.toFile(), Map.class);
-                        if ("running".equals(saved.get("status"))) {
-                            String fid = p.getFileName().toString().replaceFirst("\\.json$", "");
-                            throw new ApiException(409, "检测到未完成的历史评测任务「" + fid
-                                    + "」（服务重启或崩溃前遗留），请手动处理该结果文件后重试，或重启服务清理内存态");
-                        }
-                    } catch (ApiException ae) {
-                        throw ae;
-                    } catch (Exception ignore) {
-                    }
-                }
-            } catch (IOException e) {
-                log.warn("start: scan result dir failed: {}", e.getMessage());
-            }
+        List<EvalRunEntity> zombies = runMapper.selectList(new LambdaQueryWrapper<EvalRunEntity>()
+                .eq(EvalRunEntity::getStatus, "running")
+                .orderByAsc(EvalRunEntity::getRunId));
+        if (!zombies.isEmpty()) {
+            throw new ApiException(409, "检测到未完成的历史评测任务「" + zombies.get(0).getRunId()
+                    + "」（服务重启或崩溃前遗留），请手动处理该结果文件后重试，或重启服务清理内存态");
         }
         Integer runs = null;
         if (judgeRuns != null) {
@@ -175,7 +169,7 @@ public class EvalRunService {
         EvalTask task = new EvalTask(id, dataset, names, runs, userId);
         lastPersistAtMs = 0L;
         lastPersistPercent = -1;
-        writeTaskMeta(task);
+        insertRunRow(task);
         current.set(task);
         try {
             executor.submit(() -> runEval(task));
@@ -225,82 +219,64 @@ public class EvalRunService {
         List<Map<String, Object>> runs = new ArrayList<>();
         EvalTask running = current.get();
         String runningId = (running != null && "running".equals(running.status)) ? running.id : null;
-        Path dir = resultPath();
-        if (Files.isDirectory(dir)) {
-            try (Stream<Path> s = Files.list(dir)) {
-                for (Path p : s.filter(Files::isRegularFile)
-                        .filter(p -> RUN_FILE_RE.matcher(p.getFileName().toString()).matches())
-                        .sorted(Comparator.comparing((Path p) -> p.getFileName().toString(), Comparator.reverseOrder()))
-                        .toList()) {
-                    String id = p.getFileName().toString().replaceFirst("\\.json$", "");
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("id", id);
-                    try {
-                        Map<String, Object> saved = mapper.readValue(p.toFile(), Map.class);
-                        m.put("dataset", saved.get("dataset"));
-                        m.put("finishedAt", saved.get("finishedAt"));
-                        m.put("startedAt", saved.get("startedAt"));
-                        String st = saved.get("status") == null ? "success" : (String) saved.get("status");
-                        if ("running".equals(st) && !id.equals(runningId)) {
-                            m.put("status", "interrupted");
-                            m.put("_zombie", true);
-                            m.put("detail", saved.get("detail") == null ? "检测到服务重启前未完成任务（当前未续跑）"
-                                    : saved.get("detail"));
-                            m.put("percent", saved.get("percent"));
-                        } else {
-                            m.put("status", st);
-                        }
-                        if (id.equals(runningId)) {
-                            m.put("_live", true);
-                            m.put("detail", running.detail);
-                            m.put("percent", running.percent);
-                            m.put("graders", running.graderNames);
-                        }
-                        m.put("summary", saved.get("summary"));
-                        if (saved.get("error") != null) {
-                            m.put("error", saved.get("error"));
-                        }
-                    } catch (Exception e) {
-                        m.put("error", "结果文件解析失败: " + e.getMessage());
-                    }
-                    runs.add(m);
-                }
-            } catch (IOException e) {
-                throw new ApiException(500, "扫描评测结果目录失败: " + e.getMessage());
+        for (EvalRunEntity e : runMapper.selectList(
+                new LambdaQueryWrapper<EvalRunEntity>().orderByDesc(EvalRunEntity::getRunId))) {
+            String id = e.getRunId();
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", id);
+            m.put("dataset", e.getDataset());
+            m.put("finishedAt", e.getFinishedAt());
+            m.put("startedAt", e.getStartedAt());
+            String st = e.getStatus() == null ? "success" : e.getStatus();
+            if ("running".equals(st) && !id.equals(runningId)) {
+                m.put("status", "interrupted");
+                m.put("_zombie", true);
+                m.put("detail", e.getDetail() == null ? "检测到服务重启前未完成任务（当前未续跑）"
+                        : e.getDetail());
+                m.put("percent", e.getPercent());
+            } else {
+                m.put("status", st);
             }
+            if (id.equals(runningId)) {
+                m.put("_live", true);
+                m.put("detail", running.detail);
+                m.put("percent", running.percent);
+                m.put("graders", running.graderNames);
+            }
+            m.put("summary", toSummaryMap(e));
+            if (e.getError() != null) {
+                m.put("error", e.getError());
+            }
+            runs.add(m);
         }
         return Map.of("runs", runs);
     }
 
-    public Path requireResultFile(String taskId) {
-        if (taskId == null || !RUN_ID_RE.matcher(taskId).matches()) {
-            throw new ApiException(400, "非法任务 id: " + taskId);
+    /** 下载用：按原结果文件结构重建并序列化（保持 attachment 文件名 {taskId}.json） */
+    public byte[] exportResult(String taskId) {
+        Map<String, Object> result = requireResult(taskId);
+        try {
+            return mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(result);
+        } catch (IOException e) {
+            throw new ApiException(500, "评测结果序列化失败: " + e.getMessage());
         }
-        Path p = resultPath().resolve(taskId + ".json").normalize();
-        if (!p.startsWith(resultPath())) {
-            throw new ApiException(400, "非法任务 id: " + taskId);
-        }
-        if (!Files.isRegularFile(p)) {
-            throw new ApiException(404, "评测结果不存在: " + taskId);
-        }
-        return p;
     }
 
     public synchronized Map<String, Object> deleteRun(String taskId, SessionUser operator) {
-        Path p = requireResultFile(taskId);
-        long size = 0L;
-        try {
-            size = Files.size(p);
-        } catch (IOException ignored) {}
-        log.warn("[EVAL-DELETE] 准备删除结果文件 id={} 操作者={}({}) 路径={} 字节={}",
-                taskId, operator == null ? "null" : operator.username(),
-                operator == null ? "null" : operator.userId(), p.toAbsolutePath(), size);
-        try {
-            Files.delete(p);
-        } catch (IOException e) {
-            log.error("[EVAL-DELETE] 删除失败 id={}: {}", taskId, e.getMessage());
-            throw new ApiException(500, "删除评测结果失败: " + e.getMessage());
+        if (taskId == null || !RUN_ID_RE.matcher(taskId).matches()) {
+            throw new ApiException(400, "非法任务 id: " + taskId);
         }
+        if (runMapper.selectById(taskId) == null) {
+            throw new ApiException(404, "评测结果不存在: " + taskId);
+        }
+        log.warn("[EVAL-DELETE] 准备删除评测记录 id={} 操作者={}({})",
+                taskId, operator == null ? "null" : operator.username(),
+                operator == null ? "null" : operator.userId());
+        txTemplate.executeWithoutResult(tx -> {
+            sampleMapper.delete(new LambdaQueryWrapper<EvalRunSampleEntity>()
+                    .eq(EvalRunSampleEntity::getRunId, taskId));
+            runMapper.deleteById(taskId);
+        });
         log.warn("[EVAL-DELETE] 删除成功 id={}", taskId);
         int remaining;
         try {
@@ -310,7 +286,7 @@ public class EvalRunService {
         }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", taskId);
-        m.put("deletedBytes", size);
+        m.put("deletedBytes", 0);
         m.put("remaining", remaining);
         return m;
     }
@@ -385,7 +361,7 @@ public class EvalRunService {
         result.put("summary", ns);
         String st = num(ns.get("humanPending")) == 0 ? "success" : "awaiting_human";
         result.put("status", st);
-        persistResult(taskId, result);
+        persistHumanScore(taskId, sampleId, scores, ns, st);
 
         EvalTask t = current.get();
         if (t != null && t.id.equals(taskId)) {
@@ -404,20 +380,86 @@ public class EvalRunService {
         return m;
     }
 
-    private void persistResult(String taskId, Map<String, Object> result) {
-        try {
-            Path dir = Files.createDirectories(resultPath());
-            Path tmp = dir.resolve(taskId + ".json.tmp");
-            Path fin = dir.resolve(taskId + ".json");
-            try {
-                mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), result);
-                Files.move(tmp, fin, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } finally {
-                Files.deleteIfExists(tmp);
+    /** 人工评分落库：样本行 scores 就地改写 + 任务行 summary/status 重算（单事务） */
+    private void persistHumanScore(String taskId, String sampleId,
+            List<Map<String, Object>> scores, Map<String, Object> ns, String st) {
+        txTemplate.executeWithoutResult(tx -> {
+            EvalRunSampleEntity srow = sampleMapper.selectOne(new LambdaQueryWrapper<EvalRunSampleEntity>()
+                    .eq(EvalRunSampleEntity::getRunId, taskId)
+                    .eq(EvalRunSampleEntity::getSampleId, sampleId));
+            if (srow != null) {
+                srow.setScores(scores);
+                sampleMapper.updateById(srow);
             }
-        } catch (IOException e) {
-            throw new ApiException(500, "写入评测结果失败: " + e.getMessage());
+            EvalRunEntity run = new EvalRunEntity();
+            run.setRunId(taskId);
+            run.applySummary(ns);
+            run.setStatus(st);
+            runMapper.updateById(run);
+        });
+    }
+
+    /** start 时首写运行态任务行（status=running，summary/finished_at 各列为 NULL） */
+    private void insertRunRow(EvalTask task) {
+        try {
+            EvalRunEntity row = new EvalRunEntity();
+            row.setRunId(task.id);
+            row.setDataset(task.dataset);
+            row.setGraders(task.graderNames);
+            row.setJudgeRuns(task.judgeRuns);
+            row.setStatus(task.status);
+            row.setDetail(task.detail);
+            row.setPercent(task.percent);
+            row.setUserId(task.userId);
+            row.setStartedAt(task.startedAt.toString());
+            runMapper.insert(row);
+        } catch (Exception e) {
+            log.warn("insertRunRow failed id={}: {}", task.id, e.getMessage());
         }
+    }
+
+    /** 进度落库：UPDATE status/detail/percent/error（null 字段不覆盖，对齐原整文件覆写语义） */
+    private void writeTaskMeta(EvalTask task) {
+        try {
+            EvalRunEntity row = new EvalRunEntity();
+            row.setRunId(task.id);
+            row.setStatus(task.status);
+            row.setDetail(task.detail);
+            row.setPercent(task.percent);
+            row.setError(task.error);
+            runMapper.updateById(row);
+        } catch (Exception e) {
+            log.warn("writeTaskMeta failed id={} status={}: {}", task.id, task.status, e.getMessage());
+        }
+    }
+
+    private void persistProgress(EvalTask task, boolean force) {
+        if (task == null) return;
+        int p = task.percent;
+        long now = System.currentTimeMillis();
+        if (!force && p == lastPersistPercent && (now - lastPersistAtMs) < 1000L) {
+            return;
+        }
+        lastPersistPercent = p;
+        lastPersistAtMs = now;
+        writeTaskMeta(task);
+    }
+
+    /** 完成落库：样本行批量 INSERT + 任务行 UPDATE（单事务；失败抛出由 runEval 兜底置 failed） */
+    private void completeRun(EvalTask task, Map<String, Object> result,
+            List<Map<String, Object>> sampleResults) {
+        txTemplate.executeWithoutResult(tx -> {
+            for (Map<String, Object> row : sampleResults) {
+                sampleMapper.insert(EvalRunSampleEntity.of(task.id, row));
+            }
+            EvalRunEntity run = new EvalRunEntity();
+            run.setRunId(task.id);
+            run.setDatasetHash(result.get("datasetHash") instanceof String h ? h : null);
+            run.setFinishedAt(result.get("finishedAt") instanceof String f ? f : null);
+            run.setStatus(result.get("status") instanceof String s ? s : null);
+            run.applySummary(result.get("summary") instanceof Map<?, ?> sm ? (Map<String, Object>) sm : null);
+            runMapper.updateById(run);
+        });
     }
 
     private void runEval(EvalTask task) {
@@ -514,7 +556,7 @@ public class EvalRunService {
             result.put("status", status);
             result.put("summary", summary);
             result.put("samples", sampleResults);
-            writeResult(task, result);
+            completeRun(task, result, sampleResults);
 
             task.result = result;
             task.resultFile = task.id + ".json";
@@ -1176,70 +1218,118 @@ public class EvalRunService {
         }
     }
 
-    private void writeTaskMeta(EvalTask task) {
-        try {
-            Path dir = Files.createDirectories(resultPath());
-            Path tmp = dir.resolve(task.id + ".json.tmp");
-            Path fin = dir.resolve(task.id + ".json");
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", task.id);
-            m.put("dataset", task.dataset);
-            m.put("graders", task.graderNames);
-            m.put("judgeRuns", task.judgeRuns);
-            m.put("startedAt", task.startedAt.toString());
-            m.put("status", task.status);
-            m.put("detail", task.detail);
-            m.put("percent", task.percent);
-            m.put("error", task.error);
-            m.put("userId", task.userId);
-            try {
-                mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), m);
-                Files.move(tmp, fin, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } finally {
-                Files.deleteIfExists(tmp);
-            }
-        } catch (IOException e) {
-            log.warn("writeTaskMeta failed id={} status={}: {}", task.id, task.status, e.getMessage());
-        }
-    }
-
-    private void persistProgress(EvalTask task, boolean force) {
-        if (task == null) return;
-        int p = task.percent;
-        long now = System.currentTimeMillis();
-        if (!force && p == lastPersistPercent && (now - lastPersistAtMs) < 1000L) {
-            return;
-        }
-        lastPersistPercent = p;
-        lastPersistAtMs = now;
-        writeTaskMeta(task);
-    }
-
-    private void writeResult(EvalTask task, Map<String, Object> result) throws IOException {
-        Path dir = Files.createDirectories(resultPath());
-        Path tmp = dir.resolve(task.id + ".json.tmp");
-        Path fin = dir.resolve(task.id + ".json");
-        try {
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), result);
-            Files.move(tmp, fin, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } finally {
-            Files.deleteIfExists(tmp);
-        }
-    }
-
     private Map<String, Object> readResult(String taskId) {
         if (taskId == null || !RUN_ID_RE.matcher(taskId).matches()) {
             return null;
         }
-        Path p = resultPath().resolve(taskId + ".json");
-        if (!Files.isRegularFile(p)) {
+        EvalRunEntity row = runMapper.selectById(taskId);
+        if (row == null) {
             return null;
         }
-        try {
-            return mapper.readValue(p.toFile(), Map.class);
-        } catch (IOException e) {
-            throw new ApiException(500, "评测结果文件读取失败: " + e.getMessage());
+        List<EvalRunSampleEntity> samples = sampleMapper.selectList(
+                new LambdaQueryWrapper<EvalRunSampleEntity>()
+                        .eq(EvalRunSampleEntity::getRunId, taskId)
+                        .orderByAsc(EvalRunSampleEntity::getId));
+        return toResultMap(row, samples);
+    }
+
+    /**
+     * 按原结果文件结构重建 Map：NULL 列对应 key 省略（summary/samples 键集随文件代次自然还原，
+     * status NULL 省略后由读取方按 success 处理）；键序对齐原 writeResult/writeTaskMeta 写出序。
+     */
+    private static Map<String, Object> toResultMap(EvalRunEntity e, List<EvalRunSampleEntity> samples) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", e.getRunId());
+        m.put("dataset", e.getDataset());
+        if (e.getDatasetHash() != null) {
+            m.put("datasetHash", e.getDatasetHash());
         }
+        m.put("graders", e.getGraders());
+        if (e.getJudgeRuns() != null) {
+            m.put("judgeRuns", e.getJudgeRuns());
+        }
+        m.put("startedAt", e.getStartedAt());
+        if (e.getFinishedAt() != null) {
+            m.put("finishedAt", e.getFinishedAt());
+        }
+        if (e.getStatus() != null) {
+            m.put("status", e.getStatus());
+        }
+        if (e.getDetail() != null) {
+            m.put("detail", e.getDetail());
+        }
+        if (e.getPercent() != null) {
+            m.put("percent", e.getPercent());
+        }
+        if (e.getError() != null) {
+            m.put("error", e.getError());
+        }
+        if (e.getUserId() != null) {
+            m.put("userId", e.getUserId());
+        }
+        Map<String, Object> summary = toSummaryMap(e);
+        if (summary != null) {
+            m.put("summary", summary);
+        }
+        if (e.getFinishedAt() != null || !samples.isEmpty()) {
+            m.put("samples", samples.stream().map(EvalRunService::toSampleRow).toList());
+        }
+        return m;
+    }
+
+    /** summary 12 列全 NULL（运行态行）返回 null；否则省略 NULL 键还原原代次键集 */
+    private static Map<String, Object> toSummaryMap(EvalRunEntity e) {
+        if (e.getTotal() == null && e.getPassCount() == null && e.getPassRate() == null
+                && e.getAvgScore() == null && e.getErrorCount() == null && e.getAvgDurationMs() == null
+                && e.getPromptTokens() == null && e.getCompletionTokens() == null && e.getJudge() == null
+                && e.getHumanPending() == null && e.getHumanScored() == null && e.getHumanSkipped() == null) {
+            return null;
+        }
+        Map<String, Object> s = new LinkedHashMap<>();
+        if (e.getTotal() != null) s.put("total", e.getTotal());
+        if (e.getPassCount() != null) s.put("passCount", e.getPassCount());
+        if (e.getPassRate() != null) s.put("passRate", e.getPassRate());
+        if (e.getAvgScore() != null) s.put("avgScore", e.getAvgScore());
+        if (e.getErrorCount() != null) s.put("errorCount", e.getErrorCount());
+        if (e.getAvgDurationMs() != null) s.put("avgDurationMs", e.getAvgDurationMs());
+        if (e.getPromptTokens() != null) s.put("promptTokens", e.getPromptTokens());
+        if (e.getCompletionTokens() != null) s.put("completionTokens", e.getCompletionTokens());
+        if (e.getJudge() != null) s.put("judge", e.getJudge());
+        if (e.getHumanPending() != null) s.put("humanPending", e.getHumanPending());
+        if (e.getHumanScored() != null) s.put("humanScored", e.getHumanScored());
+        if (e.getHumanSkipped() != null) s.put("humanSkipped", e.getHumanSkipped());
+        return s;
+    }
+
+    /** 样本行 Map：键序对齐 runEval 结果行写出序；NULL 列（老格式无 reference/tolerance 等）省略 */
+    private static Map<String, Object> toSampleRow(EvalRunSampleEntity s) {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("id", s.getSampleId());
+        r.put("query", s.getQuery());
+        if (s.getReferenceResponse() != null) {
+            r.put("referenceResponse", s.getReferenceResponse());
+        }
+        if (s.getTolerance() != null) {
+            r.put("tolerance", s.getTolerance());
+        }
+        if (s.getTurnCount() != null) {
+            r.put("turns", s.getTurnCount());
+        }
+        if (s.getResponseSource() != null) {
+            r.put("responseSource", s.getResponseSource());
+        }
+        r.put("answer", s.getAnswer());
+        r.put("toolCalls", s.getToolCalls());
+        if (s.getDialogue() != null) {
+            r.put("dialogue", s.getDialogue());
+        }
+        r.put("rounds", s.getRounds());
+        r.put("durationMs", s.getDurationMs());
+        r.put("promptTokens", s.getPromptTokens());
+        r.put("completionTokens", s.getCompletionTokens());
+        r.put("agentError", s.getAgentError());
+        r.put("scores", s.getScores());
+        return r;
     }
 
     private static String brief(String s) {
@@ -1247,9 +1337,5 @@ public class EvalRunService {
             return "";
         }
         return s.length() <= 30 ? s : s.substring(0, 30) + "…";
-    }
-
-    private Path resultPath() {
-        return Path.of(resultDir).toAbsolutePath().normalize();
     }
 }
