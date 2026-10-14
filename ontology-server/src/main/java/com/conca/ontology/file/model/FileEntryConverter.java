@@ -7,7 +7,7 @@ import com.conca.ontology.file.entity.FileMetadataRow;
 
 /**
  * {@link FileMetadataRow} 行 ↔ {@link FileEntry} 模型转换器（P4）。
- * FileStorageService 与 FileMetadataMigrator 共用，保证行映射唯一实现；
+ * FileStorageService 持久化用，保证行映射唯一实现；
  * 时间列 DATETIME ↔ API 的 yyyy-MM-dd HH:mm:ss 字符串（前端零感知）。
  */
 public final class FileEntryConverter {

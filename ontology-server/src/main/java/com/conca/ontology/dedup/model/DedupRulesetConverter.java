@@ -2,7 +2,7 @@ package com.conca.ontology.dedup.model;
 
 import com.conca.ontology.dedup.entity.RuleDedup;
 
-/** {@link RuleDedup} ↔ {@link DedupRuleset} 转换器（P2）。DedupRulesStore 与 DedupRulesMigrator 共用。 */
+/** {@link RuleDedup} ↔ {@link DedupRuleset} 转换器（P2）。DedupRulesStore 持久化用。 */
 public final class DedupRulesetConverter {
 
     private DedupRulesetConverter() {

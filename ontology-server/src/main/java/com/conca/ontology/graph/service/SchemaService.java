@@ -325,7 +325,7 @@ public class SchemaService {
 
     // ---------------- persistence & counts ----------------
 
-    /** meta 行存在返回其 version；缺失则初始化 version=1 空行（幂等，GraphSchemaMigrator.initDefaults 同语义） */
+    /** meta 行存在返回其 version；缺失则初始化 version=1 空行（幂等，兼全新部署默认初始化） */
     private int ensureMeta() {
         GraphSchemaMeta meta = metaMapper.selectById(GraphSchemaMeta.SINGLETON_ID);
         if (meta != null) {

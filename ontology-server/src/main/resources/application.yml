@@ -43,14 +43,9 @@ mybatis-plus:
 app:
   # 管理页标题，启动可覆盖：--app.title=xxx 或环境变量 APP_TITLE
   title: 国博藏品图谱
-  # 用户认证：用户文件（不存在时首个 ADMIN 由登录页"系统初始化"向导创建）
-  auth:
-    users-file: data/users.json
   # 上传文件：实体目录 + 元数据表 file_metadata + 允许的扩展名白名单（文本类，排除视频/音频/图片）
   upload-dir: files
   upload-allowed-ext: pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx
-  # 存量迁移源文件（file_metadata 表）
-  metadata-file: data/file-metadata.json
   # 二进制文件自动转 Markdown（LLM 只读 MD，不读原件）：
   # md-dir 为 MD 输出目录（镜像 upload-dir 相对路径，命名 <原文件全名>.md）；
   # convert-ext 为触发转换的扩展名；convert-min-chars 为空结果检测阈值
@@ -59,35 +54,23 @@ app:
   convert-ext: pdf,doc,docx,xls,xlsx
   convert-min-chars: 50
   content-security:
-    # 存量迁移源文件（rule_content_security 表）；检测阈值与策略
-    rules-file: data/content-security-rules.json
+    # 检测阈值与策略
     block-threshold: 0.8
     review-threshold: 0.5
     review-strategy: block
     variant-layer-enabled: true
-  # 语义改写（/data 页「语义改写配置」Tab）：存量迁移源文件（rewrite_config 表）+ 调用参数
+  # 语义改写（/data 页「语义改写配置」Tab）：调用参数
   rewrite:
-    config-file: data/rewrite-config.json
     # 单次改写 LLM 调用超时与输出上限（独立 rewrite agent 与单项测试共用）
     timeout-seconds: 30
     max-output-tokens: 1000
     # 独立 rewrite agent 的工作区与会话留痕目录（每次改写独立会话，可回查完整 prompt 与输出）
     workspace-dir: data/rewrite-workspace
     state-dir: data/rewrite-state
-  # JSON → MySQL 存量迁移（P0 骨架）：启动末尾逐项检查——目标表空且 JSON 存在则导入并归档为
-  # .migrated；表空且无 JSON 则执行各迁移器的默认初始化；表非空跳过（幂等）。失败阻断启动
-  migration:
-    json-import-enabled: true
   # 备份：zip 存放目录（相对 cwd，可用绝对路径覆盖）；文件名编码统计信息（backup-时间-n节点-r关系-f文件-v版本.zip）
   backup-dir: backups
   # 评测 LLM judge（二期）：base-url/api-key/model 缺省复用 app.agent 同名配置
   eval:
-    # 自定义评测器存量迁移源（P6 起 DB 化，仅 CustomGraderMigrator 启动导入用；已归档 .migrated 则跳过）
-    custom-graders-file: data/eval/custom-graders.json
-    # 评测结果存量迁移源目录（P6 起任务结果 DB 化，仅 EvalRunMigrator 启动导入用；已归档 .migrated 则跳过）
-    result-dir: data/eval/results
-    # 数据集存量迁移源目录（P6 起数据集 DB 化，仅 EvalDatasetMigrator 启动导入用；已归档 .migrated 则跳过）
-    dataset-dir: data/eval/datasets
     # 样本级通过阈值（样本均分 ≥ 此值且无 error 记通过），summary 通过率与回归对比翻转矩阵同口径
     pass-threshold: 0.8
     judge:
@@ -148,9 +131,5 @@ neo4j:
 
 graph:
   batch-limit: 10000
-  schema-file: data/graph-schema.json
-  profile-file: data/ontology-profile.json
-  disjoint-rules-file: data/disjoint-rules.json
   dedup:
     per-label-node-limit: 0
-    rules-file: data/dedup-rules.json

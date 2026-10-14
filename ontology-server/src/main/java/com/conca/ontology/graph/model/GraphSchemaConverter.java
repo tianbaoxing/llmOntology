@@ -11,7 +11,7 @@ import com.conca.ontology.graph.entity.GraphRelDef;
 
 /**
  * {@link GraphClass}/{@link GraphClassProp}/{@link GraphRelDef} 行 ↔ {@link ClassDef} 模型转换器（P2）。
- * SchemaService 保存与 GraphSchemaMigrator 导入共用，保证行映射唯一实现；ord 逐组递增保持文件内声明顺序。
+ * SchemaService 保存用，保证行映射唯一实现；ord 逐组递增保持声明顺序。
  */
 public final class GraphSchemaConverter {
 
