@@ -35,9 +35,8 @@ public class EvalGraderRegistry {
     }
 
     /**
-     * 自定义评测器注册延迟到 ApplicationReadyEvent（P6 存储 DB 化后必须）：
-     * 本 Bean 构造期早于 JsonMigrationRunner（ApplicationRunner），构造时查表会漏掉
-     * 存量迁移尚未导入的定义；ready 事件在所有 Runner 完成后发布，此时读表已含全量数据。
+     * 自定义评测器注册延迟到 ApplicationReadyEvent：
+     * 确保在所有 Bean 初始化与启动步骤完成后读表，避免构造期早读 custom_grader 表。
      */
     @EventListener(ApplicationReadyEvent.class)
     void registerCustomGraders() {
