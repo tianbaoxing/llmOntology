@@ -7,6 +7,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * 智能体配置（application.yml: agent.* 节）——由 llmOntology 平台 9 槽位定义导出而来。
  * 二次开发时改 yml 即生效，无需改代码；字段含义见 README「配置说明」。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-29
  */
 @ConfigurationProperties(prefix = "agent")
 public record AgentProperties(

@@ -12,6 +12,9 @@ import com.conca.ontology.graph.service.SchemaService;
 /**
  * 启动初始化：加载 schema 文件（不存在则初始化为空 schema）
  * → 等待 Neo4j 可用后按注册表建唯一约束（重试 10 次 × 3s）。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
  */
 @Component
 public class GraphInitializer implements ApplicationRunner {

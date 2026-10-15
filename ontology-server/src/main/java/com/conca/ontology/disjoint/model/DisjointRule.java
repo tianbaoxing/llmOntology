@@ -1,6 +1,10 @@
 package com.conca.ontology.disjoint.model;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-11
+ */
 @Schema(description = "单条互斥约束规则：用户自由文本，约定【】包裹候选项；命中同一条内 ≥2 个候选项即触发冲突")
 public record DisjointRule(
         @Schema(description = "规则ID（唯一，R 前缀递增，如 R001）", example = "R001") String id,

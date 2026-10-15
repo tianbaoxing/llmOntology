@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.dto.view;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 类摘要（列表项）：不含属性与关系明细，只有计数 */
+/**
+ * 类摘要（列表项）：不含属性与关系明细，只有计数
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "类摘要（列表项）：只有计数，不含属性与关系明细")
 public record ClassSummary(
         @Schema(description = "类名（唯一标识）", example = "Era") String name,

@@ -4,6 +4,10 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "拓扑异常诊断模块：孤立点、自环、悬挂边（终端/源拆分）、出入度异常")
 public record TopologyAnomalyView(
         @Schema(description = "孤立节点总数（无任何关系连接）", example = "23") long isolatedCount,

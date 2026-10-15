@@ -17,6 +17,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @Tag(name = "LLM-File", description = "知识库文件只读列表：返回 name/path(应读绝对路径)/originName/size/ext/description/uploadedAt，"
         + "path 恒为 Markdown/文本文件，LLM 按路径用自身工具直接读取。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-20
+ */
 @RestController
 @RequestMapping("/api/llm")
 public class LlmFileController {

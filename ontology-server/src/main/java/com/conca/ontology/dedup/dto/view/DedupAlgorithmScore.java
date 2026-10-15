@@ -2,6 +2,10 @@ package com.conca.ontology.dedup.dto.view;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "去重算法得分明细：6 阶段流水线各阶段单独得分 + 综合分 + M1 子策略命中标记")
 public record DedupAlgorithmScore(
         @Schema(description = "规范化别名阶段命中：1.0 = 完全匹配；0.0 = 未命中", example = "1.0") double normalizeAlias,

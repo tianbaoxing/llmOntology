@@ -10,6 +10,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 /**
  * 批量关系写入请求。
  * type/fromLabel/toLabel 必须在白名单内；两端唯一键属性由服务端按 label 推导。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
  */
 @Schema(description = "批量关系写入请求（MATCH 两端 + MERGE 幂等；一端不存在的条目静默跳过）")
 public record RelBatchRequest(

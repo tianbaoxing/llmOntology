@@ -4,6 +4,10 @@ import java.util.List;
 import java.util.Map;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-22
+ */
 @Schema(description = "一套完整的去重规则集（单 JSON 文件对应一个 DedupRuleset）")
 public record DedupRuleset(
         @Schema(description = "规则集唯一 ID（用户创建，UUID 或自定义标识）", example = "default") String id,

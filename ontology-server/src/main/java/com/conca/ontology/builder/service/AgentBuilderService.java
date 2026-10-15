@@ -32,6 +32,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 智能体搭建编排：校验 → 落定义/工作区 → 维护注册表；导出 zip / 导出二次开发工程。
  * 校验顺序：本地静态校验（[参数错误] 层）→ 连通性测试（test-model/test-mcp，可选）→ 保存。
  * 模型密钥不落盘：统一经环境变量 AGENT_API_KEY 注入（AgentRegistry.requireEnvApiKey）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-24
  */
 @Service
 public class AgentBuilderService {

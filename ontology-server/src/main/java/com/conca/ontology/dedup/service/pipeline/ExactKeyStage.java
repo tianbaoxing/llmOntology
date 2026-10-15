@@ -21,6 +21,9 @@ import com.conca.ontology.dedup.model.DedupRuleset;
  *
  * MatchBucket.subStage 统一取值（与 DedupAlgorithmScore.SUB_* 常量对齐）：
  *   "exact-nameAux"  NAME_AUX
+ *
+ * @author tianbaoxing
+ * @date 2026-09-21
  */
 @Component
 public class ExactKeyStage {

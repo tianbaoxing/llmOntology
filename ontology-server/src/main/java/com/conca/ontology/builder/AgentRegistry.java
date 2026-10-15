@@ -45,6 +45,9 @@ import jakarta.annotation.PreDestroy;
  * - 空闲驱逐：默认 30 分钟无访问且无进行中流 → close 释放模型连接与内存；
  *   定义更新/删除立即驱逐，下次访问重建生效
  * - 生命周期：BuiltAgent 聚合 agent 与 MCP 连接统一 close（agent.close() 不保证关 MCP）
+ *
+ * @author tianbaoxing
+ * @date 2026-09-24
  */
 @Service
 public class AgentRegistry {

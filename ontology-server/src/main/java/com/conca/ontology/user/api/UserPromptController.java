@@ -35,6 +35,9 @@ import jakarta.validation.Valid;
  * POST   /api/prompts/{id}/to-skill   → 沉淀为 skill（写 skills/{name}/，新会话即生效）
  * DELETE /api/prompts/skills/{name}   → 删除本人转换的 skill（系统 skill 拒绝）
  * 提示词按登录用户隔离：userId 一律取当前会话，不信任请求参数。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-14
  */
 @RestController
 @RequestMapping("/api/prompts")

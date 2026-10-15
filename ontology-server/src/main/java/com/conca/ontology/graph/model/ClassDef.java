@@ -3,7 +3,12 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 类（节点类型）定义。关系声明于发起方（fromClass = 本类）一侧，入边由全量定义推导。 */
+/**
+ * 类（节点类型）定义。关系声明于发起方（fromClass = 本类）一侧，入边由全量定义推导。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @Schema(description = "类（节点类型）定义：属性 + 出边关系声明；关系声明于发起方一侧，入边由全量定义推导")
 public record ClassDef(
         @Schema(description = "类名（唯一标识，[A-Za-z_][A-Za-z0-9_]*，创建后不可变）", example = "Era") String name,

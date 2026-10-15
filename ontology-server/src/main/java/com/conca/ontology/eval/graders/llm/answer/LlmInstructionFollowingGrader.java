@@ -10,6 +10,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 指令遵循评测（LLM-as-judge，对齐 OpenJudge InstructionFollowingGrader）：
  * 评估回答是否遵循问题或评分细则中的显式约束（如「仅回答朝代」「不超过两句」
  * 「用 JSON 格式」等）；无显式约束时评估回答是否切题且不画蛇添足。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmInstructionFollowingGrader extends LlmJudgeGrader {

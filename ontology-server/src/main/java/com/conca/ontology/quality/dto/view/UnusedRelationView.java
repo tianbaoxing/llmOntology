@@ -2,6 +2,10 @@ package com.conca.ontology.quality.dto.view;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "未使用的 Schema 关系定义：声明了但零实例")
 public record UnusedRelationView(
         @Schema(description = "关系类型名", example = "HAS_INSCRIPTION_STYLE") String relType,

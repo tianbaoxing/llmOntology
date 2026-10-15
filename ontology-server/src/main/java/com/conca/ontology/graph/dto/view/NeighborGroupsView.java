@@ -3,7 +3,12 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 邻居分组统计：按 方向×关系类型×对端标签 聚合的边数（不分页，全量） */
+/**
+ * 邻居分组统计：按 方向×关系类型×对端标签 聚合的边数（不分页，全量）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "邻居分组统计：按 方向×关系类型×对端标签 聚合的边数")
 public record NeighborGroupsView(
         @Schema(description = "分组列表（按边数降序）") List<NeighborGroup> groups) {

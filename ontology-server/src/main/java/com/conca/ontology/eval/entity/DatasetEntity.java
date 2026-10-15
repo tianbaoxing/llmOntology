@@ -8,6 +8,9 @@ import com.baomidou.mybatisplus.annotation.TableName;
  * 评测数据集行（dataset，P6 起替代 data/eval/datasets/{name}.jsonl 文件）。
  * 单列业务键：name = 原 .jsonl 文件名（eval_run.dataset 同名引用）；
  * 样本数走 COUNT(*) 派生，空数据集 = 本表有行而 dataset_sample 无行。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-13
  */
 @TableName("dataset")
 public class DatasetEntity {

@@ -30,6 +30,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  */
 @Tag(name = "Admin-File", description = "知识库文件管理（files.html 数据源）：上传（白名单校验、同名覆盖）、"
         + "列表、编辑说明、删除（实体 + 元数据一并移除）。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-20
+ */
 @RestController
 @RequestMapping("/api/files")
 public class FileController {

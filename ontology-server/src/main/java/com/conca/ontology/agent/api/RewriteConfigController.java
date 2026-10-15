@@ -21,6 +21,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "Admin-RewriteConfig", description = "语义改写配置：4 项功能（语义/错别字/术语/上下文）各含启用开关与"
         + "可修改提示词；输出格式提示词为只读常量。启用后聊天消息先经独立 rewrite agent 管道改写"
         + "（过程在聊天页实时展示），改写后文本再送入主 Agent")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-09-11
+ */
 @RestController
 @RequestMapping("/api/rewrite-config")
 public class RewriteConfigController {

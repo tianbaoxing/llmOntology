@@ -26,6 +26,9 @@ import com.conca.ontology.eval.model.GraderScore;
  *       无期望时保持原算法，完全兼容旧数据集。</li>
  *   <li>未调用工具（含纯判分样本）得 1 分并注明跳过。</li>
  * </ol>
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class ToolCallSuccessGrader implements Grader {

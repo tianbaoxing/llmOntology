@@ -18,6 +18,9 @@ import jakarta.servlet.http.HttpSession;
 /**
  * 驾驶舱统计入口（登录即可，统计当前用户自己的用量）：
  * GET /api/dashboard/stats → { summary, daily, sessions }
+ *
+ * @author tianbaoxing
+ * @date 2026-08-22
  */
 @RestController
 @RequestMapping("/api/dashboard")

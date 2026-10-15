@@ -15,6 +15,10 @@ import com.conca.ontology.disjoint.service.DisjointRuleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-11
+ */
 @Tag(name = "Admin-DisjointRules", description = "互斥约束词典（简化版）：规则为带【】候选项的自由文本，如「材质互斥：一件器物主体不能同时是【青铜】且【瓷】」")
 @RestController
 @RequestMapping("/api/disjoint-rules")

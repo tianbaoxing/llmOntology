@@ -1,4 +1,9 @@
 package com.conca.ontology.content.model;
+
+/**
+ * @author tianbaoxing
+ * @date 2026-09-17
+ */
 public enum ContentSeverity {
     INFO(0.1),
     LOW(0.2),

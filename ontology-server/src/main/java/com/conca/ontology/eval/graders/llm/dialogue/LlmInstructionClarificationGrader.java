@@ -11,6 +11,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 主动澄清评测（LLM-as-judge，对齐 OpenJudge InstructionClarificationGrader）：
  * 当后续轮次问题模糊/指代不明（如「那件碗呢？」但前文提及多件碗）时，回答应
  * 主动澄清而非臆测；问题明确时正常回答不扣分。需多轮样本（turns 格式）；单轮样本跳过。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmInstructionClarificationGrader extends LlmJudgeGrader {

@@ -4,7 +4,12 @@ import java.util.Map;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 邻域查询结果：起点节点 + 去重边分页（按 eid 排序） */
+/**
+ * 邻域查询结果：起点节点 + 去重边分页（按 eid 排序）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "邻域查询结果：起点节点 + 去重边分页")
 public record NeighborsView(
         @Schema(description = "起点节点（eid / labels / props）") NodeRef start,

@@ -10,6 +10,9 @@ import com.conca.ontology.file.model.FileEntry;
  * {@link FileMetadataRow} 行 ↔ {@link FileEntry} 模型转换器（P4）。
  * FileStorageService 持久化用，保证行映射唯一实现；
  * 时间列 DATETIME ↔ API 的 yyyy-MM-dd HH:mm:ss 字符串（前端零感知）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 public final class FileEntryConverter {
 

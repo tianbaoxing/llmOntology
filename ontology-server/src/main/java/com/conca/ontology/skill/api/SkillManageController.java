@@ -26,6 +26,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * POST /api/skills/{name}/analyze  → 手动触发检测（工具/API/Shell）并落盘
  * POST /api/skills/{name}/hide     → 删除（忽略）检测项（工具/API/Shell，跨重新检测保留）并自动保存
  * 系统工具清单复用 GET /api/agent/tools（Toolkit 实时存活集，单一事实来源）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-07
  */
 @RestController
 @RequestMapping("/api/skills")

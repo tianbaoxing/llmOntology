@@ -5,7 +5,12 @@ import jakarta.validation.constraints.NotBlank;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 关系操作（创建/更新/删除）：type + 两端 label/键 定位 */
+/**
+ * 关系操作（创建/更新/删除）：type + 两端 label/键 定位
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @Schema(description = "关系操作请求（创建/更新/删除通用）：type + 两端 label/唯一键 定位")
 public record RelRequest(
         @Schema(description = "关系类型（须在 schema 白名单内且签名匹配）", example = "SUB_ERA_OF")

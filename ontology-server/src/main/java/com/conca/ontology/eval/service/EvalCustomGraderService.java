@@ -20,6 +20,10 @@ import com.conca.ontology.eval.model.GraderInput;
 import com.conca.ontology.eval.model.GraderScore;
 import com.conca.ontology.shared.web.ApiException;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-18
+ */
 @Service
 public class EvalCustomGraderService {
 

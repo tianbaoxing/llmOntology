@@ -36,6 +36,9 @@ import com.conca.ontology.graph.model.GraphSchema.RelSignature;
 /**
  * 图谱质量诊断服务：拓扑异常检查、Schema 覆盖率、分布直方图。
  * 全部查询走 GraphQueryService.query()，受只读红线保护（WRITE_RE 拒绝写语句）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-21
  */
 @Service
 public class GraphDiagnosticsService {

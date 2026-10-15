@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.dto.result;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 创建节点结果（MERGE 幂等：已存在则覆盖属性） */
+/**
+ * 创建节点结果（MERGE 幂等：已存在则覆盖属性）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "创建节点结果（MERGE 幂等：已存在则覆盖属性）")
 public record NodeCreateResult(
         @Schema(description = "节点标签", example = "Era") String label,

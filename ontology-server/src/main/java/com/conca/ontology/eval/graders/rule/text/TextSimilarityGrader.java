@@ -16,6 +16,9 @@ import com.conca.ontology.eval.model.GraderScore;
  * reference_response 为参考文本（数组时顿号连接），中文按字符处理。
  * score = 字符 unigram F1（rouge1），衡量开放式回答对参考简介的覆盖度；
  * metadata 另附 rougeL / bigram-F1 / jaccard / 编辑距离相似度共 5 种指标。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class TextSimilarityGrader implements Grader {

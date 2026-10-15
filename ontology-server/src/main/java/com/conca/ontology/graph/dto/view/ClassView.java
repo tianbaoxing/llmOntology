@@ -5,7 +5,12 @@ import com.conca.ontology.graph.model.PropertyDef;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 类（节点类型）视图：定义 + 属性 + 出边声明 + 实时 count */
+/**
+ * 类（节点类型）视图：定义 + 属性 + 出边声明 + 实时 count
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "类（节点类型）视图：定义 + 属性 + 出边声明 + 实时 count")
 public record ClassView(
         @Schema(description = "类名（唯一标识，[A-Za-z_][A-Za-z0-9_]*）", example = "Era") String name,

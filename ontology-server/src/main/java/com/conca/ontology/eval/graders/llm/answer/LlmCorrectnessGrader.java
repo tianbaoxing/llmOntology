@@ -10,6 +10,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 正确性评测（LLM-as-judge，对齐 OpenJudge CorrectnessGrader）：
  * 对照参考答案评估回答的事实正确性（朝代/窑口/出土地等事实核对）。
  * 原始 1-5 分归一化 0-1；无参考答案时依据证据上下文判断。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmCorrectnessGrader extends LlmJudgeGrader {

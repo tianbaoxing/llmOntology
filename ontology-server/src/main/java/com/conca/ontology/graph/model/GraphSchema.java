@@ -13,6 +13,9 @@ import com.conca.ontology.shared.web.ApiException;
 /**
  * 图谱白名单与元数据注册表：从 graph-schema.json 加载（唯一事实源），支持热更新。
  * 所有拼接进 Cypher 的标识符（label / keyProp / 关系类型）必须先经过此处校验（防注入）。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
  */
 @Component
 public class GraphSchema {

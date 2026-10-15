@@ -11,6 +11,9 @@ import com.conca.ontology.builder.entity.AgentDefinitionEntity;
  * toEntity 维持记录不变式：五个 NOT NULL 清单列 null 归一化为空数组（record 构造器同语义）；
  * model 嵌套对象拆三列，model 为 null 时三列存空串（toModel 还原空 ModelConfig——
  * 对齐框架 forExport 的 null-model 处理，避免下游解引用 NPE）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-12
  */
 public final class AgentDefinitionConverter {
 

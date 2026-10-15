@@ -12,6 +12,9 @@ import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 /**
  * 角色权限黑名单表实体（sys_role_permission）：三个 JSON 列经 JacksonTypeHandler
  * 与 List&lt;String&gt; 互转。autoResultMap 必开，否则查询时 typeHandler 不生效。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 @TableName(value = "sys_role_permission", autoResultMap = true)
 public class SysRolePermission {

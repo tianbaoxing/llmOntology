@@ -26,6 +26,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "Admin-GraphDedup", description = "图谱实体去重（M1 里程碑）："
         + "规范化别名 + 精确 key 组合两种确定性去重算法，发现同义异名重复节点，"
         + "输出候选组列表与 Survivor 推荐；合并执行接口留 M3 实现。管理员接口。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 public class GraphDedupController {
 
     private final DedupScanService service;

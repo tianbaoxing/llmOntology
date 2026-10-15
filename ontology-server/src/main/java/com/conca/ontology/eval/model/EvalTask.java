@@ -4,6 +4,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-18
+ */
 public class EvalTask {
     public final String id;
     public final String dataset;

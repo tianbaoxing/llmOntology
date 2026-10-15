@@ -5,6 +5,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-11
+ */
 @Schema(description = "语义改写配置：4 项功能（semantic/typo/term/context）当前值（rewrite_config 表，无全局 version）")
 public record RewriteConfig(
         @Schema(description = "功能配置，key 为 semantic/typo/term/context") Map<String, Feature> features) {

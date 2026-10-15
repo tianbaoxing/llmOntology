@@ -21,6 +21,9 @@ import com.conca.ontology.backup.service.BackupService;
  * 管理端入口：备份资源。
  * 备份异步执行（POST 返回 taskId，前端轮询 tasks/{taskId} 展示进度条）；
  * 列表 = 扫描备份目录文件名解析；file/删除按文件名（服务端正则校验）。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-20
  */
 @RestController
 @RequestMapping("/api/backups")

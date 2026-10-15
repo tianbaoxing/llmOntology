@@ -6,6 +6,9 @@ import jakarta.validation.constraints.Size;
 /**
  * 用户提示词转 skill 请求（POST /api/prompts/{id}/to-skill）。
  * name/description 均可缺省：name 缺省自动生成 user-xxxxxx；description 缺省按模板生成。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-15
  */
 public record PromptToSkillRequest(
         @Size(max = 64, message = "skill 名最长 64 字符")

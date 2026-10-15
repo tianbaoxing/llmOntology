@@ -23,6 +23,9 @@ import com.conca.ontology.eval.graders.llm.LlmJudgeGrader;
  * 包路径 graders.custom → groupOf 归「custom」分组，页面单独分区展示。
  * 每个 GraderScore 附 metadata.custom.promptHash（prompt 的 SHA-256 前缀），
  * Run Diff 据此标注「评测器定义已变更，对比仅供参考」。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 public class CustomLlmGrader extends LlmJudgeGrader {
 

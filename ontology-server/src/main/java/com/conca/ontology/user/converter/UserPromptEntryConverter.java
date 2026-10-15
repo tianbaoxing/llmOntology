@@ -11,6 +11,9 @@ import com.conca.ontology.user.model.UserPromptEntry;
  * 对外 API 模型 UserPromptEntry 的时间字段保持 "yyyy-MM-dd HH:mm:ss" 字符串格式（前端零感知），
  * 库内实体使用 LocalDateTime（DATETIME 列）。
  * userId 为行级新增字段（原按用户一文件的文件名），API 模型不含，由调用方（Service）按行设置。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-12
  */
 public final class UserPromptEntryConverter {
 

@@ -44,6 +44,9 @@ import jakarta.servlet.http.HttpSession;
  * POST   /api/agents/test-mcp           → MCP 端点握手探测（返回远端工具清单）
  * GET    /api/agents/{id}/export         → L1 导出包下载（zip）
  * GET    /api/agents/{id}/export-project → L2 导出工程下载（AgentScope 2.0 原生源码工程 zip）
+ *
+ * @author tianbaoxing
+ * @date 2026-09-24
  */
 @RestController
 @RequestMapping("/api/agents")

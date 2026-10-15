@@ -2,7 +2,12 @@ package com.conca.ontology.user.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-/** 用户条目：data/users.json 的单元（userId 主标识终身不变；username 展示名，二者当前同值） */
+/**
+ * 用户条目：data/users.json 的单元（userId 主标识终身不变；username 展示名，二者当前同值）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 public record UserEntry(
         String userId,
         String username,

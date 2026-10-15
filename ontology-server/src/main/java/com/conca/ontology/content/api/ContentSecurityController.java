@@ -23,6 +23,10 @@ import io.agentscope.core.message.MsgRole;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-17
+ */
 @Tag(name = "Admin-ContentSecurity", description = "内容安全管理：Prompt 注入规则 + allowlist + 扫描测试")
 @RestController
 @RequestMapping("/api/content-security")

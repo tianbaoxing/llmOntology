@@ -35,6 +35,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-08-26
+ */
 @RestController
 @RequestMapping("/api/eval")
 @Tag(name = "eval", description = "评测中心：数据集驱动 agent 问答并多评测器判分（规则评测器 + LLM 判分）")

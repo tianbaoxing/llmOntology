@@ -33,6 +33,9 @@ import jakarta.annotation.PreDestroy;
  *
  * 刻意不注册为 Spring bean：避免与主问答 agent（AgentScopeConfig#harnessAgent）
  * 形成 HarnessAgent 双候选。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-11
  */
 @Component
 public class RewriteAgentHolder {

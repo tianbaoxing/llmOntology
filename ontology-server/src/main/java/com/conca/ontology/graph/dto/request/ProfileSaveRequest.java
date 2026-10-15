@@ -7,7 +7,12 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 问询记录批量保存请求（LLM 提问 → 用户回答，按 key upsert） */
+/**
+ * 问询记录批量保存请求（LLM 提问 → 用户回答，按 key upsert）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @Schema(description = "问询记录批量保存请求（按 key upsert：同 key 覆盖）")
 public record ProfileSaveRequest(
         @Schema(description = "问答条目数组") @NotEmpty List<@Valid Item> items) {

@@ -14,6 +14,9 @@ import com.conca.ontology.eval.model.GraderScore;
  * 回答重复检测评测（规则，OpenJudge ResponseRepetitionGrader 的规则版）：
  * 回答内字符 4-gram 重复率——重复 4-gram（出现 >1 次的多重集占比）过高说明
  * 刷屏式复读。score = 1 - 重复率；回答过短（< 16 字符）无统计意义直接得 1 分。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class ResponseRepetitionGrader implements Grader {

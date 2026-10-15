@@ -31,6 +31,9 @@ import jakarta.annotation.PreDestroy;
  * - 会话留痕落 MySQL（agent_state_agentic_judge 表，userId=eval-agentic），AgentTraceMiddleware 输出轨迹日志；
  * - 刻意不注册为 Spring bean：避免与主问答 agent 形成 HarnessAgent 双候选。
  * key 未配置时 agent 为 null（grader 前置校验 + EvalService 409 提前拦截）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class AgenticJudgeHolder {

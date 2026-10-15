@@ -11,6 +11,10 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.conca.ontology.shared.web.ApiResponse;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

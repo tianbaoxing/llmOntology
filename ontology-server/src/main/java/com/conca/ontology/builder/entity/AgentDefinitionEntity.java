@@ -14,6 +14,9 @@ import com.conca.agentkit.AgentDefinition;
  * 与框架 {@link AgentDefinition} record 经 {@link com.conca.ontology.builder.converter.AgentDefinitionConverter} 互转
  * （record 为外部框架类不可修改）。
  * 五个清单列为类型化 JSON（保序，空即 []）；created_at/updated_at 存 ISO-8601 原文保纳秒精度。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-12
  */
 @TableName(value = "agent_definition", autoResultMap = true)
 public class AgentDefinitionEntity {

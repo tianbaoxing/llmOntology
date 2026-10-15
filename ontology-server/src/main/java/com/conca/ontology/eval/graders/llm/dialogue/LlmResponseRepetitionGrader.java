@@ -11,6 +11,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 跨轮回答重复评测（LLM-as-judge，OpenJudge ResponseRepetitionGrader 的多轮版）：
  * 评估最后一轮回答是否只是复述先前轮次内容而无新信息（换汤不换药的重复）。
  * 需多轮样本（turns 格式）；单轮样本跳过（单轮内的字面重复由规则版 response_repetition 覆盖）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmResponseRepetitionGrader extends LlmJudgeGrader {

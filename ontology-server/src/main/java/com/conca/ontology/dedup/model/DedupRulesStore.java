@@ -21,6 +21,9 @@ import com.conca.ontology.shared.web.ApiException;
  *   全系统仅一套规则，持久化为单行，无索引；active 恒为 true。
  *   无行 = 尚未创建规则（前端显示空白模板，保存即新建）。
  *   保存保留乐观锁（version 不匹配 409）与 synchronized（读-改-写整体串行，保护逻辑不变）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-22
  */
 @Component
 public class DedupRulesStore {

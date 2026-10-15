@@ -3,7 +3,12 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** Wiki 文档列表项：自动抽取元信息 + 手工维护分类/标签 合并后的视图。 */
+/**
+ * Wiki 文档列表项：自动抽取元信息 + 手工维护分类/标签 合并后的视图。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-23
+ */
 @Schema(description = "Wiki 文档列表项（元信息合并视图）")
 public record WikiDocView(
         @Schema(description = "MD 文件名（打开文档的 key）", example = "报告.docx.md") String mdName,

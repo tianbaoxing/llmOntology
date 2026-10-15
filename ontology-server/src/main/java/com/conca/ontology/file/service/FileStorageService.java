@@ -38,6 +38,9 @@ import com.conca.ontology.shared.web.ApiException;
  * 行级 CRUD + 同名覆盖保留原位置（自增 id 兼作列表顺序，无全局 version）。
  * 二进制文件（pdf/word/excel）同步转 Markdown 存 files-md/（MdConvertService）：
  * 上传即转、对账补转（存量/被删 MD 自动重建，FAILED 不自动重试）、删除连带删 MD。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-20
  */
 @Service
 public class FileStorageService {

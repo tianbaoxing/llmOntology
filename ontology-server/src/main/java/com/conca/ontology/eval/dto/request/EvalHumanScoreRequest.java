@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotBlank;
  * 人工评分请求：sampleId 为结果 JSON 中 samples[].id；
  * rawScore 为 1-5 星（skip=true 时可空）；comment 为可选评语；
  * skip=true 表示跳过该样本（不计入均值）。可重复提交覆盖修改（留 scoredAt 留痕）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-03
  */
 @Schema(description = "人工评分请求")
 public record EvalHumanScoreRequest(

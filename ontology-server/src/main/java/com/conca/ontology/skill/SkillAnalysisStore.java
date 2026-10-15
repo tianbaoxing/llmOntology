@@ -16,6 +16,9 @@ import com.conca.ontology.skill.mapper.SkillAnalysisMapper;
  * 每技能一行，行级 CRUD（get 单行查询 / put 行级 upsert / all 全表按技能名序）。
  * 记录级语义不变：keyInfo-only 记录（仅保存识别关键词、尚未检测）analyzedAt/contentHash 为 NULL；
  * hidden* 忽略清单 NULL 保真（旧数据缺字段）。put 保留 synchronized（读-改-写串行，对齐原实现并发语义）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class SkillAnalysisStore {

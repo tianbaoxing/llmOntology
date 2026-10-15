@@ -40,6 +40,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 元信息 = MD 正文自动抽取（标题/发布时间/来源/作者，全角冒号匹配，避开首行半角"来源:"转换信息）
  *         + data/wiki-metadata.json 手工维护（分类/标签，以 mdName 为 key）。
  * 列表加载时顺带剔除孤儿元数据（对应 MD 已删除），文件删除无需联动通知。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-23
  */
 @Service
 public class WikiService {

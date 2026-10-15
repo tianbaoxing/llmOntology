@@ -12,6 +12,10 @@ import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.llmapi.dto.OntologyQueryRequest;
 import com.conca.ontology.llmapi.service.OntologyQueryExecutionService;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-08-20
+ */
 @RestController
 @RequestMapping("/api/llm/ontology-query")
 public class OntologyQueryController {

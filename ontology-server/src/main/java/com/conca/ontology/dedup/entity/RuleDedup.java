@@ -13,6 +13,9 @@ import com.conca.ontology.dedup.model.DedupLabelConfig;
 /**
  * 去重规则集表实体（rule_dedup，P2；与 {@link com.conca.ontology.dedup.model.DedupRuleset} 互转）。
  * suffixTable / labelConfig / globalConflictProps 均为 JSON 列；updated_at 为 epoch 毫秒（API 契约即 long）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 @TableName(value = "rule_dedup", autoResultMap = true)
 public class RuleDedup {

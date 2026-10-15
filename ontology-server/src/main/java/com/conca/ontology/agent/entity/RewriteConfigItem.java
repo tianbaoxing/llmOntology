@@ -9,6 +9,9 @@ import com.baomidou.mybatisplus.annotation.TableName;
 /**
  * 语义改写配置行（rewrite_config，P3：每项功能一行，无全局 version）。
  * feature 为主键（semantic/typo/term/context）；updated_at 为行级写入时间（API 不输出）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 @TableName("rewrite_config")
 public class RewriteConfigItem {

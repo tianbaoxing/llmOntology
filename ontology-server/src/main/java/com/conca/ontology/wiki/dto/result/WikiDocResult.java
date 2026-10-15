@@ -5,7 +5,12 @@ import com.conca.ontology.wiki.dto.view.WikiEntityView;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** Wiki 文档读取结果：合并元信息 + MD 原文（前端渲染）+ 正文命中的图谱实体（前端包裹链接）。 */
+/**
+ * Wiki 文档读取结果：合并元信息 + MD 原文（前端渲染）+ 正文命中的图谱实体（前端包裹链接）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-23
+ */
 @Schema(description = "Wiki 单篇文档（元信息 + MD 原文 + 命中实体）")
 public record WikiDocResult(
         @Schema(description = "MD 文件名", example = "报告.docx.md") String mdName,

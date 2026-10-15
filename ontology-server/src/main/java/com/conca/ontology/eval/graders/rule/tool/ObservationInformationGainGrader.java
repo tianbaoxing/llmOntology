@@ -18,6 +18,9 @@ import com.conca.ontology.eval.model.GraderScore;
  * 检测工具观察序列的重复查询——每次工具返回与之前任一次返回的字符 rouge1 相似度
  * ≥ 阈值即判为「无新信息」步。score = 1 - 无新信息步数 / 总调用数；
  * 调用数 ≤ 1（含未调用工具的纯判分样本）视为无重复风险得 1 分。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class ObservationInformationGainGrader implements Grader {

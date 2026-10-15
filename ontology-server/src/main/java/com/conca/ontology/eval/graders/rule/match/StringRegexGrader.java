@@ -13,6 +13,9 @@ import com.conca.ontology.eval.model.GraderScore;
 /**
  * 正则匹配评测（二期规则补强，对齐 OpenJudge StringMatchGrader 的 regex 模式）：
  * reference_response 为正则表达式字符串，回答命中（find 语义）得 1 分，否则 0 分。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class StringRegexGrader implements Grader {

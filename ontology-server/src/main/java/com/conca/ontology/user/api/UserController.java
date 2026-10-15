@@ -33,6 +33,9 @@ import jakarta.validation.Valid;
  * - 自助（方法内校验会话）：PUT /api/users/me/password（修改自己密码）
  * - 管理操作（拦截器保证仅 ADMIN 可达）：列表 / 状态变更（审核、启停）/ 重置密码 / 删除
  * - 记忆查看（仅 ADMIN）：GET /{userId}/memory（文件列表）、GET /{userId}/memory/file/{name}（分段详情）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
  */
 @RestController
 @RequestMapping("/api/users")

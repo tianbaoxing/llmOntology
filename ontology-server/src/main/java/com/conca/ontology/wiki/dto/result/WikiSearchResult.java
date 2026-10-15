@@ -3,7 +3,12 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** Wiki 全文搜索结果：命中文档按加权分降序（标题 ×40 > 元信息 ×20 > 正文单次 ×1，同分按命中次数）。 */
+/**
+ * Wiki 全文搜索结果：命中文档按加权分降序（标题 ×40 > 元信息 ×20 > 正文单次 ×1，同分按命中次数）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-30
+ */
 @Schema(description = "Wiki 全文搜索结果")
 public record WikiSearchResult(
         @Schema(description = "回显关键词") String q,

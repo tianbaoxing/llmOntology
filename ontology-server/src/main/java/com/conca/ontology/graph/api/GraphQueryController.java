@@ -22,6 +22,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 /** 管理端入口：图谱统计与节点详情（LLM 专用 query/neighbors 已迁 /api/llm/graph） */
 @Tag(name = "Admin-Graph", description = "管理页图数据查询：统计、实例分页、节点详情、邻域（graph.html 数据源）。"
         + "与 LLM 平面同源同逻辑。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @RestController
 @RequestMapping("/api/graph")
 public class GraphQueryController {

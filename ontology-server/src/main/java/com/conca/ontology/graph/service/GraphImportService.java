@@ -20,6 +20,9 @@ import com.conca.ontology.graph.model.GraphSchema;
 /**
  * 批量写入封装：UNWIND + MERGE 幂等；标识符经白名单校验；数据全部参数绑定。
  * 白名单来源 GraphSchema（graph-schema.json），SchemaService CRUD 后热更新。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
  */
 @Service
 public class GraphImportService {

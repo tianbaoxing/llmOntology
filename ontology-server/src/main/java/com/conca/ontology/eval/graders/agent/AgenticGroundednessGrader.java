@@ -34,6 +34,9 @@ import io.agentscope.harness.agent.HarnessAgent;
  * evidence 非空时按 confirmed/total 确定性重算（每分可由证据复查，验收 C2/C3）。
  * 成本控制：单样本取证查询上限由 EvalProxyTool 强制（超限确定性文案截断），
  * 实际调用记录（path/body/返回摘要）随 metadata 留痕。调用失败重试 1 次（3s 退避）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class AgenticGroundednessGrader implements Grader {

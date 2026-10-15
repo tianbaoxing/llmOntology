@@ -29,6 +29,11 @@ import io.agentscope.harness.agent.HarnessAgent;
  * - HTTP 工具：HttpJsonTool（通用 JSON 管道，path 白名单约束，见 tool/HttpJsonTool.java）
  * - MCP：Streamable HTTP 优先注册，失败自动退回 SSE
  */
+
+/**
+ * @author tianbaoxing
+ * @date 2026-09-29
+ */
 @Configuration
 public class AgentScopeConfig {
 

@@ -38,6 +38,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  * 提示词沉淀为 skill：写 {@code skills/{name}/SKILL.md + prompt-meta.json}，
  * skills 目录经 HarnessSkillMiddleware 每请求动态扫描，转换后新会话即可被 LLM 感知。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-14
  */
 @Service
 public class UserPromptService {

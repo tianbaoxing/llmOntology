@@ -2,6 +2,10 @@ package com.conca.ontology.eval.model;
 
 import java.util.Map;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-08-26
+ */
 public record GraderScore(
         String name,
         double score,

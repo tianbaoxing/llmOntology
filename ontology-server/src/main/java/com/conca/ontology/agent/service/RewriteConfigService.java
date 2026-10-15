@@ -44,6 +44,9 @@ import io.agentscope.harness.agent.HarnessAgent;
  *
  * 输出统一解析为 {"rewritten_text": "...", "explanation": "..."}；
  * 单项测试失败抛 ApiException（页面可见），聊天管道单项失败降级保留当前文本不阻断。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-11
  */
 @Service
 public class RewriteConfigService {

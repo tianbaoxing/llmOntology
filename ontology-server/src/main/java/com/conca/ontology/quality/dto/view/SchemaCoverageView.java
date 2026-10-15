@@ -4,6 +4,10 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "Schema 覆盖率统计：对比声明 vs 实际有实例的类/关系")
 public record SchemaCoverageView(
         @Schema(description = "类覆盖率百分比（0-100）= 有实例类数 / 总声明类数 * 100", example = "80.0") double classCoveragePct,

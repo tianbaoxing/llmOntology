@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.dto.result;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 删除节点结果 */
+/**
+ * 删除节点结果
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "删除节点结果")
 public record NodeDeleteResult(
         @Schema(description = "节点标签", example = "Era") String label,

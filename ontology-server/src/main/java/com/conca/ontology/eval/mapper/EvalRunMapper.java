@@ -5,6 +5,10 @@ import org.apache.ibatis.annotations.Mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.conca.ontology.eval.entity.EvalRunEntity;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-10-13
+ */
 @Mapper
 public interface EvalRunMapper extends BaseMapper<EvalRunEntity> {
 }

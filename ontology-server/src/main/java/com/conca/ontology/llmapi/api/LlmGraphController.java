@@ -40,6 +40,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "LLM-Graph", description = "图数据读写：通用只读查询、统计、节点/关系单条 CRUD 与批量幂等写入。"
         + "安全约束：label/type/属性名须在 schema 白名单内（校验后才拼接 Cypher），数据值全参数绑定。"
         + "与 admin 入口 /api/graph 同源同逻辑；query/neighbors/batch 仅本平面暴露。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @RestController
 @RequestMapping("/api/llm/graph")
 public class LlmGraphController {

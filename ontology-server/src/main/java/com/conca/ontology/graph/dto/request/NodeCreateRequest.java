@@ -6,7 +6,12 @@ import jakarta.validation.constraints.NotEmpty;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 单节点创建（MERGE 幂等，存在则覆盖属性） */
+/**
+ * 单节点创建（MERGE 幂等，存在则覆盖属性）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @Schema(description = "单节点创建请求（MERGE 幂等：已存在则覆盖属性）")
 public record NodeCreateRequest(
         @Schema(description = "节点标签（须在 schema 白名单内）", example = "Era")

@@ -2,6 +2,10 @@ package com.conca.ontology.eval.model;
 
 import java.util.List;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-18
+ */
 public record EvalSample(
         String id,
         String query,

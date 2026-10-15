@@ -15,6 +15,10 @@ import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
 import com.conca.ontology.eval.JudgeClient;
 import com.conca.ontology.eval.model.CustomGraderDefinition;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-18
+ */
 @Component
 public class EvalGraderRegistry {
 

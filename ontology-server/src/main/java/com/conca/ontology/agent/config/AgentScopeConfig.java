@@ -36,6 +36,9 @@ import com.conca.ontology.user.service.RolePermissionService;
  * 保证"查询经由 skills"；外部 Qwen CLI 调用方无此工具，走 skill 中的 execute + curl 通道。
  * harness 内置的 execute 在 Windows 下存在参数死锁（working_directory 单引号拼接），
  * skill 已约束本项目环境禁止调用 execute。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-20
  */
 @Configuration
 public class AgentScopeConfig {

@@ -11,6 +11,9 @@ import com.conca.ontology.graph.model.PropertyDef;
  * 图谱关系定义表实体（graph_rel_def，P2；与 {@link com.conca.ontology.graph.model.RelationDef} 互转）。
  * 复合主键 (from_class, rel_name)；props 为关系自身属性定义列表，JSON 列经 JacksonTypeHandler
  * 与 List&lt;PropertyDef&gt; 互转（泛型由字段声明解析）。autoResultMap 必开，否则查询时 typeHandler 不生效。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 @TableName(value = "graph_rel_def", autoResultMap = true)
 public class GraphRelDef {

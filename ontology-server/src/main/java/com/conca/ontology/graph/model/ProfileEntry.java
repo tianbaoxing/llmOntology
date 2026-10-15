@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.model;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 问询记录条目：LLM 的提问 + 用户的回答（用户画像 / ontology 画像 / 要解决的问题） */
+/**
+ * 问询记录条目：LLM 的提问 + 用户的回答（用户画像 / ontology 画像 / 要解决的问题）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @Schema(description = "问询记录条目：LLM 的提问 + 用户的回答")
 public record ProfileEntry(
         @Schema(description = "构建阶段标识", example = "intake") String phase,

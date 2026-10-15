@@ -20,6 +20,11 @@ import jakarta.servlet.http.HttpServletResponse;
  *   未登录 302 跳登录页；/users、/eval 与 /wiki 仅 ADMIN（/data 页面级权限由前端控制，接口层 403 兜底；备份为其二级 Tab）
  * - /api/** 其余：未登录 401 JSON；/api/users、/api/eval、/api/wiki 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
  */
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 public class AuthInterceptor implements HandlerInterceptor {
 
     /** 需登录的页面路由（静态资源 /pages/** 单独按前缀判断；备份功能在 /data 页二级 Tab，接口 /api/backups 仍受保护） */

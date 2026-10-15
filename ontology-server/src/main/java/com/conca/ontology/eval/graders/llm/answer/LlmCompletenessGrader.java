@@ -9,6 +9,9 @@ import com.conca.ontology.eval.JudgeClient;
 /**
  * 回答完整性评测（LLM-as-judge，对齐 OpenJudge ResponseCompletenessGrader）：
  * 评估「介绍文物」类开放问题的要点覆盖度（该说的说全没）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmCompletenessGrader extends LlmJudgeGrader {

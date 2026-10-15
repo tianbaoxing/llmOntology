@@ -28,6 +28,9 @@ import com.conca.ontology.shared.web.ApiException;
  * 每智能体一行，行级 CRUD（save 行级 upsert / find 主键查询 / list 更新时间倒序 / delete 删行+清目录）。
  * 目录布局 data/agents/{id}/ 下 workspace/（skills、subagents）+ state/ 仍归文件系统
  * （框架按路径加载，dirOf/AgentWorkspaceService 拼路径不变），目录本身由 workspace/state 落盘时创建。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-24
  */
 @Service
 public class AgentDefinitionStore {

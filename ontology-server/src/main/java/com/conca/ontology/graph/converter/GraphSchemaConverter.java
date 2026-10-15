@@ -15,6 +15,9 @@ import com.conca.ontology.graph.model.RelationDef;
 /**
  * {@link GraphClass}/{@link GraphClassProp}/{@link GraphRelDef} 行 ↔ {@link ClassDef} 模型转换器（P2）。
  * SchemaService 保存用，保证行映射唯一实现；ord 逐组递增保持声明顺序。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 public final class GraphSchemaConverter {
 

@@ -5,7 +5,12 @@ import com.conca.ontology.graph.model.PropertyDef;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 类（节点类型）详情视图：ClassView 全字段 + 推导入边 */
+/**
+ * 类（节点类型）详情视图：ClassView 全字段 + 推导入边
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "类详情视图：类定义全字段 + 入边关系（推导）")
 public record ClassDetailView(
         @Schema(description = "类名（唯一标识）", example = "Era") String name,

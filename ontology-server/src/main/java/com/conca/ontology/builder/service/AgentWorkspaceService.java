@@ -24,6 +24,9 @@ import com.conca.ontology.shared.web.ApiException;
  * 拷贝而非引用（projectGlobalSkillsDir 仅支持单目录，无法按 agent 挂技能子集）：
  * 一份拷贝同时解决"多智能体各选各的技能"与"导出包完整性"两个问题；
  * 平台技能库升级不自动同步，编辑智能体时重新拷贝覆盖。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-24
  */
 @Service
 public class AgentWorkspaceService {

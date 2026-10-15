@@ -42,6 +42,9 @@ import com.conca.ontology.graph.model.RelationDef;
  * graph_schema_meta 为唯一事实源（P2 起，由 graph-schema.json 迁移而来）。
  * 每次变更整表事务重写并热更新 GraphSchema 白名单（对齐原整文件原子落盘语义）。
  * 删除保护：类被其他类关系引用 / 库中仍有实例 → 409。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
  */
 @Service
 public class SchemaService {

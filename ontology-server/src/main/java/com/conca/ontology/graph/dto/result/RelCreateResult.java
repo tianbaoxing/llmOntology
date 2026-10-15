@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.dto.result;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 创建关系结果（MERGE 幂等：已存在则覆盖属性） */
+/**
+ * 创建关系结果（MERGE 幂等：已存在则覆盖属性）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "创建关系结果（MERGE 幂等：已存在则覆盖属性）")
 public record RelCreateResult(
         @Schema(description = "关系类型", example = "SUB_ERA_OF") String type,

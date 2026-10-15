@@ -39,6 +39,9 @@ import com.conca.ontology.shared.web.ApiException;
  *   - 阶段结果合并去重 → 生成 DupCandidateGroup 列表 + KPI 汇总
  *   - ConflictGuard 属性冲突检测：全局冲突属性 + 类级冲突属性并集检测
  *   - 规则集快照：每次 scan 从 DedupRulesService 取不可变 DedupRuleset，跨线程安全
+ *
+ * @author tianbaoxing
+ * @date 2026-09-21
  */
 @Service
 public class DedupScanService {

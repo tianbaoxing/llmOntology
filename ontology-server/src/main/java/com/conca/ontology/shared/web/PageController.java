@@ -7,6 +7,11 @@ import org.springframework.web.bind.annotation.GetMapping;
  * 页面入口：/ → 控制台首页（静态页 static/pages/index.html）。
  * 页面通过 /api/** 接口操作数据；认证由 AuthInterceptor 统一拦截（/login 公开）。
  */
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Controller
 public class PageController {
 

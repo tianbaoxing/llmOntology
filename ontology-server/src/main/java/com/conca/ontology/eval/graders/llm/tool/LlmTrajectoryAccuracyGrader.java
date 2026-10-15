@@ -11,6 +11,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 轨迹准确性评测（LLM-as-judge，对齐 OpenJudge TrajectoryAccuracyGrader）：
  * 评估整条轨迹是否达成提问目标（高效达成/达成但绕路/失败），直接反映本次问答全程质量。
  * 无工具调用时跳过（不消耗 judge 调用）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmTrajectoryAccuracyGrader extends LlmJudgeGrader {

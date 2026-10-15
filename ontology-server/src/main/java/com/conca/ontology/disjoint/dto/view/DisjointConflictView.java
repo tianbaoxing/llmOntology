@@ -3,6 +3,10 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-11
+ */
 @Schema(description = "单条冲突：哪条规则的哪几个候选项同时被文本命中")
 public record DisjointConflictView(
         @Schema(description = "规则 ID", example = "R001") String ruleId,

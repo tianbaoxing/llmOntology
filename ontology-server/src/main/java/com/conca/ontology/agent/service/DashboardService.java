@@ -23,6 +23,9 @@ import io.agentscope.harness.agent.HarnessAgent;
  * （USER 消息数 = 提问轮次，ASSISTANT 消息数 = LLM 调用次数），按日 / 按会话分组。
  * 统计口径为指定用户自己的用量（userId 由 Controller 从登录态传入）。
  * 未配置 OPENROUTER_API_KEY（agent 未装配）时返回全零空统计。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-22
  */
 @Service
 public class DashboardService {

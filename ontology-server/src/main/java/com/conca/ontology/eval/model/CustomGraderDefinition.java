@@ -1,5 +1,9 @@
 package com.conca.ontology.eval.model;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-18
+ */
 public record CustomGraderDefinition(
         String name,
         String description,

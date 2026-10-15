@@ -39,6 +39,9 @@ import jakarta.validation.Valid;
  * GET  /api/agent/skills                   → 技能清单（chat 页输入区快捷插入）
  * GET  /api/agent/tools                    → 工具清单（chat 页「工具列表」悬停面板）
  * 会话/记忆按登录用户隔离：userId 一律取当前会话，不信任请求参数。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-20
  */
 @RestController
 @RequestMapping("/api/agent")

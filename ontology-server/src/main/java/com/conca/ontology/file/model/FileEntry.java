@@ -5,6 +5,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 /** 上传文件条目：元数据 file-metadata.json 的单元。
  * 转换字段（mdName/convertStatus/convertMsg/convertedAt）为二期扩展：旧 JSON 缺省反序列化为 null，
+ *
+ * @author tianbaoxing
+ * @date 2026-08-20
  * 由对账逻辑自动回填；NONE 表示文本类无需转换。 */
 @Schema(description = "上传文件条目：名称、绝对路径、大小、类型、说明、上传时间、MD 转换信息")
 @JsonInclude(JsonInclude.Include.NON_NULL)

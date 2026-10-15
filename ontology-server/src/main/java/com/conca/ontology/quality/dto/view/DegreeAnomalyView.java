@@ -2,6 +2,10 @@ package com.conca.ontology.quality.dto.view;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "出入度异常节点明细：度值超过 均值 + N * 标准差 视为异常")
 public record DegreeAnomalyView(
         @Schema(description = "节点标签") String label,

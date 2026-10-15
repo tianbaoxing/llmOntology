@@ -25,6 +25,9 @@ import io.agentscope.harness.agent.HarnessAgent;
  * 配置沿用 app.eval.judge.*（缺省回落 app.agent.*）。
  * 失败（调用异常 / 输出不可解析）重试 1 次（3s 退避），仍失败返回 ok=false
  * （调用方记 GraderError）；token 用量按全部尝试累计（真实成本口径）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class JudgeClient {

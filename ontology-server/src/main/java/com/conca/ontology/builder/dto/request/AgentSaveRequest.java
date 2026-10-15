@@ -7,6 +7,9 @@ import com.conca.agentkit.AgentDefinition;
 /**
  * 智能体创建/编辑请求（向导汇总表单）。
  * 不含 apiKey：模型密钥统一经环境变量 AGENT_API_KEY 注入，不进表单、不落盘。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-24
  */
 public record AgentSaveRequest(
         String name,

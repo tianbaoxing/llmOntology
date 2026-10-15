@@ -30,6 +30,9 @@ import io.agentscope.core.message.TextBlock;
  * AgentEvent → SSE 帧（事件契约与 llmOntology 平台 chat 页完全一致）：
  * session → round ×N（每轮模型调用 start/end，end 携带该轮 tokens）
  * → thinking / tool / answer → done / error。未知事件不透出，保持契约精简。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-29
  */
 public final class AgentEventWriter {
 

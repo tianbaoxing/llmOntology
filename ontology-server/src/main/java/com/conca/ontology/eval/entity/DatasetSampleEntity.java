@@ -19,6 +19,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 自增 id 兼作文件行序（插入序即原文件非空行序，对齐 eval_run_sample 先例），seq 定位 = 按 id 升序行号。
  * NULL 语义 = 原行无此键（sampleId 读取按 line-{seq}、query 按空串兜底），回读重建 raw 时 NULL 键省略；
  * 全字段 updateStrategy=IGNORED：updateSample 整行覆写（对齐原「重写整行 JSONL」语义，支持字段清空回写）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-13
  */
 @TableName(value = "dataset_sample", autoResultMap = true)
 public class DatasetSampleEntity {

@@ -33,6 +33,9 @@ import io.agentscope.harness.agent.HarnessAgent;
  *   （CJK ≈1 token/字，其余 ≈4 字符/token），有真实 inputTokens 锚点时等比例校准
  * - messages：全会话消息明细（不截断）
  * 系统提示词与工具 Schema 运行时实时读取（agent-state 不落盘这两项），与模型实际可见一致。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-26
  */
 @Service
 public class SessionDetailService {

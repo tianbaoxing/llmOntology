@@ -27,6 +27,9 @@ import jakarta.annotation.PreDestroy;
  * 刻意不注册为 Spring bean：避免与主问答 agent（AgentScopeConfig#harnessAgent）
  * 形成 HarnessAgent 双候选，注入主流程的 ObjectProvider&lt;HarnessAgent&gt; 一行不改。
  * key 未配置时持有 null（判分前置校验由 JudgeClient.isConfigured 承担）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class JudgeAgentHolder {

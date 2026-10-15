@@ -3,7 +3,12 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-/** Wiki 元数据文件：data/wiki-metadata.json 的整体结构（version 每次变更 +1，原子落盘）。 */
+/**
+ * Wiki 元数据文件：data/wiki-metadata.json 的整体结构（version 每次变更 +1，原子落盘）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-23
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record WikiMetadataFile(int version, List<WikiMetaEntry> entries) {
 

@@ -2,6 +2,10 @@ package com.conca.ontology.quality.dto.view;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "完整图谱质量诊断报告：三大模块汇总 + 全局 KPI")
 public record QualityReportView(
         @Schema(description = "报告生成时间戳（毫秒，epoch）", example = "1758348120000") long generatedAtMs,

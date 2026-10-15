@@ -30,6 +30,10 @@ import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import jakarta.annotation.PostConstruct;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-17
+ */
 @Service
 public class ContentSecurityService {
 

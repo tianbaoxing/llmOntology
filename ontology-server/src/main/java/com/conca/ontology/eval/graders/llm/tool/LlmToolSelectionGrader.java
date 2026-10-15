@@ -11,6 +11,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 工具选择合理性评测（LLM-as-judge，对齐 OpenJudge ToolSelectionGrader）：
  * 与工具调用正确性互补，侧重「该不该用这些工具」（有无缺失或多余）。
  * 无工具调用时跳过（不消耗 judge 调用）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmToolSelectionGrader extends LlmJudgeGrader {

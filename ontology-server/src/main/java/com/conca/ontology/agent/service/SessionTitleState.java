@@ -9,6 +9,9 @@ import io.agentscope.core.state.State;
  * {stateDir}/{userId}/{sessionId}/session_title.json（与 agent_state.json 同目录、互不干扰）。
  * 生效优先级：手工命名 > 首条用户消息派生标题（AgentSessionService.titleOf）。
  * 删除会话时框架按会话目录整体清理，无需联动处理。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-10
  */
 public record SessionTitleState(String title, String updatedAt) implements State {
 

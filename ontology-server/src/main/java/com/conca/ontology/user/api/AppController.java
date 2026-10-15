@@ -10,7 +10,12 @@ import org.springframework.web.bind.annotation.RestController;
 import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.user.service.UserService;
 
-/** 应用信息入口（公开）：标题（app.title）、问答模型信息（app.agent.*）与初始化状态（登录页据此切换模式）。 */
+/**
+ * 应用信息入口（公开）：标题（app.title）、问答模型信息（app.agent.*）与初始化状态（登录页据此切换模式）。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @RestController
 @RequestMapping("/api/app")
 public class AppController {

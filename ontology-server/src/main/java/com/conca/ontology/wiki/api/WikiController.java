@@ -28,6 +28,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  */
 @Tag(name = "Admin-Wiki", description = "Wiki 知识库（wiki.html 数据源）：文档列表、单篇读取（MD 原文 + 元信息）、"
         + "编辑分类/标签（data/wiki-metadata.json）。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-09-23
+ */
 @RestController
 @RequestMapping("/api/wiki")
 public class WikiController {

@@ -18,6 +18,9 @@ import com.conca.ontology.eval.model.GraderScore;
  * reference_response = 123 / "高15.5，足径15.3" / [15.5,15.3]（数字/文本/数组统一提取数字）。
  * 从回答与参考答案中各提取全部数字，按出现顺序逐位容差比对，
  * score = 命中数 / 参考数字总数；回答多出的数字忽略，缺漏按比例扣分。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class NumberAccuracyGrader implements Grader {

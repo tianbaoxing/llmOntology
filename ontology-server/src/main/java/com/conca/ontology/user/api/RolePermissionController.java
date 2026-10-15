@@ -18,6 +18,9 @@ import com.conca.ontology.user.service.RolePermissionService;
  * GET /api/admin/role-permissions         → 全部角色规则
  * PUT /api/admin/role-permissions/{role}  → 更新角色黑名单（body 为 RoleRule 三清单）
  * 资源全集（工具/技能/子代理）由 GET /api/agent/tools|skills|subagents 提供，前端自行取用。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @RestController
 @RequestMapping("/api/admin/role-permissions")

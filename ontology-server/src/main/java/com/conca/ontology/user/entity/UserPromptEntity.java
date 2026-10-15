@@ -10,6 +10,9 @@ import com.baomidou.mybatisplus.annotation.TableName;
  * 用户提示词行（user_prompt，P5：每条提示词一行，无全局 version）。
  * 与 {@link com.conca.ontology.user.model.UserPromptEntry} record 经
  * {@link com.conca.ontology.user.converter.UserPromptEntryConverter} 互转（userId 为行级新增字段，API 模型不含）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-12
  */
 @TableName("user_prompt")
 public class UserPromptEntity {

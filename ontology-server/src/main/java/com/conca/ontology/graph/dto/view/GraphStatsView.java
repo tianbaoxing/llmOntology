@@ -3,7 +3,12 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 图谱统计：各 label 节点数 / 各 type 关系数 */
+/**
+ * 图谱统计：各 label 节点数 / 各 type 关系数
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "图谱统计：各 label 节点数 / 各 type 关系数")
 public record GraphStatsView(
         @Schema(description = "各节点标签的数量列表（按 label 字典序）") List<LabelCount> nodes,

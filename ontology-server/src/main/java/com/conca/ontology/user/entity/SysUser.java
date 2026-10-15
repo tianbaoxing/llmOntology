@@ -6,7 +6,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
-/** 平台用户表实体（sys_user，MyBatis-Plus；与 {@link com.conca.ontology.user.model.UserEntry} 互转） */
+/**
+ * 平台用户表实体（sys_user，MyBatis-Plus；与 {@link com.conca.ontology.user.model.UserEntry} 互转）
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
+ */
 @TableName("sys_user")
 public class SysUser {
 

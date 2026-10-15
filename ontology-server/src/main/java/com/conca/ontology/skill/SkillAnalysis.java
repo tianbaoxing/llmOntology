@@ -11,6 +11,9 @@ import java.util.List;
  * hiddenTools/hiddenApis/hiddenShellCommands 用户删除（忽略）的检测项（过滤太常见的命中，
  * 详情页 × 按钮触发，跨重新检测保留；响应时从对应清单中剔除）。
  * record 由 Jackson 直接序列化/反序列化（字段名即 JSON 键）；旧文件缺这三个字段时反序列化为 null。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 public record SkillAnalysis(
         String analyzedAt,

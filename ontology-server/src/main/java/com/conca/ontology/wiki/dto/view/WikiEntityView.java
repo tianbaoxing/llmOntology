@@ -1,7 +1,12 @@
 package com.conca.ontology.wiki.dto.view;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 单篇文档正文实际命中的图谱实体（后端预筛，前端只包裹不匹配）。 */
+/**
+ * 单篇文档正文实际命中的图谱实体（后端预筛，前端只包裹不匹配）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-30
+ */
 @Schema(description = "文档正文命中的图谱实体")
 public record WikiEntityView(
         @Schema(description = "实体显示名称（词典 name）", example = "三星堆遗址") String name,

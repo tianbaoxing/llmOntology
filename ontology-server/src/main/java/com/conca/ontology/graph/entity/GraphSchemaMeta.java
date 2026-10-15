@@ -6,7 +6,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
-/** 图谱 schema 元数据表实体（graph_schema_meta，单行 id=1，P2） */
+/**
+ * 图谱 schema 元数据表实体（graph_schema_meta，单行 id=1，P2）
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
+ */
 @TableName("graph_schema_meta")
 public class GraphSchemaMeta {
 

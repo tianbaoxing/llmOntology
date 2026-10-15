@@ -80,6 +80,9 @@ import reactor.core.scheduler.Schedulers;
  * 语义改写：启用后主 agent 启动前先执行「改写轮」（独立 rewrite agent 管道），
  * 以同样的 round/thinking 事件把改写过程模拟为思考过程推送（前端零改动）；
  * 改写后文本替换用户消息送入 ReAct，trace 存 USER 消息 metadata 供历史回放。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-20
  */
 @Service
 public class AgentChatService {

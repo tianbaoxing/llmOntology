@@ -9,6 +9,9 @@ import com.conca.ontology.eval.JudgeClient;
 /**
  * 相关性评测（LLM-as-judge，对齐 OpenJudge RelevanceGrader）：
  * 检测回答是否跑题、答非所问。原始 1-5 分归一化 0-1。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmRelevanceGrader extends LlmJudgeGrader {

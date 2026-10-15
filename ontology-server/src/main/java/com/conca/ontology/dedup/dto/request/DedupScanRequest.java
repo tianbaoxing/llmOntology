@@ -2,6 +2,10 @@ package com.conca.ontology.dedup.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "去重扫描请求：指定 label、规则集、算法阈值、返回限制")
 public record DedupScanRequest(
         @Schema(description = "要扫描的节点 label；留空或 \"*\" 表示扫描全部 label（按 label 分别扫描，不跨类合并）", example = "Place", defaultValue = "*") String label,

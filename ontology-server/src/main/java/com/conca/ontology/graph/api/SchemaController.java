@@ -25,6 +25,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 /** 概念层（schema 元数据）CRUD 入口：唯一事实源 graph-schema.json */
 @Tag(name = "Admin-Schema", description = "概念层管理页接口：schema 元数据 CRUD（schema.html 数据源）。"
         + "与 LLM 平面 /api/llm/schema 同源同逻辑。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @RestController
 @RequestMapping("/api/schema")
 public class SchemaController {

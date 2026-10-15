@@ -19,6 +19,9 @@ import com.conca.ontology.graph.model.ProfileEntry;
  * 构建期问询记录（用户画像 / ontology 画像）：MySQL ontology_profile 多行表为唯一事实源
  * （P2 起由 ontology-profile.json 迁移而来，每条问答一行，无全局 version）。
  * 按 key upsert（同 key 覆盖且保留原位置，新 key 追加在尾部）；updatedAt 存 ISO-8601 原文保留纳秒精度。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
  */
 @Service
 public class ProfileService {

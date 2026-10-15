@@ -9,6 +9,9 @@ import com.conca.ontology.eval.JudgeClient;
 /**
  * 回答有用性评测（LLM-as-judge，对齐 OpenJudge ResponseHelpfulnessGrader）：
  * 评估回答对提问者的实际帮助程度，与完整性成对使用。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmHelpfulnessGrader extends LlmJudgeGrader {

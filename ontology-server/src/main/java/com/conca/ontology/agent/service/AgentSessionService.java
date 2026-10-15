@@ -46,6 +46,9 @@ import io.agentscope.harness.agent.workspace.WorkspaceManager;
  * workspace 侧 log.jsonl（append-only 全量转录）双源合并补全展示。
  * 会话按登录用户隔离（userId 由 Controller 从登录态传入，与 AgentChatService 一致）。
  * 删除仅清 agent 记忆（stateStore.delete）；workspace 侧 jsonl 日志为无害残留，不清理。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-20
  */
 @Service
 public class AgentSessionService {

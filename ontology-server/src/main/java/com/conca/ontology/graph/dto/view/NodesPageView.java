@@ -4,7 +4,12 @@ import java.util.Map;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 分页实例列表：某 label 下按唯一键排序的节点全属性分页 */
+/**
+ * 分页实例列表：某 label 下按唯一键排序的节点全属性分页
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "分页实例列表：某 label 下按唯一键排序的节点全属性分页")
 public record NodesPageView(
         @Schema(description = "节点标签（须在 schema 白名单内）", example = "Era") String label,

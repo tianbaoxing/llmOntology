@@ -13,6 +13,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * JSON 语法校验评测（对齐 OpenJudge 启用即校验的哲学）：样本 graders 含本评测器即校验，
  * 无需参考答案。回答剥离 markdown 代码围栏后须可解析为合法 JSON。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class FormatJsonGrader implements Grader {

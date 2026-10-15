@@ -4,6 +4,9 @@ import jakarta.validation.constraints.Size;
 
 /**
  * AI 问答消息请求（会话 id 在路径中：POST /api/agent/sessions/{id}/messages）。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-20
  */
 public record AgentChatRequest(
         @NotBlank(message = "消息内容不能为空")

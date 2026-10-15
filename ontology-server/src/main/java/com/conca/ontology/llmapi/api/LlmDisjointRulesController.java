@@ -18,6 +18,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @Tag(name = "LLM-DisjointRules", description = "互斥约束词典 LLM 平面：读规则+冲突检测。"
         + "LLM 生成最终回复/写入前必须跑 check，有冲突必须终止并告知用户冲突规则。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-09-11
+ */
 @RestController
 @RequestMapping("/api/llm/disjoint-rules")
 public class LlmDisjointRulesController {

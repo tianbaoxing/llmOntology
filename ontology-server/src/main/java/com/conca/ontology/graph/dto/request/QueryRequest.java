@@ -5,7 +5,12 @@ import java.util.Map;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 通用只读 Cypher 查询请求 */
+/**
+ * 通用只读 Cypher 查询请求
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @Schema(description = "通用只读 Cypher 查询请求（写语句会被拒绝）")
 public record QueryRequest(
         @Schema(description = "只读 Cypher 语句（MATCH/RETURN/OPTIONAL/UNWIND/WITH 等；"

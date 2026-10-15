@@ -9,6 +9,9 @@ import com.conca.ontology.graph.model.ProfileEntry;
  * 构建期问询记录行（ontology_profile，P2 调整：每条问答一行，无全局 version）。
  * 自增 id 兼作顺序列：upsert 同 key 原位置覆盖（不动 id），新 key 追加在尾部。
  * updatedAt 存 {@link ProfileEntry#updatedAt()} 的 ISO-8601 原文（含纳秒精度）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 @TableName("ontology_profile")
 public class OntologyProfileItem {

@@ -27,6 +27,9 @@ import reactor.core.scheduler.Schedulers;
  * 仅 GET / POST；POST body 须为合法 JSON（上限 16KB）；响应超 8000 字符截断。
  * 错误文案确定性中文，按前缀分层：[参数错误]（本地校验拒绝）/ [服务错误]（HTTP 非 200）/
  * [连接失败]（目标服务未启动或网络异常）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-29
  */
 public final class HttpJsonTool implements AgentTool {
 

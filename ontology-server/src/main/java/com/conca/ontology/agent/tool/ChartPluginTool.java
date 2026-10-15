@@ -13,6 +13,10 @@ import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.tool.Tool;
 import io.agentscope.core.tool.ToolParam;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-13
+ */
 public class ChartPluginTool {
 
     private static final Logger log = LoggerFactory.getLogger(ChartPluginTool.class);

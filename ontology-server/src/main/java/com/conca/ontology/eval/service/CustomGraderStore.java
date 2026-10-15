@@ -17,6 +17,9 @@ import com.conca.ontology.shared.web.ApiException;
  * 自定义评测器持久层（MySQL custom_grader，P6 起替代 data/eval/custom-graders.json 单文件）：
  * 每评测器一行（name 主键），行级 CRUD（find 单行查询 / all 按名称字典序，与注册表 TreeMap 同序）。
  * 校验逻辑（validate）与 409/404 文案不变；CRUD 保留 synchronized（find+insert 竞态防护，对齐原实现并发语义）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-01
  */
 @Component
 public class CustomGraderStore {

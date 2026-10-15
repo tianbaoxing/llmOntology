@@ -4,6 +4,10 @@ import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "疑似重复候选组：≥2 个节点判定为同一实体")
 public record DupCandidateGroup(
         @Schema(description = "组 ID（稳定 = 成员 eid 字典序拼接的短 hash，便于前端记忆选中态）", example = "G-0ab12ef4") String groupId,

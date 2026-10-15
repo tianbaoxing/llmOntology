@@ -21,6 +21,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 省 token 短路：回答为空直接判 0 分；轨迹类评测器（requireToolCalls）无工具调用时跳过，
  * 均不发起 judge 调用。context = 轨迹中图谱工具返回的拼接（hallucination/groundedness
  * 类「以图谱为证据」核查）。judge 调用失败重试 1 次后仍失败记 GraderError，不影响其它评测器。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 public abstract class LlmJudgeGrader implements Grader {
 

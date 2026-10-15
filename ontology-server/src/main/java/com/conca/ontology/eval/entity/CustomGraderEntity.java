@@ -8,6 +8,9 @@ import com.conca.ontology.eval.model.CustomGraderDefinition;
 /**
  * 自定义评测器行实体（custom_grader，P6 起替代 data/eval/custom-graders.json）。
  * 时间列存 ISO-8601 原文（record 内 String 原样透传保纳秒，对齐 skill_analysis 先例）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-12
  */
 @TableName("custom_grader")
 public class CustomGraderEntity {

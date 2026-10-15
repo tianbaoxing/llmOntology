@@ -49,6 +49,9 @@ import reactor.core.publisher.Mono;
  *
  * fail-open 说明：无角色信息（ctx 缺 CTX_ROLE_KEY，如框架内部调用）的请求直接放行；
  * 用户聊天链路（AgentChatService.chat）必定注入角色，不受影响。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
 

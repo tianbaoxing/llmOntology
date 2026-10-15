@@ -10,6 +10,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 幻觉检测评测（LLM-as-judge，对齐 OpenJudge HallucinationGrader）：
  * 以证据上下文（轨迹中图谱查询返回）与参考答案核查回答是否编造无依据信息。
  * 高分=无幻觉（反向指标），证据上下文由基类从轨迹自动注入。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmHallucinationGrader extends LlmJudgeGrader {

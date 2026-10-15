@@ -5,6 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * 自定义评测器试跑请求（单次判分即时返回，不落盘）：body 为一条临时样本，
  * 与预置 response 纯判分模式同构（无 agent 轨迹，context 变量为「无」）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-01
  */
 @Schema(description = "自定义评测器试跑请求（临时样本单次判分）")
 public record EvalCustomGraderTestRequest(

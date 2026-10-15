@@ -13,6 +13,9 @@ import com.conca.ontology.eval.model.GraderScore;
  * 整串等值评测（对齐 OpenJudge StringMatchGrader 的 exact_match 算法）：
  * reference_response = "..."（字符串/数字均可）。
  * 回答去首尾空白后与参考答案全等得 1.0，否则 0.0（严苛模式，适合答案高度受限的问题）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class StringExactGrader implements Grader {

@@ -2,6 +2,10 @@ package com.conca.ontology.quality.dto.view;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "孤立节点明细行：无任何关系连接的节点")
 public record IsolatedNodeView(
         @Schema(description = "节点标签（类名）", example = "CulturalRelic") String label,

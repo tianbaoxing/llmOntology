@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 /**
  * 聊天记录沉淀：从指定会话提取的问答对（仅提取预填表单，不落盘；
  * 期望回答由人工补齐后走新增样本接口 POST /api/eval/datasets/{name}/samples）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-02
  */
 @Schema(description = "聊天记录沉淀：会话问答对提取结果")
 public record FromChatSampleResult(

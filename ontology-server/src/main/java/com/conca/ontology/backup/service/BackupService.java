@@ -45,6 +45,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * zip 文件名编码统计信息（backup-时间-n节点数-r关系数-f文件数-v版本.zip），列表即文件名解析，无需额外索引。
  * 异步执行 + 内存进度（percent/phase/detail），同一时间仅允许一个任务。
  * 临时工作目录 backups/.tmp-{taskId}/，完成后 zip 先写 .tmp 再 rename（半成品不进列表）。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-20
  */
 @Service
 public class BackupService {

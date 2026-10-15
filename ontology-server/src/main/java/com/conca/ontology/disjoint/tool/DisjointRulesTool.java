@@ -21,6 +21,9 @@ import io.agentscope.core.tool.Tool;
  * Skill 获取规则后，由 LLM **自行比对"即将输出/写入的内容"与规则中的【】候选项**，
  * 若发现同一条规则内 ≥2 个候选项同时出现在内容中，必须直接终止并报错。
  * 这么做是为了让 LLM 自己理解语义与匹配边界，而不是依赖简单字符串包含。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-11
  */
 public class DisjointRulesTool {
 

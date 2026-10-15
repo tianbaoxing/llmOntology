@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.dto.result;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 更新关系属性结果（按 type + 两端键定位） */
+/**
+ * 更新关系属性结果（按 type + 两端键定位）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "更新关系属性结果（按 type + 两端键定位）")
 public record RelUpdateResult(
         @Schema(description = "关系类型", example = "SUB_ERA_OF") String type,

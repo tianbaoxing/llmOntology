@@ -4,6 +4,10 @@ import java.util.Map;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "疑似重复候选节点：单节点信息 + 各算法得分")
 public record DupCandidate(
         @Schema(description = "Neo4j elementId（节点内部唯一 ID，用于跳转与合并）", example = "4:ef0a...") String eid,

@@ -17,6 +17,9 @@ import com.conca.ontology.wiki.dto.view.WikiEntityView;
  * 非重叠、大小写不敏感的命中检测，返回该文档实际命中的实体集合（前端只包裹不匹配）。
  * 两级缓存：词典 TTL 5 分钟（节点增删最迟一个 TTL 生效）；文档结果 key = mdName + convertedAt
  * （重转自动失效），词典刷新时一并清空。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-30
  */
 @Service
 public class WikiEntityService {

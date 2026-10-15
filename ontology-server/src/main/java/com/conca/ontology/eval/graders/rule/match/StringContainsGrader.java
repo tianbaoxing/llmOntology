@@ -15,6 +15,9 @@ import com.conca.ontology.eval.model.GraderScore;
  * 关键词包含评测（对齐 OpenJudge StringMatchGrader 的 contains_all 算法，按比例得分）：
  * reference_response = ["关键词",...]（也兼容单个字符串/数字）。
  * score = 命中关键词数 / 总数（缺一按比例扣分），metadata.missing 列出未命中的关键词。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class StringContainsGrader implements Grader {

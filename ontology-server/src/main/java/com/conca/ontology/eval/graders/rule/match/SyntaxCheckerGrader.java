@@ -43,6 +43,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 数据源优先级：1) params.code（显式代码块，推荐） 2) response（剥离代码围栏后）。
  * 语言判定顺序：1) params.language（java/json/py/py3/python/js/ts/javascript/typescript/sql/xml/yaml/generic）
  * 2) 围栏标记 ```java 等 3) 内容启发式。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-20
  */
 @Component
 public class SyntaxCheckerGrader implements Grader {

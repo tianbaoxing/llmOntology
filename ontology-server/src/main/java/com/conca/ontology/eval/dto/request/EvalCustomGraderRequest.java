@@ -7,6 +7,9 @@ import jakarta.validation.constraints.NotBlank;
  * mode=criteria（默认）：prompt 仅写评分标准，样本内容由框架固定区块隔离拼接；
  * mode=template：prompt 为完整模板，可用五占位符 {{query}}/{{answer}}/{{reference}}/{{context}}/{{rubric}}。
  * 深度校验（名称格式/占位符白名单/长度）见 CustomGraderStore.validate。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-01
  */
 @Schema(description = "自定义评测器创建/更新请求（用户提示词驱动的 LLM 评测器）")
 public record EvalCustomGraderRequest(

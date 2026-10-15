@@ -31,6 +31,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 窗口语义：首次成功加载 → 会话结束（多次加载即首次加载后全部步骤的并集）；
  * 压缩恢复的 flat 消息无 thinking 时关键词通道自然降级，工具通道不受影响。
  * 判定不抛错：内部异常降级为空结果，不影响详情接口本身。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class SkillUsageJudge {

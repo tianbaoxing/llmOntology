@@ -28,6 +28,9 @@ import com.conca.ontology.shared.web.ApiException;
  * - application.yml 不走模板：由定义槽位现场生成（提示词块标量 + 列表配置化，
  *   密钥以 ${AGENT_API_KEY:} 占位，不随工程携带）
  * - workspace/（skills、subagents）自智能体工作区原样拷贝，data/state 由导出工程运行时生成
+ *
+ * @author tianbaoxing
+ * @date 2026-09-29
  */
 @Service
 public class AgentProjectExportService {

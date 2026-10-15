@@ -13,6 +13,11 @@ import io.swagger.v3.oas.models.info.Info;
  * - admin 组：/api/** 管理端接口（需登录，文档仅描述接口不执行）
  * 访问 /swagger-ui.html 切换分组；/v3/api-docs/{group} 输出 OpenAPI JSON（可直接注入 LLM 上下文）。
  */
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Configuration
 public class OpenApiConfig {
 

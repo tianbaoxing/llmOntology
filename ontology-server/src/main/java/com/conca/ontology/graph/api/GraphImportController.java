@@ -29,6 +29,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 /** 管理端入口：图数据单条 CRUD（LLM 专用批量写入已迁 /api/llm/graph） */
 @Tag(name = "Admin-GraphWrite", description = "管理页图数据单条 CRUD：节点（MERGE 幂等/SET +=/DETACH DELETE）、"
         + "关系（type + 两端键定位）。与 LLM 平面同源同逻辑。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @RestController
 @RequestMapping("/api/graph")
 public class GraphImportController {

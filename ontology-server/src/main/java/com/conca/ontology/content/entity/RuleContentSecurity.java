@@ -11,6 +11,9 @@ import com.baomidou.mybatisplus.annotation.TableName;
  * 规则 ID 为主键；ord 保留原文件声明顺序（扫描遍历序 = 展示序，新增规则追加尾部）；
  * allowlisted 为行级 allowlist 标记（原独立 allowlist 清单已合并进行）；
  * updated_at 为行级写入时间（API 不输出）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 @TableName("rule_content_security")
 public class RuleContentSecurity {

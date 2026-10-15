@@ -23,6 +23,9 @@ import com.conca.ontology.dedup.model.DedupRuleset;
  *   4. 前后缀剥离后再次 trim + 空值丢弃
  *
  * 最终以 List<normKey> 同 label 内做等值分组。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-21
  */
 @Component
 public class NormalizeAliasStage {

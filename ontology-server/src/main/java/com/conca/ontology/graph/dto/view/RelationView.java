@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.dto.view;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 概念层（schema）视图项：关系定义（扁平，含两端类与实时 count） */
+/**
+ * 概念层（schema）视图项：关系定义（扁平，含两端类与实时 count）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "关系定义视图：含两端类、属性定义与实时实例数")
 public record RelationView(
         @Schema(description = "关系类型名（唯一，全 schema 内不可重复声明）", example = "OF_ERA") String name,

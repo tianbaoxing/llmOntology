@@ -64,6 +64,11 @@ import io.agentscope.harness.agent.HarnessAgent;
  * UPDATE（TransactionTemplate 单事务）；历史读路径按原结果文件语义重建 Map（NULL 的 key 省略，
  * status NULL 按 success 处理），公共签名与 404/409 文案不变。
  */
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-26
+ */
 @Service
 public class EvalRunService {
 

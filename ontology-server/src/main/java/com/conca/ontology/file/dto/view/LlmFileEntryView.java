@@ -1,7 +1,12 @@
 package com.conca.ontology.file.dto.view;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** LLM 专属文件条目：path 为"应读路径"（二进制 → MD 绝对路径；文本 → 原路径） */
+/**
+ * LLM 专属文件条目：path 为"应读路径"（二进制 → MD 绝对路径；文本 → 原路径）
+ *
+ * @author tianbaoxing
+ * @date 2026-09-14
+ */
 @Schema(description = "LLM 专属文件条目：path 恒为可直接读取的 Markdown/文本文件路径")
 public record LlmFileEntryView(
         @Schema(description = "文件名（二进制文件为其 MD 名，如 报告.docx.md）",

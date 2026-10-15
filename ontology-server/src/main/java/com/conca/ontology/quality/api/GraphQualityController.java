@@ -23,6 +23,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/api/graph/quality")
 @Tag(name = "Admin-GraphQuality", description = "图谱质量诊断：拓扑异常（孤立点/自环/出入度极端值）、"
         + "Schema 覆盖率（声明但零实例的类/关系）、节点/关系类分布直方图。管理员只读接口。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 public class GraphQualityController {
 
     private final GraphDiagnosticsService service;

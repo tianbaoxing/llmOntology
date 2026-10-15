@@ -18,6 +18,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @Tag(name = "LLM-Profile", description = "构建期问询记录（用户画像 / ontology 画像）：LLM 在构建各阶段回看历史问答、追加新问答。"
         + "按 key upsert，同 key 重复问答覆盖，画像始终最新。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @RestController
 @RequestMapping("/api/llm")
 public class ProfileController {

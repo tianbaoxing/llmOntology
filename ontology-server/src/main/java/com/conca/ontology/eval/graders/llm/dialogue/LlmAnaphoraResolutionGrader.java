@@ -12,6 +12,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 评估后续轮次中的代词（「它/这件/该文物」等）是否被正确消解到先前对话
  * 提及的对象。典型场景：先问「介绍一下 X」，再问「它是什么朝代的？」。
  * 需多轮样本（turns 格式）；单轮样本跳过。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmAnaphoraResolutionGrader extends LlmJudgeGrader {

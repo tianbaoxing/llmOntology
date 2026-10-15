@@ -31,6 +31,9 @@ import com.conca.ontology.user.web.SessionUser;
  * 存储格式自描述：pbkdf2-sha256$迭代数$盐hex$哈希hex。
  * 初始化：不存在任何 ADMIN 用户时允许创建 admin（登录页引导设置密码）。
  * 表为 utf8mb4_bin：userId 精确匹配对齐 equals；忽略大小写查询显式 LOWER 双边。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
  */
 @Service
 public class UserService {

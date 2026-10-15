@@ -29,6 +29,9 @@ import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
  * Tika 解析为 XHTML（标题/表格/列表结构保留）→ 截取 body → flexmark 转 GFM Markdown。
  * MD 命名 <原文件全名>.md，落 app.md-dir（默认 files-md/，镜像 upload-dir 相对路径）；
  * 空结果检测：正文有效字符数 < convert-min-chars 判 FAILED（典型场景：扫描件 PDF 无文本层）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-14
  */
 @Service
 public class MdConvertService {

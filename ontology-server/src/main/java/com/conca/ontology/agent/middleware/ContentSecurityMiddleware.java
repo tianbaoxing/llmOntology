@@ -25,6 +25,10 @@ import io.agentscope.core.state.AgentState;
 import io.agentscope.harness.agent.middleware.HarnessRuntimeMiddleware;
 import reactor.core.publisher.Flux;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-17
+ */
 public class ContentSecurityMiddleware implements HarnessRuntimeMiddleware {
 
     private static final Logger log = LoggerFactory.getLogger(ContentSecurityMiddleware.class);

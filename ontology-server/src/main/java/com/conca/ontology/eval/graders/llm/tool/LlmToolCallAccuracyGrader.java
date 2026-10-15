@@ -11,6 +11,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 工具调用正确性评测（LLM-as-judge，对齐 OpenJudge ToolCallAccuracyGrader）：
  * 评估 agent 轨迹中工具选择与参数是否正确（如该用 graph_query 却用了别的）。
  * 无工具调用时跳过（不消耗 judge 调用）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmToolCallAccuracyGrader extends LlmJudgeGrader {

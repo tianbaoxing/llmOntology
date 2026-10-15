@@ -4,7 +4,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
-/** 图谱类定义表实体（graph_class，P2；与 {@link com.conca.ontology.graph.model.ClassDef} 互转） */
+/**
+ * 图谱类定义表实体（graph_class，P2；与 {@link com.conca.ontology.graph.model.ClassDef} 互转）
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
+ */
 @TableName("graph_class")
 public class GraphClass {
 

@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.dto.result;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 删除关系结果（按 type + 两端键定位） */
+/**
+ * 删除关系结果（按 type + 两端键定位）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "删除关系结果（按 type + 两端键定位）")
 public record RelDeleteResult(
         @Schema(description = "关系类型", example = "SUB_ERA_OF") String type,

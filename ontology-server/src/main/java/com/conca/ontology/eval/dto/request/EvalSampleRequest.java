@@ -8,6 +8,9 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * 数据集样本新增/编辑请求（编辑按非空行序号 seq 定位，不依赖 id）。
  * referenceType 决定 referenceText 的解析方式：string | number | array（空 = 不写 reference_response）。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-27
  */
 @Schema(description = "数据集样本新增/编辑请求")
 public record EvalSampleRequest(

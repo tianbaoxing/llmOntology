@@ -9,6 +9,9 @@ import com.baomidou.mybatisplus.annotation.TableName;
 /**
  * 互斥约束词典行（rule_disjoint，P2 调整：每条规则一行，无全局 version）。
  * 规则 ID（R001/R002...）为主键，字典序即展示序（原文件内声明顺序）；update_time 为行级写入时间（API 不输出）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 @TableName("rule_disjoint")
 public class RuleDisjoint {

@@ -6,6 +6,10 @@ import com.conca.ontology.dedup.dto.view.DupCandidateGroup;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "去重扫描结果：KPI 汇总 + 候选组列表")
 public record DedupScanResult(
         @Schema(description = "扫描开始时间戳（毫秒，epoch）", example = "1758348120000") long scanStartMs,

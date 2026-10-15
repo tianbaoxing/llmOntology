@@ -31,6 +31,9 @@ import io.agentscope.core.tool.ToolParam;
  *
  * 错误文案分层与 HttpProxyTool 对齐，便于模型机械判层：
  * [参数错误] 本地校验拒绝或业务校验 4xx / [服务错误] 服务端 5xx
+ *
+ * @author tianbaoxing
+ * @date 2026-09-30
  */
 public class AgentBuilderTool {
 

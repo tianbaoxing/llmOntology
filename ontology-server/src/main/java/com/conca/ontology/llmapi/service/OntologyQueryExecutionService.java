@@ -10,6 +10,10 @@ import com.conca.ontology.graph.dto.result.QueryResult;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.graph.service.GraphQueryService;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-08-20
+ */
 @Service
 public class OntologyQueryExecutionService {
 

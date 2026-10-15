@@ -5,6 +5,10 @@ import com.conca.ontology.content.model.ContentRiskLevel;
 
 import java.util.List;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-17
+ */
 public record PromptInjectionScanResult(
         ContentDecision decision,
         double confidence,

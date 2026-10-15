@@ -25,6 +25,9 @@ import com.conca.ontology.graph.model.PropertyDef;
 /**
  * 只读查询封装：通用 Cypher（只读校验）、统计、节点详情、邻域。
  * 值统一经 Value.asObject() 转为 Java 友好类型（Node/Rel/Path 也转 Map/List）。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
  */
 @Service
 public class GraphQueryService {

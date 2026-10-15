@@ -16,6 +16,9 @@ import com.conca.ontology.eval.model.GraderScore;
  * 死循环检测评测（二期规则补强，OpenJudge ActionLoopDetectionGrader 的规则版）：
  * 连续调用相同工具且参数相同判为循环步，score = 1 - 循环步数 / (总调用数 - 1)；
  * 调用数 ≤ 1（含未调用工具的纯判分样本）视为无循环风险得 1 分。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class ActionLoopGrader implements Grader {

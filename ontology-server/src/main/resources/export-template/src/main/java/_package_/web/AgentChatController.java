@@ -29,6 +29,9 @@ import reactor.core.scheduler.Schedulers;
  * GET  /api/chat 前置的 /api/meta 返回名称/描述/欢迎语（页面初始化用）。
  * POST /api/chat {message, sessionId?} → text/event-stream；
  * sessionId 留空则生成新会话并经 session 帧回传（前端持久化，复用框架会话记忆）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-29
  */
 @RestController
 public class AgentChatController {

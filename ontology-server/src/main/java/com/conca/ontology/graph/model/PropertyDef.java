@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.model;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 属性定义（节点或关系上） */
+/**
+ * 属性定义（节点或关系上）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @Schema(description = "属性定义（节点或关系上）")
 public record PropertyDef(
         @Schema(description = "属性名（[A-Za-z_][A-Za-z0-9_]*）", example = "name") String name,

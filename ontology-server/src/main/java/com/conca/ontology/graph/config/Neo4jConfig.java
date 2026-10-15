@@ -12,6 +12,9 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Neo4j 连接池显式配置：driver 5.x 默认池（100 连接 / 60s 获取超时）对本地单用户偏宽松，
  * 池参数经 neo4j.pool.* 注入（application.yml），@Value 默认值与 yml 缺省一致。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
  */
 @Configuration
 public class Neo4jConfig {

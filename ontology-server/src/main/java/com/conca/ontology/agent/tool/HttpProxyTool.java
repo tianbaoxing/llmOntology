@@ -29,6 +29,9 @@ import io.agentscope.core.tool.ToolParam;
  *
  * 错误返回为确定性中文文案并带层前缀，便于模型机械判层：
  * [连接失败] 服务未启动 / [参数错误] 本地校验拒绝 / [服务错误] 服务端 4xx/5xx
+ *
+ * @author tianbaoxing
+ * @date 2026-08-24
  */
 public class HttpProxyTool {
 

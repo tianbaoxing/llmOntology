@@ -24,6 +24,9 @@ import com.conca.ontology.user.service.UserService;
  * - memory/yyyy-MM-dd.md：每日记忆（轮末自动沉淀），按「## Memory Flush — 时间戳」分段；
  * - 目录/文件不存在一律返回空列表（新用户无 workspace 是正常态，不抛错）。
  * 安全：userId 先经 UserService 校验存在；文件名白名单（仅 MEMORY.md 或日期格式），防路径穿越。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-25
  */
 @Service
 public class AgentMemoryService {

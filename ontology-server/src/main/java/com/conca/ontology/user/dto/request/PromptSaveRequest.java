@@ -5,6 +5,9 @@ import jakarta.validation.constraints.Size;
 
 /**
  * 用户提示词新增/修改请求（POST /api/prompts、PUT /api/prompts/{id}）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-14
  */
 public record PromptSaveRequest(
         @NotBlank(message = "标题不能为空")

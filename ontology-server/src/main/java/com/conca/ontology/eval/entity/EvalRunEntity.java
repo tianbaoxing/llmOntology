@@ -14,6 +14,9 @@ import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
  * 运行态/完成态同表：完成态专有列（finished_at / summary 各列）在运行态为 NULL。
  * startedAt/finishedAt 存 ISO-8601 原文（保纳秒，对齐 skill_analysis 先例）。
  * 老完成文件无 judge/human* 列值：NULL 语义保真，回读重建时对应 key 省略。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-13
  */
 @TableName(value = "eval_run", autoResultMap = true)
 public class EvalRunEntity {

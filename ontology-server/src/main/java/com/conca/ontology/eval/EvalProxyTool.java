@@ -21,6 +21,9 @@ import io.agentscope.core.tool.ToolParam;
  *
  * 计数与记录为实例状态：评测 worker 单线程顺序执行样本，由 grader 在每次
  * 判分前 reset()，判分后读取 records()/queryCount()。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 public class EvalProxyTool {
 

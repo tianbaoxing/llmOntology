@@ -31,6 +31,9 @@ import com.conca.ontology.user.model.UserEntry;
  * - subagent：agent_spawn 工具的 agent_id 参数；
  * - skill：load_skill_through_path 的 skillId 参数，SkillCatalog 键格式为
  *   {name}_{source}（如 ontology-builder_workspace），故按 name 与 name_ 前缀双重匹配。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Service
 public class RolePermissionService {

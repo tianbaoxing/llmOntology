@@ -10,6 +10,9 @@ import com.conca.ontology.skill.entity.SkillAnalysisEntity;
  * SkillAnalysisStore 持久化用。
  * toEntity 维持记录不变式：六个 NOT NULL 清单列 null 归一化为空数组（列 NOT NULL），
  * hidden* 三列原样透传（列 NULLable，旧数据缺字段保真存 NULL）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-12
  */
 public final class SkillAnalysisConverter {
 

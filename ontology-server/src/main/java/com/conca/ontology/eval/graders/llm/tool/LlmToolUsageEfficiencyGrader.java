@@ -11,6 +11,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 工具使用效率评测（LLM-as-judge，对齐 OpenJudge ToolUsageEfficiencyGrader）：
  * 检测过度调用与绕圈查询（maxIters=8 场景下尤为相关）——同样的信息是否被
  * 重复查询、是否可以用更少的调用达成目标。无工具调用时跳过（不消耗 judge 调用）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmToolUsageEfficiencyGrader extends LlmJudgeGrader {

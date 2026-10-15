@@ -11,6 +11,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 跨轮上下文记忆评测（LLM-as-judge，对齐 OpenJudge ContextMemoryGrader）：
  * 评估最后一轮回答是否正确利用了先前轮次已建立的信息（如首轮介绍过的文物），
  * 而不是把后续问题当作全新话题重新猜测。需多轮样本（turns 格式）；单轮样本跳过。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmContextMemoryGrader extends LlmJudgeGrader {

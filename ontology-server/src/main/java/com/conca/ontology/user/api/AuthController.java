@@ -23,6 +23,9 @@ import jakarta.validation.Valid;
  * 认证入口（拦截器放行 /api/session、/api/setup）：
  * 会话资源（POST 登录 / DELETE 登出 / GET 当前用户）+ 一次性系统初始化。
  * 注册与自助改密在 UserController（POST /api/users、PUT /api/users/me/password）。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
  */
 @RestController
 @RequestMapping("/api")

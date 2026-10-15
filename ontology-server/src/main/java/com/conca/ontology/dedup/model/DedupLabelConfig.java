@@ -3,6 +3,10 @@ package com.conca.ontology.dedup.model;
 import java.util.List;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-22
+ */
 @Schema(description = "单 label 的去重规则配置")
 public record DedupLabelConfig(
         @Schema(description = "name 属性源（如 CulturalRelic 用 title，其他一般用 name）", example = "name") String nameProp,

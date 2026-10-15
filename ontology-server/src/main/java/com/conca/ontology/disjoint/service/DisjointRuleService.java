@@ -22,6 +22,9 @@ import com.conca.ontology.shared.web.ApiException;
  * 互斥约束词典：MySQL rule_disjoint 多行表为唯一事实源
  * （P2 起由 disjoint-rules.json 迁移而来，每条规则一行，无全局 version）。
  * 按规则 ID upsert；规则 ID 字典序即展示序（原文件内声明顺序 R001..Rnnn）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-11
  */
 @Service
 public class DisjointRuleService {

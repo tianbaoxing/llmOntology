@@ -4,6 +4,10 @@ import java.util.Map;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "悬挂/异常连接明细：终端节点连接（终点无出边）或源节点连接（起点无入边）的关系记录")
 public record DanglingEdgeView(
         @Schema(description = "起点节点标签", example = "Person") String fromLabel,

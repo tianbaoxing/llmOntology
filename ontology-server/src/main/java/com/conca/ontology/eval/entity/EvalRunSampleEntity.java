@@ -14,6 +14,9 @@ import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
  * 自增 id 兼作 samples 数组顺序（插入序即原文件序，对齐 file_metadata 先例）。
  * referenceResponse 为 Object（数据集侧即 String 或嵌套 JSON 值，原样保真）；
  * toolCalls/scores NOT NULL 归一空数组（[]）；dialogue 仅多轮样本有。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-13
  */
 @TableName(value = "eval_run_sample", autoResultMap = true)
 public class EvalRunSampleEntity {

@@ -20,6 +20,9 @@ import com.conca.ontology.graph.model.GraphSchema;
  * 图数据单条 CRUD：节点（MERGE 幂等 / SET += / DETACH DELETE）、
  * 关系（type + 两端键定位，MERGE / SET += / DELETE）。
  * 标识符经 GraphSchema 白名单校验后拼接，数据全参数绑定。
+ *
+ * @author tianbaoxing
+ * @date 2026-08-19
  */
 @Service
 public class GraphWriteService {

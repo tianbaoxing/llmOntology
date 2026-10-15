@@ -4,7 +4,12 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 
-/** 编辑 Wiki 元信息入参：category 置空、tags 置空数组即清除。 */
+/**
+ * 编辑 Wiki 元信息入参：category 置空、tags 置空数组即清除。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-23
+ */
 @Schema(description = "编辑 Wiki 元信息（分类/标签）入参")
 public record WikiMetaRequest(
         @Schema(description = "分类（空=清除）", example = "考古发现")

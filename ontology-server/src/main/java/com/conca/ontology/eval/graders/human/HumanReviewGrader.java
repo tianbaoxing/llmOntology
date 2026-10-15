@@ -13,6 +13,9 @@ import com.conca.ontology.eval.model.GraderScore;
  * 任务结束后由登录用户在页面逐样本打分（1-5 星，可选评语，可跳过），
  * 打分写回结果 JSON 并重算汇总指标。占位分带 metadata.pending=true，
  * summarize / rowStats / Run Diff 均跳过未评分样本（不计入均值、不参与翻转）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class HumanReviewGrader implements Grader {

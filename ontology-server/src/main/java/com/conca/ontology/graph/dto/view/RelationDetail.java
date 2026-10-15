@@ -5,7 +5,12 @@ import com.conca.ontology.graph.model.PropertyDef;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 类详情视图内的出边关系声明（宿主类视角） */
+/**
+ * 类详情视图内的出边关系声明（宿主类视角）
+ *
+ * @author tianbaoxing
+ * @date 2026-08-21
+ */
 @Schema(description = "出边关系声明（宿主类视角，含实时实例数）")
 public record RelationDetail(
         @Schema(description = "关系类型名", example = "SUB_ERA_OF") String name,

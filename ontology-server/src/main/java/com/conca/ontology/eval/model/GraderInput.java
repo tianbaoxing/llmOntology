@@ -4,6 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-18
+ */
 public record GraderInput(Map<String, Object> params, AgentRecord record) {
 
     public String query() {

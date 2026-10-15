@@ -11,6 +11,9 @@ import com.conca.ontology.eval.JudgeClient;
  * 工具参数抽取评测（LLM-as-judge，对齐 OpenJudge ToolParameterCheckGrader）：
  * 检查轨迹中工具入参（如 Cypher 中的实体名/属性值）是否来自问题本身，是否编造
  * 问题中不存在的实体或条件（防幻觉参数）。无工具调用时跳过（不消耗 judge 调用）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Component
 public class LlmToolParameterCheckGrader extends LlmJudgeGrader {

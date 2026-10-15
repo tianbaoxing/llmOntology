@@ -4,6 +4,10 @@ import java.util.Map;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * @author tianbaoxing
+ * @date 2026-09-21
+ */
 @Schema(description = "自环关系明细：节点通过某关系指向自身")
 public record SelfLoopView(
         @Schema(description = "节点标签（两端相同）", example = "Person") String label,

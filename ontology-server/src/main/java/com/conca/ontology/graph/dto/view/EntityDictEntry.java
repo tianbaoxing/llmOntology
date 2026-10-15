@@ -1,7 +1,12 @@
 package com.conca.ontology.graph.dto.view;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/** 实体词典条目：全量图谱节点（概念层 + 实例层）的匹配四元组，供 wiki 正文实体链接（服务层内部，不出 HTTP）。 */
+/**
+ * 实体词典条目：全量图谱节点（概念层 + 实例层）的匹配四元组，供 wiki 正文实体链接（服务层内部，不出 HTTP）。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-30
+ */
 @Schema(description = "实体词典条目：label/key/name/layer")
 public record EntityDictEntry(
         @Schema(description = "节点标签（schema 白名单内）", example = "Site") String label,

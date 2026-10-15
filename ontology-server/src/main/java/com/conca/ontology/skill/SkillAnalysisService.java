@@ -38,6 +38,9 @@ import org.springframework.beans.factory.ObjectProvider;
  *   与技能名不同，因此不能以目录名作技能名）。
  * - 检测：对 SKILL.md + 全部文本资源做工具（系统工具反向比对）/ API / Shell 命令三路提取，
  *   结果经 SkillAnalysisStore 落盘 data/skill-analysis.json。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 @Service
 public class SkillAnalysisService {

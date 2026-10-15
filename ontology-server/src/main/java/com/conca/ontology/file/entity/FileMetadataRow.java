@@ -13,6 +13,9 @@ import com.baomidou.mybatisplus.annotation.TableName;
  * 自增 id 兼作列表顺序：同名覆盖保留原位置（updateById 不动 id），新文件追加尾部。
  * name 唯一键（相对 upload-dir，可含子目录）；转换四列可空，NULL 表示待对账回填
  * （updateStrategy=IGNORED 保证 updateById 能把已清空的列写回 NULL）。
+ *
+ * @author tianbaoxing
+ * @date 2026-10-10
  */
 @TableName("file_metadata")
 public class FileMetadataRow {

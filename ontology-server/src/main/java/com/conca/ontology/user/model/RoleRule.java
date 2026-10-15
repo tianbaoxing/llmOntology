@@ -8,6 +8,9 @@ import java.util.Objects;
  *
  * ADMIN 不读取本配置——代码级固定全量放行（RolePermissionService 判定入口短路），
  * 即使配置文件被误改也不影响管理员。
+ *
+ * @author tianbaoxing
+ * @date 2026-09-16
  */
 public record RoleRule(
         List<String> deniedTools,

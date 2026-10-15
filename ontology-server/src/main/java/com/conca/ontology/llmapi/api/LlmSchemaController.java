@@ -26,6 +26,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "LLM-Schema", description = "概念层（schema 元数据）读写：类定义、属性、关系声明的全量视图与 CRUD。"
         + "唯一事实源 graph-schema.json，每次变更 version+1 并热更新写接口白名单。"
         + "与 admin 入口 /api/schema 同源同逻辑。")
+
+/**
+ * @author tianbaoxing
+ * @date 2026-08-19
+ */
 @RestController
 @RequestMapping("/api/llm/schema")
 public class LlmSchemaController {
