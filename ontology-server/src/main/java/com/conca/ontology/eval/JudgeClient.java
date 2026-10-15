@@ -20,7 +20,7 @@ import io.agentscope.harness.agent.HarnessAgent;
 /**
  * LLM judge 通道（二期重构：裸 HTTP 直连 OpenRouter 切换为 judge 专用 HarnessAgent）：
  * 模型调用经由 JudgeAgentHolder 持有的纯 LLM agent（无工具/技能/子代理），
- * 每次判分独立 sessionId（userId=eval-judge），会话留痕落 judge-state 目录、
+ * 每次判分独立 sessionId（userId=eval-judge），会话留痕落 MySQL 表 agent_state_judge、
  * AgentTraceMiddleware 输出调用日志——补齐此前旁路调用缺失的 LLM 日志监控。
  * 配置沿用 app.eval.judge.*（缺省回落 app.agent.*）。
  * 失败（调用异常 / 输出不可解析）重试 1 次（3s 退避），仍失败返回 ok=false
@@ -97,7 +97,7 @@ public class JudgeClient {
                 lastError = "judge agent 未装配（key 未配置或初始化失败）";
                 break;
             }
-            // 每次判分独立会话：样本间上下文零串扰，且每次调用在 judge-state 留下可回查的完整记录
+            // 每次判分独立会话：样本间上下文零串扰，且每次调用在 MySQL 表 agent_state_judge 留下可回查的完整记录
             sessionId = "judge-" + UUID.randomUUID().toString().substring(0, 8);
             try {
                 Msg userMsg = Msg.builder().role(MsgRole.USER).textContent(userPrompt).build();

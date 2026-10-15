@@ -64,9 +64,8 @@ app:
     # 单次改写 LLM 调用超时与输出上限（独立 rewrite agent 与单项测试共用）
     timeout-seconds: 30
     max-output-tokens: 1000
-    # 独立 rewrite agent 的工作区与会话留痕目录（每次改写独立会话，可回查完整 prompt 与输出）
+    # 独立 rewrite agent 的工作区目录（每次改写独立会话，可回查完整 prompt 与输出）
     workspace-dir: data/rewrite-workspace
-    state-dir: data/rewrite-state
   # 备份：zip 存放目录（相对 cwd，可用绝对路径覆盖）；文件名编码统计信息（backup-时间-n节点-r关系-f文件-v版本.zip）
   backup-dir: backups
   # 评测 LLM judge（二期）：base-url/api-key/model 缺省复用 app.agent 同名配置
@@ -79,9 +78,8 @@ app:
       timeout-seconds: 60
       # 判分次数（>1 时多次取平均降噪，对齐 OpenJudge AverageEvaluationStrategy）
       runs: 1
-      # judge 专用 HarnessAgent（纯 LLM 管道：无工具/技能/子代理），工作区与会话留痕目录
+      # judge 专用 HarnessAgent（纯 LLM 管道：无工具/技能/子代理），工作区目录
       workspace-dir: data/eval/judge-workspace
-      state-dir: data/eval/judge-state
     # Agentic 取证评测（三期模块一）：judge 是带只读图谱工具的 agent，自主查证断言后判分；
     # base-url/api-key/model 缺省复用 app.agent 同名配置
     agent:
@@ -91,9 +89,8 @@ app:
       # 输出含 evidence 数组，比纯判分 JSON 长
       max-output-tokens: 1200
       timeout-seconds: 60
-      # 取证评测 agent 工作区与会话留痕目录（userId=eval-agentic，可回查每次取证的完整轨迹）
+      # 取证评测 agent 工作区目录（userId=eval-agentic，可回查每次取证的完整轨迹）
       workspace-dir: data/eval/agentic-workspace
-      state-dir: data/eval/agentic-judge-state
   # AI 问答（AgentScope 2.0 Harness，OpenRouter OpenAI 兼容协议）
   agent:
     base-url: https://openrouter.ai/api/v1
@@ -102,7 +99,6 @@ app:
     # model: z-ai/glm-5.3-flash
     api-key: ${OPENROUTER_API_KEY:}
     workspace-dir: data/agent-workspace
-    state-dir: data/agent-state
     # 自定义全局技能目录（projectGlobalSkillsDir）：ontology-builder / ontology-query 等技能放这里
     skills-dir: skills
     # AgentScope Studio 可视化对接地址（留空 = 不启用）；Studio 未启动时降级告警，不阻断主服务
