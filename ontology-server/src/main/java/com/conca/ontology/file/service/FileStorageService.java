@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.conca.ontology.file.converter.FileEntryConverter;
 import com.conca.ontology.file.dto.result.FileDeleteResult;
 import com.conca.ontology.file.dto.view.FileListView;
 import com.conca.ontology.file.dto.result.FileUpdateResult;
@@ -29,7 +30,6 @@ import com.conca.ontology.file.dto.result.FileUploadResult;
 import com.conca.ontology.file.entity.FileMetadataRow;
 import com.conca.ontology.file.mapper.FileMetadataMapper;
 import com.conca.ontology.file.model.FileEntry;
-import com.conca.ontology.file.model.FileEntryConverter;
 import com.conca.ontology.shared.web.ApiException;
 
 /**

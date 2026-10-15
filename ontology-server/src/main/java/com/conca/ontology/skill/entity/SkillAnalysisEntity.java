@@ -11,7 +11,7 @@ import com.conca.ontology.skill.SkillAnalysis;
 
 /**
  * 技能使用分析行（skill_analysis，P4：每技能一行，无全局 version）。
- * 与 {@link SkillAnalysis} record 经 {@link com.conca.ontology.skill.SkillAnalysisConverter} 互转。
+ * 与 {@link SkillAnalysis} record 经 {@link com.conca.ontology.skill.converter.SkillAnalysisConverter} 互转。
  * analyzedAt / contentHash 可空：keyInfo-only 记录（仅保存识别关键词、尚未检测）二者为 NULL。
  * 六个清单列为类型化 JSON（保序）；hidden* 三列可空，旧数据缺字段时存 NULL 保真。
  */

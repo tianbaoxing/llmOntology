@@ -1,7 +1,8 @@
-package com.conca.ontology.skill;
+package com.conca.ontology.skill.converter;
 
 import java.util.List;
 
+import com.conca.ontology.skill.SkillAnalysis;
 import com.conca.ontology.skill.entity.SkillAnalysisEntity;
 
 /**

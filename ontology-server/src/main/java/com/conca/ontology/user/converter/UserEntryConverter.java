@@ -1,9 +1,10 @@
-package com.conca.ontology.user.model;
+package com.conca.ontology.user.converter;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 import com.conca.ontology.user.entity.SysUser;
+import com.conca.ontology.user.model.UserEntry;
 
 /**
  * {@link SysUser} ↔ {@link UserEntry} 转换器。

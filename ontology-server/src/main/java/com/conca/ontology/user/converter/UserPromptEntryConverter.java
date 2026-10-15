@@ -1,9 +1,10 @@
-package com.conca.ontology.user.model;
+package com.conca.ontology.user.converter;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 import com.conca.ontology.user.entity.UserPromptEntity;
+import com.conca.ontology.user.model.UserPromptEntry;
 
 /**
  * {@link UserPromptEntity} ↔ {@link UserPromptEntry} 转换器。

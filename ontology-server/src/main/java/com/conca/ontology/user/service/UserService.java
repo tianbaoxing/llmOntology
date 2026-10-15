@@ -19,10 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.user.converter.UserEntryConverter;
 import com.conca.ontology.user.entity.SysUser;
 import com.conca.ontology.user.mapper.SysUserMapper;
 import com.conca.ontology.user.model.UserEntry;
-import com.conca.ontology.user.model.UserEntryConverter;
 import com.conca.ontology.user.web.SessionUser;
 
 /**

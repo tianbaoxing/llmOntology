@@ -1,9 +1,10 @@
-package com.conca.ontology.file.model;
+package com.conca.ontology.file.converter;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 import com.conca.ontology.file.entity.FileMetadataRow;
+import com.conca.ontology.file.model.FileEntry;
 
 /**
  * {@link FileMetadataRow} 行 ↔ {@link FileEntry} 模型转换器（P4）。

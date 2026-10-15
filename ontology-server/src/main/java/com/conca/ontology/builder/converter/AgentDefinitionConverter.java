@@ -1,4 +1,4 @@
-package com.conca.ontology.builder.model;
+package com.conca.ontology.builder.converter;
 
 import java.util.List;
 

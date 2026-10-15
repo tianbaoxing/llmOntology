@@ -11,7 +11,7 @@ import com.conca.agentkit.AgentDefinition;
 
 /**
  * 智能体定义行（agent_definition，P5：每智能体一行）。
- * 与框架 {@link AgentDefinition} record 经 {@link com.conca.ontology.builder.model.AgentDefinitionConverter} 互转
+ * 与框架 {@link AgentDefinition} record 经 {@link com.conca.ontology.builder.converter.AgentDefinitionConverter} 互转
  * （record 为外部框架类不可修改）。
  * 五个清单列为类型化 JSON（保序，空即 []）；created_at/updated_at 存 ISO-8601 原文保纳秒精度。
  */

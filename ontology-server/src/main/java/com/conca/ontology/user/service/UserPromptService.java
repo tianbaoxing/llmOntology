@@ -25,10 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.user.converter.UserPromptEntryConverter;
 import com.conca.ontology.user.entity.UserPromptEntity;
 import com.conca.ontology.user.mapper.UserPromptMapper;
 import com.conca.ontology.user.model.UserPromptEntry;
-import com.conca.ontology.user.model.UserPromptEntryConverter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**

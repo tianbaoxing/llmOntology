@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.agentkit.AgentDefinition;
+import com.conca.ontology.builder.converter.AgentDefinitionConverter;
 import com.conca.ontology.builder.entity.AgentDefinitionEntity;
 import com.conca.ontology.builder.mapper.AgentDefinitionMapper;
 import com.conca.ontology.shared.db.MySqlAgentStateStores;

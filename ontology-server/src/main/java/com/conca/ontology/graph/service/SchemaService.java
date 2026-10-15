@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.conca.ontology.graph.converter.GraphSchemaConverter;
 import com.conca.ontology.graph.dto.result.ClassDeleteResult;
 import com.conca.ontology.graph.dto.view.ClassDetailView;
 import com.conca.ontology.graph.dto.view.ClassSummary;
@@ -33,7 +34,6 @@ import com.conca.ontology.graph.mapper.GraphSchemaMetaMapper;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.graph.model.ClassDef;
 import com.conca.ontology.graph.model.GraphSchema;
-import com.conca.ontology.graph.model.GraphSchemaConverter;
 import com.conca.ontology.graph.model.PropertyDef;
 import com.conca.ontology.graph.model.RelationDef;
 
