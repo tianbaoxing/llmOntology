@@ -79,7 +79,7 @@ const CF = (() => {
   const ADMIN_PAGES = new Set(['/eval', '/files', '/data', '/agents']);
 
   /** 二级页面 → 一级菜单路径别名（如 /wiki 属于知识库 /files，保持一级菜单高亮） */
-  const MENU_ALIAS = { '/wiki': '/files' };
+  const MENU_ALIAS = { '/wiki': '/files', '/session-detail': '/dashboard' };
 
   function renderHeader(opts = {}) {
     const cur = MENU_ALIAS[location.pathname] || location.pathname;
