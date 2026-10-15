@@ -41,8 +41,11 @@ mybatis-plus:
       id-type: input
 
 app:
-  # 管理页标题，启动可覆盖：--app.title=xxx 或环境变量 APP_TITLE
-  title: 国博藏品图谱
+  # 管理页标题（中性产品名，与 README 一致）：业务名不入仓库，本地覆盖任选其一——
+  # ① ontology-server/config/application.yml 覆盖 app.title（推荐：YAML 为 UTF-8，中文安全）
+  # ② 启动参数 --app.title=xxx ③ 环境变量 APP_TITLE
+  # 注意 .env 按 .properties 以 ISO-8859-1 解码，中文会乱码，只适合放 ASCII 值
+  title: LLM 驱动的领域本体知识图谱平台
   # 上传文件：实体目录 + 元数据表 file_metadata + 允许的扩展名白名单（文本类，排除视频/音频/图片）
   upload-dir: files
   upload-allowed-ext: pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx

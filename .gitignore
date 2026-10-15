@@ -22,6 +22,9 @@ backups/
 # 环境变量（含 API key，勿提交；模板见 .env.example）
 .env
 
+# 本地外部配置（Spring Boot 自动加载 ontology-server/config/，本地业务标题等，勿提交）
+ontology-server/config/
+
 # 临时测试文件
 tmp/
 
