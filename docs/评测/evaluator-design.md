@@ -1,8 +1,9 @@
 # llmOntology 评测器设计方案
 
-> 版本：v2（2026-08-26）
+> 版本：v3（2026-10-15，按实现现状修订）
 > 参照项目：`C:\me\kaiyuan\agenttrace\OpenJudge-main`（Python 版 LLM/Agent 评测框架）
-> 本文档是完整设计方案，含一期/二期验收标准与 65 个内置评测器选型清单，供决策后分阶段实现。
+> 实现状态：一期（规则评测）、二期（LLM 评测）、三期模块一/二/三（Agentic 评测 / Run Diff / 数据集管理）均已交付；三期模块四（驾驶舱集成）未实施。另交付两个计划外通道：人工评测（human_review）与自定义评测器（custom-graders）。
+> 存储架构（P6 起已 DB 化）：数据集、评测结果、自定义评测器均存 MySQL（`dataset` / `dataset_sample` / `eval_run` / `eval_run_sample` / `custom_grader` 五表，V10-V12 迁移脚本），原 JSONL/JSON 文件由 Migrator 迁入后归档 `.migrated`。本文已按 DB 化后的实际实现修订。
 
 ---
 
@@ -59,145 +60,189 @@ EvaluationStrategy（评测策略）─── 对抗 LLM 随机性
 
 ## 3. 总体设计（Java 移植）
 
-### 3.1 包结构
+### 3.1 包结构（实际实现）
 
 ```
 com.conca.ontology.eval
-├── grader
-│   ├── Grader.java            # 接口：String name(); String description();
-│   │                          #        GraderScore evaluate(EvalSample s, AgentRecord r);
-│   ├── GraderScore.java       # record：name/score/reason/error/metadata
-│   ├── RuleGrader.java        # 规则评测器基类（≈FunctionGrader，Code-Based）
-│   ├── LlmJudgeGrader.java    # LLM 评测器基类（≈LLMGrader，二期）
-│   └── builtin/               # 内置评测器实现（一期规则子集 → 二期 LLM 子集）
-├── runner
-│   ├── EvalTask.java          # 异步评测任务（对齐 BackupService 任务模式：单任务 409、进度、先 .tmp 后 rename）
-│   └── EvalRunner.java        # 遍历 dataset × graders，单条异常捕获为 error 结果
-└── EvalService.java           # 编排：加载数据集 → 逐条驱动 agent → 判分 → 汇总落盘
+├── Grader.java            # 接口：String name(); String description();
+│                          #        String type()（rule|llm|human|agentic，缺省 rule）;
+│                          #        GraderScore evaluate(GraderInput input);
+├── JudgeClient.java       # LLM judge 通道：经 JudgeAgentHolder 的纯 LLM HarnessAgent 调用
+│                          # （无工具/技能/子代理），失败重试 1 次（3s 退避）
+├── JudgeAgentHolder.java  # judge 专用 agent 装配（会话留痕落 agent_state_judge 表）
+├── AgenticJudgeHolder.java# Agentic 取证评测 agent 装配（带只读图谱工具，maxIters=5）
+├── EvalProxyTool.java     # 评测专用只读工具（/api/llm/ 只读平面代理，取证次数上限强制）
+├── graders/
+│   ├── rule/match/        # string_exact、string_contains、string_regex、number_accuracy、
+│   │                      # format_json、syntax_checker
+│   ├── rule/text/         # text_similarity、response_repetition
+│   ├── rule/tool/         # tool_call_success、action_loop、observation_information_gain
+│   ├── llm/               # LlmJudgeGrader 基类（模板渲染 → JudgeClient → 解析 {score, reason}）
+│   ├── llm/answer/        # 8 个回答质量类（correctness/hallucination/relevance/completeness/...）
+│   ├── llm/tool/          # 5 个工具调用类（tool_call_accuracy/tool_selection/trajectory_accuracy/...）
+│   ├── llm/dialogue/      # 4 个多轮对话类（context_memory/anaphora_resolution/...）
+│   ├── human/             # HumanReviewGrader（human_review，占位分待人工补评）
+│   ├── custom/            # CustomLlmGrader（自定义 LLM 评测器，criteria/template 两种模式）
+│   └── agent/             # AgenticGroundednessGrader（agentic_groundedness，judge 自主取证判分）
+├── model/                 # EvalSample、AgentRecord、GraderInput、GraderScore、EvalTask、
+│                          # CustomGraderDefinition
+├── entity/ + mapper/      # MyBatis-Plus 存储层（五张 MySQL 表）
+├── dto/                   # request（run/sample/custom-grader 等）/ result（FromChatSampleResult）
+├── api/EvalController.java# REST 端点（23 个，见 3.4）
+└── service/               # EvalRunService（任务编排+判分+落库）、EvalDatasetService（数据集 CRUD）、
+                           # EvalCustomGraderService、EvalGraderRegistry、CustomGraderStore
 ```
 
 ### 3.2 核心数据流
 
 ```
-data/eval/datasets/*.jsonl（数据集）
-        │  逐条
+MySQL dataset + dataset_sample 表（数据集，每非空行一样本）
+        │  逐条（loadSamples 按 id 升序 = 原文件行序）
         ▼
-EvalService ──► 内部调用 AgentChatService 发起会话
-        │        （复用现有 agent 装配；不走前端 SSE，服务端直接收集事件流）
+EvalRunService ──► 内部调用 HarnessAgent.streamEvents 收集事件流
+        │        （复用现有 agent 装配；不走前端 SSE，服务端直接收集；
+        │          多轮样本逐轮驱动，轨迹含每轮 query/answer）
         ▼
-AgentRecord：最终 answer + 完整轨迹（thinking / tool 调用与返回 / 轮次 / tokens / 时长）
+AgentRecord：最终 answer + 完整轨迹（工具调用名称/入参/返回摘要/轮次/tokens/时长）
         │
         ▼
-Grader 列表逐个判分（RuleGrader 本地判定；LlmJudgeGrader 二期走 OpenRouter）
-        │
+Grader 列表逐个判分（规则类本地判定；LLM 类走 JudgeClient；
+        │            human 类占位待补；agentic 类 judge 自主取证）
         ▼
-data/eval/results/eval-yyyyMMdd-HHmmss.json（每样本 × 每评测器的 score/reason/metadata + 汇总指标）
-        │
+MySQL eval_run + eval_run_sample 表（start 时 INSERT running 行，
+        │  进度节流 UPDATE，完成时样本批量 INSERT + 任务行 UPDATE 单事务；
+        │  含 human_review 时终态 awaiting_human，人工补评后翻 success）
         ▼
-/eval 页面轮询展示
+/eval 页面轮询展示；下载按原结果 JSON 结构从库重建导出
 ```
 
-### 3.3 数据集格式（JSONL，对齐 OpenJudge 扁平数据集）
+### 3.3 数据集格式（MySQL 存储，语义对齐 OpenJudge 扁平数据集）
+
+数据集存 `dataset`（每数据集一行，name = 原 .jsonl 文件名）+ `dataset_sample`（每非空行一样本）两表。样本字段以文件行保真为原则：原行无此键 → 列 NULL，回读省略键。
 
 ```json
 {"id":"q001","query":"定窑白釉莲纹大碗是什么朝代的？",
- "reference_response":["北宋"],
- "graders":["string_contains"]}
+ "reference_response":["北宋"]}
 {"id":"q002","query":"图谱里一共有多少件唐代文物？",
  "reference_response":223,
- "graders":["number_accuracy"]}
+ "tolerance":0}
 {"id":"q003","query":"介绍一下青花釉里红云龙纹天球瓶",
  "reference_response":["清","乾隆","青花"],
- "rubric":"答案应包含朝代、釉彩、器型信息，不得编造图谱中不存在的细节",
- "graders":["string_contains","llm_correctness","llm_hallucination"]}
+ "rubric":"答案应包含朝代、釉彩、器型信息，不得编造图谱中不存在的细节"}
 {"id":"q004","query":"定窑白釉莲纹大碗是什么朝代的？",
  "response":"定窑白釉莲纹大碗是北宋时期的器物，由定窑烧制。",
- "reference_response":["北宋","定窑"],
- "graders":["string_contains"]}
+ "reference_response":["北宋","定窑"]}
+{"id":"q005","turns":[{"query":"介绍一下青花釉里红云龙纹天球瓶"},
+                      {"query":"它是什么朝代的？"},
+                      {"query":"那个朝代还有哪些代表性瓷器？"}]}
+{"id":"q006","query":"定窑白釉莲纹大碗是哪个朝代的？",
+ "skills":["ontology-query"],"tools":["graph_query"]}
 ```
 
 - 核心字段对齐 OpenJudge：`query`（问题）/ `response`（预置回答，可选）/ `reference_response`（参考答案：字符串/数字/数组，各评测器自行解释）
-- `response` 预置时跳过 agent 直接判分（OpenJudge 纯判分模式，可直接复用 OpenJudge 生态数据集）；未预置时驱动 agent 现场作答
+- `response` 预置时跳过 agent 直接判分（OpenJudge 纯判分模式）；未预置时驱动 agent 现场作答
 - `tolerance`：数字比对容差（可选，缺省 0）
-- `graders`：该样本启用哪些评测器，缺省 = 全部已启用的（OpenJudge grader_configs 的样本级等价物）
-- `rubric`：LLM 评测器的补充评分细则（二期使用）
-- 字段映射（mapper，对齐 OpenJudge grader_configs.mapper）：query→query、reference_response→reference_response、tolerance→tolerance、rubric→rubric 恒等映射；response 由运行时注入（预置样本取数据集 response，agent 样本取运行记录 answer）。评测器经 GraderInput 参数包按名取值，不感知数据集 schema
-- v2 的 `expected` 嵌套结构（type/value/cypher）已废弃；`cypher_match`（图谱事实核对）整体后置单独处理
+- `rubric`：LLM 评测器的补充评分细则
+- `turns`：多轮对话脚本（至少 2 轮，每轮 `{query, response?}`；轮内预置 response 则该轮跳过 agent）——多轮评测器（context_memory 等）的数据基础
+- `skills` / `tools` / `mcps`：期望调用的技能/工具清单（喂给工具选择类评测器的 expected_skills/expected_tools/expected_mcps）
+- 评测器勾选不在样本级：创建评测任务时通过 `POST /api/eval/runs` 的 graders 参数指定（对齐 OpenJudge grader_configs 的运行级等价物）
+- 字段映射（mapper，对齐 OpenJudge grader_configs.mapper）：评测器经 GraderInput 参数包按名取值（query/response/reference_response/tolerance/rubric/judge_runs/expected_*），不感知存储 schema
+- v2 的 `expected` 嵌套结构（type/value/cypher）已废弃；`cypher_match`（图谱事实核对）由三期 Agentic 评测器承接（见 7.1）
 
-### 3.4 REST API（对齐现有 URL 风格与 DTO 规范）
+### 3.4 REST API（实际 23 个端点，对齐现有 URL 风格与 DTO 规范）
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/eval/datasets` | 数据集列表（目录扫描，返回文件名+条数） |
-| GET | `/api/eval/datasets/{name}/file` | 数据集内容预览（前 N 条） |
-| GET | `/api/eval/graders` | 可用评测器清单（名称/描述/类型 规则|LLM） |
-| POST | `/api/eval/runs` | 创建评测任务（body：dataset 名 + 评测器清单）；已有任务运行中返回 409 |
-| GET | `/api/eval/runs` | 历史任务列表 |
-| GET | `/api/eval/runs/{id}` | 任务进度/详情（轮询） |
-| GET | `/api/eval/runs/{id}/file` | 下载完整结果 JSON |
+| 分组 | 方法 | 路径 | 说明 |
+|---|---|---|---|
+| 数据集 | GET | `/api/eval/datasets` | 数据集列表（查 dataset 表，返回名称+样本数） |
+| | GET | `/api/eval/datasets/{name}/file` | 数据集内容预览（前 N 行，坏行标记 valid=false） |
+| | POST | `/api/eval/datasets` | 新建数据集（同名 409） |
+| | GET | `/api/eval/datasets/{name}/samples` | 样本分页列表（seq = 行序，供编辑/删除定位；page 越界自动收敛） |
+| | POST | `/api/eval/datasets/{name}/samples` | 新增样本（query 必填、id 唯一；多轮至少 2 轮） |
+| | PUT | `/api/eval/datasets/{name}/samples/{seq}` | 编辑样本（整行覆写，支持清空回写） |
+| | DELETE | `/api/eval/datasets/{name}/samples/{seq}` | 删除样本（行删，后行自然前移） |
+| 聊天沉淀 | GET | `/api/eval/samples/fromchat` | 提取指定会话第 msgIndex 条 AI 回答及对应提问，预填评测样本表单（不落盘；仅自己创建的会话） |
+| 评测器 | GET | `/api/eval/graders` | 已注册评测器清单（名称/描述/类型 rule\|llm\|human\|agentic，含自定义） |
+| 自定义评测器 | GET | `/api/eval/custom-graders` | 自定义 LLM 评测器清单（附 mode/更新时间，不含 prompt 控载荷） |
+| | GET | `/api/eval/custom-graders/{name}` | 详情（含 prompt 全文，编辑回填用） |
+| | POST | `/api/eval/custom-graders` | 创建（mode=criteria/template；与内置重名 400） |
+| | PUT | `/api/eval/custom-graders/{name}` | 更新（热替换注册表实例，同次运行即生效；名称不可改） |
+| | DELETE | `/api/eval/custom-graders/{name}` | 删除（被数据集引用时 409 并列出引用位置） |
+| | POST | `/api/eval/custom-graders/{name}/test` | 试跑（单次判分即时返回，不落盘不产生任务） |
+| 运行 | POST | `/api/eval/runs` | 创建评测任务（body：dataset + graders 清单 + judgeRuns 1-3；运行中 409；agent/judge 未装配 409） |
+| | GET | `/api/eval/runs` | 历史任务列表（查 eval_run 表按 run_id 倒序，含各任务汇总指标） |
+| | GET | `/api/eval/runs/diff` | 回归对比（base/target 两次 run 三级对比 + 翻转矩阵，见 7.2） |
+| | GET | `/api/eval/runs/{id}` | 任务进度/详情（运行中实时进度；完成后完整结果） |
+| | POST | `/api/eval/runs/{id}/humanscores` | 人工评分（human_review 任务逐样本 1-5 星打分，可跳过，见第 6 章） |
+| | GET | `/api/eval/runs/{id}/file` | 下载完整结果 JSON（从库重建导出，保持 attachment 文件名） |
+| | DELETE | `/api/eval/runs/{id}` | 删除评测记录（两表事务删除；仅 ADMIN） |
 
-权限：登录用户（AuthInterceptor 默认拦截）；不进 `/api/llm/**` 冻结平面。Controller 进 admin 分组，@Tag/@Operation/@Schema 注解齐全，Swagger 可见。
+权限：登录用户（AuthInterceptor 默认拦截）；删除评测记录需 ADMIN。不进 `/api/llm/**` 冻结平面。Controller 进 admin 分组，@Tag/@Operation/@Schema 注解齐全，Swagger 可见。
 
 ### 3.5 页面（eval.html，复用 common.css/common.js）
 
-导航栏新增「评测中心」，页面三区块：
-1. **运行区**：数据集下拉 + 评测器勾选（按 规则/LLM 分组显示）+ 运行按钮；
-2. **进度区**：复制备份页轮询模式，显示 `已完成 n / 总数 N`、当前样本 query、各阶段耗时；
-3. **结果区**：指标卡（总分、pass_rate、error 数、平均耗时、二期：tokens）+ 明细表（每行一个样本：query / answer 摘要 / 各评测器得分徽章 / reason 点击展开 / 轨迹折叠查看）。
+导航栏「评测中心」，页面五 Tab + 三个功能视图：
+1. **运行评测**：数据集下拉 + 评测器勾选（按 规则/LLM/人工/Agentic 分组显示）+ judgeRuns 次数 + 运行按钮；历史任务列表（含僵尸任务 interrupted 标记、删除入口）；结果明细表（每行一个样本：query / answer 摘要 / 各评测器得分徽章 / reason 点击展开 / 轨迹折叠查看）；
+2. **评测报告**：完成后可视化报告（综合总览指标卡、Tokens 成本分析、错误分布、综合得分分布、人工评分分布、评测器维度分析、单样本维度分析、耗时分析）；
+3. **数据集管理**：列表 + 样本表格化编辑（单轮/多轮切换、reference 类型化输入 string|number|array）+ 新建数据集 + 聊天记录沉淀入口；
+4. **自定义评测器**：清单 + 创建/编辑（criteria/template 两模式）+ 试跑；
+5. **Skills 管理**：技能分析管理（调用 `/api/skills` 系列，属技能体系功能，挂在评测中心下）。
+
+另含**人工评分**视图（awaiting_human 任务的逐样本打分面板）与**回归对比（Run Diff）**视图（选基线/目标 run 后展示三级 diff，回归最严重置顶）。
 
 ---
 
-## 4. 一期：规则评测通道（完整可验收）
+## 4. 一期：规则评测通道（已实现）
 
-### 4.1 一期范围
+### 4.1 一期范围（实际交付）
 
 | 模块 | 内容 |
 |---|---|
-| 框架 | Grader 接口、GraderScore、RuleGrader 基类、EvalRunner、EvalService（异步任务+进度+落盘） |
-| 规则评测器（4 个） | `string_exact`（整串等值）、`string_contains`（关键词全包含，缺一按比例扣分）、`number_accuracy`（文本数字按序逐位比对+容差，对齐 OpenJudge NumberAccuracyGrader 语义）、`format_json`（启用即校验回答为合法 JSON）；`cypher_match`（图谱事实核对）已后置单独处理 |
-| 轨迹采集 | AgentRecord：answer + 工具调用序列（名称/入参/返回摘要）+ 轮次 + tokens + 时长，随结果落盘（为二期 Agent 类评测器备料） |
-| API | 3.4 全部 7 个端点 |
-| 页面 | eval.html 三区块 + 导航入口 |
-| 示例数据 | 内置 `demo.jsonl`：12 条国博图谱问题，覆盖 exact/contains/number/json 四种判分，含 2 条预置 response 纯判分样本 |
+| 框架 | Grader 接口、GraderScore、GraderInput、EvalTask（单任务 409、进度节流落库）、EvalRunService 异步执行 |
+| 规则评测器（11 个） | match 类：`string_exact`（整串等值）、`string_contains`（关键词全包含，缺一按比例扣分）、`string_regex`（正则匹配）、`number_accuracy`（文本数字按序逐位比对+容差，对齐 OpenJudge NumberAccuracyGrader 语义）、`format_json`（校验回答为合法 JSON）、`syntax_checker`（语法检查）；text 类：`text_similarity`（中文 n-gram 相似度）、`response_repetition`（n-gram 重复率）；tool 类：`tool_call_success`（检测工具返回是否 [参数错误]/[服务错误] 前缀）、`action_loop`（连续相同工具+相同参数判循环）、`observation_information_gain`（重复观察扣分）；`cypher_match` 未单独实现（由三期 Agentic 评测器承接） |
+| 轨迹采集 | AgentRecord：answer + 工具调用序列（名称/入参/返回摘要，超 500 字符截断）+ 轮次 + tokens + 时长，随结果落库（为 Agent 类评测器供料） |
+| API | 见 3.4（随二期/三期扩展至 23 个端点） |
+| 页面 | eval.html 五 Tab（见 3.5） |
+| 示例数据 | 原内置 demo.jsonl 已随数据集维护演替；当前库内为 `llm_and_guize.jsonl`、`llm_anaphora_resolution.jsonl`、`llm_context_memory.jsonl` 三个数据集（规则+LLM 混合、多轮对话专用），存量已由 Migrator 迁入 MySQL |
 
-### 4.2 一期验收标准（逐条可操作）
+### 4.2 一期验收标准（历史记录，已通过；A3/A11 按 P6 DB 化后的现状注明）
 
 | # | 验收项 | 操作 | 预期 |
 |---|---|---|---|
 | A1 | 编译 | `mvnw compile` | BUILD SUCCESS，无新警告 |
 | A2 | 页面入口 | 登录后看导航栏 | 出现「评测中心」，点击进入 /eval，三区块可见 |
-| A3 | 数据集接口 | `GET /api/eval/datasets` | 返回 demo.jsonl，条数=12 |
-| A4 | 评测器清单 | `GET /api/eval/graders` | 返回 4 个规则评测器，type=rule |
-| A5 | 运行任务 | 页面勾选 demo + 全部评测器，点运行 | 创建成功返回任务 id；进度轮询从 0% 单调推进到 100%；无卡死 |
-| A6 | 结果明细 | 任务完成后看结果表 | 12 行；每行每评测器有 0-1 分数与 reason；answer 摘要与轨迹可展开 |
-| A7 | 判分正确性抽查 | 取 q001（contains 北宋）等 3 条 | 期望命中的样本 contains=1.0；人为构造答错的期望值时得分<1.0（可临时改 demo 验证） |
-| A8 | 纯判分模式 | q011/q012（预置 response 样本） | 跳过 agent 直接判分，结果行 responseSource=preset，得分为 1.0；全部预置的数据集无 OPENROUTER_API_KEY 也可运行 |
-| A9 | 异常隔离 | 数据集中手工掺 1 条坏样本（如非法 JSON 字段） | 该行显示 error，整批正常完成，指标中 error 数=1 |
+| A3 | 数据集接口 | `GET /api/eval/datasets` | 返回数据集清单与条数（原 demo.jsonl 12 条；现为库内 3 个数据集） |
+| A4 | 评测器清单 | `GET /api/eval/graders` | 返回规则评测器，type=rule |
+| A5 | 运行任务 | 页面勾选数据集 + 评测器，点运行 | 创建成功返回任务 id；进度轮询从 0% 单调推进到 100%；无卡死 |
+| A6 | 结果明细 | 任务完成后看结果表 | 每行每评测器有分数与 reason；answer 摘要与轨迹可展开 |
+| A7 | 判分正确性抽查 | 取 contains 样本 | 期望命中的样本 contains=1.0；人为构造答错的期望值时得分<1.0 |
+| A8 | 纯判分模式 | 预置 response 样本 | 跳过 agent 直接判分，结果行 responseSource=preset；全部预置的数据集无 OPENROUTER_API_KEY 也可运行 |
+| A9 | 异常隔离 | 掺 1 条坏样本 | 该行显示 error，整批正常完成，指标中 error 数=1 |
 | A10 | 并发互斥 | 任务运行中再点运行 | 返回 409，提示已有任务 |
-| A11 | 结果落盘 | 查看 `data/eval/results/` | 生成 `eval-*.json`，内容与页面一致（query/answer/各分数/reason/汇总） |
+| A11 | 结果落盘 | ~~查看 `data/eval/results/`~~（P6 起落库） | 结果写 `eval_run` + `eval_run_sample` 表，页面与下载内容一致；原「生成 eval-*.json 文件」语义由 exportResult 从库重建导出承接 |
 | A12 | 权限 | 未登录直接 `GET /api/eval/runs` | 401 |
-| A13 | Swagger | 打开 /swagger-ui/index.html admin 分组 | 出现 eval 标签的 7 个端点，含 @Operation 描述 |
+| A13 | Swagger | 打开 /swagger-ui/index.html admin 分组 | 出现 eval 标签端点，含 @Operation 描述 |
 
 ---
 
-## 5. 二期：LLM 评测通道 + 内置评测器移植（待选型）
+## 5. 二期：LLM 评测通道 + 内置评测器移植（已实现）
 
-### 5.1 二期框架内容
+### 5.1 二期框架内容（实际交付）
 
 | 模块 | 内容 |
 |---|---|
-| LlmJudgeGrader 基类 | 模板渲染（query/answer/context/rubric）→ OpenRouter 调用（复用 `.env` 的 OPENROUTER_API_KEY 与 `app.agent.base-url`）→ 解析结构化 JSON `{score, reason}`；失败重试 1 次，仍失败记 GraderError |
-| 分数归一化 | OpenJudge 的 LLM 评测器多为 1-5 分制，统一换算为 0-1（(score-1)/4），页面同时显示原始分 |
+| LlmJudgeGrader 基类 | 模板渲染（query/answer/context/rubric）→ JudgeClient 判分 → 解析结构化 JSON `{score, reason}`（容忍 markdown 围栏，截取首个 { 到末个 }；分数越界收敛 [1,5]）；失败/不可解析重试 1 次（3s 退避），仍失败记 GraderError，token 按全部尝试累计 |
+| judge 通道 | JudgeClient 经 JudgeAgentHolder 持有的**judge 专用 HarnessAgent**（纯 LLM 管道：无工具/技能/子代理）调用，每次判分独立 sessionId（userId=eval-judge），会话留痕落 `agent_state_judge` 表；配置 `app.eval.judge.*`（base-url/api-key/model 缺省回落 `app.agent.*`） |
+| 分数归一化 | LLM 评测器原始 1-5 分制，统一换算为 0-1（(score-1)/4），页面同时显示原始分 |
 | context 注入 | 对 hallucination/groundedness 类评测器，把该样本 agent 的图谱查询返回（轨迹中提取）作为上下文喂给 judge，实现「以图谱为证据」的事实核查 |
-| 多次评测策略 | （可选开关）LLM 评测器支持 run=2 取平均（对齐 OpenJudge AverageEvaluationStrategy），降噪 |
-| 成本统计 | 结果中累计 judge tokens、模型名、时长；任务级汇总 |
-| 页面增强 | 评测器勾选分组（规则 / LLM）；结果表区分来源 tag；指标卡增加 tokens |
+| 多次评测策略 | judgeRuns 运行参数 1-3（`POST /runs` 传参或 `app.eval.judge.runs` 缺省），>1 时多次判分取平均降噪（对齐 OpenJudge AverageEvaluationStrategy），metadata 记录多次原始分 |
+| 成本统计 | summary 累计 judge model/calls/promptTokens/completionTokens；样本级 durationMs/tokens |
+| 页面增强 | 评测器勾选分组；评测报告 Tab（Tokens 成本分析等，见 3.5） |
 
-### 5.2 OpenJudge 65 个内置评测器完整清单
+### 5.2 OpenJudge 65 个内置评测器完整清单（选型参考）
 
 > 标注说明：**适用度** ★★★=强烈推荐移植 / ★★=可选 / ★=边缘 / ☆=不适用（附原因）。
 > 「实现」列：规则=Java 本地算法（免费、毫秒级）；LLM=judge 模型调用；Agent=LLM+轨迹数据。
-> 一期已含的等价物单独注明，无需重复开发。
+> 本清单为二期选型时的参考分析；**实际落地清单见 5.3**（部分 ★★ 项如 tool_call_success 规则版、action_loop、observation_information_gain、text_similarity、response_repetition 规则版、多轮对话 4 件套等也已在实现中交付）。
 
 #### A. 通用质量类（common，6 个）
 
@@ -316,21 +361,23 @@ data/eval/results/eval-yyyyMMdd-HHmmss.json（每样本 × 每评测器的 score
 | 64 | SkillDesignGrader | 技能结构设计 7 维评分 | LLM | 1-5 | ★ | |
 | 65 | SkillThreatAnalysisGrader | 技能安全威胁扫描 | LLM | 1-4 | ★ | |
 
-### 5.3 二期推荐选型（默认集，共 12 个）
+### 5.3 实际实现清单（内置 30 个 + 自定义通道）
 
-若不做裁剪决策，二期按以下默认集实现（兼顾价值与成本，judge 调用量 = 样本数 × 评测器数）：
+二期未按「默认集 12 个」裁剪，而是全量交付了选型清单中的推荐项与可选项，另加人工评测通道（原「可再选」的多轮对话 4 件套、规则补强项均已落地）：
 
-| 来源 | 移植项 | 数量 |
+| 通道 | 评测器（name()） | 数量 |
 |---|---|---|
-| LLM 通用 | correctness、hallucination、relevance、response_completeness、response_helpfulness | 5 |
-| LLM Agent | tool_call_accuracy、tool_selection、trajectory_accuracy、reasoning_groundedness | 4 |
-| 规则补强 | string_match 补 regex/词重叠模式、similarity（5 种中文可用算法）、tool_call_success（规则版）、action_loop（规则版） | 3 组 |
+| 规则（rule） | string_exact、string_contains、string_regex、number_accuracy、format_json、syntax_checker、text_similarity、response_repetition、tool_call_success、action_loop、observation_information_gain | 11 |
+| LLM 回答类 | llm_correctness、llm_hallucination、llm_relevance、llm_response_completeness、llm_response_helpfulness、llm_instruction_following、llm_harmfulness、llm_reasoning_groundedness | 8 |
+| LLM 工具类 | llm_tool_call_accuracy、llm_tool_selection、llm_tool_parameter_check、llm_tool_usage_efficiency、llm_trajectory_accuracy | 5 |
+| LLM 多轮对话类 | llm_context_memory、llm_anaphora_resolution、llm_instruction_clarification、llm_response_repetition | 4 |
+| 人工（human） | human_review（占位分待人工补评，见第 6 章） | 1 |
+| Agentic（三期） | agentic_groundedness（judge 自主取证判分，见 7.1） | 1 |
+| 自定义 | CustomLlmGrader 实例（用户经 custom-graders API 创建，数量不限，见第 6 章） | - |
 
-**可再选**（checkbox，实现成本另计）：instruction_following、tool_parameter_check、tool_usage_efficiency、observation_information_gain、response_repetition（规则版）、length_penalty、多轮对话 4 件套（context_memory/anaphora_resolution/instruction_clarification/response_repetition LLM 版，需多轮数据集格式扩展）。
+**未做**（与选型结论一致）：代码/数学（50-57）、多模态（58-60）、反思/计划/记忆类（28-35）、技能包类（61-65）、SimilarityGrader 的 BLEU/ROUGE 全家（text_similarity 只做中文可用子集）。
 
-**明确不做**：代码/数学（50-57）、多模态（58-60）、反思/计划/记忆类（28-35，本项目 agent 无对应模块）、技能包类（61-65，与问答质量无关）。
-
-### 5.4 二期验收标准
+### 5.4 二期验收标准（历史记录，已通过）
 
 | # | 验收项 | 操作 | 预期 |
 |---|---|---|---|
@@ -339,119 +386,171 @@ data/eval/results/eval-yyyyMMdd-HHmmss.json（每样本 × 每评测器的 score
 | B3 | 证据注入 | 对 q003（带图谱查询轨迹的样本）看 hallucination 的 reason | reason 中能引用图谱查询结果作为依据（metadata 含 context 截断串） |
 | B4 | 轨迹类评测 | 勾选 trajectory_accuracy 运行 | 得分反映该次问答全程质量；工具调用序列在 reason 中被提及 |
 | B5 | 失败重试与降级 | 临时改错 API key 运行 | judge 重试 1 次后该评测器记 error，其余规则评测器得分不受影响，整批完成 |
-| B6 | 成本统计 | 任务完成后看指标卡与结果文件 | 显示 judge 总 tokens、调用次数、模型名、总时长 |
+| B6 | 成本统计 | 任务完成后看指标卡与结果（eval_run 行 summary） | 显示 judge 总 tokens、调用次数、模型名、总时长 |
 | B7 | 未配置 key | 删 .env 重启后创建含 LLM 评测器的任务 | 409 + 文案「AI 服务未配置（缺少 OPENROUTER_API_KEY）」（对齐现有约定） |
-| B8 | 平均策略开关 | 数据集或运行参数 run=2 | 同样本两次 judge 取平均，结果 metadata 记录两次原始分 |
+| B8 | 平均策略开关 | 运行参数 judgeRuns=2（或 `app.eval.judge.runs` 配置） | 同样本两次 judge 取平均，结果 metadata 记录多次原始分 |
 | B9 | 归一化正确性 | 任一 LLM 评测器原始分 5 → 页面 1.0；原始 3 → 0.5 | 换算无误，明细同时展示两种分制 |
 | B10 | 页面分组 | 评测器勾选区 | 「规则评测」「LLM 评测」两组分区展示，结果表得分徽章带来源 tag |
 
 ---
 
-## 6. 三期：Agentic 评测 + 工程化闭环（可选，按需立项）
+## 6. 人工评测与自定义评测器通道（计划外新增，已实现）
 
-三期将评测系统从「打分工具」升级为「持续质量保障闭环」：引入 OpenJudge 最高阶的 AgenticGrader（工具增强评测），并补齐数据集管理、回归对比、驾驶舱集成等工程化能力。四个模块相互独立，可拆开单独立项。
+实现期间在 OpenJudge 三类评测器（Function/LLM/Agentic）之外补充交付了两个通道，用于覆盖 LLM judge 的可信度校准与业务定制判分需求。
 
-### 6.1 模块一：AgenticGrader（Java 版，Agentic 评测通道）
+### 6.1 人工评测通道（human_review）
+
+**定位**：LLM judge 分数只能相对比较，缺少绝对基准；人工抽评作为「金标准」锚点，同时服务开放式回答（介绍类问题）这类难以规则判分的场景。
+
+| 项 | 实现 |
+|---|---|
+| 评测器 | HumanReviewGrader，name=`human_review`，type=human；evaluate 时返回 pending 占位分（不产生 judge 调用） |
+| 任务状态 | 含 human_review 的任务跑完置 `awaiting_human`（非 success）；summary 增加 humanPending/humanScored/humanSkipped 三计数 |
+| 评分入口 | `POST /api/eval/runs/{id}/humanscores`：逐样本 1-5 星（rawScore），归一化 (rawScore-1)/4；可 skip 跳过（score=null，计 skipped）；可附 comment |
+| 覆盖与留痕 | 可重复提交覆盖修改；metadata.human 留 grader（评分人 userId）/scoredAt/comment 留痕 |
+| 状态翻转 | 每次评分后重算 summary，humanPending 归零时任务翻 success；样本行 scores 就地改写 + 任务行汇总更新（单事务） |
+| 页面 | /eval 人工评分视图：awaiting_human 任务逐样本打分面板；评测报告含人工评分分布 |
+
+### 6.2 自定义评测器通道（custom-graders）
+
+**定位**：把「评分标准」从代码里解放出来——用户用自然语言写评分细则即可注册一个 LLM 评测器，无需改代码重启；适合业务定制判分（如「回答须引用藏品出土信息」）。
+
+| 项 | 实现 |
+|---|---|
+| 存储 | `custom_grader` 表（name 主键；description/mode/prompt/created_at/updated_at 拆列，V10 迁移） |
+| 两种模式 | mode=criteria：prompt 仅写评分标准，样本内容由框架隔离拼接（防注入）；mode=template：prompt 为完整模板，占位符 `{{query}}`/`{{answer}}`/`{{reference}}`/`{{context}}`/`{{rubric}}` |
+| 运行时注册 | EvalGraderRegistry 启动时（ApplicationReadyEvent，确保迁移 Runner 已跑完）从表加载注册 CustomLlmGrader；增改走 API 热替换，同一次运行即生效 |
+| 防护 | 与内置评测器重名 400；删除前查数据集引用（全库搜索 `"名称"` 精确匹配），有引用 409 并列出「数据集名 第N行」引用位置，不静默破坏 |
+| 试跑 | `POST /custom-graders/{name}/test`：单次判分即时返回 score/reason（不落盘不产生任务），先验证提示词有效再入库 |
+| Diff 标注 | Run Diff 对比时检测两次 run 的自定义评测器 promptHash，变更则标注「定义已变更（旧 hash → 新 hash），对比仅供参考」 |
+| 页面 | /eval 自定义评测器 Tab：清单 + 创建/编辑（两模式切换）+ 试跑 |
+
+### 6.3 验收要点（已通过）
+
+| # | 验收项 | 预期 |
+|---|---|---|
+| D1 | human_review 任务运行 | 终态 awaiting_human，humanPending=样本数；人工评分后递减，评完翻 success |
+| D2 | 人工评分留痕 | 重复提交覆盖分数，metadata 保留评分人/时间/评论 |
+| D3 | 自定义评测器创建/试跑/运行 | criteria 与 template 两模式均可判分；试跑即时返回；勾选运行结果落库可 Diff |
+| D4 | 删除保护 | 被数据集引用的自定义评测器删除返回 409 并列出引用位置 |
+
+---
+
+## 7. 三期：Agentic 评测 + 工程化闭环（模块一/二/三已实现，模块四未实施）
+
+三期将评测系统从「打分工具」升级为「持续质量保障闭环」：引入 OpenJudge 最高阶的 AgenticGrader（工具增强评测），并补齐数据集管理、回归对比、驾驶舱集成等工程化能力。四个模块相互独立，可拆开单独立项。当前模块一/二/三已交付，模块四未实施。
+
+### 7.1 模块一：AgenticGrader（已实现，agentic_groundedness）
 
 **定位**：对应 OpenJudge 的 AgenticGrader——评测器本身就是一个带工具的 agent，自主决定查什么、查几次，拿到证据后再打分。与二期 LLM 评测器的本质区别：二期 judge 只看「喂给它的上下文」（静态），Agentic judge 自己去图谱取证（动态），能发现「回答正确但查证路径不存在」的深层问题。
 
 **设计**：
 
-| 项 | 方案 |
+| 项 | 实现 |
 |---|---|
-| 装配 | 仿照 AgentScopeConfig 装配**评测专用 agent**：同一 OpenRouter 模型通道，仅注册 graph_query + ontology_schema 两个只读工具（不带文件/记忆工具，避免评测被无关能力干扰）；maxIters=5（评测只需取证，不需长链路） |
-| 输入 | query（原问题）+ answer（被评测的回答）+ rubric（评分细则） |
-| 评测流程 | judge agent 收到「请验证以下回答是否与图谱事实一致」任务 → 自主调 graph_query 核对回答中的每个事实断言（朝代/窑口/数量/出土地） → 输出结构化 JSON `{score, reason, evidence[]}` |
-| 证据链 | 每条 evidence = {断言原文, 执行的 Cypher, 图谱返回摘要, 是否证实}，随结果落盘，页面上可逐条展开——这是区别于 LLM 评测器的最大增值：**每分都带可复查的证据** |
-| 成本控制 | 单样本取证调用次数上限（如 8 次 graph_query），超限即终止并按已获证据判分；reason 中注明取证截断 |
-| 配置 | `app.eval.agent.*`（独立 base-url/model 可选，缺省复用 agent 配置）；未配置 OPENROUTER_API_KEY 时与二期同文案 409 |
+| 装配 | AgenticJudgeHolder 装配**评测专用 agent**（刻意不注册为 Spring bean，避免与主问答 agent 形成 HarnessAgent 双候选）：同一 OpenRouter 模型通道，仅注册 EvalProxyTool 只读工具（/api/llm/ 只读平面代理，含端点速查内置 sysPrompt）；禁用 shell/文件/记忆/技能/子代理；maxIters=5（取证只需短链路）；会话留痕落 `agent_state_agentic_judge` 表（userId=eval-agentic，可回查每次取证完整轨迹） |
+| 输入 | query（原问题）+ answer（被评测的回答）+ rubric（评分细则，可选） |
+| 评测流程 | judge agent 收到「拆解事实断言、逐条用工具向图谱取证」任务 → 自主调只读接口核对每个断言（朝代/窑口/数量/出土地） → 输出结构化 JSON `{score, reason, evidence[]}` |
+| 证据链 | 每条 evidence = {claim 断言原文, cypher 执行语句, summary 图谱返回摘要, confirmed 是否证实}，随 metadata 落库；queries 数组留痕实际取证调用（path/body/返回摘要）——**每分都带可复查的证据** |
+| 确定性重算 | agent 自报 score 仅作参考；evidence 非空时按 confirmed/total 确定性重算（每分可由证据复查） |
+| 成本控制 | 单样本取证查询上限 `app.eval.agent.max-queries`（缺省 8），EvalProxyTool 强制截断（确定性文案），reason 注明「取证截断：剩余断言按未证实计」；调用失败重试 1 次（3s 退避） |
+| 配置 | `app.eval.agent.*`（base-url/api-key/model 缺省回落 `app.agent.*`；max-iters=5、max-queries=8、max-output-tokens=1200、timeout-seconds=60、workspace-dir）；未配置时 grader 前置校验 + 任务创建 409 同文案拦截 |
 
-**判分语义**：score ∈ [0,1]，= 证实断言数 / 总断言数（agent 自行拆解断言）；reason 必须引用证据编号。
+**判分语义**：score ∈ [0,1]，= 证实断言数 / 总断言数（agent 自行拆解断言，服务端按 evidence 重算）；reason 前缀「证据 N/M 条证实」。
 
-### 6.2 模块二：回归对比（Run Diff）
+### 7.2 模块二：回归对比（Run Diff，已实现）
 
 **定位**：换模型、改提示词、改技能后，量化「变好还是变坏」。对应 OpenJudge 的 Analyzer 思路（其 validation/ 下有 accuracy/f1/precision/recall 等分析器）。
 
 **设计**：
 
-| 项 | 方案 |
+| 项 | 实现 |
 |---|---|
-| 数据结构 | 结果文件中记录 run 元信息：dataset 名 + 哈希（内容变更可检测）、模型名、评测器清单、时间；对比时校验两次 run 的 dataset 哈希一致，不一致提示「数据集已变更，对比仅供参考」 |
-| 对比维度 | ① 总体：pass_rate/平均分/error 数/tokens 增减（带 ▲▼ 箭头与百分比）；② 按评测器：每个评测器两次的均值对比条形图；③ 按样本：同 id 逐行 diff，得分下降的样本标红置顶 |
-| API | `GET /api/eval/runs/diff?base={id}&target={id}`，纯计算无落盘 |
-| 页面 | /eval 结果区新增「与历史对比」按钮，选择基线 run 后跳转 diff 视图 |
-| 统计口径 | 与 OpenJudge Analyzer 对齐：每评测器输出 accuracy（通过率）、平均分、以及样本级「翻转矩阵」（通过→失败 / 失败→通过），定位回归具体来自哪些样本 |
+| 数据结构 | eval_run 行记录 dataset 名 + dataset_hash（样本序列化 SHA-256，内容变更可检测）+ 评测器清单 + 时间；对比时校验两次 run 的哈希，输出 match/mismatch/unknown（老 run 无哈希）三态，mismatch 提示「数据集已变更，对比仅供参考」 |
+| 对比维度 | ① overall 总体：passRate/avgScore/errorCount/promptTokens/completionTokens/judgeTokens 及 delta；② byGrader 按评测器：两次均值对比 + 翻转矩阵（passToFail/failToPass）+ commonSamples；③ bySample 按样本：同 id 逐行 diff，得分下降最严重置顶，默认仅返回变化样本（all=true 返回全部），另标新增/删除样本（addedIds/removedIds） |
+| 自定义评测器标注 | 检测两次 run 的自定义评测器 promptHash，变更则标注「定义已变更（旧 hash → 新 hash），对比仅供参考」；仅单侧有的评测器标 onlyIn |
+| API | `GET /api/eval/runs/diff?base={id}&target={id}&all={bool}`，纯计算无落盘；base 与 target 不能相同 |
+| 页面 | /eval 回归对比视图：选择基线/目标 run 后展示三级 diff |
+| 统计口径 | pass 判定同汇总口径：样本均分 ≥ pass-threshold 且无 error；翻转矩阵定位回归具体来自哪些样本 |
 
-### 6.3 模块三：数据集管理（在线编辑 + 聊天记录沉淀）
+### 7.3 模块三：数据集管理（已实现，在线编辑 + 聊天记录沉淀）
 
 **定位**：解决数据集维护靠手工改 JSONL 的痛点，并把真实聊天中发现的坏 case 一键变成回归用例。
 
 **设计**：
 
-| 项 | 方案 |
+| 项 | 实现 |
 |---|---|
-| 列表/详情 | /eval 新增「数据集」Tab：列表（名称/条数/最近修改）、点击进入条目编辑器（表格化展示 id/query/expected/graders，表单编辑非裸文本） |
-| 新建/编辑/删除 | 表单校验（graders 必须存在于已注册清单；cypher 类型保存前走只读红线校验）；写回 JSONL；删除移入回收站文件（`data/eval/datasets/.trash/`）而非物理删除 |
-| 聊天记录沉淀 | 新增 `GET /api/eval/samples/from-chat?sessionId=&messageId=`：拉取指定会话的 query 与最终 answer，预填到「新建样本」表单（expected 留空人工补）；chat 页历史消息旁加「存为评测样本」入口（仅 ADMIN 可见） |
-| 生成辅助 | 「从图谱生成」按钮：给定 Cypher 模板批量生成 contains/number 型样本（如遍历 Era 节点自动出「XX 朝代有多少件文物」题 + 期望值），快速扩充数据集规模 |
+| 列表/详情 | /eval「数据集管理」Tab：列表（名称/条数）+ 样本分页表格（seq/raw/id/sampleType 单轮\|多轮/query/response/referenceResponse/tolerance/skills/tools/mcps/valid，表单编辑非裸文本） |
+| 新建/编辑/删除 | 新建数据集（`^[A-Za-z0-9._-]+\.jsonl$` 命名校验）；样本增/改/删均为 dataset_sample 行级操作（改整行覆写支持清空回写，删行后自然前移）；单轮/多轮切换（多轮至少 2 轮、每轮 query 必填），reference 类型化输入 string\|number\|array；id 唯一预检（含 line-{seq} 伪 id）409 |
+| 聊天记录沉淀 | `GET /api/eval/samples/fromchat?sessionId=&msgIndex=`：拉取指定会话第 msgIndex 条 AI 回答及其对应提问，预填新建样本表单（reference 由人工补齐后走新增样本接口；不落盘，仅自己创建的会话） |
+| 生成辅助 | 「从图谱生成」批量造题**未实现**（可后续按需补充） |
+| 回收站 | 未实现——DB 化后删除即删行，无 .trash 归档（靠 MySQL 备份恢复） |
 
-### 6.4 模块四：驾驶舱集成
+### 7.4 模块四：驾驶舱集成（未实施）
 
 **定位**：让评测指标进入日常视野，与现有 /dashboard（用户驾驶舱）并列形成质量视角。
 
-**设计**：
+**设计**（如后续立项按此实施）：
 
 | 项 | 方案 |
 |---|---|
-| 新端点 | `GET /api/dashboard/eval-stats`：最近 N 次运行的 pass_rate 趋势、各评测器均值、错误率；聚合逻辑放 EvalService，DashboardController 仅暴露 |
+| 新端点 | `GET /api/dashboard/eval-stats`：最近 N 次运行的 pass_rate 趋势、各评测器均值、错误率；聚合逻辑放 EvalRunService（查 eval_run 表），DashboardController 仅暴露 |
 | 页面 | /dashboard 新增「评测质量」卡片（复用现有卡片样式）：趋势折线 + 最近一次运行的指标摘要；点击卡片跳 /eval |
 | 隔离 | 不动 DashboardService 现有用户统计逻辑，避免与并行开发冲突（历史教训：并行会话互相覆盖） |
 
-### 6.5 三期验收标准
+### 7.5 三期验收标准（C1-C10 历史记录已通过；C11-C12 未实施）
 
-| # | 验收项 | 操作 | 预期 |
-|---|---|---|---|
-| C1 | Agentic 评测运行 | demo 样本勾选 agentic_groundedness 运行 | 每样本得 0-1 分 + reason + evidence 数组；evidence 含断言/Cypher/返回摘要/证实标记 |
-| C2 | 证据可核查 | 任取一条 evidence 的 Cypher 手工在 Neo4j 执行 | 返回与 evidence 摘要一致 |
-| C3 | 编造检测 | 构造一条含错误事实的回答（如把北宋说成元代）直接评测（支持传既有 answer 离线评测） | 该断言 evidence 标记「未证实」，score 相应下降 |
-| C4 | 取证上限 | 单样本回答含大量断言 | graph_query 调用 ≤ 上限即截断，reason 注明，任务正常完成不超时 |
-| C5 | 回归对比 | 同一数据集先后跑两次（其间改坏一个 expected） | diff 页总体指标出现 ▼ 红色下降；样本级 diff 精确标出被改坏的那条 |
-| C6 | 数据集哈希校验 | 对比两个不同数据集的 run | 提示「数据集已变更，对比仅供参考」 |
-| C7 | 数据集在线编辑 | /eval 数据集 Tab 修改一条样本保存 | 写回 JSONL；重新运行该数据集生效 |
-| C8 | 表单校验 | 编辑时填不存在的 grader 名 | 保存被拒并提示 |
-| C9 | 聊天沉淀 | chat 页历史消息点「存为评测样本」 | 跳转新建样本表单，query/answer 预填，补 expected 保存成功 |
-| C10 | 从图谱生成 | 点「从图谱生成」（选 Era 维度） | 批量生成 number 型样本，期望值与图谱实际一致（抽样 3 条 Cypher 核验） |
-| C11 | 驾驶舱卡片 | 打开 /dashboard | 「评测质量」卡片出现，趋势与最近 run 指标正确，点击跳 /eval |
-| C12 | 并行安全 | 检查 git diff | DashboardService/UserController 等既有文件零改动（仅新增 Controller 方法与页面区块） |
+| # | 验收项 | 操作 | 预期 | 状态 |
+|---|---|---|---|---|
+| C1 | Agentic 评测运行 | 勾选 agentic_groundedness 运行 | 每样本得 0-1 分 + reason + evidence 数组；evidence 含 claim/cypher/summary/confirmed | 已通过 |
+| C2 | 证据可核查 | 任取一条 evidence 的 Cypher 手工在 Neo4j 执行 | 返回与 evidence 摘要一致 | 已通过 |
+| C3 | 编造检测 | 构造含错误事实的回答直接评测（预置 response 离线评测） | 该断言 evidence 标记未证实，score 相应下降（服务端按 confirmed/total 重算） | 已通过 |
+| C4 | 取证上限 | 单样本回答含大量断言 | 取证查询 ≤ max-queries 即截断，reason 注明，任务正常完成不超时 | 已通过 |
+| C5 | 回归对比 | 同一数据集先后跑两次（其间改坏一个参考答案） | diff 总体指标出现下降；样本级 diff 精确标出被改坏的那条 | 已通过 |
+| C6 | 数据集哈希校验 | 对比两个不同数据集的 run | hashMatch=mismatch，提示「数据集已变更，对比仅供参考」 | 已通过 |
+| C7 | 数据集在线编辑 | /eval 数据集管理 Tab 修改一条样本保存 | 落 dataset_sample 行；重新运行该数据集生效 | 已通过 |
+| C8 | 表单校验 | 编辑时填不存在的 grader 名 | 运行任务时 400「未知评测器」（评测器勾选为运行级参数） | 已通过 |
+| C9 | 聊天沉淀 | 数据集管理 Tab 聊天沉淀入口（sessionId + msgIndex） | query/answer 预填，补 reference 保存成功 | 已通过 |
+| C10 | 从图谱生成 | 点「从图谱生成」（选 Era 维度） | 批量生成 number 型样本 | 未实施 |
+| C11 | 驾驶舱卡片 | 打开 /dashboard | 「评测质量」卡片出现 | 未实施 |
+| C12 | 并行安全 | 检查 git diff | DashboardService 等既有文件零改动 | 未实施（随 C11） |
 
-### 6.6 三期风险
+### 7.6 三期风险
 
 | 风险 | 缓解 |
 |---|---|
-| Agentic 评测成本最高（每断言一次查询） | 取证次数上限 + 断言数量截断；仅对重点样本启用 |
-| judge agent 工具误用（评测写操作） | 评测 agent 只注册只读工具，工具层与服务端红线双保险（同现有 graph_query 通道） |
-| 数据集在线编辑破坏文件格式 | 保存前 JSON 序列化校验；回收站机制可恢复 |
+| Agentic 评测成本最高（每断言一次查询） | 取证次数上限（EvalProxyTool 强制）+ 截断按未证实计；仅对重点样本启用 |
+| judge agent 工具误用（评测写操作） | 评测 agent 只注册只读工具（/api/llm/ 只读平面），工具层与服务端红线双保险 |
+| 数据集在线编辑破坏数据 | 写路径全字段校验（sampleType/轮数/referenceType/id 唯一）；DB 事务行级操作，误删靠 MySQL 备份恢复 |
 | 驾驶舱并行开发冲突 | 模块四严格「只增不改」，最后实施 |
 
 ---
 
-## 7. 风险与约束
+## 8. 风险与约束
 
 | 风险 | 缓解 |
 |---|---|
-| LLM judge 成本与时长（样本×评测器次调用） | 默认集控制在 9 个 LLM 评测器以内；规则评测器零成本；demo 数据集仅 10 条 |
-| judge 输出不稳定 | 结构化 JSON 解析 + 失败重试 1 次；可选 run=2 取平均 |
-| prompt 注入（样本 query 混入指令） | judge 模板固定、样本内容放明确分隔的"待评估内容"区块；解析仅认 JSON schema |
-| agentscope-harness Windows 缺陷（已知 Hard Constraints） | 评测驱动复用现有 AgentChatService 会话链路，不新增子进程路径 |
-| 评测写操作破坏图谱 | 全链路只读：cypher_match 走红线正则 + GraphQueryService；评测任务不调用任何写接口 |
-| 服务器重启丢任务进度 | 与备份任务同策略：任务态在内存，结果文件落盘后可从 /api/eval/runs 重新读取历史 |
+| LLM judge 成本与时长（样本×评测器次调用） | judgeRuns 可控 1-3；规则评测器零成本；数据集规模自主可控；judge 用量随 summary 留痕可审计 |
+| judge 输出不稳定 | 结构化 JSON 解析（容忍围栏）+ 失败重试 1 次（3s 退避）；judgeRuns>1 取平均；token 按全部尝试累计（真实成本口径） |
+| prompt 注入（样本 query 混入指令） | judge 模板固定、样本内容放明确分隔的"待评估内容"区块；自定义评测器 criteria 模式由框架隔离拼接；解析仅认 JSON schema |
+| agentscope-harness Windows 缺陷（已知 Hard Constraints，2.0.3 已修复） | 评测驱动走服务端 HarnessAgent 事件流收集，不新增子进程路径 |
+| 评测写操作破坏图谱 | 全链路只读：Agentic 取证走 EvalProxyTool（/api/llm/ 只读平面）+ 服务端红线双保险；评测任务不调用任何写接口 |
+| 服务重启丢任务进度 | P6 起运行态进度落库（eval_run 行节流 UPDATE）：重启后 listRuns 将遗留 running 行标记 interrupted（僵尸任务），再次 start 会 409 提示先处理；历史结果不受影响 |
 
 ---
 
-## 8. 实施顺序
+## 9. 实施现状
 
-1. **一期**（框架 + 5 规则评测器 + API + 页面 + demo 数据集）→ 按 4.2 验收（A1-A14）；
-2. **二期选型确认**：对 5.2 清单勾选（默认集见 5.3，可增删）；
-3. **二期**（LlmJudgeGrader + 选定评测器 + 页面增强）→ 按 5.4 验收（B1-B10）；
-4. **三期立项确认**：6.1-6.4 四个模块按需勾选（推荐优先级：回归对比 > AgenticGrader > 数据集管理 > 驾驶舱集成）；
-5. **三期**（按勾选模块实施）→ 按 6.5 验收（C1-C12）。
+| 阶段 | 内容 | 状态 |
+|---|---|---|
+| 一期 | 规则评测框架 + 11 个规则评测器 + API + 页面 + 示例数据集（4.2 验收 A1-A13） | 已交付 |
+| 二期 | LlmJudgeGrader + judge 专用 HarnessAgent 通道 + 17 个 LLM 评测器 + judgeRuns 多次判分 + 评测报告页（5.4 验收 B1-B10） | 已交付 |
+| 计划外 | 人工评测通道（human_review）+ 自定义评测器通道（custom-graders，第 6 章） | 已交付 |
+| 三期模块一 | AgenticGroundednessGrader（judge 自主取证 + evidence 证据链 + 确定性重算） | 已交付 |
+| 三期模块二 | Run Diff 回归对比（总体/按评测器/按样本三级 + 翻转矩阵 + 哈希校验） | 已交付 |
+| 三期模块三 | 数据集在线管理 + 聊天记录沉淀（「从图谱生成」与回收站未做） | 已交付 |
+| 三期模块四 | 驾驶舱集成（/api/dashboard/eval-stats + 评测质量卡片） | 未实施 |
+| 存储迁移（P6） | 数据集/评测结果/自定义评测器 JSON 文件 → MySQL 五表（V10-V12），存量已迁入归档 | 已交付 |
+
+后续可选方向：三期模块四（驾驶舱集成）、「从图谱生成」批量造题、数据集删除/回收站。
