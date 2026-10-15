@@ -1,4 +1,4 @@
-name: Neo4j
+name: llm-ontology
 
 services:
   neo4j:
@@ -14,6 +14,29 @@ services:
       - neo4j_logs:/logs
     restart: unless-stopped
 
+  # 业务数据存储（用户/配置/会话/评测），与 application.yml 的
+  # jdbc:mysql://localhost:3307/ontology（root/root）对应
+  mysql:
+    image: mysql:8.0
+    container_name: ontology-mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ontology
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_bin
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
 volumes:
   neo4j_data:
   neo4j_logs:
+  mysql_data:
