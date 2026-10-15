@@ -7,7 +7,7 @@
 
 | 项 | 值 |
 |---|---|
-| 数据库 | Docker 容器 `ontology-mysql`（镜像 mysql:8.0），宿主机端口 **3307**，root/root，库 `ontology` |
+| 数据库 | Docker 容器 `ontology-mysql`（镜像 mysql:8.0），宿主机端口 **3306**，root/root，库 `ontology` |
 | ORM | MyBatis-Plus 3.5.7（`mybatis-plus-spring-boot3-starter`），Mapper 用 `@Mapper` 注解自动扫描（无配置类） |
 | DDL 管理 | Flyway 9.22.3（Boot 3.2.5 BOM 管理，**勿升级 10+**），脚本 `ontology-server/src/main/resources/db/migration/V(n)__xxx.sql` |
 | 连接配置 | [application.yml](ontology-server/src/main/resources/application.yml) `spring.datasource`，Hikari 池 10/2/15s/30min |

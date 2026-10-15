@@ -18,9 +18,9 @@ spring:
     session:
       timeout: 24h
   # MySQL 持久化（P0）：平台数据从 JSON 文件迁入；本地 Docker mysql:8.0 容器 ontology-mysql
-  # （宿主机端口 3307；3306 已被本机 MySQL 5.7 占用，5.7 不受 Flyway 9.x 社区版支持故弃用）
+  # （宿主机端口 3306）
   datasource:
-    url: jdbc:mysql://localhost:3307/ontology?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/ontology?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver

@@ -98,7 +98,7 @@ Copy-Item ontology-server\.env.example ontology-server\.env
 # 编辑 ontology-server\.env 填入 OPENROUTER_API_KEY（https://openrouter.ai/keys）
 ```
 
-Neo4j（bolt://localhost:7687）与 MySQL（localhost:3307，库 `ontology`，root/root）连接在 `ontology-server/src/main/resources/application.yml` 中配置（服务端口 9876）。
+Neo4j（bolt://localhost:7687）与 MySQL（localhost:3306，库 `ontology`，root/root）连接在 `ontology-server/src/main/resources/application.yml` 中配置（服务端口 9876）。
 
 ### 3. 构建并启动
 
