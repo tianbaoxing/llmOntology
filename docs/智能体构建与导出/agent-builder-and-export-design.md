@@ -8,7 +8,7 @@
 
 ## 一、现状盘点：本平台的一个"智能体"由什么构成
 
-这是评估两个方案和导出可行性的地基。当前主智能体在 [AgentScopeConfig.java](../ontology-server/src/main/java/com/conca/ontology/agent/config/AgentScopeConfig.java) 中由 `HarnessAgent.Builder` 装配（单例 Spring Bean，参数来自 application.yml）：
+这是评估两个方案和导出可行性的地基。当前主智能体在 [AgentScopeConfig.java](../../ontology-server/src/main/java/com/conca/ontology/agent/config/AgentScopeConfig.java) 中由 `HarnessAgent.Builder` 装配（单例 Spring Bean，参数来自 application.yml）：
 
 | 组成部分 | 载体 | 形态 | 可打包性 |
 |---|---|---|---|
@@ -194,4 +194,4 @@ Flowise（Apache 2.0，最宽松）> n8n（fair-code，禁转售）> Dify（体�
 - LangGraph 自托管 Agent Server：https://docs.langchain.com/langsmith/deploy-standalone-server
 - Microsoft Agent Framework：https://learn.microsoft.com/agent-framework/
 - OSS Agent Frameworks 2026 对比：https://futureagi.com/blog/oss-agent-frameworks-2026/
-- 本项目相关文档：[subagent-registry-expansion.md](subagent-registry-expansion.md)（子 agent 注册表治理）、[STUDIO_INTEGRATION_GUIDE.md](STUDIO_INTEGRATION_GUIDE.md)
+- 本项目相关文档：[subagent-registry-expansion.md](../遗留问题/subagent-registry-expansion.md)（子 agent 注册表治理）、[STUDIO_INTEGRATION_GUIDE.md](../Studio集成/STUDIO_INTEGRATION_GUIDE.md)

@@ -60,7 +60,7 @@
 
 ### 2.1 技能采用"拷贝"而非"引用"（导出可行性的地基）
 
-`HarnessAgent.Builder.projectGlobalSkillsDir(Path)` 只支持**单目录**挂载，无法按 agent 挂不同技能子集。而框架固定约定：`<workspace>/skills/` 会被自动识别加载（见 [AgentScopeConfig.java](../ontology-server/src/main/java/com/conca/ontology/agent/config/AgentScopeConfig.java) L74-L85 的注释）。
+`HarnessAgent.Builder.projectGlobalSkillsDir(Path)` 只支持**单目录**挂载，无法按 agent 挂不同技能子集。而框架固定约定：`<workspace>/skills/` 会被自动识别加载（见 [AgentScopeConfig.java](../../ontology-server/src/main/java/com/conca/ontology/agent/config/AgentScopeConfig.java) L74-L85 的注释）。
 
 **决策**：创建智能体时，把用户勾选的平台技能（源：`ontology-server/skills/`）**整目录拷贝**到 `data/agents/{agentId}/workspace/skills/{skillId}/`。运行时框架自动加载；导出时 workspace/skills 就是包内 skills/，一份拷贝同时解决"多 agent 各选各的技能"与"导出完整性"两个问题。
 
@@ -69,7 +69,7 @@
 
 ### 2.2 装配逻辑抽成 AgentBootstrapper（平台与 runner 共用）
 
-当前 [AgentScopeConfig.java](../ontology-server/src/main/java/com/conca/ontology/agent/config/AgentScopeConfig.java) 的 Builder 装配是为主智能体写死的单例。把"从 AgentDefinition 装配 HarnessAgent"的纯函数逻辑抽到独立类 `AgentBootstrapper.build(AgentDefinition, Path packageDir)`：
+当前 [AgentScopeConfig.java](../../ontology-server/src/main/java/com/conca/ontology/agent/config/AgentScopeConfig.java) 的 Builder 装配是为主智能体写死的单例。把"从 AgentDefinition 装配 HarnessAgent"的纯函数逻辑抽到独立类 `AgentBootstrapper.build(AgentDefinition, Path packageDir)`：
 
 ```
 AgentDefinition + packageDir（workspace 根）
@@ -110,7 +110,7 @@ AgentDefinition + packageDir（workspace 根）
 
 #### 步骤 2：workspace 布局与技能/子 agent 落盘
 
-- **做什么**：创建智能体时生成 `data/agents/{id}/workspace/`（`skills/`、`subagents/`），按 2.1 拷贝技能；子 agent 按前端表单生成 frontmatter .md（沿用现有动态子 agent 文件格式：name/description/emoji/color + 人格 prompt，参考 [subagent-registry-expansion.md](subagent-registry-expansion.md) 中实测的文件格式）。
+- **做什么**：创建智能体时生成 `data/agents/{id}/workspace/`（`skills/`、`subagents/`），按 2.1 拷贝技能；子 agent 按前端表单生成 frontmatter .md（沿用现有动态子 agent 文件格式：name/description/emoji/color + 人格 prompt，参考 [subagent-registry-expansion.md](../遗留问题/subagent-registry-expansion.md) 中实测的文件格式）。
 - **关键点**：
   - `workspace/skills` 目录必须**预先创建**否则框架不识别（AgentScopeConfig 注释已踩坑）；
   - 子 agent 数量上限 ≤3，且 Builder 上调 `disableDynamicSubagents()`——只允许声明的子 agent，禁止运行时模型自主 spawn（防注册表膨胀，历史教训）；
