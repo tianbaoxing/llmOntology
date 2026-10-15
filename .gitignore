@@ -12,6 +12,10 @@ setting.xml
 # 运行时状态（graph-schema.json 首次启动从 classpath 模板自动生成）
 data/
 
+# 知识库上传文件与其 Markdown 转换件（用户上传的领域数据，版权敏感，不入库）
+ontology-server/files/
+ontology-server/files-md/
+
 # 备份产物（运行时生成于 app.backup-dir）
 backups/
 
