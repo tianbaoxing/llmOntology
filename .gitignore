@@ -8,6 +8,7 @@ target/
 # 注意：只忽略此文件，.mvn/ 下的 maven-wrapper 是 mvnw 必需品需保持跟踪）
 .mvn/maven.config
 setting.xml
+系统案例
 
 # 运行时状态（graph-schema.json 首次启动从 classpath 模板自动生成）
 data/
