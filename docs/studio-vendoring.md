@@ -92,7 +92,7 @@ PowerShell 下必须 `.\mvnw.cmd`（带 `.\` 前缀），裸 `mvnw.cmd` 报 Comm
    StudioManager: Registered run with Studio: 05a89ccf-...
    StudioWebSocketClient: Connected to Studio WebSocket (/python namespace)
    StudioManager: Studio integration initialized successfully
-   AgentScopeConfig: AgentScope Studio 对接成功：http://localhost:3000（project=国博藏品图谱）
+   AgentScopeConfig: AgentScope Studio 对接成功：http://localhost:3000（project=LLM 驱动的领域本体知识图谱平台）
    ```
 
 ## 7. 后续维护

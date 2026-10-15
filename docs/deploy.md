@@ -37,7 +37,7 @@ docker exec -i Neo4j cypher-shell -u neo4j -p guobo2026 "RETURN 1 AS ok;"
 | 服务端口     | `9876`                                                                      |
 | Neo4j 连接 | `bolt://localhost:7687`                                                     |
 | 配置文件     | `src/main/resources/application.yml`                                        |
-| 页面标题     | `app.title`（默认「国博藏品图谱 · 管理控制台」，启动可用 `--app.title=xxx` 或环境变量 `APP_TITLE` 覆盖） |
+| 页面标题     | `app.title`（默认「LLM 驱动的领域本体知识图谱平台」；本地业务名在 `ontology-server/config/application.yml` 覆盖，或用 `--app.title=xxx`、环境变量 `APP_TITLE`） |
 | JDK      | 17                                                                          |
 | 构建       | Maven Wrapper（`mvnw.cmd`，Maven 3.9.6，仓库在项目内 `.m2\repo`）                     |
 
