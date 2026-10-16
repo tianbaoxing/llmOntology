@@ -16,6 +16,43 @@
 - **评测体系闭环**：内置 26 个评测器（规则 11 / LLM 15）+ 自定义提示词评测器 + Agentic 取证评测 + Run Diff 回归对比，让「Agent 问答质量」可度量、可回归、可迭代——这是大多数 LLM 图谱项目缺失的一环；
 - **生产级工程细节**：Schema 白名单热更新、写接口幂等（MERGE）、双 API 平面隔离（管理页 / LLM 调用方）、异步任务 + 进度轮询、全量备份。
 
+## 快速开始
+
+### 1. 启动 Neo4j + MySQL
+
+```powershell
+docker compose -f docker\docker-compose.yml up -d
+```
+
+MySQL 首次启动需初始化数据目录（约半分钟），待 `docker ps` 显示 ontology-mysql 为 healthy 再启动服务。
+
+### 2. 配置环境
+
+```powershell
+Copy-Item ontology-server\.env.example ontology-server\.env
+# 编辑 ontology-server\.env 填入 OPENROUTER_API_KEY（https://openrouter.ai/keys）
+```
+
+Neo4j（bolt://localhost:7687）与 MySQL（localhost:3306，库 `ontology`，root/root）连接在 `ontology-server/src/main/resources/application.yml` 中配置（服务端口 9876）。
+
+### 3. 构建并启动
+
+```powershell
+.\mvnw.cmd clean package "-DskipTests"
+# jar 方式（工作目录须为 ontology-server，data/files/skills/.env 相对 cwd 解析）
+cd ontology-server; java -jar target\ontology-server-0.1.0-SNAPSHOT.jar
+# 或开发模式（studio 模块变更后先 .\mvnw.cmd -pl ontology-agentscope-studio -am install "-DskipTests"）
+cd ..; .\mvnw.cmd -pl ontology-server spring-boot:run
+```
+
+### 4. 初始化
+
+访问 <http://localhost:9876> ，首次启动进入「系统初始化」向导创建管理员账号，然后在 `/files` 上传 `examples/sample-artifacts.csv`（或你自己的领域数据），到 `/chat` 对 Agent 说「帮我构建本体」即可开始。
+
+![登录页面](docs/png/登录页面.png)
+
+API 文档：<http://localhost:9876/swagger-ui/index.html>
+
 ## 架构
 
 ### 技术栈
@@ -159,43 +196,6 @@ llmOntology/
 ![评测报告-综合总览](docs/png/评测中心-某条评测记录-评测报告-综合总览.png)
 ![评测报告-低分样本分析](docs/png/评测中心-某条评测记录-评测报告-低分样本分析.png)
 ![评测报告-样本打分过程和结果](docs/png/评测中心-某条评测记录-评测报告-样本打分过程和结果.png)
-
-## 快速开始
-
-### 1. 启动 Neo4j + MySQL
-
-```powershell
-docker compose -f docker\docker-compose.yml up -d
-```
-
-MySQL 首次启动需初始化数据目录（约半分钟），待 `docker ps` 显示 ontology-mysql 为 healthy 再启动服务。
-
-### 2. 配置环境
-
-```powershell
-Copy-Item ontology-server\.env.example ontology-server\.env
-# 编辑 ontology-server\.env 填入 OPENROUTER_API_KEY（https://openrouter.ai/keys）
-```
-
-Neo4j（bolt://localhost:7687）与 MySQL（localhost:3306，库 `ontology`，root/root）连接在 `ontology-server/src/main/resources/application.yml` 中配置（服务端口 9876）。
-
-### 3. 构建并启动
-
-```powershell
-.\mvnw.cmd clean package "-DskipTests"
-# jar 方式（工作目录须为 ontology-server，data/files/skills/.env 相对 cwd 解析）
-cd ontology-server; java -jar target\ontology-server-0.1.0-SNAPSHOT.jar
-# 或开发模式（studio 模块变更后先 .\mvnw.cmd -pl ontology-agentscope-studio -am install "-DskipTests"）
-cd ..; .\mvnw.cmd -pl ontology-server spring-boot:run
-```
-
-### 4. 初始化
-
-访问 <http://localhost:9876> ，首次启动进入「系统初始化」向导创建管理员账号，然后在 `/files` 上传 `examples/sample-artifacts.csv`（或你自己的领域数据），到 `/chat` 对 Agent 说「帮我构建本体」即可开始。
-
-![登录页面](docs/png/登录页面.png)
-
-API 文档：<http://localhost:9876/swagger-ui/index.html>
 
 ## License & 声明
 
