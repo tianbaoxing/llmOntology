@@ -32,16 +32,59 @@
 
 ### 模块结构
 
-Maven 三模块：
+Maven 三模块，以 `ontology-server` 的 `agent` 包为例展示包内分层：
 
 ```
 llmOntology/
-├── ontology-server/            # Spring Boot 主应用（REST、静态页、技能、评测）
-├── ontology-agent-runtime/     # 智能体定义 / 装配 / 导出包编解码（不依赖 Spring）
-└── ontology-agentscope-studio/ # 内嵌 AgentScope Studio 对接源码（studio + tracing）
+├── pom.xml                                # Maven 聚合根（三模块）
+├── docker/                                # docker-compose.yml（Neo4j + MySQL）
+├── examples/                              # 示例数据集 sample-artifacts.csv
+├── docs/                                  # 设计文档 + 截图
+├── ontology-server/                       # Spring Boot 主应用（REST、静态页、技能、评测）
+│   └── src/main/
+│       ├── java/com/conca/ontology/       # 15 个领域包，包内按 api / service / entity / mapper / model 分层
+│       │   ├── agent/                     # Agent 会话（以此包为例展开）
+│       │   │   ├── api/                   # REST：聊天 SSE / 驾驶舱 / 改写配置
+│       │   │   ├── config/                # AgentScopeConfig，装配 AgentScope Harness
+│       │   │   ├── dto/                   # 请求对象（AgentChatRequest 等）
+│       │   │   ├── entity/                # 语义改写配置表实体
+│       │   │   ├── mapper/                # MyBatis-Plus Mapper
+│       │   │   ├── middleware/            # 内容安全检测 / 角色权限拦截（挂入 ReAct 管道）
+│       │   │   ├── model/                 # 领域模型（RewriteConfig）
+│       │   │   ├── service/               # 聊天 / 会话 / 记忆 / 语义改写 / 驾驶舱统计
+│       │   │   └── tool/                  # build_chart 图表 / 只读平面哑管道
+│       │   ├── backup/                    # 备份
+│       │   ├── builder/                   # 智能体搭建
+│       │   ├── content/                   # 内容安全
+│       │   ├── dedup/                     # 去重规则
+│       │   ├── disjoint/                  # 互斥规则
+│       │   ├── eval/                      # 评测
+│       │   ├── file/                      # 文件
+│       │   ├── graph/                     # 图谱
+│       │   ├── llmapi/                    # LLM 专用平面
+│       │   ├── quality/                   # 质量诊断
+│       │   ├── shared/                    # 公共设施
+│       │   ├── skill/                     # 技能
+│       │   ├── user/                      # 用户
+│       │   └── wiki/                      # Wiki 文章链接
+│       └── resources/
+│           ├── application.yml            # 主配置（端口 / Neo4j / MySQL）
+│           ├── static/pages/              # 前端静态页（无框架单文件 HTML/JS）
+│           ├── db/migration/              # Flyway 建表脚本
+│           └── export-template/           # 「导出 AgentScope 二次开发工程」模板
+├── ontology-agent-runtime/                # 智能体定义 / 装配 / 导出包编解码（不依赖 Spring）
+│   └── src/main/java/com/conca/agentkit/
+│       ├── AgentDefinition.java           # 智能体定义 record（模型 / 技能 / 工具 / MCP / 子智能体）
+│       ├── AgentBootstrapper.java         # 按定义装配 HarnessAgent（模型 / 工具箱 / 状态 / 中间件）
+│       ├── AgentPackageCodec.java         # 导出包 agent-package.zip 编解码（agent.json + MANIFEST）
+│       ├── AgentEventCodec.java           # AgentEvent → SSE 帧编解码（导出 runner 用）
+│       ├── HttpToolAdapter.java           # HTTP 工具配置适配为 AgentTool
+│       └── McpSupport.java                # MCP 客户端接入
+└── ontology-agentscope-studio/            # 内嵌 AgentScope Studio 对接源码（studio + tracing）
+    └── src/main/java/io/agentscope/core/
+        ├── studio/                        # Studio 服务端（含 pojo/）
+        └── tracing/                       # Tracing 上报（含 telemetry/）
 ```
-
-`ontology-server` 按领域拆分为 15 个包：`agent` 会话、`backup` 备份、`builder` 智能体搭建、`content` 内容安全、`dedup` 去重规则、`disjoint` 互斥规则、`eval` 评测、`file` 文件、`graph` 图谱、`llmapi` LLM 专用平面、`quality` 质量诊断、`shared` 公共设施、`skill` 技能、`user` 用户、`wiki`，包内按 api / service / entity / mapper / model 分层。
 
 ### 双 API 平面
 
@@ -113,15 +156,8 @@ llmOntology/
 - **Run Diff 回归对比**：两次评测结果按总体指标 / 评测器翻转矩阵 / 样本级 delta 对比，datasetHash 检测数据集漂移。
 
 评测报告示例（综合总览 / 评测器维度 / 低分样本 / 耗时分析 / 样本打分取证）：
-
 ![评测报告-综合总览](docs/png/评测中心-某条评测记录-评测报告-综合总览.png)
-
-![评测报告-评测器维度分析和评测器列表](docs/png/评测中心-某条评测记录-评测报告-评测器维度分析和评测器列表.png)
-
 ![评测报告-低分样本分析](docs/png/评测中心-某条评测记录-评测报告-低分样本分析.png)
-
-![评测报告-耗时分析和最慢样本](docs/png/评测中心-某条评测记录-评测报告-耗时分析和最慢样本.png)
-
 ![评测报告-样本打分过程和结果](docs/png/评测中心-某条评测记录-评测报告-样本打分过程和结果.png)
 
 ## 快速开始
