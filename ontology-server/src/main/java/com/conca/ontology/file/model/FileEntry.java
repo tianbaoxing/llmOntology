@@ -17,7 +17,7 @@ public record FileEntry(
                 example = "C:\\me\\kaiyuan\\history\\llmOntology\\files\\artifact.csv") String path,
         @Schema(description = "文件大小（字节）", example = "2705445") long size,
         @Schema(description = "扩展名（小写，无点）", example = "csv") String ext,
-        @Schema(description = "文件说明（可为空字符串）", example = "中国国家博物馆藏品信息") String description,
+        @Schema(description = "文件说明（可为空字符串）", example = "国家博物馆藏品信息") String description,
         @Schema(description = "上传时间", example = "2026-08-20 11:29:52") String uploadedAt,
         @Schema(description = "对应 Markdown 文件名（仅二进制转换文件有值，如 报告.docx.md）",
                 example = "报告.docx.md") String mdName,

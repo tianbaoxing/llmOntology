@@ -11,7 +11,7 @@ A condensed summary follows:
 用户正在广泛探索文物数据，查询方向涉及：① 农民/土地相关文物 ② 文物年代信息 ③ 黄历查询 ④ 秦始皇相关文物 ⑤ 泰山/太行山出土文物。
 
 ## SUMMARY
-- 已确认文物数据源：artifact.csv（中国国家博物馆藏品信息，2.7MB，上传于2026-08-20）。
+- 已确认文物数据源：artifact.csv（国家博物馆藏品信息，2.7MB，上传于2026-08-20）。
 - 已完成图谱查询并找到“农民土地”相关文物：尖足布（阳地）、赵怀满夏田契（唐）、卖地契（明代土地买卖契约）。
 - 已搭建黄历（通书）查询工具：tongshu-1.0.0技能（tongshu_query.py），可用于查询任意日期的干支、建除十二神、二十八宿、彭祖百忌、冲煞等信息。但**通书尚未实际调用成功**。
 - 已完成秦始皇相关文物查询：共找到3件（泰山刻石残字册页、秦始皇秦二世双诏版、枭首示众图），其中泰山刻石残字册页通过MENTIONS_FIGURE关系关联到秦始皇。
@@ -20,7 +20,7 @@ A condensed summary follows:
 ## ARTIFACTS
 - **tongshu-1.0.0/SKILL.md** — 通书技能描述（已读取）
 - **tongshu-1.0.0/scripts/tongshu_query.py** — Python通书查询脚本（已读取，但尚未成功执行）
-- **artifact.csv** — 已上传的中国国家博物馆藏品数据，路径：C:\me\kaiyuan\history\llmOntology\files\artifact.csv
+- **artifact.csv** — 已上传的国家博物馆藏品数据，路径：C:\me\kaiyuan\history\llmOntology\files\artifact.csv
 - **ontology-query 技能** — 已用于图谱查询（概念层+实例层），可正常返回文物信息
 
 ## NEXT STEPS

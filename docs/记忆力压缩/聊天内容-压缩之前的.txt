@@ -100,7 +100,7 @@ Let me search for artifacts related to "土地" (land) in the title/description,
 "Empty or not a directory: C:\\me\\kaiyuan\\history\\llmOntology\\skills\\tongshu"
 ✓ http_request_ontology_query
 {"path":"/api/llm/files"}
-"{\"code\":0,\"msg\":\"ok\",\"data\":{\"version\":18,\"files\":[{\"name\":\"artifact.csv\",\"path\":\"C:\\\\me\\\\kaiyuan\\\\history\\\\llmOntology\\\\files\\\\artifact.csv\",\"size\":2705445,\"ext\":\"csv\",\"description\":\"中国国家博物馆藏品信息\",\"uploadedAt\":\"2026-08-20 11:29:52\"}]}}"
+"{\"code\":0,\"msg\":\"ok\",\"data\":{\"version\":18,\"files\":[{\"name\":\"artifact.csv\",\"path\":\"C:\\\\me\\\\kaiyuan\\\\history\\\\llmOntology\\\\files\\\\artifact.csv\",\"size\":2705445,\"ext\":\"csv\",\"description\":\"国家博物馆藏品信息\",\"uploadedAt\":\"2026-08-20 11:29:52\"}]}}"
 概念层已读取！现在让我并行查询图谱、检查通书脚本和已上传文件：
 
 2026-09-04 14:46:15 · tokens: 输入 16386 / 输出 617存为评测样本
