@@ -22,7 +22,10 @@ import io.agentscope.core.tool.mcp.McpClientBuilder;
 import io.agentscope.core.tool.mcp.McpClientWrapper;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
+import io.agentscope.harness.agent.filesystem.spec.LocalFilesystemSpec;
+import io.agentscope.harness.agent.workspace.LocalFsMode;
 import com.conca.ontology.agent.middleware.ContentSecurityMiddleware;
+import com.conca.ontology.agent.middleware.PathBoundaryMiddleware;
 import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
 import com.conca.ontology.content.service.ContentSecurityService;
 import com.conca.ontology.user.service.RolePermissionService;
@@ -66,6 +69,7 @@ public class AgentScopeConfig {
             @Value("${app.agent.api-key:}") String apiKey,
             @Value("${app.agent.model}") String model,
             @Value("${app.agent.workspace-dir}") String workspaceDir,
+            @Value("${app.agent.data-root:data}") String dataRootCfg,
             @Value("${app.agent.skills-dir:}") String skillsDir,
             @Value("${app.agent.studio-url:}") String studioUrl,
             @Value("${app.mcp.weather.enabled:false}") boolean mcpWeatherEnabled,
@@ -92,6 +96,9 @@ public class AgentScopeConfig {
         // 框架固定约定：工作区技能目录 = <workspace>/skills（SKILLS_DIR 常量，目录名不可改）；
         // 加载前有 isDirectory 检查，必须预先创建才会被识别
         Files.createDirectories(Path.of(workspaceDir, "skills"));
+
+        // 防线二：文件边界中间件（构造时校验数据根存在、工作区在其内，fail-fast）
+        PathBoundaryMiddleware boundary = new PathBoundaryMiddleware(dataRootCfg, Path.of(workspaceDir));
 
         // 可选：额外挂载自定义全局技能目录（projectGlobalSkillsDir，与工作区 skills 并存）
         Path globalSkillsDir = null;
@@ -126,6 +133,11 @@ public class AgentScopeConfig {
                 .sysPrompt(sysPrompt)
                 .model(chatModel)
                 .workspace(Path.of(workspaceDir))
+                // 防线一：harness 文件工具允许根收敛为数据根（data/），ROOTED 模式界外拒绝
+                .filesystem(new LocalFilesystemSpec()
+                        .project(boundary.dataRoot())
+                        .projectWritable(true)
+                        .mode(LocalFsMode.ROOTED))
                 .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.MAIN))
                 .maxIters(6)
                 .toolkit(toolkit)
@@ -133,7 +145,9 @@ public class AgentScopeConfig {
                 // 角色权限拦截（order=2，内置中间件外层）：onActing 硬拦被禁工具/
                 // agent_spawn(agent_id)/load_skill_through_path(skillId)，
                 // onSystemPrompt 追加权限提示；技能隐藏由 SkillFilter（ctx 注入）承担
-                .middleware(new RolePermissionMiddleware(rolePermissionService));
+                .middleware(new RolePermissionMiddleware(rolePermissionService))
+                // 文件边界拦截（order=3，角色权限外层）：界外路径 fail-closed 拒绝
+                .middleware(boundary);
                 // 最小化开放面：禁用 harness 内置高危/无关能力
                 // .disableShellTool()
                 // .disableFilesystemTools()

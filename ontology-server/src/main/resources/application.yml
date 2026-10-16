@@ -47,13 +47,13 @@ app:
   # 注意 .env 按 .properties 以 ISO-8859-1 解码，中文会乱码，只适合放 ASCII 值
   title: LLM 驱动的领域本体知识图谱平台
   # 上传文件：实体目录 + 元数据表 file_metadata + 允许的扩展名白名单（文本类，排除视频/音频/图片）
-  upload-dir: files
+  upload-dir: data/files
   upload-allowed-ext: pdf,txt,csv,md,json,xml,doc,docx,xls,xlsx
   # 二进制文件自动转 Markdown（LLM 只读 MD，不读原件）：
   # md-dir 为 MD 输出目录（镜像 upload-dir 相对路径，命名 <原文件全名>.md）；
   # convert-ext 为触发转换的扩展名；convert-min-chars 为空结果检测阈值
   # （正文有效字符低于该值判 FAILED，典型场景：扫描件 PDF 无文本层）
-  md-dir: files-md
+  md-dir: data/files-md
   convert-ext: pdf,doc,docx,xls,xlsx
   convert-min-chars: 50
   content-security:
@@ -102,6 +102,9 @@ app:
     # model: z-ai/glm-5.3-flash
     api-key: ${OPENROUTER_API_KEY:}
     workspace-dir: data/agent-workspace
+    # 文件边界：智能体可访问的唯一数据根（相对 cwd；files/、files-md/、agent-workspace/ 均在其下）。
+    # 防线一（harness 文件工具允许根收敛）与防线二（PathBoundaryMiddleware 拦截）均以此为准
+    data-root: data
     # 自定义全局技能目录（projectGlobalSkillsDir）：ontology-builder / ontology-query 等技能放这里
     skills-dir: skills
     # AgentScope Studio 可视化对接地址（留空 = 不启用）；Studio 未启动时降级告警，不阻断主服务

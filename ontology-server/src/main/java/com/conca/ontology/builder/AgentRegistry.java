@@ -2,6 +2,7 @@ package com.conca.ontology.builder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Service;
 import com.conca.agentkit.AgentBootstrapper;
 import com.conca.agentkit.AgentDefinition;
 import com.conca.ontology.agent.middleware.ContentSecurityMiddleware;
+import com.conca.ontology.agent.middleware.PathBoundaryMiddleware;
+import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
 import com.conca.ontology.agent.tool.ChartPluginTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.builder.model.AgentDefinitionStore;
@@ -33,6 +36,7 @@ import com.conca.ontology.disjoint.service.DisjointRuleService;
 import com.conca.ontology.disjoint.tool.DisjointRulesTool;
 import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.user.service.RolePermissionService;
 
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.harness.agent.HarnessAgent;
@@ -86,6 +90,8 @@ public class AgentRegistry {
     private final ObjectProvider<AgentBuilderService> builderServiceProvider;
     private final String llmBaseUrl;
     private final javax.sql.DataSource dataSource;
+    private final RolePermissionService rolePermissionService;
+    private final String dataRootCfg;
 
     private final Map<String, Entry> cache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Object> locks = new ConcurrentHashMap<>();
@@ -98,6 +104,8 @@ public class AgentRegistry {
             ObjectProvider<AgentBuilderService> builderServiceProvider,
             @Qualifier("llmBaseUrl") String llmBaseUrl,
             javax.sql.DataSource dataSource,
+            RolePermissionService rolePermissionService,
+            @Value("${app.agent.data-root:data}") String dataRootCfg,
             @Value("${app.agents.idle-minutes:30}") int idleMinutes) {
         this.store = store;
         this.workspaceService = workspaceService;
@@ -106,6 +114,8 @@ public class AgentRegistry {
         this.builderServiceProvider = builderServiceProvider;
         this.llmBaseUrl = llmBaseUrl;
         this.dataSource = dataSource;
+        this.rolePermissionService = rolePermissionService;
+        this.dataRootCfg = dataRootCfg;
         this.idleMillis = Math.max(1, idleMinutes) * 60_000L;
         this.sweeper = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "agent-registry-sweeper");
@@ -193,10 +203,15 @@ public class AgentRegistry {
         AgentDefinition def = store.require(agentId);
         String apiKey = requireEnvApiKey();
         try {
+            Path workspace = workspaceService.workspaceOf(agentId);
+            // 防线一/二共用的数据根（构造时校验工作区在数据根内，fail-fast）
+            PathBoundaryMiddleware boundary = new PathBoundaryMiddleware(dataRootCfg, workspace);
             AgentBootstrapper.BuiltAgent built = AgentBootstrapper.build(
-                    def, workspaceService.workspaceOf(agentId), MySqlAgentStateStores.create(dataSource, agentId),
+                    def, workspace, boundary.dataRoot(), MySqlAgentStateStores.create(dataSource, agentId),
                     apiKey, builtinTools(def),
-                    List.of(new ContentSecurityMiddleware(contentSecurityService)),
+                    List.of(new ContentSecurityMiddleware(contentSecurityService),
+                            new RolePermissionMiddleware(rolePermissionService),
+                            boundary),
                     null);
             log.info("智能体实例已构建：{}", agentId);
             return built;

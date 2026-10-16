@@ -28,6 +28,8 @@ import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tool.mcp.McpClientWrapper;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
+import io.agentscope.harness.agent.filesystem.spec.LocalFilesystemSpec;
+import io.agentscope.harness.agent.workspace.LocalFsMode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,9 +54,12 @@ public final class AgentBootstrapper {
     private AgentBootstrapper() {
     }
 
-    public static BuiltAgent build(AgentDefinition def, Path workspace, AgentStateStore stateStore, String apiKey, List<Object> extraTools, List<MiddlewareBase> middlewares, Function<String, String> envLookup) throws IOException {
+    public static BuiltAgent build(AgentDefinition def, Path workspace, Path dataRoot, AgentStateStore stateStore, String apiKey, List<Object> extraTools, List<MiddlewareBase> middlewares, Function<String, String> envLookup) throws IOException {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("\u6a21\u578b\u5bc6\u94a5\u672a\u914d\u7f6e\uff08\u5e73\u53f0\u5185\u4fdd\u5b58\u5728\u5bc6\u94a5\u5e93\uff0c\u72ec\u7acb\u8fd0\u884c\u9700\u8bbe\u7f6e\u73af\u5883\u53d8\u91cf AGENT_API_KEY\uff09");
+        }
+        if (dataRoot == null) {
+            throw new IllegalStateException("数据根（dataRoot）未配置：智能体文件操作边界必填，禁止无边界装配");
         }
         if (def.model() == null || def.model().baseUrl().isBlank() || def.model().modelName().isBlank()) {
             throw new IllegalStateException("\u6a21\u578b\u914d\u7f6e\u4e0d\u5b8c\u6574\uff1a\u9700\u8981 baseUrl \u4e0e modelName");
@@ -75,7 +80,7 @@ public final class AgentBootstrapper {
             if (wrapper == null) continue;
             mcpClients.add(wrapper);
         }
-        HarnessAgent.Builder builder = HarnessAgent.builder().name(def.id()).description(def.description().isBlank() ? def.name() : def.description()).sysPrompt(AgentBootstrapper.effectivePrompt(def)).model((Model)chatModel).workspace(workspace).stateStore(stateStore).maxIters(AgentBootstrapper.clampIters(def.maxIters())).toolkit(toolkit).middlewares(middlewares == null ? List.of() : middlewares).disableDynamicSubagents().disableDefaultWorkspaceSkills();
+        HarnessAgent.Builder builder = HarnessAgent.builder().name(def.id()).description(def.description().isBlank() ? def.name() : def.description()).sysPrompt(AgentBootstrapper.effectivePrompt(def)).model((Model)chatModel).workspace(workspace).filesystem(new LocalFilesystemSpec().project(dataRoot).projectWritable(true).mode(LocalFsMode.ROOTED)).stateStore(stateStore).maxIters(AgentBootstrapper.clampIters(def.maxIters())).toolkit(toolkit).middlewares(middlewares == null ? List.of() : middlewares).disableDynamicSubagents().disableDefaultWorkspaceSkills();
         HarnessAgent agent = builder.build();
         log.info("\u667a\u80fd\u4f53\u5df2\u88c5\u914d\uff1a{}\uff08tools={}, skills={}, subagents={}\uff09", new Object[]{def.id(), toolkit.getToolNames(), def.skills(), def.subagents().size()});
         return new BuiltAgent(agent, mcpClients);
