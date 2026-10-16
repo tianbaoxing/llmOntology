@@ -26,6 +26,7 @@ import com.conca.ontology.agent.middleware.ContentSecurityMiddleware;
 import com.conca.ontology.agent.middleware.PathBoundaryMiddleware;
 import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
 import com.conca.ontology.agent.tool.ChartPluginTool;
+import com.conca.ontology.agent.tool.CurrentTimeTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.builder.model.AgentDefinitionStore;
 import com.conca.ontology.builder.service.AgentBuilderService;
@@ -66,7 +67,8 @@ public class AgentRegistry {
             "graph-query", "只读图谱查询管道（http_request_ontology_query，/api/llm/ 白名单），配合 ontology-query 技能使用",
             "chart-plugin", "图表插件（对话中渲染图表）",
             "disjoint-rules", "互斥约束词典查询（本体类不相交规则，抑制幻觉）",
-            "agent-builder", "智能体搭建管道（agent_builder，创建/编辑/删除自定义智能体，变更字段合并语义）");
+            "agent-builder", "智能体搭建管道（agent_builder，创建/编辑/删除自定义智能体，变更字段合并语义）",
+            "current_time", "当前日期时间查询（服务端时钟，含星期与时区，抑制时间幻觉）");
 
     private static final class Entry {
         final AgentBootstrapper.BuiltAgent built;
@@ -231,6 +233,7 @@ public class AgentRegistry {
                 case "chart-plugin" -> tools.add(new ChartPluginTool());
                 case "disjoint-rules" -> tools.add(new DisjointRulesTool(disjointRuleService));
                 case "agent-builder" -> tools.add(new AgentBuilderTool(builderServiceProvider.getObject()));
+                case "current_time" -> tools.add(new CurrentTimeTool());
                 default -> throw new ApiException(400, "内置工具不在白名单：" + name);
             }
         }

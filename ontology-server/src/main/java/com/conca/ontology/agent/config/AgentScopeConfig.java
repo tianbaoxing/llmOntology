@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.conca.ontology.agent.tool.ChartPluginTool;
+import com.conca.ontology.agent.tool.CurrentTimeTool;
 import com.conca.ontology.disjoint.tool.DisjointRulesTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
@@ -119,6 +120,8 @@ public class AgentScopeConfig {
         // /api/llm/disjoint-rules HTTP 通道兜底。
         toolkit.registerTool(new DisjointRulesTool(disjointRuleService));
         toolkit.registerTool(new ChartPluginTool());
+        // 当前时间工具：时效性问题先取服务端时钟，抑制凭训练记忆猜日期
+        toolkit.registerTool(new CurrentTimeTool());
         log.info("AgentScope Toolkit 已注册：{}", toolkit.getToolNames());
 
         // MCP 外接工具（可选）：Toolkit 原生 registerMcpClient 注册，工具 isMcp=true，
