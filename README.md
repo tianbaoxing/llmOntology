@@ -155,12 +155,35 @@ llmOntology/
 
 ### AI 问答（Agent）
 
-- AgentScope Harness ReAct 循环（maxIters=8），OpenRouter 模型可配置切换；
-- 5 个原生只读 HTTP 工具（ontology\_schema / graph\_query / ontology\_ask / list\_uploaded\_files / get\_profile）：双保险只读预检、无 LIMIT 自动追加、输出字符兜底、错误前缀分层；
+- AgentScope Harness ReAct 循环（maxIters=6），OpenRouter 模型可配置切换；
 - 2 个内置技能：`ontology-builder`（六步构建流程）/ `ontology-query`（查询主线 + 证据规范），启动自动装载，chat 页可一键插入；
 - 会话状态留痕，支持 AgentScope Studio 可视化对接。
 
 ![AI 问答聊天页](docs/png/AI问答-聊天内容显示.png)
+
+#### 工具列表
+
+主智能体（ontology-assistant）启动时注册 7 个平台工具：
+
+| 工具名                          | 简介                                                           |
+| ----------------------------- | ------------------------------------------------------------ |
+| `http_request_ontology_query` | `/api/llm/` 只读平面的 HTTP 哑管道：查概念层、执行只读 Cypher、列出上传文件、回看构建 profile。base-url 服务端固定（无 SSRF 面），path 前缀白名单，输出超限截断，错误按 [连接失败] / [参数错误] / [服务错误] 前缀分层；查询协议由 `ontology-query` 技能承载，不加载技能则无法正确使用 |
+| `disjoint_rules_list`         | 获取互斥约束词典原文（互斥候选项以【】包裹），生成回复或写入图谱前逐条比对，建模层抑制 LLM 幻觉 |
+| `build_chart`                 | 把 ≥3 行数值型统计表格转写为前端可渲染的 chart JSON（line / bar / pie），聊天页内联渲染图表 |
+| `current_time`                | 获取服务端当前日期时间（含星期与时区）；「今天 / 今年 / 星期几」等时效性问题先取时钟，禁止凭训练记忆猜日期 |
+| `get_location`                | 获取访问者城市级位置（客户端 IP 经上下文注入 + GeoLite2 本地查询）；「本地 / 附近」等位置语境先定位再回答 |
+| `get_system_resources`        | 获取服务 JVM 资源快照：堆内存、各内存池 used/committed、GC 累计次数与耗时、CPU 使用率、系统负载、线程数 |
+| `run_gc`                      | 手动触发一次 System.gc()（Full GC）并返回 GC 前后堆使用对比，仅用户明确要求时调用 |
+
+主智能体之外的其他工具面：
+
+- **agent_builder**：`/agents` 勾选 agent-builder 工具后，ADMIN 可在对话中以自然语言创建 / 编辑 / 删除智能体（action = create / update / delete，槽位与搭建向导一致）；
+- **自建智能体工具槽位**：HTTP 工具（url + 参数签名自动适配为 AgentTool）、MCP 服务、子智能体，支持连通性测试与试运行；
+- **harness 内置工具**（execute / 文件六件套 read · write · edit · list · glob · grep）：经 `LocalFsMode.ROOTED` 与 `PathBoundaryMiddleware` 双防线收敛到 `data/` 目录，界外路径 fail-closed 拒绝；
+- **评测取证**：Agentic judge（LLM 评测器）挂载同名只读管道，自主查证回答中的断言并输出证据链（claim + Cypher + 图谱返回摘要 + confirmed）；
+- **MCP 外接**（可选）：如 weather MCP，Streamable HTTP 优先、SSE 兜底，注册失败降级告警不阻断服务。
+
+工具安全红线：`/api/llm/graph/query` 与 `/api/llm/ontology-query/query` 双查询入口均在服务端预检写关键字（CREATE / MERGE / DELETE / SET 等，命中即 400），角色权限中间件按角色拦截被禁工具调用。
 
 ### 图谱治理（/data）
 
