@@ -27,7 +27,9 @@ import com.conca.ontology.agent.middleware.PathBoundaryMiddleware;
 import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
 import com.conca.ontology.agent.tool.ChartPluginTool;
 import com.conca.ontology.agent.tool.CurrentTimeTool;
+import com.conca.ontology.agent.tool.GetLocationTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
+import com.conca.ontology.agent.service.GeoLocationService;
 import com.conca.ontology.builder.model.AgentDefinitionStore;
 import com.conca.ontology.builder.service.AgentBuilderService;
 import com.conca.ontology.builder.service.AgentWorkspaceService;
@@ -68,7 +70,8 @@ public class AgentRegistry {
             "chart-plugin", "图表插件（对话中渲染图表）",
             "disjoint-rules", "互斥约束词典查询（本体类不相交规则，抑制幻觉）",
             "agent-builder", "智能体搭建管道（agent_builder，创建/编辑/删除自定义智能体，变更字段合并语义）",
-            "current_time", "当前日期时间查询（服务端时钟，含星期与时区，抑制时间幻觉）");
+            "current_time", "当前日期时间查询（服务端时钟，含星期与时区，抑制时间幻觉）",
+            "get_location", "访问者位置查询（客户端 IP 定位，城市级，GeoLite2 本地查询，抑制位置幻觉）");
 
     private static final class Entry {
         final AgentBootstrapper.BuiltAgent built;
@@ -93,6 +96,7 @@ public class AgentRegistry {
     private final String llmBaseUrl;
     private final javax.sql.DataSource dataSource;
     private final RolePermissionService rolePermissionService;
+    private final GeoLocationService geoLocationService;
     private final String dataRootCfg;
 
     private final Map<String, Entry> cache = new ConcurrentHashMap<>();
@@ -107,6 +111,7 @@ public class AgentRegistry {
             @Qualifier("llmBaseUrl") String llmBaseUrl,
             javax.sql.DataSource dataSource,
             RolePermissionService rolePermissionService,
+            GeoLocationService geoLocationService,
             @Value("${app.agent.data-root:data}") String dataRootCfg,
             @Value("${app.agents.idle-minutes:30}") int idleMinutes) {
         this.store = store;
@@ -117,6 +122,7 @@ public class AgentRegistry {
         this.llmBaseUrl = llmBaseUrl;
         this.dataSource = dataSource;
         this.rolePermissionService = rolePermissionService;
+        this.geoLocationService = geoLocationService;
         this.dataRootCfg = dataRootCfg;
         this.idleMillis = Math.max(1, idleMinutes) * 60_000L;
         this.sweeper = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -234,6 +240,7 @@ public class AgentRegistry {
                 case "disjoint-rules" -> tools.add(new DisjointRulesTool(disjointRuleService));
                 case "agent-builder" -> tools.add(new AgentBuilderTool(builderServiceProvider.getObject()));
                 case "current_time" -> tools.add(new CurrentTimeTool());
+                case "get_location" -> tools.add(new GetLocationTool(geoLocationService));
                 default -> throw new ApiException(400, "内置工具不在白名单：" + name);
             }
         }

@@ -401,7 +401,7 @@ public class AgentChatService {
      * userId 为当前登录用户（会话/记忆按用户隔离，落盘在 workspace/{userId}/ 下）。
      */
     public SseEmitter chat(String sessionId, String message, String userId) {
-        return chat(sessionId, message, userId, null);
+        return chat(sessionId, message, userId, null, null);
     }
 
     /**
@@ -409,8 +409,11 @@ public class AgentChatService {
      * 非空走 AgentRegistry 实例。事件契约与主智能体完全一致（前端 chat 页零改动渲染），
      * 差异仅两点：不经改写管道（自建 agent 语义自治）；上下文不注入角色权限
      * （平台治理对自建 agent 仅保留内容安全中间件，装配期已挂）。
+     * clientIp 为 Controller 解析的客户端来源 IP（get_location 工具的位置锚点），
+     * 两条链均随 RuntimeContext 注入；null（非聊天链路）跳过注入。
      */
-    public SseEmitter chat(String sessionId, String message, String userId, String agentId) {
+    public SseEmitter chat(String sessionId, String message, String userId, String agentId,
+            String clientIp) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         String session = (sessionId == null || sessionId.isBlank()) ? UUID.randomUUID().toString() : sessionId;
         boolean custom = agentId != null && !agentId.isBlank();
@@ -471,8 +474,8 @@ public class AgentChatService {
         });
 
         RuntimeContext ctx = custom
-                ? RuntimeContext.builder().userId(userId).sessionId(session).build()
-                : buildContext(userId, session);
+                ? buildCustomContext(userId, session, clientIp)
+                : buildContext(userId, session, clientIp);
 
         // 语义改写轮仅主智能体启用（自建 agent 用户消息原样送入，ContentSecurity 在装配期中间件拦截）
         Disposable disposable = Mono.fromCallable(() -> custom
@@ -502,19 +505,35 @@ public class AgentChatService {
 
     // ---------------- 角色权限上下文 ----------------
 
+    /** 自建智能体上下文：不注入角色权限（装配期中间件已治理），仅带访问来源 IP 供 get_location 使用 */
+    private RuntimeContext buildCustomContext(String userId, String session, String clientIp) {
+        RuntimeContext.Builder builder = RuntimeContext.builder()
+                .userId(userId)
+                .sessionId(session);
+        if (clientIp != null && !clientIp.isBlank()) {
+            builder.put(GeoLocationService.CTX_CLIENT_IP_KEY, clientIp.strip());
+        }
+        return builder.build();
+    }
+
     /**
-     * 构建本次调用的 RuntimeContext，并注入角色权限信息：
+     * 构建本次调用的 RuntimeContext，并注入角色权限与访问来源信息：
      * - userRole（CTX_ROLE_KEY）：RolePermissionMiddleware 判定 onActing 拦截与
      *   onSystemPrompt 提示的依据（聊天开始时的角色快照，免中途查库）；
+     * - clientIp（GeoLocationService.CTX_CLIENT_IP_KEY）：get_location 工具的
+     *   位置锚点（Controller 解析的客户端来源 IP，null 时跳过注入）；
      * - SkillFilter（被禁技能非空时）：框架 HarnessSkillMiddleware 原生支持，
      *   从 <available_skills> 清单与 SkillCatalog 中隐藏被禁技能（模型不可见）。
      */
-    private RuntimeContext buildContext(String userId, String session) {
+    private RuntimeContext buildContext(String userId, String session, String clientIp) {
         RuntimeContext.Builder builder = RuntimeContext.builder()
                 .userId(userId)
                 .sessionId(session);
         String role = roleOf(userId);
         builder.put(RolePermissionMiddleware.CTX_ROLE_KEY, role);
+        if (clientIp != null && !clientIp.isBlank()) {
+            builder.put(GeoLocationService.CTX_CLIENT_IP_KEY, clientIp.strip());
+        }
         List<String> deniedSkills = rolePermissionService.ruleOf(role).deniedSkills();
         if (!deniedSkills.isEmpty()) {
             builder.put(SkillFilter.class,

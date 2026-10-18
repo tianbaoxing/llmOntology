@@ -107,6 +107,13 @@ app:
     data-root: data
     # 自定义全局技能目录（projectGlobalSkillsDir）：ontology-builder / ontology-query 等技能放这里
     skills-dir: skills
+    # get_location 工具（客户端 IP 定位，GeoLite2 本地查询）：
+    # mmdb 数据库路径（相对 cwd；约 60MB，勿提交 git，获取渠道见 README）
+    location-db: geolite2/GeoLite2-City.mmdb
+    # 是否部署在可信反向代理后：true 才采信 X-Forwarded-For / X-Real-IP（直连保持 false 防伪造头）
+    location-behind-proxy: false
+    # 静态位置兜底（可选）：内网访问或定位失败时 get_location 返回此文本；留空不兜底
+    location-static: ""
     # AgentScope Studio 可视化对接地址（留空 = 不启用）；Studio 未启动时降级告警，不阻断主服务
     studio-url: ${STUDIO_URL:http://localhost:3000}
   # MCP 外接工具（Toolkit 原生 registerMcpClient 注册，追踪自动标记 tool_source=mcp）

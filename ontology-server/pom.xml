@@ -79,6 +79,13 @@
             <artifactId>agentscope-extensions-mysql</artifactId>
             <version>${agentscope.version}</version>
         </dependency>
+        <!-- GeoLite2 本地 IP 定位（get_location 工具后端）：客户端 IP → 城市级位置，
+             mmdb 本地查询零外呼；GeoLite2 数据库为 CC BY 4.0（署名义务见 README） -->
+        <dependency>
+            <groupId>com.maxmind.geoip2</groupId>
+            <artifactId>geoip2</artifactId>
+            <version>5.2.0</version>
+        </dependency>
         <!-- OpenAPI 3 文档 + Swagger UI（/swagger-ui.html，免登录） -->
         <dependency>
             <groupId>org.springdoc</groupId>

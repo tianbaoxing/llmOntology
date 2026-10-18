@@ -12,9 +12,11 @@ import org.springframework.context.annotation.Configuration;
 
 import com.conca.ontology.agent.tool.ChartPluginTool;
 import com.conca.ontology.agent.tool.CurrentTimeTool;
+import com.conca.ontology.agent.tool.GetLocationTool;
 import com.conca.ontology.disjoint.tool.DisjointRulesTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
+import com.conca.ontology.agent.service.GeoLocationService;
 import com.conca.ontology.shared.db.MySqlAgentStateStores;
 
 import io.agentscope.core.studio.StudioManager;
@@ -78,6 +80,7 @@ public class AgentScopeConfig {
             @Qualifier("llmBaseUrl") String llmBaseUrl,
             javax.sql.DataSource dataSource,
             DisjointRuleService disjointRuleService,
+            GeoLocationService geoLocationService,
             ContentSecurityService contentSecurityService,
             RolePermissionService rolePermissionService) throws Exception {
 
@@ -122,6 +125,8 @@ public class AgentScopeConfig {
         toolkit.registerTool(new ChartPluginTool());
         // 当前时间工具：时效性问题先取服务端时钟，抑制凭训练记忆猜日期
         toolkit.registerTool(new CurrentTimeTool());
+        // 位置工具：本地化问题先取访问者位置（客户端 IP 经 ctx 注入，GeoLite2 本地查询）
+        toolkit.registerTool(new GetLocationTool(geoLocationService));
         log.info("AgentScope Toolkit 已注册：{}", toolkit.getToolNames());
 
         // MCP 外接工具（可选）：Toolkit 原生 registerMcpClient 注册，工具 isMcp=true，

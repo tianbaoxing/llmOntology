@@ -1,6 +1,7 @@
 package com.conca.ontology.agent.api;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -24,6 +25,7 @@ import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.agent.service.AgentChatService;
 import com.conca.ontology.agent.service.AgentSessionService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 
@@ -51,12 +53,16 @@ public class AgentChatController {
     private final AgentChatService agentChatService;
     private final AgentSessionService agentSessionService;
     private final AgentBuilderService agentBuilderService;
+    /** 是否部署在可信反向代理后（get_location 采信 X-Forwarded-For / X-Real-IP 的开关） */
+    private final boolean behindProxy;
 
     public AgentChatController(AgentChatService agentChatService,
-            AgentSessionService agentSessionService, AgentBuilderService agentBuilderService) {
+            AgentSessionService agentSessionService, AgentBuilderService agentBuilderService,
+            @Value("${app.agent.location-behind-proxy:false}") boolean behindProxy) {
         this.agentChatService = agentChatService;
         this.agentSessionService = agentSessionService;
         this.agentBuilderService = agentBuilderService;
+        this.behindProxy = behindProxy;
     }
 
     /** 技能清单（?agentId= 自建智能体实例清单；主智能体按角色过滤被禁技能）；agent 未装配（未配置 key）时为空列表 */
@@ -89,7 +95,7 @@ public class AgentChatController {
     /** 流式问答：agentId 留空 = 主智能体；非空 = 自建智能体（active 所有人，test 仅管理员试运行） */
     @PostMapping(value = "/sessions/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@PathVariable String id, @Valid @RequestBody AgentChatRequest request,
-            HttpSession session) {
+            HttpSession session, HttpServletRequest httpRequest) {
         SessionUser user = SessionUser.of(session);
         if (user == null) {
             throw new ApiException(401, "未登录或会话已过期");
@@ -98,7 +104,32 @@ public class AgentChatController {
         if (agentId != null && !agentId.isBlank()) {
             agentBuilderService.requireChatAllowed(agentId, user.isAdmin());
         }
-        return agentChatService.chat(id, request.message(), user.userId(), agentId);
+        return agentChatService.chat(id, request.message(), user.userId(), agentId,
+                resolveClientIp(httpRequest));
+    }
+
+    /**
+     * 解析客户端来源 IP（get_location 工具的位置锚点）：默认只信 TCP 对端地址
+     * （直连安全，伪造 X-Forwarded-For 头无效）；部署在可信反向代理后
+     * （app.agent.location-behind-proxy=true）才采信代理头：X-Forwarded-For 取最左段，
+     * 无则退 X-Real-IP，再无则 TCP 对端地址。
+     */
+    private String resolveClientIp(HttpServletRequest request) {
+        if (behindProxy) {
+            String xff = request.getHeader("X-Forwarded-For");
+            if (xff != null && !xff.isBlank()) {
+                int comma = xff.indexOf(',');
+                String first = (comma > 0 ? xff.substring(0, comma) : xff).strip();
+                if (!first.isEmpty()) {
+                    return first;
+                }
+            }
+            String realIp = request.getHeader("X-Real-IP");
+            if (realIp != null && !realIp.isBlank()) {
+                return realIp.strip();
+            }
+        }
+        return request.getRemoteAddr();
     }
 
     /** 会话列表（?agentId= 自建智能体会话；缺省主智能体） */
