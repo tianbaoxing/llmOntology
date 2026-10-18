@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import com.conca.ontology.agent.tool.ChartPluginTool;
 import com.conca.ontology.agent.tool.CurrentTimeTool;
 import com.conca.ontology.agent.tool.GetLocationTool;
+import com.conca.ontology.agent.tool.SystemResourceTool;
 import com.conca.ontology.disjoint.tool.DisjointRulesTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
@@ -127,6 +128,8 @@ public class AgentScopeConfig {
         toolkit.registerTool(new CurrentTimeTool());
         // 位置工具：本地化问题先取访问者位置（客户端 IP 经 ctx 注入，GeoLite2 本地查询）
         toolkit.registerTool(new GetLocationTool(geoLocationService));
+        // 系统资源工具：JVM 堆/内存池/GC/CPU/线程实时快照 + 手动触发 GC
+        toolkit.registerTool(new SystemResourceTool());
         log.info("AgentScope Toolkit 已注册：{}", toolkit.getToolNames());
 
         // MCP 外接工具（可选）：Toolkit 原生 registerMcpClient 注册，工具 isMcp=true，

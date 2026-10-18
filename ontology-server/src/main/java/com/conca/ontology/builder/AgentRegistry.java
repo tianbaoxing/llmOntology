@@ -29,6 +29,7 @@ import com.conca.ontology.agent.tool.ChartPluginTool;
 import com.conca.ontology.agent.tool.CurrentTimeTool;
 import com.conca.ontology.agent.tool.GetLocationTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
+import com.conca.ontology.agent.tool.SystemResourceTool;
 import com.conca.ontology.agent.service.GeoLocationService;
 import com.conca.ontology.builder.model.AgentDefinitionStore;
 import com.conca.ontology.builder.service.AgentBuilderService;
@@ -241,6 +242,7 @@ public class AgentRegistry {
                 case "agent-builder" -> tools.add(new AgentBuilderTool(builderServiceProvider.getObject()));
                 case "current_time" -> tools.add(new CurrentTimeTool());
                 case "get_location" -> tools.add(new GetLocationTool(geoLocationService));
+                case "system-resources" -> tools.add(new SystemResourceTool());
                 default -> throw new ApiException(400, "内置工具不在白名单：" + name);
             }
         }
