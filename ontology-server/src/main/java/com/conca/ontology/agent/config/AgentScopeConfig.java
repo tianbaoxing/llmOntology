@@ -18,6 +18,7 @@ import com.conca.ontology.disjoint.tool.DisjointRulesTool;
 import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 import com.conca.ontology.agent.service.GeoLocationService;
+import com.conca.ontology.shared.db.AgentDistributedStores;
 import com.conca.ontology.shared.db.MySqlAgentStateStores;
 
 import io.agentscope.core.studio.StudioManager;
@@ -26,7 +27,9 @@ import io.agentscope.core.tool.mcp.McpClientBuilder;
 import io.agentscope.core.tool.mcp.McpClientWrapper;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
+import io.agentscope.harness.agent.IsolationScope;
 import io.agentscope.harness.agent.filesystem.spec.LocalFilesystemSpec;
+import io.agentscope.harness.agent.filesystem.spec.RemoteFilesystemSpec;
 import io.agentscope.harness.agent.workspace.LocalFsMode;
 import com.conca.ontology.agent.middleware.ContentSecurityMiddleware;
 import com.conca.ontology.agent.middleware.PathBoundaryMiddleware;
@@ -75,6 +78,7 @@ public class AgentScopeConfig {
             @Value("${app.agent.workspace-dir}") String workspaceDir,
             @Value("${app.agent.data-root:data}") String dataRootCfg,
             @Value("${app.agent.skills-dir:}") String skillsDir,
+            @Value("${app.agent.distributed-store.enabled:false}") boolean distributedStoreEnabled,
             @Value("${app.agent.studio-url:}") String studioUrl,
             @Value("${app.mcp.weather.enabled:false}") boolean mcpWeatherEnabled,
             @Value("${app.mcp.weather.url:http://localhost:8766/mcp}") String mcpWeatherUrl,
@@ -143,14 +147,24 @@ public class AgentScopeConfig {
                 .description(title + "问答助手")
                 .sysPrompt(sysPrompt)
                 .model(chatModel)
-                .workspace(Path.of(workspaceDir))
-                // 防线一：harness 文件工具允许根收敛为数据根（data/），ROOTED 模式界外拒绝
-                .filesystem(new LocalFilesystemSpec()
-                        .project(boundary.dataRoot())
-                        .projectWritable(true)
-                        .mode(LocalFsMode.ROOTED))
-                .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.MAIN))
-                .maxIters(6)
+                .workspace(Path.of(workspaceDir));
+        if (distributedStoreEnabled) {
+            // 工作区共享存储（四链统一架构）：运行时产物（记忆/会话/技能缓存）写入 MySQL KV 表
+            // agent_kv_main，多副本共享；本地 workspace 目录降级为只读种子（两层读兜底）。
+            // 会话状态收编进 distributedStore（内部仍为 agent_state_main 同款表，存量会话零迁移），
+            // 不再显式 .stateStore；USER 级隔离：KV 命名空间按登录用户区分，记忆/会话天然多租户
+            builder.distributedStore(AgentDistributedStores.create(dataSource,
+                            MySqlAgentStateStores.MAIN, AgentDistributedStores.KV_MAIN))
+                    .filesystem(new RemoteFilesystemSpec().isolationScope(IsolationScope.USER));
+        } else {
+            // 本机模式（现状）：防线一 harness 文件工具允许根收敛为数据根（data/），ROOTED 模式界外拒绝
+            builder.filesystem(new LocalFilesystemSpec()
+                            .project(boundary.dataRoot())
+                            .projectWritable(true)
+                            .mode(LocalFsMode.ROOTED))
+                    .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.MAIN));
+        }
+        builder.maxIters(6)
                 .toolkit(toolkit)
                 .middleware(new ContentSecurityMiddleware(contentSecurityService))
                 // 角色权限拦截（order=2，内置中间件外层）：onActing 硬拦被禁工具/

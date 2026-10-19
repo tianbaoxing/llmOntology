@@ -102,6 +102,14 @@ app:
     # model: z-ai/glm-5.3-flash
     api-key: ${OPENROUTER_API_KEY:}
     workspace-dir: data/agent-workspace
+    # 工作区共享存储（模式1）：true=RemoteFilesystemSpec + MySQL KV（agent_kv_store 表，多副本共享），
+    # false=本机 LocalFilesystemSpec（现状）。切换需重启；会话状态两模式同表（agent_state_main）零迁移
+    distributed-store:
+      enabled: true
+    # 记忆 KV 一次性导入：true=启动时把本地 workspace 各用户记忆文件导入 KV 后写 .kv-imported 标记；
+    # 仅"首次从本机切共享存储"时开启一次，完成后改回 false。严禁 KV 已积累新记忆时重开（旧文件会覆盖 KV）
+    workspace-kv-import:
+      enabled: true
     # 文件边界：智能体可访问的唯一数据根（相对 cwd；files/、files-md/、agent-workspace/ 均在其下）。
     # 防线一（harness 文件工具允许根收敛）与防线二（PathBoundaryMiddleware 拦截）均以此为准
     data-root: data
