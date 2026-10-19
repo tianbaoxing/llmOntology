@@ -26,7 +26,9 @@ services:
       MYSQL_DATABASE: ontology
     command:
       - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_bin
+      # 镜像现网容器实际启动参数（非 utf8mb4_bin）：仅影响未显式指定 collation 的新建表，
+      # 现有 32 表的 collation 已在建表时固定，收编前后行为零漂移
+      - --collation-server=utf8mb4_general_ci
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -37,6 +39,11 @@ services:
     restart: unless-stopped
 
 volumes:
+  # 显式指定卷名，避免 compose 拼接项目前缀形成 neo4j_neo4j_data 双层嵌套
   neo4j_data:
+    name: neo4j_data
   neo4j_logs:
+    name: neo4j_logs
+  # 复用现网 mysql 容器（docker run 创建）的既有卷，数据零迁移
   mysql_data:
+    name: ontology-mysql-data
