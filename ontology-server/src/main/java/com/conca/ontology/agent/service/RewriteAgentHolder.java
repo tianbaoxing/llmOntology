@@ -12,11 +12,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.agent.service.RewriteConfigService;
+import com.conca.ontology.shared.db.AgentDistributedStores;
 import com.conca.ontology.shared.db.MySqlAgentStateStores;
 
 import io.agentscope.core.model.ExecutionConfig;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
+import io.agentscope.harness.agent.DistributedStore;
 import io.agentscope.harness.agent.HarnessAgent;
+import io.agentscope.harness.agent.IsolationScope;
+import io.agentscope.harness.agent.filesystem.spec.RemoteFilesystemSpec;
 
 import jakarta.annotation.PreDestroy;
 
@@ -30,6 +34,9 @@ import jakarta.annotation.PreDestroy;
  * 首次调用按新 sysPrompt 重建（旧 agent 关闭，进行中调用降级放行原文，不阻断聊天）。
  * 每次改写独立 sessionId（userId=rewrite-<type>），会话留痕落 MySQL（agent_state_rewrite 表），
  * 供回查每次改写的完整 prompt 与输出；AgentTraceMiddleware 输出调用日志。
+ * 工作区存储双模式（app.agent.distributed-store.enabled，四链统一开关）：
+ * true=RemoteFilesystemSpec + 分布式存储（agent_state_rewrite + agent_kv_rewrite，多副本共享），
+ * false=本机模式（仅显式状态表留痕）。两模式状态同表，切换零迁移。
  *
  * 刻意不注册为 Spring bean：避免与主问答 agent（AgentScopeConfig#harnessAgent）
  * 形成 HarnessAgent 双候选。
@@ -62,6 +69,13 @@ public class RewriteAgentHolder {
 
     @Value("${app.rewrite.max-output-tokens:1000}")
     private int maxOutputTokens;
+
+    /** 工作区共享存储全局开关（四链统一，与主链 AgentScopeConfig 同一配置项） */
+    @Value("${app.agent.distributed-store.enabled:false}")
+    private boolean distributedStoreEnabled;
+
+    /** 本链分布式存储（四类型改写 agent 共享一份，避免重建时重复跑建表 DDL）；仅 synchronized agent() 内访问 */
+    private DistributedStore distributedStore;
 
     private final Map<String, CachedAgent> cache = new HashMap<>();
 
@@ -105,14 +119,27 @@ public class RewriteAgentHolder {
                             .maxTokens(maxOutputTokens)
                             .build())
                     .build();
-            HarnessAgent agent = HarnessAgent.builder()
+            HarnessAgent.Builder builder = HarnessAgent.builder()
                     .name("rewrite-" + type)
                     .description("语义改写专用（纯 LLM 管道，无工具/技能/子代理）："
                             + RewriteConfigService.FEATURE_LABELS.getOrDefault(type, type))
                     .sysPrompt(sysPrompt)
                     .model(chatModel)
-                    .workspace(Path.of(workspaceDir))
-                    .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.REWRITE))
+                    .workspace(Path.of(workspaceDir));
+            if (distributedStoreEnabled) {
+                // 工作区共享存储（四链统一架构，与主链同构）：状态表 agent_state_rewrite 零迁移，
+                // KV 表 agent_kv_rewrite；USER 级隔离，KV 命名空间按各类型合成用户（rewrite-<type>）区分
+                if (distributedStore == null) {
+                    distributedStore = AgentDistributedStores.create(dataSource,
+                            MySqlAgentStateStores.REWRITE, AgentDistributedStores.KV_REWRITE);
+                }
+                builder.distributedStore(distributedStore)
+                        .filesystem(new RemoteFilesystemSpec().isolationScope(IsolationScope.USER));
+            } else {
+                // 本机模式（现状）：显式状态表留痕
+                builder.stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.REWRITE));
+            }
+            HarnessAgent agent = builder
                     .maxIters(1)
                     .checkRunning(false)
                     .modelExecutionConfig(ExecutionConfig.builder()

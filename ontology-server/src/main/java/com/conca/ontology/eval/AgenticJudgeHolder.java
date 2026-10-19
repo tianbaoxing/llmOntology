@@ -11,9 +11,12 @@ import org.springframework.stereotype.Component;
 
 import io.agentscope.core.model.ExecutionConfig;
 import io.agentscope.core.model.GenerateOptions;
+import com.conca.ontology.shared.db.AgentDistributedStores;
 import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
+import io.agentscope.harness.agent.IsolationScope;
+import io.agentscope.harness.agent.filesystem.spec.RemoteFilesystemSpec;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -29,6 +32,9 @@ import jakarta.annotation.PreDestroy;
  *   技能/子代理），maxIters=5（取证无需长链路）；
  * - 无技能加载——端点速查直接内置 sysPrompt（评测 agent 不依赖 skills 目录）；
  * - 会话留痕落 MySQL（agent_state_agentic_judge 表，userId=eval-agentic），AgentTraceMiddleware 输出轨迹日志；
+ * - 工作区存储双模式（app.agent.distributed-store.enabled，四链统一开关）：
+ *   true=RemoteFilesystemSpec + 分布式存储（agent_state_agentic_judge + agent_kv_agentic_judge，多副本共享），
+ *   false=本机模式（仅显式状态表留痕）。两模式状态同表，切换零迁移；
  * - 刻意不注册为 Spring bean：避免与主问答 agent 形成 HarnessAgent 双候选。
  * key 未配置时 agent 为 null（grader 前置校验 + EvalService 409 提前拦截）。
  *
@@ -63,6 +69,10 @@ public class AgenticJudgeHolder {
 
     @Value("${app.eval.agent.workspace-dir:data/eval/agentic-workspace}")
     private String workspaceDir;
+
+    /** 工作区共享存储全局开关（四链统一，与主链 AgentScopeConfig 同一配置项） */
+    @Value("${app.agent.distributed-store.enabled:false}")
+    private boolean distributedStoreEnabled;
 
     @org.springframework.beans.factory.annotation.Autowired
     private javax.sql.DataSource dataSource;
@@ -130,13 +140,23 @@ public class AgenticJudgeHolder {
             io.agentscope.core.tool.Toolkit toolkit = new io.agentscope.core.tool.Toolkit();
             toolkit.registerTool(tool);
 
-            agent = HarnessAgent.builder()
+            HarnessAgent.Builder builder = HarnessAgent.builder()
                     .name("eval-agentic-judge")
                     .description("Agentic 取证评测（只读图谱工具，自主查证断言）")
                     .sysPrompt(sysPrompt())
                     .model(chatModel)
-                    .workspace(Path.of(workspaceDir))
-                    .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.AGENTIC_JUDGE))
+                    .workspace(Path.of(workspaceDir));
+            if (distributedStoreEnabled) {
+                // 工作区共享存储（四链统一架构，与主链同构）：状态表 agent_state_agentic_judge 零迁移
+                // + KV 表 agent_kv_agentic_judge
+                builder.distributedStore(AgentDistributedStores.create(dataSource,
+                                MySqlAgentStateStores.AGENTIC_JUDGE, AgentDistributedStores.KV_AGENTIC_JUDGE))
+                        .filesystem(new RemoteFilesystemSpec().isolationScope(IsolationScope.USER));
+            } else {
+                // 本机模式（现状）：显式状态表留痕
+                builder.stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.AGENTIC_JUDGE));
+            }
+            agent = builder
                     .maxIters(maxIters)
                     .checkRunning(false)
                     .toolkit(toolkit)

@@ -11,9 +11,12 @@ import org.springframework.stereotype.Component;
 
 import io.agentscope.core.model.ExecutionConfig;
 import io.agentscope.core.model.GenerateOptions;
+import com.conca.ontology.shared.db.AgentDistributedStores;
 import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.harness.agent.HarnessAgent;
+import io.agentscope.harness.agent.IsolationScope;
+import io.agentscope.harness.agent.filesystem.spec.RemoteFilesystemSpec;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -23,6 +26,9 @@ import jakarta.annotation.PreDestroy;
  * 纯 LLM 判分管道——禁用全部执行能力（shell/文件/记忆/技能/子代理/工具配置），
  * 仅保留模型调用与会话持久化，使 judge 调用获得与主 agent 一致的监控基建：
  * 会话留痕落 MySQL（agent_state_judge 表，可回查每次判分的 prompt 与回复）+ AgentTraceMiddleware 日志。
+ * 工作区存储双模式（app.agent.distributed-store.enabled，四链统一开关）：
+ * true=RemoteFilesystemSpec + 分布式存储（agent_state_judge + agent_kv_judge，多副本共享），
+ * false=本机模式（仅显式状态表留痕）。两模式状态同表，切换零迁移。
  *
  * 刻意不注册为 Spring bean：避免与主问答 agent（AgentScopeConfig#harnessAgent）
  * 形成 HarnessAgent 双候选，注入主流程的 ObjectProvider&lt;HarnessAgent&gt; 一行不改。
@@ -53,6 +59,10 @@ public class JudgeAgentHolder {
 
     @Value("${app.eval.judge.workspace-dir:data/eval/judge-workspace}")
     private String workspaceDir;
+
+    /** 工作区共享存储全局开关（四链统一，与主链 AgentScopeConfig 同一配置项） */
+    @Value("${app.agent.distributed-store.enabled:false}")
+    private boolean distributedStoreEnabled;
 
     @org.springframework.beans.factory.annotation.Autowired
     private javax.sql.DataSource dataSource;
@@ -88,7 +98,7 @@ public class JudgeAgentHolder {
 
             Files.createDirectories(Path.of(workspaceDir));
 
-            agent = HarnessAgent.builder()
+            HarnessAgent.Builder builder = HarnessAgent.builder()
                     .name("eval-judge")
                     .description("评测判分专用（纯 LLM 管道，无工具/技能/子代理）")
                     .sysPrompt("你是问答系统质量评测专家，评测「" + title + "」问答系统的回答质量。\n"
@@ -96,8 +106,17 @@ public class JudgeAgentHolder {
                             + "只输出一个 JSON 对象：{\"score\": 分数, \"reason\": \"一句话中文理由\"}，"
                             + "禁止输出 JSON 以外的任何内容。")
                     .model(chatModel)
-                    .workspace(Path.of(workspaceDir))
-                    .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.JUDGE))
+                    .workspace(Path.of(workspaceDir));
+            if (distributedStoreEnabled) {
+                // 工作区共享存储（四链统一架构，与主链同构）：状态表 agent_state_judge 零迁移 + KV 表 agent_kv_judge
+                builder.distributedStore(AgentDistributedStores.create(dataSource,
+                                MySqlAgentStateStores.JUDGE, AgentDistributedStores.KV_JUDGE))
+                        .filesystem(new RemoteFilesystemSpec().isolationScope(IsolationScope.USER));
+            } else {
+                // 本机模式（现状）：显式状态表留痕
+                builder.stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.JUDGE));
+            }
+            agent = builder
                     .maxIters(1)
                     .checkRunning(false)
                     // 模型调用超时与重试：重试语义由 JudgeClient 显式控制（3s 退避重试 1 次），
