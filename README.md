@@ -4,7 +4,7 @@
 
 ![概念关系图](docs/png/概念-概念关系图.png)
 
-> 截图为全量数据部署效果；快速开始使用的示例数据集为 10 件（见「示例数据集」）。
+> 截图为示例数据部署效果；快速开始使用的示例数据集为 10 件（见「示例数据集」）。
 
 ## 项目价值
 
@@ -155,7 +155,7 @@ llmOntology/
 
 ### AI 问答（Agent）
 
-- AgentScope Harness ReAct 循环（maxIters=6），OpenRouter 模型可配置切换；
+- AgentScope Harness ReAct 循环（maxIters=16），OpenRouter 模型可配置切换；
 - 2 个内置技能：`ontology-builder`（六步构建流程）/ `ontology-query`（查询主线 + 证据规范），启动自动装载，chat 页可一键插入；
 - 会话状态留痕，支持 AgentScope Studio 可视化对接。
 
