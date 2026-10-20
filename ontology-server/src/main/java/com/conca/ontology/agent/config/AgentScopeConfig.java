@@ -164,7 +164,7 @@ public class AgentScopeConfig {
                             .mode(LocalFsMode.ROOTED))
                     .stateStore(MySqlAgentStateStores.create(dataSource, MySqlAgentStateStores.MAIN));
         }
-        builder.maxIters(6)
+        builder.maxIters(16)
                 .toolkit(toolkit)
                 .middleware(new ContentSecurityMiddleware(contentSecurityService))
                 // 角色权限拦截（order=2，内置中间件外层）：onActing 硬拦被禁工具/
