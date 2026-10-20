@@ -102,7 +102,7 @@ app:
     # model: z-ai/glm-5.3-flash
     api-key: ${OPENROUTER_API_KEY:}
     workspace-dir: data/agent-workspace
-    # 工作区共享存储（模式1）：true=RemoteFilesystemSpec + MySQL KV（agent_kv_store 表，多副本共享），
+    # 工作区共享存储（模式1）：true=RemoteFilesystemSpec + MySQL agent_kv_main 表，多副本共享），
     # false=本机 LocalFilesystemSpec（现状）。切换需重启；会话状态两模式同表（agent_state_main）零迁移
     distributed-store:
       enabled: true
