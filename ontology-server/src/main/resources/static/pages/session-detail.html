@@ -92,6 +92,9 @@ details.static-item .role-chip.tool { flex-shrink: 0; }
 .usage-bar i { display: block; height: 100%; background: #f59e0b; border-radius: 4px; }
 .usage-num { color: #6b7280; flex-shrink: 0; }
 .usage-desc { color: #9ca3af; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 记忆压缩统计行：时间点序列不截断，超宽自然换行 */
+.usage-times { color: #9ca3af; flex: 1; min-width: 0; }
+.usage-times b { color: #111827; }
 
 /* 技能使用判定 */
 .verdict-chip { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; flex-shrink: 0; }
@@ -143,7 +146,7 @@ details.static-item .role-chip.tool { flex-shrink: 0; }
   </div>
   <div class="card">
     <h2>工具调用与技能加载</h2>
-    <div class="muted" style="margin-bottom:10px">从会话消息中汇总：各工具的调用次数、子 Agent 的调用（agent_spawn 等），以及通过 load_skill 加载的技能及其是否被正确使用（依据技能特征指纹匹配加载后的步骤）</div>
+    <div class="muted" style="margin-bottom:10px">从会话消息中汇总：各工具的调用次数、子 Agent 的调用（agent_spawn 等），以及通过 load_skill 加载的技能及其是否被正确使用（依据技能特征指纹匹配加载后的步骤）；记忆压缩（__compaction_summary__）次数与各次时间点从会话转录统计</div>
     <div id="sd-usage"></div>
   </div>
   <div class="card">
@@ -349,18 +352,18 @@ function renderUsage(d) {
       skills.set(key, s);
     }
   }));
-  let html = '';
+  let html = compactionLine(d.compaction);
   const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
   if (entries.length) {
     const total = entries.reduce((s, e) => s + e[1], 0);
     const max = entries[0][1];
-    html += '<div class="usage-h">工具调用（共 ' + total + ' 次，' + entries.length + ' 个工具）</div>';
+    html += '<div class="usage-h" style="margin-top:14px">工具调用（共 ' + total + ' 次，' + entries.length + ' 个工具）</div>';
     html += entries.map(([name, n]) =>
       '<div class="usage-row"><span class="usage-name">' + code(name) + '</span>' +
       '<span class="usage-bar"><i style="width:' + (n * 100 / max).toFixed(1) + '%"></i></span>' +
       '<span class="usage-num">' + n + ' 次</span></div>').join('');
   } else {
-    html += '<div class="usage-h">工具调用</div><div class="muted">本会话无工具调用</div>';
+    html += '<div class="usage-h" style="margin-top:14px">工具调用</div><div class="muted">本会话无工具调用</div>';
   }
   html += '<div class="usage-h" style="margin-top:14px">子 Agent 调用（共 ' + subagentCalls.length + ' 次）</div>';
   if (subagentCalls.length) {
@@ -409,6 +412,22 @@ function renderUsage(d) {
     html += '<div class="muted">本会话未加载技能</div>';
   }
   el.innerHTML = html;
+}
+
+/** 记忆压缩统计行（单独一行）：次数与时间点以会话转录为准（state 仅存最后一次摘要），
+ *  转录不可用 / 未压缩时降级提示；同日仅显示时分秒，跨天保留完整日期 */
+function compactionLine(c) {
+  let body;
+  if (!c) {
+    body = '转录不可用，无法统计压缩次数';
+  } else if (!c.count) {
+    body = '本会话未发生记忆压缩';
+  } else {
+    const times = c.times || [];
+    const sameDay = times.every(t => t.slice(0, 10) === times[0].slice(0, 10));
+    body = '<b>' + c.count + ' 次</b> ｜ ' + esc(times.map(t => sameDay ? t.slice(11) : t).join(' · '));
+  }
+  return '<div class="usage-row"><span class="usage-times">记忆压缩：' + body + '</span></div>';
 }
 
 /** 单个已加载技能的判定行：徽章（已使用/未检测到使用/无法判定）+ 可展开证据明细 */

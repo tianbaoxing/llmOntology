@@ -297,6 +297,8 @@ public class SessionDetailService {
         result.put("messages", messages);
         // 技能正确使用判定：加载 ≠ 使用，按 skill-analysis.json 特征指纹匹配首次加载后的步骤
         result.put("skillUsage", skillUsageJudge.judge(messages));
+        // 记忆压缩统计（「工具调用与技能加载」卡片单行展示）：次数以转录为准，转录不可用为 null（前端降级提示）
+        result.put("compaction", agentSessionService.compactionStats(userId, id));
         return result;
     }
 

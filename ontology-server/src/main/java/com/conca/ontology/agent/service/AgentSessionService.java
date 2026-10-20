@@ -406,6 +406,51 @@ public class AgentSessionService {
                 prefix == null ? null : prefix.logPath(), prefixMsgs.size()));
     }
 
+    /**
+     * 记忆压缩统计（session-detail「工具调用与技能加载」卡片单行展示）：扫描转录中全部
+     * 压缩摘要行，返回 {count, times(yyyy-MM-dd HH:mm:ss)}。次数以转录为准——state 仅存
+     * 最后一次摘要（框架压缩会覆盖旧摘要），数 state 永远 ≤1；转录不可用返回 null（前端降级提示）。
+     */
+    public Map<String, Object> compactionStats(String userId, String sessionId) {
+        HarnessAgent agent = agentProvider.getIfAvailable();
+        if (agent == null) {
+            return null;
+        }
+        TranscriptText t = readTranscript(agent, userId, sessionId);
+        if (t == null) {
+            return null;
+        }
+        List<String> times = new ArrayList<>();
+        for (String line : t.content().split("\n", -1)) {
+            if (line.isBlank()) {
+                continue;
+            }
+            JsonNode n;
+            try {
+                n = mapper.readTree(line);
+            } catch (Exception e) {
+                continue; // 单行畸形跳过，不中断整体加载（与 transcriptPrefix 一致）
+            }
+            if (!"message".equals(n.path("type").asText()) || !"USER".equals(n.path("role").asText())) {
+                continue;
+            }
+            String id = n.path("id").asText("");
+            String content = n.path("content").asText("");
+            if (!id.startsWith(COMPACTION_SUMMARY_NAME + ":")
+                    && !content.startsWith(COMPACTION_TEXT_PREFIX)) {
+                continue; // 非压缩摘要行（id 前缀为主，content 前缀兜底旧格式转录）
+            }
+            String ts = fmtTranscriptTs(n.path("timestamp"));
+            if (ts != null) {
+                times.add(ts.length() > 19 ? ts.substring(0, 19) : ts); // 去毫秒，单行多时间点更紧凑
+            }
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("count", times.size());
+        m.put("times", times);
+        return m;
+    }
+
     /** 定位最早的压缩摘要消息下标；未压缩返回 -1 */
     private static int indexOfCompactionSummary(List<Msg> context) {
         if (context == null) {
@@ -422,6 +467,44 @@ public class AgentSessionService {
     /** 转录前缀读取结果：扁平消息列表 + 转录文件展示路径（供摘要卡片引用） */
     private record TranscriptPrefix(List<Map<String, Object>> messages, String logPath) {}
 
+    /** 定位会话转录 log.jsonl：文件存在才返回路径，否则 null（调用方降级；异常由调用方统一捕获） */
+    private static Path resolveTranscriptLog(HarnessAgent agent, String userId, String sessionId) {
+        WorkspaceManager wm = agent.workspaceFor(userId, sessionId);
+        RuntimeContext rc = RuntimeContext.builder().userId(userId).sessionId(sessionId).build();
+        Path logPath = wm.resolveSessionLogFile(rc, AGENT_ID, sessionId);
+        return logPath != null && Files.isRegularFile(logPath) ? logPath : null;
+    }
+
+    /** 转录读取结果：全文 + 展示路径（本地有文件为 workspace 相对展示路径，否则为逻辑相对路径即 KV 中位置） */
+    private record TranscriptText(String content, String displayPath) {}
+
+    /**
+     * 读会话转录全文（log.jsonl）：优先框架两层读（RemoteFilesystemSpec 模式 KV 优先，
+     * 多实例部署下非宿主副本也能读到），空/异常回退本地 log.jsonl 直读（本机模式与旧数据兜底）。
+     * 相对路径与框架 taskRecordPath 同构（agents/{agentId}/sessions/…，user 隔离由 rc 注入）。
+     */
+    private TranscriptText readTranscript(HarnessAgent agent, String userId, String sessionId) {
+        String rel = "agents/" + AGENT_ID + "/sessions/" + sessionId + ".log.jsonl";
+        try {
+            WorkspaceManager wm = agent.workspaceFor(userId, sessionId);
+            RuntimeContext rc = RuntimeContext.builder().userId(userId).sessionId(sessionId).build();
+            String content = wm.readManagedWorkspaceFileUtf8(rc, rel);
+            Path logPath = resolveTranscriptLog(agent, userId, sessionId);
+            if (content != null && !content.isBlank()) {
+                return new TranscriptText(content,
+                        logPath != null ? displayPath(wm, logPath) : rel);
+            }
+            if (logPath == null) {
+                return null;
+            }
+            String local = Files.readString(logPath, StandardCharsets.UTF_8);
+            return local.isBlank() ? null : new TranscriptText(local, displayPath(wm, logPath));
+        } catch (Exception e) {
+            log.warn("读取会话转录失败 session={}: {}", sessionId, e.getMessage());
+            return null;
+        }
+    }
+
     /**
      * 读取 log.jsonl 中切割线（保留尾部首条消息 id）之前的消息并扁平映射。
      * 注意：尾部消息在转录中位于摘要行之前，按摘要行切割会与 state 重复，必须按尾部首条 id 切。
@@ -435,18 +518,16 @@ public class AgentSessionService {
         if (agent == null) {
             return null;
         }
+        TranscriptText t = readTranscript(agent, userId, sessionId);
+        if (t == null) {
+            return null;
+        }
         try {
-            WorkspaceManager wm = agent.workspaceFor(userId, sessionId);
-            RuntimeContext rc = RuntimeContext.builder().userId(userId).sessionId(sessionId).build();
-            Path logPath = wm.resolveSessionLogFile(rc, AGENT_ID, sessionId);
-            if (logPath == null || !Files.isRegularFile(logPath)) {
-                return null;
-            }
             List<Map<String, Object>> flat = new ArrayList<>();
             // 归属映射：ASSISTANT 行 id → 自身消息；TOOL 行 id → 解析后的归属 assistant
             // （转录 parentId 为链式：TOOL 行指向前一条 TOOL/ASSISTANT 行，需传递解析）
             Map<String, Map<String, Object>> ownerById = new LinkedHashMap<>();
-            for (String line : Files.readAllLines(logPath, StandardCharsets.UTF_8)) {
+            for (String line : t.content().split("\n", -1)) {
                 if (line.isBlank()) {
                     continue;
                 }
@@ -460,13 +541,13 @@ public class AgentSessionService {
                     continue; // 未知条目类型（compaction/summary 等）跳过
                 }
                 if (tailStartId.equals(n.path("id").asText(null))) {
-                    return new TranscriptPrefix(flat, displayPath(wm, logPath));
+                    return new TranscriptPrefix(flat, t.displayPath());
                 }
                 appendFlatEntry(flat, ownerById, n);
             }
             return null; // 转录走完未出现切割线（格式不符）→ 降级
         } catch (Exception e) {
-            log.warn("读取会话转录失败 session={}: {}", sessionId, e.getMessage());
+            log.warn("解析会话转录失败 session={}: {}", sessionId, e.getMessage());
             return null;
         }
     }
