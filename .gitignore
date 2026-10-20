@@ -9,6 +9,7 @@ target/
 .mvn/maven.config
 setting.xml
 系统案例
+docker/docker-compose.test.yml
 
 # 运行时状态（graph-schema.json 首次启动从 classpath 模板自动生成）
 data/
