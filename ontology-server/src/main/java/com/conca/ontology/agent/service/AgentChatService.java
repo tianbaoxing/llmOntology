@@ -39,6 +39,7 @@ import io.agentscope.core.skill.repository.AgentSkillRepository;
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.event.AgentEvent;
 import io.agentscope.core.event.AgentResultEvent;
+import io.agentscope.core.event.ExceedMaxItersEvent;
 import io.agentscope.core.event.ModelCallEndEvent;
 import io.agentscope.core.event.ModelCallStartEvent;
 import io.agentscope.core.event.TextBlockDeltaEvent;
@@ -75,7 +76,9 @@ import reactor.core.scheduler.Schedulers;
  * phase=result-start/result-delta/result-end 为执行结果阶段，
  * result-delta 为结果文本增量，result-end 携带 state（success/error 等），
  * id 全程用于配对同一次调用）；
- * answer → 正文增量；done → 结束；error → 错误。
+ * answer → 正文增量；done → 结束；error → 错误；
+ * limit → 思考轮次达 maxIters 上限（携带 maxIters/currentIter），随后为不带
+ * 工具的强制收尾轮，前端据此在 done 后展示「继续执行任务」续跑入口。
  *
  * 语义改写：启用后主 agent 启动前先执行「改写轮」（独立 rewrite agent 管道），
  * 以同样的 round/thinking 事件把改写过程模拟为思考过程推送（前端零改动）；
@@ -726,6 +729,9 @@ public class AgentChatService {
                     "phase", "result-end", "id", ((ToolResultEndEvent) event).getToolCallId(),
                     "name", ((ToolResultEndEvent) event).getToolCallName(),
                     "state", safeState(((ToolResultEndEvent) event).getState())));
+            case EXCEED_MAX_ITERS -> send(emitter, "limit", Map.of(
+                    "maxIters", ((ExceedMaxItersEvent) event).getMaxIters(),
+                    "currentIter", ((ExceedMaxItersEvent) event).getCurrentIter()));
             case AGENT_RESULT -> send(emitter, "done", resultPayload((AgentResultEvent) event));
             default -> { /* 其余事件不透出，保持前端契约精简 */ }
         }

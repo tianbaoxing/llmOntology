@@ -32,8 +32,9 @@ import jakarta.validation.Valid;
 /**
  * AI 问答入口（SSE 流式）+ 历史会话管理：
  * POST /api/agent/sessions/{id}/messages {message} → text/event-stream（在会话下创建消息）。
- * 事件序列：session → round ×N（每轮模型调用 start/end，end 携带该轮 tokens）
- * → thinking / tool / answer → done 或 error。
+ * 事件序列：session → round ×N（每轮模型调用一对 start/end，end 携带该轮 tokens）
+ * → thinking / tool / answer → done 或 error；思考轮次达 maxIters 上限时
+ * 收尾轮前追加 limit 事件（前端展示「继续执行任务」入口）。
  * GET  /api/agent/sessions                 → 会话列表（updateTime 倒序）
  * GET  /api/agent/sessions/{id}/messages   → 单会话消息
  * PUT  /api/agent/sessions/{id}/title      → 重命名会话标题（session_title 独立落盘）

@@ -123,6 +123,10 @@ textarea:focus { outline: none; border-color: #2563eb; }
 .msg-agent a { color: #2563eb; text-decoration: none; }
 .msg-agent a:hover { text-decoration: underline; }
 .stopped-tag { display: inline-block; margin-top: 8px; color: #9ca3af; font-size: 13px; }
+/* maxIters 超限提示条：强制收尾轮后展示「继续执行任务」续跑入口 */
+.limit-notice { align-self: stretch; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 14px; background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; color: #713f12; font-size: 13px; }
+.limit-notice .limit-continue { flex: none; border: 1px solid #fde047; background: #fffbeb; color: #854d0e; font-size: 12px; padding: 3px 12px; border-radius: 12px; cursor: pointer; }
+.limit-notice .limit-continue:hover { background: #fde047; color: #713f12; }
 /* ---------- 用户提示词 ---------- */
 /* 用户消息气泡 hover 出「存为提示词」入口（悬浮气泡右上角） */
 .msg-user { position: relative; }
@@ -1286,6 +1290,10 @@ function handleSseBlock(block, st) {
       }
     }
     scrollBottom();
+  } else if (eventName === 'limit') {
+    // 思考轮次达 maxIters 上限：随后为不带工具的强制收尾轮；done 后展示「继续执行任务」入口
+    st.hitLimit = true;
+    st.maxIters = payload.maxIters;
   } else if (eventName === 'answer') {
     const ui = ensureRound(st);
     ui.answer.textContent += (payload.delta || '');
@@ -1295,10 +1303,39 @@ function handleSseBlock(block, st) {
     // 各轮 tokens 已在 round end 落位（done 的 usage 为全轮聚合，不再重复累计）；
     // 这里只对末块兜底（未收到 round end 时补时间行）并刷新总计行
     if (st.ui) st.ui.setDone(null);
+    appendLimitNotice(st); // 收到过 limit 则展示续跑入口（函数内幂等）
     appendTotalUsage();
   } else if (eventName === 'error') {
     ensureRound(st).setError(payload.message || '未知错误');
   }
+}
+
+/**
+ * maxIters 超限提示条：done/流结束时渲染一次（函数内幂等；新条目顶替旧条目）。
+ * 点击「继续执行任务」复用完整发送管线续跑：新一轮 ReAct 轮次预算重新计满，
+ * 模型基于会话历史重新发起被收尾轮吞掉的工具调用。
+ */
+function appendLimitNotice(st) {
+  if (!st.hitLimit || st.limitShown) return;
+  st.limitShown = true;
+  document.querySelectorAll('.limit-notice').forEach(el => el.remove()); // 旧提示条顶替，避免堆积
+  const box = document.createElement('div');
+  box.className = 'limit-notice';
+  const txt = document.createElement('span');
+  txt.textContent = '思考次数已达上限' + (st.maxIters ? '（' + st.maxIters + ' 轮）' : '') + '，任务可能未完成';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'limit-continue';
+  btn.textContent = '继续执行任务';
+  btn.addEventListener('click', () => {
+    box.remove();
+    inputEl.value = '继续执行任务';
+    send();
+  });
+  box.appendChild(txt);
+  box.appendChild(btn);
+  messagesEl.appendChild(box);
+  scrollBottom();
 }
 
 async function send() {
@@ -1314,7 +1351,7 @@ async function send() {
 
   addUserMsg(text);
   playSendSound(); // 发送即响「叮」，提示回答已开始
-  const st = { ui: null }; // 当前轮次块：round start 时创建，一轮一个气泡（与历史渲染一致）
+  const st = { ui: null, hitLimit: false, limitShown: false, maxIters: 0 }; // 轮次块（round start 创建，一轮一气泡）+ 超限标记（limit 事件置位）
   aborter = new AbortController();
 
   try {
@@ -1347,6 +1384,7 @@ async function send() {
     }
     if (buf.trim()) handleSseBlock(buf, st);
     if (st.ui) st.ui.setDone(null); // 流结束兜底（round end 已处理则幂等）
+    appendLimitNotice(st); // 已收到 limit 而 done 缺失时的兜底（函数内幂等）
     if (stopRequested && st.ui) {
       const s = document.createElement('span');
       s.className = 'stopped-tag';
