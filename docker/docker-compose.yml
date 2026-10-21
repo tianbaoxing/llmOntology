@@ -12,7 +12,11 @@ services:
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
-    restart: unless-stopped
+    restart: no
+  ##**修改容器重启策略（全部改成手动）本身不会直接干掉端口映射，但是你是在 Docker Desktop 面板批量更新 `restartPolicy=no`，
+  ##这个操作有一个隐藏坑：**
+  ##用 UI 面板批量 `update` 修改容器重启策略，**不会重建容器，只是改容器元信息；但是 WSL2 的网络沙箱会发生异常，后续你用 `docker start` 启动旧容器的时候，网络端口转发规则创建失败，就出现：`HostConfig.PortBindings`配置存在，但是运行时`NetworkSettings.Ports={"3306/tcp":[]}`**
+  ##现在想要**手动启动**，yml 里 mysql 加上 `restart: "no"`
 
   # 业务数据存储（用户/配置/会话/评测），与 application.yml 的
   # jdbc:mysql://localhost:3306/ontology（root/root）对应
@@ -36,7 +40,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
-    restart: unless-stopped
+    restart: no
 
 volumes:
   # 显式指定卷名，避免 compose 拼接项目前缀形成 neo4j_neo4j_data 双层嵌套
