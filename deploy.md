@@ -71,6 +71,10 @@ cd <项目根目录>
 # 否则解析 studio 的 pom 时找不到 ontology-parent）：
 #   .\mvnw.cmd -pl ontology-agentscope-studio -am install "-DskipTests" -q
 
+# 多模块 Maven，**agentkit 子模块源码已经更新成 8 参数 build ()，但是本地 maven 仓库里还装着旧版本 agentkit jar（7 参数）
+# 编译 ontology-server 的时候，Maven 从本地仓库读取旧 agentkit jar 做类型校验 → 报参数数量不匹配。
+# mvn clean install -DskipTests
+
 .\mvnw.cmd -pl ontology-server spring-boot:run
 .\mvnw.cmd -pl ontology-server spring-boot:run "-Dspring-boot.run.arguments=--app.agent.studio-url=http://127.0.0.1:3000"
 
