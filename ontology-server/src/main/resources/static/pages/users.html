@@ -207,11 +207,12 @@ async function loadPermissions() {
   }
 }
 
-function permSection(title, items, denied, nameKey) {
+// cat：checkbox 逻辑类别（data-type），默认取 title；工具拆组展示时统一传「工具」，保存链路不变
+function permSection(title, items, denied, nameKey, cat) {
   if (!items.length) return '';
   const boxes = items.map(it => {
     const name = it[nameKey] || '';
-    return '<label class="perm-item"><input type="checkbox" data-type="' + esc(title) +
+    return '<label class="perm-item"><input type="checkbox" data-type="' + esc(cat || title) +
       '" value="' + esc(name) + '"' + (denied.includes(name) ? ' checked' : '') + '>' +
       '<code>' + esc(name) + '</code></label>';
   }).join('');
@@ -219,10 +220,24 @@ function permSection(title, items, denied, nameKey) {
     '（勾选 = 禁用，共 ' + items.length + ' 项）</div><div class="perm-items">' + boxes + '</div></div>';
 }
 
+/** 工具按 /api/agent/tools 已返回的 type 分桶：内置 / 自定义（含 type 缺失兜底）/ MCP */
+function toolBuckets() {
+  const buckets = { builtin: [], custom: [], mcp: [] };
+  permCatalog.tools.forEach(t => {
+    if (t.type === '内置工具') buckets.builtin.push(t);
+    else if (t.type === 'mcp') buckets.mcp.push(t);
+    else buckets.custom.push(t);
+  });
+  return buckets;
+}
+
 function renderPermissions(roles) {
   const rule = roles[$('perm-role').value] || {};
+  const tb = toolBuckets();
   $('perm-grid').innerHTML =
-    permSection('工具', permCatalog.tools, rule.deniedTools || [], 'name') +
+    permSection('内置工具', tb.builtin, rule.deniedTools || [], 'name', '工具') +
+    permSection('自定义工具', tb.custom, rule.deniedTools || [], 'name', '工具') +
+    permSection('MCP 工具', tb.mcp, rule.deniedTools || [], 'name', '工具') +
     permSection('技能', permCatalog.skills, rule.deniedSkills || [], 'name') +
     permSection('子代理', permCatalog.subagents, rule.deniedSubagents || [], 'agentId') ||
     '<span class="muted">暂无可用资源（agent 未装配或未配置 key）</span>';
