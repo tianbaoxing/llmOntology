@@ -104,6 +104,7 @@ public class AgentMemoryService {
         String text = null;
         if (wm != null) {
             RuntimeContext rc = viewContext(userId);
+            //时间存在时差，从数据库读取的文本
             text = CURATED_NAME.equals(name)
                     ? readCurated(wm, rc)
                     : readMemoryFile(wm, rc, "memory/" + name);
@@ -113,6 +114,7 @@ public class AgentMemoryService {
         }
 
         boolean curated = CURATED_NAME.equals(name);
+        //时间存在时差，从数据库读取的文本
         List<Map<String, Object>> sections = parseSections(text,
                 curated ? DATE_HEADER : FLUSH_HEADER,
                 curated ? "date" : "time");

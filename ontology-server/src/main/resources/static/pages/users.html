@@ -291,7 +291,7 @@ async function loadMemFile(name) {
     const secs = d.sections || [];
     $('mem-detail').innerHTML = secs.length
       ? secs.map(s => `<div class="mem-section">` +
-          `<div class="sec-head">${esc(s.time || s.date || '—')}</div>` +
+          `<div class="sec-head">${esc(s.time|| s.date || '—')} --时间存在时差，从数据库读取的文本 </div>` +
           `<div class="sec-body">${esc(s.content)}</div></div>`).join('')
       : '<div class="mem-empty">文件内容为空</div>';
   } catch (e) {
