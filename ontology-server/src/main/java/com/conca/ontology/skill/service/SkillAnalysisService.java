@@ -1,4 +1,4 @@
-package com.conca.ontology.skill;
+package com.conca.ontology.skill.service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +25,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.skill.SkillAnalysisStore;
+import com.conca.ontology.skill.dto.SkillAnalysis;
+import com.conca.ontology.skill.dto.SkillAnalysis.ShellCmd;
+import com.conca.ontology.skill.dto.SkillAnalysis.ToolHit;
+import com.conca.ontology.skill.dto.SkillAnalysis.ToolUsage;
 import com.conca.ontology.agent.service.AgentChatService;
 
 import io.agentscope.harness.agent.HarnessAgent;

@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import com.conca.ontology.skill.SkillAnalysis;
+import com.conca.ontology.skill.dto.SkillAnalysis;
 
 /**
  * 技能使用分析行（skill_analysis，P4：每技能一行，无全局 version）。

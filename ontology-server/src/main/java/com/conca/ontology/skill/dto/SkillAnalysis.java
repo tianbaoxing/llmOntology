@@ -1,4 +1,4 @@
-package com.conca.ontology.skill;
+package com.conca.ontology.skill.dto;
 
 import java.util.List;
 

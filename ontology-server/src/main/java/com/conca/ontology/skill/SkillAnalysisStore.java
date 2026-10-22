@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.skill.converter.SkillAnalysisConverter;
+import com.conca.ontology.skill.dto.SkillAnalysis;
 import com.conca.ontology.skill.entity.SkillAnalysisEntity;
 import com.conca.ontology.skill.mapper.SkillAnalysisMapper;
 
