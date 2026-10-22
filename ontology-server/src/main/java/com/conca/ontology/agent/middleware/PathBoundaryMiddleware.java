@@ -1,6 +1,7 @@
 package com.conca.ontology.agent.middleware;
 
 import java.io.IOException;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -82,6 +83,8 @@ public class PathBoundaryMiddleware implements HarnessRuntimeMiddleware {
      * @param workspace   当前智能体工作区；必须位于数据根内（词法判定），fail-fast
      */
     public PathBoundaryMiddleware(String dataRootCfg, Path workspace) {
+        //用户可以看到/data/agent-workspace信息，现在这个信息禁止查看，只允许查看/data/agent-workspace/files目录
+        String dataRoot = dataRootCfg.trim()+File.separator+"files";
         Path root = Path.of(dataRootCfg.trim()).toAbsolutePath().normalize();
         if (!Files.isDirectory(root)) {
             throw new IllegalStateException("[配置错误] 数据根目录不存在或不是目录：" + root
