@@ -1,4 +1,4 @@
-package com.conca.ontology.builder.model;
+package com.conca.ontology.builder.store;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import com.conca.agentkit.AgentDefinition;
-import com.conca.ontology.builder.model.AgentDefinitionStore;
+import com.conca.ontology.builder.store.AgentDefinitionStore;
 import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import com.conca.ontology.shared.web.ApiException;
 

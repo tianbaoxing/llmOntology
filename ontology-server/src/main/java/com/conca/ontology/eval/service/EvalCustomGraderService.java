@@ -18,6 +18,7 @@ import com.conca.ontology.eval.model.AgentRecord;
 import com.conca.ontology.eval.model.CustomGraderDefinition;
 import com.conca.ontology.eval.model.GraderInput;
 import com.conca.ontology.eval.model.GraderScore;
+import com.conca.ontology.eval.store.CustomGraderStore;
 import com.conca.ontology.shared.web.ApiException;
 
 /**

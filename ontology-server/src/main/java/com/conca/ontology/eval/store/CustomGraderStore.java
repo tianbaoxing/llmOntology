@@ -1,4 +1,4 @@
-package com.conca.ontology.eval.service;
+package com.conca.ontology.eval.store;
 
 import java.util.ArrayList;
 import java.util.List;

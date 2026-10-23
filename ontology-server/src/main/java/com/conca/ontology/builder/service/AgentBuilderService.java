@@ -24,7 +24,7 @@ import com.conca.agentkit.AgentPackageCodec;
 import com.conca.agentkit.McpSupport;
 import com.conca.ontology.builder.AgentRegistry;
 import com.conca.ontology.builder.dto.AgentSaveDTO;
-import com.conca.ontology.builder.model.AgentDefinitionStore;
+import com.conca.ontology.builder.store.AgentDefinitionStore;
 import com.conca.ontology.shared.web.ApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

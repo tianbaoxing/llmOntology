@@ -14,6 +14,7 @@ import com.conca.ontology.eval.Grader;
 import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
 import com.conca.ontology.eval.JudgeClient;
 import com.conca.ontology.eval.model.CustomGraderDefinition;
+import com.conca.ontology.eval.store.CustomGraderStore;
 
 /**
  * @author tianbaoxing

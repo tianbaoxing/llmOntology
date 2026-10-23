@@ -1,4 +1,4 @@
-package com.conca.ontology.skill;
+package com.conca.ontology.skill.store;
 
 import java.util.LinkedHashMap;
 import java.util.List;

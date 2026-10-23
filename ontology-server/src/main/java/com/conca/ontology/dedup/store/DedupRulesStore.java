@@ -1,4 +1,4 @@
-package com.conca.ontology.dedup.model;
+package com.conca.ontology.dedup.store;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -14,6 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.conca.ontology.dedup.converter.DedupRulesetConverter;
 import com.conca.ontology.dedup.entity.RuleDedup;
 import com.conca.ontology.dedup.mapper.RuleDedupMapper;
+import com.conca.ontology.dedup.model.DedupExactMode;
+import com.conca.ontology.dedup.model.DedupLabelConfig;
+import com.conca.ontology.dedup.model.DedupRulesIndexItem;
+import com.conca.ontology.dedup.model.DedupRuleset;
 import com.conca.ontology.shared.web.ApiException;
 
 /**

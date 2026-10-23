@@ -12,10 +12,10 @@ import org.springframework.stereotype.Service;
 
 import com.conca.ontology.dedup.model.DedupExactMode;
 import com.conca.ontology.dedup.model.DedupLabelConfig;
-import com.conca.ontology.dedup.model.DedupRulesStore;
 import com.conca.ontology.dedup.model.DedupRuleset;
 import com.conca.ontology.dedup.model.DedupRulesIndexItem;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage;
+import com.conca.ontology.dedup.store.DedupRulesStore;
 import com.conca.ontology.graph.model.ClassDef;
 import com.conca.ontology.graph.model.GraphSchema;
 import com.conca.ontology.shared.web.ApiException;

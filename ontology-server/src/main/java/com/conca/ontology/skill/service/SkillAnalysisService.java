@@ -25,11 +25,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.skill.SkillAnalysisStore;
 import com.conca.ontology.skill.dto.SkillAnalysisDTO;
 import com.conca.ontology.skill.dto.SkillAnalysisDTO.ShellCmd;
 import com.conca.ontology.skill.dto.SkillAnalysisDTO.ToolHit;
 import com.conca.ontology.skill.dto.SkillAnalysisDTO.ToolUsage;
+import com.conca.ontology.skill.store.SkillAnalysisStore;
 import com.conca.ontology.agent.service.AgentChatService;
 
 import io.agentscope.harness.agent.HarnessAgent;
