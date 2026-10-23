@@ -8,9 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.conca.ontology.graph.dto.request.ProfileSaveRequest;
-import com.conca.ontology.graph.dto.result.ProfileSaveResult;
-import com.conca.ontology.graph.dto.view.ProfileView;
+import com.conca.ontology.graph.dto.ProfileSaveDTO;
+import com.conca.ontology.graph.dto.ProfileSaveResultDTO;
+import com.conca.ontology.graph.dto.ProfileDTO;
 import com.conca.ontology.graph.entity.OntologyProfileItem;
 import com.conca.ontology.graph.mapper.OntologyProfileItemMapper;
 import com.conca.ontology.graph.model.ProfileEntry;
@@ -35,19 +35,19 @@ public class ProfileService {
     }
 
     /** 全量读取（无行返回空列表，供 LLM 回看构建上下文；按首次创建顺序） */
-    public ProfileView load() {
+    public ProfileDTO load() {
         List<ProfileEntry> items = itemMapper
                 .selectList(new LambdaQueryWrapper<OntologyProfileItem>()
                         .orderByAsc(OntologyProfileItem::getId))
                 .stream().map(ProfileService::toEntry).toList();
-        return new ProfileView(items);
+        return new ProfileDTO(items);
     }
 
     /** 批量 upsert：按 key 覆盖已有条目（原位置），新 key 追加，事务原子 */
     @Transactional
-    public ProfileSaveResult save(ProfileSaveRequest req) {
+    public ProfileSaveResultDTO save(ProfileSaveDTO req) {
         String now = LocalDateTime.now().toString();
-        for (ProfileSaveRequest.Item item : req.items()) {
+        for (ProfileSaveDTO.Item item : req.items()) {
             String phase = item.phase() == null || item.phase().isBlank() ? "intake" : item.phase();
             OntologyProfileItem row = itemMapper.selectOne(new LambdaQueryWrapper<OntologyProfileItem>()
                     .eq(OntologyProfileItem::getItemKey, item.key()));
@@ -63,10 +63,10 @@ public class ProfileService {
         }
         int count = Math.toIntExact(itemMapper.selectCount(null));
         log.info("profile saved: {} entries", count);
-        return new ProfileSaveResult(count);
+        return new ProfileSaveResultDTO(count);
     }
 
-    private static void fill(OntologyProfileItem row, String phase, ProfileSaveRequest.Item item, String now) {
+    private static void fill(OntologyProfileItem row, String phase, ProfileSaveDTO.Item item, String now) {
         row.setPhase(phase);
         row.setQuestion(item.question());
         row.setAnswer(item.answer());

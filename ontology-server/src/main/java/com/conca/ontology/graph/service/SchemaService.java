@@ -14,15 +14,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.graph.converter.GraphSchemaConverter;
-import com.conca.ontology.graph.dto.result.ClassDeleteResult;
-import com.conca.ontology.graph.dto.view.ClassDetailView;
-import com.conca.ontology.graph.dto.view.ClassSummary;
-import com.conca.ontology.graph.dto.view.ClassView;
-import com.conca.ontology.graph.dto.view.IncomingRelation;
-import com.conca.ontology.graph.dto.result.QueryResult;
-import com.conca.ontology.graph.dto.view.RelationDetail;
-import com.conca.ontology.graph.dto.view.RelationView;
-import com.conca.ontology.graph.dto.view.SchemaView;
+import com.conca.ontology.graph.dto.ClassDeleteResultDTO;
+import com.conca.ontology.graph.dto.ClassDetailDTO;
+import com.conca.ontology.graph.dto.ClassSummaryDTO;
+import com.conca.ontology.graph.dto.ClassDTO;
+import com.conca.ontology.graph.dto.IncomingRelationDTO;
+import com.conca.ontology.graph.dto.QueryResultDTO;
+import com.conca.ontology.graph.dto.RelationDetailDTO;
+import com.conca.ontology.graph.dto.RelationDTO;
+import com.conca.ontology.graph.dto.SchemaDTO;
 import com.conca.ontology.graph.entity.GraphClass;
 import com.conca.ontology.graph.entity.GraphClassProp;
 import com.conca.ontology.graph.entity.GraphRelDef;
@@ -95,34 +95,34 @@ public class SchemaService {
 
     // ---------------- views ----------------
 
-    public SchemaView schemaView() {
+    public SchemaDTO schemaView() {
         Map<String, Long> nodeCounts = nodeCounts();
         Map<String, Long> relCounts = relCounts();
-        List<ClassView> classes = new ArrayList<>();
+        List<ClassDTO> classes = new ArrayList<>();
         for (ClassDef c : schema.allClasses()) {
             classes.add(classMap(c, nodeCounts, relCounts));
         }
-        List<RelationView> rels = new ArrayList<>();
+        List<RelationDTO> rels = new ArrayList<>();
         for (GraphSchema.RelSignature sig : schema.allRelations()) {
             rels.add(relMap(sig, relCounts));
         }
-        return new SchemaView(version, classes, rels);
+        return new SchemaDTO(version, classes, rels);
     }
 
-    public List<ClassSummary> classSummaries() {
+    public List<ClassSummaryDTO> classSummaries() {
         Map<String, Long> nodeCounts = nodeCounts();
-        List<ClassSummary> list = new ArrayList<>();
+        List<ClassSummaryDTO> list = new ArrayList<>();
         for (ClassDef c : schema.allClasses()) {
-            list.add(new ClassSummary(c.name(), c.cnName(), c.layer(), c.keyProp(), c.description(),
+            list.add(new ClassSummaryDTO(c.name(), c.cnName(), c.layer(), c.keyProp(), c.description(),
                     nodeCounts.getOrDefault(c.name(), 0L),
                     c.properties().size(), c.relations().size()));
         }
         return list;
     }
 
-    public List<RelationView> relationViews() {
+    public List<RelationDTO> relationViews() {
         Map<String, Long> relCounts = relCounts();
-        List<RelationView> list = new ArrayList<>();
+        List<RelationDTO> list = new ArrayList<>();
         for (GraphSchema.RelSignature sig : schema.allRelations()) {
             list.add(relMap(sig, relCounts));
         }
@@ -130,48 +130,48 @@ public class SchemaService {
     }
 
     /** 单类详情：定义 + 实时 count + 出边（声明）+ 入边（推导） */
-    public ClassDetailView classView(String name) {
+    public ClassDetailDTO classView(String name) {
         ClassDef def = schema.classOf(name);
         if (def == null) {
             throw new ApiException(404, "class not found: " + name);
         }
         Map<String, Long> nodeCounts = nodeCounts();
         Map<String, Long> relCounts = relCounts();
-        ClassView view = classMap(def, nodeCounts, relCounts);
-        List<IncomingRelation> incoming = new ArrayList<>();
+        ClassDTO view = classMap(def, nodeCounts, relCounts);
+        List<IncomingRelationDTO> incoming = new ArrayList<>();
         for (GraphSchema.RelSignature sig : schema.allRelations()) {
             if (sig.toClass().equals(name)) {
-                incoming.add(new IncomingRelation(sig.def().name(), sig.def().cnName(),
+                incoming.add(new IncomingRelationDTO(sig.def().name(), sig.def().cnName(),
                         sig.fromClass(), relCounts.getOrDefault(sig.def().name(), 0L)));
             }
         }
-        return new ClassDetailView(view.name(), view.cnName(), view.layer(), view.keyProp(),
+        return new ClassDetailDTO(view.name(), view.cnName(), view.layer(), view.keyProp(),
                 view.description(), view.count(), view.properties(), view.relations(), incoming);
     }
 
-    private ClassView classMap(ClassDef c, Map<String, Long> nodeCounts, Map<String, Long> relCounts) {
-        List<RelationDetail> rels = new ArrayList<>();
+    private ClassDTO classMap(ClassDef c, Map<String, Long> nodeCounts, Map<String, Long> relCounts) {
+        List<RelationDetailDTO> rels = new ArrayList<>();
         for (RelationDef r : c.relations()) {
             rels.add(relDetail(r, relCounts));
         }
-        return new ClassView(c.name(), c.cnName(), c.layer(), c.keyProp(), c.description(),
+        return new ClassDTO(c.name(), c.cnName(), c.layer(), c.keyProp(), c.description(),
                 nodeCounts.getOrDefault(c.name(), 0L), c.properties(), rels);
     }
 
-    private RelationDetail relDetail(RelationDef r, Map<String, Long> relCounts) {
-        return new RelationDetail(r.name(), r.cnName(), r.toClass(), r.description(), r.example(),
+    private RelationDetailDTO relDetail(RelationDef r, Map<String, Long> relCounts) {
+        return new RelationDetailDTO(r.name(), r.cnName(), r.toClass(), r.description(), r.example(),
                 r.props(), relCounts.getOrDefault(r.name(), 0L));
     }
 
-    private RelationView relMap(GraphSchema.RelSignature sig, Map<String, Long> relCounts) {
-        return new RelationView(sig.def().name(), sig.def().cnName(), sig.fromClass(), sig.toClass(),
+    private RelationDTO relMap(GraphSchema.RelSignature sig, Map<String, Long> relCounts) {
+        return new RelationDTO(sig.def().name(), sig.def().cnName(), sig.fromClass(), sig.toClass(),
                 sig.def().description(), sig.def().example(), sig.def().props(),
                 relCounts.getOrDefault(sig.def().name(), 0L));
     }
 
     // ---------------- CRUD ----------------
 
-    public ClassDetailView createClass(ClassDef def) {
+    public ClassDetailDTO createClass(ClassDef def) {
         if (def == null) {
             throw new ApiException(400, "class def must not be null");
         }
@@ -187,7 +187,7 @@ public class SchemaService {
         return classView(def.name());
     }
 
-    public ClassDetailView updateClass(String name, ClassDef def) {
+    public ClassDetailDTO updateClass(String name, ClassDef def) {
         ClassDef existing = schema.classOf(name);
         if (existing == null) {
             throw new ApiException(404, "class not found: " + name);
@@ -207,7 +207,7 @@ public class SchemaService {
         return classView(def.name());
     }
 
-    public ClassDeleteResult deleteClass(String name) {
+    public ClassDeleteResultDTO deleteClass(String name) {
         ClassDef def = schema.classOf(name);
         if (def == null) {
             throw new ApiException(404, "class not found: " + name);
@@ -232,7 +232,7 @@ public class SchemaService {
         save(classes);
         importService.dropConstraint(name, def.keyProp());
         log.info("schema class deleted: {}", name);
-        return new ClassDeleteResult(name);
+        return new ClassDeleteResultDTO(name);
     }
 
     // ---------------- validation ----------------
@@ -403,7 +403,7 @@ public class SchemaService {
     }
 
     private Map<String, Long> countMap(String cypher) {
-        QueryResult result = queryService.query(cypher, null);
+        QueryResultDTO result = queryService.query(cypher, null);
         Map<String, Long> counts = new LinkedHashMap<>();
         for (Map<String, Object> m : result.rows()) {
             counts.put((String) m.get("k"), ((Number) m.get("c")).longValue());
@@ -420,7 +420,7 @@ public class SchemaService {
     }
 
     private long scalar(String cypher) {
-        QueryResult result = queryService.query(cypher, null);
+        QueryResultDTO result = queryService.query(cypher, null);
         return ((Number) result.rows().get(0).get("c")).longValue();
     }
 }

@@ -23,7 +23,7 @@ import com.conca.agentkit.AgentDefinition;
 import com.conca.agentkit.AgentPackageCodec;
 import com.conca.agentkit.McpSupport;
 import com.conca.ontology.builder.AgentRegistry;
-import com.conca.ontology.builder.dto.request.AgentSaveRequest;
+import com.conca.ontology.builder.dto.AgentSaveDTO;
 import com.conca.ontology.builder.model.AgentDefinitionStore;
 import com.conca.ontology.shared.web.ApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -76,7 +76,7 @@ public class AgentBuilderService {
     // ---------------- CRUD ----------------
 
     /** 创建（id 自动生成，与目录/agent 名绑定后不可变） */
-    public Map<String, Object> create(AgentSaveRequest req, String owner) {
+    public Map<String, Object> create(AgentSaveDTO req, String owner) {
         validate(req);
         String id = "agent-" + randomHex(8);
         while (store.exists(id)) {
@@ -95,7 +95,7 @@ public class AgentBuilderService {
     }
 
     /** 编辑（version+1 驱使注册表重建） */
-    public Map<String, Object> update(String id, AgentSaveRequest req) {
+    public Map<String, Object> update(String id, AgentSaveDTO req) {
         AgentDefinition old = store.require(id);
         validate(req);
         AgentDefinition def = new AgentDefinition(old.id(), req.name(), req.description(), req.sysPrompt(),
@@ -294,7 +294,7 @@ public class AgentBuilderService {
     // ---------------- 校验 ----------------
 
     /** 静态校验（[参数错误] 层）：创建与编辑共用 */
-    void validate(AgentSaveRequest req) {
+    void validate(AgentSaveDTO req) {
         requireLength("名称", req.name(), 1, 30);
         limitLength("描述", req.description(), 200);
         requireLength("系统提示词", req.sysPrompt(), 1, 8000);

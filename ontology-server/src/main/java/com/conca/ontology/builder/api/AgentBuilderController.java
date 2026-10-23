@@ -20,9 +20,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import com.conca.ontology.builder.dto.request.AgentSaveRequest;
-import com.conca.ontology.builder.dto.request.TestMcpRequest;
-import com.conca.ontology.builder.dto.request.TestModelRequest;
+import com.conca.ontology.builder.dto.AgentSaveDTO;
+import com.conca.ontology.builder.dto.TestMcpDTO;
+import com.conca.ontology.builder.dto.TestModelDTO;
 import com.conca.ontology.builder.service.AgentBuilderService;
 import com.conca.ontology.builder.service.AgentProjectExportService;
 import com.conca.ontology.shared.web.ApiException;
@@ -81,7 +81,7 @@ public class AgentBuilderController {
 
     /** 创建（id 服务端生成，与目录/agent 名绑定后不可变） */
     @PostMapping
-    public ApiResponse<Map<String, Object>> create(@RequestBody AgentSaveRequest request,
+    public ApiResponse<Map<String, Object>> create(@RequestBody AgentSaveDTO request,
             HttpSession session) {
         requireAdmin(session);
         return ApiResponse.ok(builderService.create(request, SessionUser.of(session).userId()));
@@ -97,7 +97,7 @@ public class AgentBuilderController {
     /** 编辑（version+1 + 注册表驱逐，下次访问重建生效） */
     @PutMapping("/{id}")
     public ApiResponse<Map<String, Object>> update(@PathVariable String id,
-            @RequestBody AgentSaveRequest request, HttpSession session) {
+            @RequestBody AgentSaveDTO request, HttpSession session) {
         requireAdmin(session);
         return ApiResponse.ok(builderService.update(id, request));
     }
@@ -111,7 +111,7 @@ public class AgentBuilderController {
 
     /** 模型连通性测试：一条最小对话请求，区分 地址错 / key 错 / 模型名错；key 取环境变量 AGENT_API_KEY */
     @PostMapping("/test-model")
-    public ApiResponse<Map<String, Object>> testModel(@RequestBody TestModelRequest request,
+    public ApiResponse<Map<String, Object>> testModel(@RequestBody TestModelDTO request,
             HttpSession session) {
         requireAdmin(session);
         return ApiResponse.ok(builderService.testModel(request.baseUrl(), request.modelName()));
@@ -119,7 +119,7 @@ public class AgentBuilderController {
 
     /** MCP 端点握手探测：返回远端工具清单 */
     @PostMapping("/test-mcp")
-    public ApiResponse<Map<String, Object>> testMcp(@RequestBody TestMcpRequest request,
+    public ApiResponse<Map<String, Object>> testMcp(@RequestBody TestMcpDTO request,
             HttpSession session) {
         requireAdmin(session);
         return ApiResponse.ok(builderService.testMcp(request.url()));

@@ -12,25 +12,25 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.graph.dto.view.GraphStatsView;
-import com.conca.ontology.graph.dto.result.QueryResult;
+import com.conca.ontology.graph.dto.GraphStatsDTO;
+import com.conca.ontology.graph.dto.QueryResultDTO;
 import com.conca.ontology.graph.model.ClassDef;
 import com.conca.ontology.graph.model.GraphSchema;
 import com.conca.ontology.graph.model.RelationDef;
 import com.conca.ontology.graph.service.GraphQueryService;
-import com.conca.ontology.quality.dto.view.ClassBin;
-import com.conca.ontology.quality.dto.view.ClassHistogramView;
-import com.conca.ontology.quality.dto.view.DanglingEdgeView;
-import com.conca.ontology.quality.dto.view.DegreeAnomalyView;
-import com.conca.ontology.quality.dto.view.IsolatedNodeView;
-import com.conca.ontology.quality.dto.view.QualityReportView;
-import com.conca.ontology.quality.dto.view.RelBin;
-import com.conca.ontology.quality.dto.view.RelationHistogramView;
-import com.conca.ontology.quality.dto.view.SchemaCoverageView;
-import com.conca.ontology.quality.dto.view.SelfLoopView;
-import com.conca.ontology.quality.dto.view.TopologyAnomalyView;
-import com.conca.ontology.quality.dto.view.UnusedClassView;
-import com.conca.ontology.quality.dto.view.UnusedRelationView;
+import com.conca.ontology.quality.dto.ClassBinDTO;
+import com.conca.ontology.quality.dto.ClassHistogramDTO;
+import com.conca.ontology.quality.dto.DanglingEdgeDTO;
+import com.conca.ontology.quality.dto.DegreeAnomalyDTO;
+import com.conca.ontology.quality.dto.IsolatedNodeDTO;
+import com.conca.ontology.quality.dto.QualityReportDTO;
+import com.conca.ontology.quality.dto.RelBinDTO;
+import com.conca.ontology.quality.dto.RelationHistogramDTO;
+import com.conca.ontology.quality.dto.SchemaCoverageDTO;
+import com.conca.ontology.quality.dto.SelfLoopDTO;
+import com.conca.ontology.quality.dto.TopologyAnomalyDTO;
+import com.conca.ontology.quality.dto.UnusedClassDTO;
+import com.conca.ontology.quality.dto.UnusedRelationDTO;
 import com.conca.ontology.graph.model.GraphSchema.RelSignature;
 
 /**
@@ -60,11 +60,11 @@ public class GraphDiagnosticsService {
     // 对外主入口
     // ============================================================
 
-    public QualityReportView fullReport() {
-        GraphStatsView stats = qs.stats();
-        long totalNodes = stats.nodes().stream().mapToLong(GraphStatsView.LabelCount::count).sum();
-        long totalRels = stats.relationships().stream().mapToLong(GraphStatsView.TypeCount::count).sum();
-        return new QualityReportView(
+    public QualityReportDTO fullReport() {
+        GraphStatsDTO stats = qs.stats();
+        long totalNodes = stats.nodes().stream().mapToLong(GraphStatsDTO.LabelCount::count).sum();
+        long totalRels = stats.relationships().stream().mapToLong(GraphStatsDTO.TypeCount::count).sum();
+        return new QualityReportDTO(
                 System.currentTimeMillis(),
                 totalNodes,
                 totalRels,
@@ -80,19 +80,19 @@ public class GraphDiagnosticsService {
     // 分模块 API
     // ============================================================
 
-    public TopologyAnomalyView topologyAnomaly(int topK, int isolatedLimit) {
+    public TopologyAnomalyDTO topologyAnomaly(int topK, int isolatedLimit) {
         long isoCnt = countIsolated();
-        List<IsolatedNodeView> isoList = isolatedList(Math.max(1, isolatedLimit));
-        List<SelfLoopView> loops = selfLoops();
+        List<IsolatedNodeDTO> isoList = isolatedList(Math.max(1, isolatedLimit));
+        List<SelfLoopDTO> loops = selfLoops();
         long dangling = countDangling();
         long danglingNoOutCnt = countDanglingNoOut();
         long danglingNoInCnt = countDanglingNoIn();
-        List<DanglingEdgeView> danglingNoOutList = danglingNoOutList(5);
-        List<DanglingEdgeView> danglingNoInList = danglingNoInList(5);
+        List<DanglingEdgeDTO> danglingNoOutList = danglingNoOutList(5);
+        List<DanglingEdgeDTO> danglingNoInList = danglingNoInList(5);
 
         Map<String, double[]> degStats = degreeStats();
-        List<DegreeAnomalyView> inTop = new ArrayList<>();
-        List<DegreeAnomalyView> outTop = new ArrayList<>();
+        List<DegreeAnomalyDTO> inTop = new ArrayList<>();
+        List<DegreeAnomalyDTO> outTop = new ArrayList<>();
         long inAnomCnt = 0, outAnomCnt = 0;
 
         for (Map.Entry<String, double[]> e : degStats.entrySet()) {
@@ -101,8 +101,8 @@ public class GraphDiagnosticsService {
             double avgOut = v[1], stdOut = v[2], avgIn = v[3], stdIn = v[4];
             int k = Math.max(1, topK);
 
-            List<DegreeAnomalyView> curIn = degreeAnomalies(label, false, avgIn, stdIn, k);
-            List<DegreeAnomalyView> curOut = degreeAnomalies(label, true, avgOut, stdOut, k);
+            List<DegreeAnomalyDTO> curIn = degreeAnomalies(label, false, avgIn, stdIn, k);
+            List<DegreeAnomalyDTO> curOut = degreeAnomalies(label, true, avgOut, stdOut, k);
             inAnomCnt += countAnomalies(label, false, avgIn, stdIn);
             outAnomCnt += countAnomalies(label, true, avgOut, stdOut);
             inTop.addAll(curIn);
@@ -115,26 +115,26 @@ public class GraphDiagnosticsService {
         if (inTop.size() > k) inTop = inTop.subList(0, k);
         if (outTop.size() > k) outTop = outTop.subList(0, k);
 
-        return new TopologyAnomalyView(
+        return new TopologyAnomalyDTO(
                 isoCnt, loops.size(), dangling,
                 inAnomCnt, outAnomCnt,
                 danglingNoOutCnt, danglingNoInCnt,
                 isoList, loops, danglingNoOutList, danglingNoInList, inTop, outTop);
     }
 
-    public SchemaCoverageView schemaCoverage() {
+    public SchemaCoverageDTO schemaCoverage() {
         return schemaCoverage(qs.stats());
     }
 
-    public ClassHistogramView classHistogram() {
-        GraphStatsView stats = qs.stats();
-        long total = stats.nodes().stream().mapToLong(GraphStatsView.LabelCount::count).sum();
+    public ClassHistogramDTO classHistogram() {
+        GraphStatsDTO stats = qs.stats();
+        long total = stats.nodes().stream().mapToLong(GraphStatsDTO.LabelCount::count).sum();
         return classHistogram(stats, total);
     }
 
-    public RelationHistogramView relationHistogram() {
-        GraphStatsView stats = qs.stats();
-        long total = stats.relationships().stream().mapToLong(GraphStatsView.TypeCount::count).sum();
+    public RelationHistogramDTO relationHistogram() {
+        GraphStatsDTO stats = qs.stats();
+        long total = stats.relationships().stream().mapToLong(GraphStatsDTO.TypeCount::count).sum();
         return relationHistogram(stats, total);
     }
 
@@ -143,14 +143,14 @@ public class GraphDiagnosticsService {
     // ============================================================
 
     private long countIsolated() {
-        QueryResult r = qs.query(
+        QueryResultDTO r = qs.query(
                 "MATCH (n) WHERE NOT (n)--() RETURN count(n) AS cnt", null);
         return r.rows().isEmpty() ? 0L : ((Number) r.rows().get(0).get("cnt")).longValue();
     }
 
     @SuppressWarnings("unchecked")
-    private List<IsolatedNodeView> isolatedList(int limit) {
-        QueryResult r = qs.query(
+    private List<IsolatedNodeDTO> isolatedList(int limit) {
+        QueryResultDTO r = qs.query(
                 "MATCH (n) WHERE NOT (n)--() "
                         + "WITH labels(n)[0] AS label, n "
                         + "WITH label, n ORDER BY label ASC "
@@ -158,26 +158,26 @@ public class GraphDiagnosticsService {
                         + "RETURN label AS label, elementId(n) AS elementId, properties(n) AS props "
                         + "ORDER BY label ASC",
                 Map.of("limit", limit));
-        List<IsolatedNodeView> out = new ArrayList<>(r.rows().size());
+        List<IsolatedNodeDTO> out = new ArrayList<>(r.rows().size());
         for (Map<String, Object> row : r.rows()) {
             String label = (String) row.get("label");
             String eid = (String) row.get("elementId");
             Map<String, Object> props = (Map<String, Object>) row.getOrDefault("props", Map.of());
             String keyProp = schema.classOf(label) == null ? "" : schema.keyPropOf(label);
             Object keyValue = keyProp.isEmpty() ? null : props.get(keyProp);
-            out.add(new IsolatedNodeView(label, keyProp, keyValue, displayName(label, props, keyProp, keyValue), eid));
+            out.add(new IsolatedNodeDTO(label, keyProp, keyValue, displayName(label, props, keyProp, keyValue), eid));
         }
         return out;
     }
 
     @SuppressWarnings("unchecked")
-    private List<SelfLoopView> selfLoops() {
-        QueryResult r = qs.query(
+    private List<SelfLoopDTO> selfLoops() {
+        QueryResultDTO r = qs.query(
                 "MATCH (n)-[r]->(n) "
                         + "RETURN labels(n)[0] AS label, type(r) AS relType, "
                         + "elementId(n) AS elementId, properties(n) AS nodeProps, properties(r) AS relProps "
                         + "ORDER BY label, relType", null);
-        List<SelfLoopView> out = new ArrayList<>(r.rows().size());
+        List<SelfLoopDTO> out = new ArrayList<>(r.rows().size());
         for (Map<String, Object> row : r.rows()) {
             String label = (String) row.get("label");
             String relType = (String) row.get("relType");
@@ -186,7 +186,7 @@ public class GraphDiagnosticsService {
             Map<String, Object> rProps = (Map<String, Object>) row.getOrDefault("relProps", Map.of());
             String keyProp = schema.classOf(label) == null ? "" : schema.keyPropOf(label);
             Object keyValue = keyProp.isEmpty() ? null : nProps.get(keyProp);
-            out.add(new SelfLoopView(label, relType, keyProp, keyValue,
+            out.add(new SelfLoopDTO(label, relType, keyProp, keyValue,
                     displayName(label, nProps, keyProp, keyValue), eid, rProps));
         }
         return out;
@@ -199,7 +199,7 @@ public class GraphDiagnosticsService {
      * Neo4j 5.x 语法变更：size((n)-[]->()) 模式表达式已废弃，必须用 COUNT { ... } 子查询。
      */
     private long countDangling() {
-        QueryResult r = qs.query(
+        QueryResultDTO r = qs.query(
                 "MATCH (s)-[r]->(m) "
                         + "WITH r, s, m, "
                         + "  COUNT { (m)-[]->() } AS mOut, "
@@ -210,7 +210,7 @@ public class GraphDiagnosticsService {
     }
 
     private long countDanglingNoOut() {
-        QueryResult r = qs.query(
+        QueryResultDTO r = qs.query(
                 "MATCH (s)-[r]->(m) "
                         + "WHERE COUNT { (m)-[]->() } = 0 "
                         + "RETURN count(DISTINCT r) AS cnt", null);
@@ -218,7 +218,7 @@ public class GraphDiagnosticsService {
     }
 
     private long countDanglingNoIn() {
-        QueryResult r = qs.query(
+        QueryResultDTO r = qs.query(
                 "MATCH (s)-[r]->(m) "
                         + "WHERE COUNT { ()-[]->(s) } = 0 "
                         + "RETURN count(DISTINCT r) AS cnt", null);
@@ -226,8 +226,8 @@ public class GraphDiagnosticsService {
     }
 
     @SuppressWarnings("unchecked")
-    private List<DanglingEdgeView> danglingNoOutList(int limit) {
-        QueryResult r = qs.query(
+    private List<DanglingEdgeDTO> danglingNoOutList(int limit) {
+        QueryResultDTO r = qs.query(
                 "MATCH (s)-[r]->(m) "
                         + "WHERE COUNT { (m)-[]->() } = 0 "
                         + "WITH s, r, m "
@@ -242,8 +242,8 @@ public class GraphDiagnosticsService {
     }
 
     @SuppressWarnings("unchecked")
-    private List<DanglingEdgeView> danglingNoInList(int limit) {
-        QueryResult r = qs.query(
+    private List<DanglingEdgeDTO> danglingNoInList(int limit) {
+        QueryResultDTO r = qs.query(
                 "MATCH (s)-[r]->(m) "
                         + "WHERE COUNT { ()-[]->(s) } = 0 "
                         + "WITH s, r, m "
@@ -258,8 +258,8 @@ public class GraphDiagnosticsService {
     }
 
     @SuppressWarnings("unchecked")
-    private List<DanglingEdgeView> buildDanglingEdges(QueryResult r) {
-        List<DanglingEdgeView> out = new ArrayList<>(r.rows().size());
+    private List<DanglingEdgeDTO> buildDanglingEdges(QueryResultDTO r) {
+        List<DanglingEdgeDTO> out = new ArrayList<>(r.rows().size());
         for (Map<String, Object> row : r.rows()) {
             String fromLabel = (String) row.get("fromLabel");
             String toLabel = (String) row.get("toLabel");
@@ -275,7 +275,7 @@ public class GraphDiagnosticsService {
             String toKeyProp = schema.classOf(toLabel) == null ? "" : schema.keyPropOf(toLabel);
             Object toKeyValue = toKeyProp.isEmpty() ? null : toProps.get(toKeyProp);
 
-            out.add(new DanglingEdgeView(
+            out.add(new DanglingEdgeDTO(
                     fromLabel, toLabel, relType,
                     fromKeyProp, fromKeyValue,
                     displayName(fromLabel, fromProps, fromKeyProp, fromKeyValue), fromEid,
@@ -291,7 +291,7 @@ public class GraphDiagnosticsService {
      * 仅对 节点数 >= DEGREE_STATS_MIN_NODES 的类做统计，小样本无意义。
      */
     private Map<String, double[]> degreeStats() {
-        QueryResult r = qs.query(
+        QueryResultDTO r = qs.query(
                 "MATCH (n) "
                         + "WITH labels(n)[0] AS label, "
                         + "  COUNT { (n)-[]->() } AS outDeg, "
@@ -317,19 +317,19 @@ public class GraphDiagnosticsService {
     }
 
     @SuppressWarnings("unchecked")
-    private List<DegreeAnomalyView> degreeAnomalies(String label, boolean isOut,
+    private List<DegreeAnomalyDTO> degreeAnomalies(String label, boolean isOut,
                                                      double avg, double std, int topK) {
         if (!GraphSchema.isValidIdentifier(label)) return List.of();
         double threshold = avg + DEGREE_ANOMALY_SIGMA * (std > 0 ? std : Math.max(1.0, avg * 0.5));
         String degCount = isOut ? "COUNT { (n)-[]->() }" : "COUNT { ()-[]->(n) }";
-        QueryResult r = qs.query(
+        QueryResultDTO r = qs.query(
                 "MATCH (n:`" + label + "`) "
                         + "WITH n, " + degCount + " AS degree "
                         + "WHERE degree > toInteger($threshold) "
                         + "WITH n, degree ORDER BY degree DESC LIMIT $k "
                         + "RETURN elementId(n) AS elementId, properties(n) AS props, degree AS degree",
                 Map.of("threshold", Math.max(1.0, Math.floor(threshold)), "k", topK));
-        List<DegreeAnomalyView> out = new ArrayList<>(r.rows().size());
+        List<DegreeAnomalyDTO> out = new ArrayList<>(r.rows().size());
         String keyProp = schema.classOf(label) == null ? "" : schema.keyPropOf(label);
         for (Map<String, Object> row : r.rows()) {
             String eid = (String) row.get("elementId");
@@ -337,7 +337,7 @@ public class GraphDiagnosticsService {
             long degree = ((Number) row.get("degree")).longValue();
             double dev = (std > 0) ? (degree - avg) / std : (degree - avg) / Math.max(1.0, avg);
             Object keyValue = keyProp.isEmpty() ? null : props.get(keyProp);
-            out.add(new DegreeAnomalyView(label, keyProp, keyValue,
+            out.add(new DegreeAnomalyDTO(label, keyProp, keyValue,
                     displayName(label, props, keyProp, keyValue), eid, degree, round2(dev)));
         }
         return out;
@@ -347,7 +347,7 @@ public class GraphDiagnosticsService {
         if (!GraphSchema.isValidIdentifier(label)) return 0L;
         double threshold = avg + DEGREE_ANOMALY_SIGMA * (std > 0 ? std : Math.max(1.0, avg * 0.5));
         String degCount = isOut ? "COUNT { (n)-[]->() }" : "COUNT { ()-[]->(n) }";
-        QueryResult r = qs.query(
+        QueryResultDTO r = qs.query(
                 "MATCH (n:`" + label + "`) "
                         + "WHERE " + degCount + " > toInteger($threshold) "
                         + "RETURN count(n) AS cnt",
@@ -359,14 +359,14 @@ public class GraphDiagnosticsService {
     // 模块二：Schema 覆盖率
     // ============================================================
 
-    private SchemaCoverageView schemaCoverage(GraphStatsView stats) {
+    private SchemaCoverageDTO schemaCoverage(GraphStatsDTO stats) {
         Set<String> liveLabels = stats.nodes().stream()
                 .filter(lc -> lc.count() > 0)
-                .map(GraphStatsView.LabelCount::label)
+                .map(GraphStatsDTO.LabelCount::label)
                 .collect(Collectors.toSet());
         Set<String> liveTypes = stats.relationships().stream()
                 .filter(tc -> tc.count() > 0)
-                .map(GraphStatsView.TypeCount::type)
+                .map(GraphStatsDTO.TypeCount::type)
                 .collect(Collectors.toSet());
 
         Collection<ClassDef> allClasses = schema.allClasses();
@@ -374,39 +374,39 @@ public class GraphDiagnosticsService {
 
         int totalCls = allClasses.size();
         int usedCls = 0;
-        List<UnusedClassView> unusedCls = new ArrayList<>();
+        List<UnusedClassDTO> unusedCls = new ArrayList<>();
         for (ClassDef c : allClasses) {
             if (liveLabels.contains(c.name())) usedCls++;
-            else unusedCls.add(new UnusedClassView(c.name(), c.cnName(), c.layer(), c.keyProp(), c.description()));
+            else unusedCls.add(new UnusedClassDTO(c.name(), c.cnName(), c.layer(), c.keyProp(), c.description()));
         }
 
         int totalRel = allRels.size();
         int usedRel = 0;
-        List<UnusedRelationView> unusedRels = new ArrayList<>();
+        List<UnusedRelationDTO> unusedRels = new ArrayList<>();
         for (RelSignature sig : allRels) {
             RelationDef d = sig.def();
             if (liveTypes.contains(d.name())) usedRel++;
-            else unusedRels.add(new UnusedRelationView(
+            else unusedRels.add(new UnusedRelationDTO(
                     d.name(), d.cnName(), sig.fromClass(), d.toClass(), d.description(), d.example()));
         }
 
         double clsCov = totalCls == 0 ? 0.0 : round2(usedCls * 100.0 / totalCls);
         double relCov = totalRel == 0 ? 0.0 : round2(usedRel * 100.0 / totalRel);
-        return new SchemaCoverageView(clsCov, relCov, unusedCls.size(), unusedRels.size(), unusedCls, unusedRels);
+        return new SchemaCoverageDTO(clsCov, relCov, unusedCls.size(), unusedRels.size(), unusedCls, unusedRels);
     }
 
     // ============================================================
     // 模块三：分布直方图
     // ============================================================
 
-    private ClassHistogramView classHistogram(GraphStatsView stats, long totalNodes) {
+    private ClassHistogramDTO classHistogram(GraphStatsDTO stats, long totalNodes) {
         Map<String, ClassDef> clsMap = new HashMap<>();
         for (ClassDef c : schema.allClasses()) clsMap.put(c.name(), c);
 
-        List<ClassBin> bins = new ArrayList<>();
-        for (GraphStatsView.LabelCount lc : stats.nodes()) {
+        List<ClassBinDTO> bins = new ArrayList<>();
+        for (GraphStatsDTO.LabelCount lc : stats.nodes()) {
             ClassDef c = clsMap.get(lc.label());
-            bins.add(new ClassBin(
+            bins.add(new ClassBinDTO(
                     lc.label(),
                     c == null ? "" : c.cnName(),
                     c == null ? "" : c.layer(),
@@ -417,46 +417,46 @@ public class GraphDiagnosticsService {
         for (ClassDef c : schema.allClasses()) {
             boolean found = stats.nodes().stream().anyMatch(n -> n.label().equals(c.name()));
             if (!found) {
-                bins.add(new ClassBin(c.name(), c.cnName(), c.layer(), 0L, 0.0));
+                bins.add(new ClassBinDTO(c.name(), c.cnName(), c.layer(), 0L, 0.0));
             }
         }
         bins.sort((a, b) -> Long.compare(b.count(), a.count()));
-        long[] counts = bins.stream().mapToLong(ClassBin::count).sorted().toArray();
-        return new ClassHistogramView(bins,
+        long[] counts = bins.stream().mapToLong(ClassBinDTO::count).sorted().toArray();
+        return new ClassHistogramDTO(bins,
                 counts.length == 0 ? 0 : counts[0],
                 counts.length == 0 ? 0 : counts[counts.length - 1],
                 counts.length == 0 ? 0 : round2(avg(counts)),
                 counts.length == 0 ? 0 : median(counts));
     }
 
-    private RelationHistogramView relationHistogram(GraphStatsView stats, long totalRels) {
+    private RelationHistogramDTO relationHistogram(GraphStatsDTO stats, long totalRels) {
         Map<String, RelSignature> relMap = new HashMap<>();
         for (RelSignature s : schema.allRelations()) relMap.put(s.type(), s);
 
         // 把 live 的 type -> count 先建索引（方便后补 0）
         Map<String, Long> liveCounts = new HashMap<>();
-        for (GraphStatsView.TypeCount tc : stats.relationships()) liveCounts.put(tc.type(), tc.count());
+        for (GraphStatsDTO.TypeCount tc : stats.relationships()) liveCounts.put(tc.type(), tc.count());
 
         Set<String> covered = new HashSet<>();
-        List<RelBin> bins = new ArrayList<>();
-        for (GraphStatsView.TypeCount tc : stats.relationships()) {
+        List<RelBinDTO> bins = new ArrayList<>();
+        for (GraphStatsDTO.TypeCount tc : stats.relationships()) {
             RelSignature sig = relMap.get(tc.type());
             String from = sig == null ? "" : sig.fromClass();
             String to = sig == null ? "" : sig.toClass();
             String cn = sig == null ? "" : sig.def().cnName();
-            bins.add(new RelBin(tc.type(), cn, from, to, tc.count(),
+            bins.add(new RelBinDTO(tc.type(), cn, from, to, tc.count(),
                     totalRels == 0 ? 0.0 : round2(tc.count() * 100.0 / totalRels)));
             covered.add(tc.type());
         }
         for (RelSignature sig : schema.allRelations()) {
             if (covered.contains(sig.type())) continue;
             long cnt = liveCounts.getOrDefault(sig.type(), 0L);
-            bins.add(new RelBin(
+            bins.add(new RelBinDTO(
                     sig.type(), sig.def().cnName(), sig.fromClass(), sig.toClass(), cnt, 0.0));
         }
         bins.sort((a, b) -> Long.compare(b.count(), a.count()));
-        long[] counts = bins.stream().mapToLong(RelBin::count).sorted().toArray();
-        return new RelationHistogramView(bins,
+        long[] counts = bins.stream().mapToLong(RelBinDTO::count).sorted().toArray();
+        return new RelationHistogramDTO(bins,
                 counts.length == 0 ? 0 : counts[0],
                 counts.length == 0 ? 0 : counts[counts.length - 1],
                 counts.length == 0 ? 0 : round2(avg(counts)),

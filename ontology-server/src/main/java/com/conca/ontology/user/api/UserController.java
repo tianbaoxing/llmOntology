@@ -15,10 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.user.dto.request.PasswordChangeRequest;
-import com.conca.ontology.user.dto.request.RegisterRequest;
-import com.conca.ontology.user.dto.request.ResetPasswordRequest;
-import com.conca.ontology.user.dto.request.UserPatchRequest;
+import com.conca.ontology.user.dto.PasswordChangeDTO;
+import com.conca.ontology.user.dto.RegisterDTO;
+import com.conca.ontology.user.dto.ResetPasswordDTO;
+import com.conca.ontology.user.dto.UserPatchDTO;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.agent.service.AgentMemoryService;
@@ -57,14 +57,14 @@ public class UserController {
 
     /** 自助注册 → PENDING，需管理员审核（公开接口） */
     @PostMapping
-    public ApiResponse<Map<String, Object>> register(@RequestBody @Valid RegisterRequest req) {
+    public ApiResponse<Map<String, Object>> register(@RequestBody @Valid RegisterDTO req) {
         UserEntry u = users.register(req.username(), req.password());
         return ApiResponse.ok(Map.of("username", u.username(), "status", u.status()));
     }
 
     /** 修改自己密码（公开路由，方法内校验会话） */
     @PutMapping("/me/password")
-    public ApiResponse<Map<String, Object>> changePassword(@RequestBody @Valid PasswordChangeRequest req,
+    public ApiResponse<Map<String, Object>> changePassword(@RequestBody @Valid PasswordChangeDTO req,
                                                            HttpSession session) {
         SessionUser u = SessionUser.of(session);
         if (u == null) {
@@ -80,7 +80,7 @@ public class UserController {
      */
     @PatchMapping("/{userId}")
     public ApiResponse<Map<String, Object>> update(@PathVariable String userId,
-                                                   @RequestBody @Valid UserPatchRequest req,
+                                                   @RequestBody @Valid UserPatchDTO req,
                                                    HttpSession session) {
         String status = req.status().toUpperCase();
         if ("APPROVED".equals(status)) {
@@ -95,7 +95,7 @@ public class UserController {
     /** 重置指定用户密码（仅 ADMIN） */
     @PostMapping("/{userId}/password")
     public ApiResponse<Map<String, Object>> resetPassword(@PathVariable String userId,
-                                                          @RequestBody @Valid ResetPasswordRequest req) {
+                                                          @RequestBody @Valid ResetPasswordDTO req) {
         users.resetPassword(userId, req.newPassword());
         return ApiResponse.ok(Map.of("reset", userId));
     }

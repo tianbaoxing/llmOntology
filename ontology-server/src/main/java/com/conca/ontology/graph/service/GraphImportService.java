@@ -9,10 +9,10 @@ import org.neo4j.driver.Session;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.graph.dto.result.BatchNodesResult;
-import com.conca.ontology.graph.dto.result.BatchRelsResult;
-import com.conca.ontology.graph.dto.request.NodeBatchRequest;
-import com.conca.ontology.graph.dto.request.RelBatchRequest;
+import com.conca.ontology.graph.dto.BatchNodesResultDTO;
+import com.conca.ontology.graph.dto.BatchRelsResultDTO;
+import com.conca.ontology.graph.dto.NodeBatchDTO;
+import com.conca.ontology.graph.dto.RelBatchDTO;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.graph.model.ClassDef;
 import com.conca.ontology.graph.model.GraphSchema;
@@ -78,7 +78,7 @@ public class GraphImportService {
         }
     }
 
-    public BatchNodesResult batchNodes(NodeBatchRequest req) {
+    public BatchNodesResultDTO batchNodes(NodeBatchDTO req) {
         String label = req.label();
         String keyProp = schema.keyPropOf(label);   // 服务端决定，忽略客户端 keyProp
         if (req.items().size() > batchLimit) {
@@ -105,10 +105,10 @@ public class GraphImportService {
                 return null;
             });
         }
-        return new BatchNodesResult(label, rows.size());
+        return new BatchNodesResultDTO(label, rows.size());
     }
 
-    public BatchRelsResult batchRels(RelBatchRequest req) {
+    public BatchRelsResultDTO batchRels(RelBatchDTO req) {
         String type = req.type();
         String fromLabel = req.fromLabel();
         String toLabel = req.toLabel();
@@ -119,7 +119,7 @@ public class GraphImportService {
             throw new ApiException(400, "items exceed batch-limit " + batchLimit);
         }
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (RelBatchRequest.RelItem item : req.items()) {
+        for (RelBatchDTO.RelItem item : req.items()) {
             if (item == null || blank(item.from()) || blank(item.to())) {
                 throw new ApiException(400, "rel item missing from/to key");
             }
@@ -140,7 +140,7 @@ public class GraphImportService {
                 return null;
             });
         }
-        return new BatchRelsResult(type, rows.size());
+        return new BatchRelsResultDTO(type, rows.size());
     }
 
     private boolean blank(String s) {

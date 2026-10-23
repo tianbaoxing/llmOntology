@@ -17,8 +17,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.builder.service.AgentBuilderService;
-import com.conca.ontology.agent.dto.request.AgentChatRequest;
-import com.conca.ontology.agent.dto.request.SessionTitleRequest;
+import com.conca.ontology.agent.dto.AgentChatDTO;
+import com.conca.ontology.agent.dto.SessionTitleDTO;
 import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.user.model.UserEntry;
@@ -95,7 +95,7 @@ public class AgentChatController {
 
     /** 流式问答：agentId 留空 = 主智能体；非空 = 自建智能体（active 所有人，test 仅管理员试运行） */
     @PostMapping(value = "/sessions/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chat(@PathVariable String id, @Valid @RequestBody AgentChatRequest request,
+    public SseEmitter chat(@PathVariable String id, @Valid @RequestBody AgentChatDTO request,
             HttpSession session, HttpServletRequest httpRequest) {
         SessionUser user = SessionUser.of(session);
         if (user == null) {
@@ -150,7 +150,7 @@ public class AgentChatController {
     /** 重命名会话标题（侧边栏双击触发）；写独立 session_title，流式回答进行中也可安全调用 */
     @PutMapping("/sessions/{id}/title")
     public ApiResponse<Map<String, Object>> rename(@PathVariable String id,
-            @Valid @RequestBody SessionTitleRequest request, HttpSession session,
+            @Valid @RequestBody SessionTitleDTO request, HttpSession session,
             @RequestParam(required = false) String agentId) {
         return ApiResponse.ok(agentSessionService.rename(currentUserId(session), agentId, id, request.title()));
     }

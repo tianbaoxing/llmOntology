@@ -23,10 +23,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.file.converter.FileEntryConverter;
-import com.conca.ontology.file.dto.result.FileDeleteResult;
-import com.conca.ontology.file.dto.view.FileListView;
-import com.conca.ontology.file.dto.result.FileUpdateResult;
-import com.conca.ontology.file.dto.result.FileUploadResult;
+import com.conca.ontology.file.dto.FileDeleteResultDTO;
+import com.conca.ontology.file.dto.FileListDTO;
+import com.conca.ontology.file.dto.FileUpdateResultDTO;
+import com.conca.ontology.file.dto.FileUploadResultDTO;
 import com.conca.ontology.file.entity.FileMetadataRow;
 import com.conca.ontology.file.mapper.FileMetadataMapper;
 import com.conca.ontology.file.model.FileEntry;
@@ -65,14 +65,14 @@ public class FileStorageService {
     }
 
     /** 全量列表（先与磁盘对账、补齐 MD 转换再返回；供 admin 页与 LLM 共用） */
-    public synchronized FileListView list() {
+    public synchronized FileListDTO list() {
         List<FileEntry> files = ensureConverted(reconcile()).stream()
                 .map(FileEntryConverter::toModel).toList();
-        return new FileListView(files);
+        return new FileListDTO(files);
     }
 
     /** 上传：白名单校验 → 原子落盘（同名覆盖）→ 元数据 upsert → 同步转 MD（失败不阻塞上传） */
-    public synchronized FileUploadResult upload(MultipartFile file, String description) {
+    public synchronized FileUploadResultDTO upload(MultipartFile file, String description) {
         String original = file.getOriginalFilename();
         if (original == null || original.isBlank()) {
             throw new ApiException(400, "文件名为空");
@@ -114,7 +114,7 @@ public class FileStorageService {
             FileMetadataRow finalRow = requireRow(ensureConverted(loadRows()), name);
             FileEntry finalEntry = FileEntryConverter.toModel(finalRow);
             log.info("file uploaded: {} ({} bytes, convert: {})", name, finalEntry.size(), finalEntry.convertStatus());
-            return new FileUploadResult(finalEntry);
+            return new FileUploadResultDTO(finalEntry);
         } catch (ApiException e) {
             throw e;
         } catch (IOException e) {
@@ -123,15 +123,15 @@ public class FileStorageService {
     }
 
     /** 编辑文件说明（保留转换字段） */
-    public synchronized FileUpdateResult updateDescription(String name, String description) {
+    public synchronized FileUpdateResultDTO updateDescription(String name, String description) {
         FileMetadataRow row = requireRow(reconcile(), name);
         row.setDescription(cleanDesc(description));
         fileMapper.updateById(row);
-        return new FileUpdateResult(FileEntryConverter.toModel(row));
+        return new FileUpdateResultDTO(FileEntryConverter.toModel(row));
     }
 
     /** 删除：文件实体 + 对应 MD + 元数据记录一并移除 */
-    public synchronized FileDeleteResult delete(String name) {
+    public synchronized FileDeleteResultDTO delete(String name) {
         FileMetadataRow row = requireRow(reconcile(), name);
         try {
             Path dir = uploadPath();
@@ -147,17 +147,17 @@ public class FileStorageService {
         }
         fileMapper.deleteById(row.getId());
         log.info("file deleted: {}", name);
-        return new FileDeleteResult(row.getName());
+        return new FileDeleteResultDTO(row.getName());
     }
 
     /** 手动重试转换（FAILED 修复后使用；强制重转，先删旧 MD） */
-    public synchronized FileUpdateResult reconvert(String name) {
+    public synchronized FileUpdateResultDTO reconvert(String name) {
         FileMetadataRow row = requireRow(reconcile(), name);
         if (!convertService.shouldConvert(row.getExt())) {
             throw new ApiException(400, "该类型无需转换: " + row.getExt());
         }
         convertRow(row, true);
-        return new FileUpdateResult(FileEntryConverter.toModel(row));
+        return new FileUpdateResultDTO(FileEntryConverter.toModel(row));
     }
 
     /** MD 绝对路径（LLM 视图用；入参 mdName） */

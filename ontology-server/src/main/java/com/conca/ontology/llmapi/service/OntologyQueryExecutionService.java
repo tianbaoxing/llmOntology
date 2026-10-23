@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.graph.dto.result.QueryResult;
+import com.conca.ontology.graph.dto.QueryResultDTO;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.graph.service.GraphQueryService;
 
@@ -29,7 +29,7 @@ public class OntologyQueryExecutionService {
 
     public Map<String, Object> execute(String question, String cypher, Map<String, Object> params) {
         String normalized = normalize(cypher);
-        QueryResult graph = graphQueryService.query(normalized, params);
+        QueryResultDTO graph = graphQueryService.query(normalized, params);
         List<?> rows = graph.rows();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("question", question);

@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.disjoint.dto.DisjointCheckRequest;
-import com.conca.ontology.disjoint.dto.view.DisjointConflictView;
-import com.conca.ontology.disjoint.dto.view.DisjointRulesView;
+import com.conca.ontology.disjoint.dto.DisjointCheckDTO;
+import com.conca.ontology.disjoint.dto.DisjointConflictDTO;
+import com.conca.ontology.disjoint.dto.DisjointRulesDTO;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,7 +36,7 @@ public class LlmDisjointRulesController {
     @Operation(summary = "全量规则（免登录，只读）",
             description = "返回全部互斥约束规则原文（按规则 ID 字典序）。用于需要把规则注入 LLM 上下文的场景。")
     @GetMapping
-    public ApiResponse<DisjointRulesView> all() {
+    public ApiResponse<DisjointRulesDTO> all() {
         return ApiResponse.ok(service.loadAll());
     }
 
@@ -44,15 +44,15 @@ public class LlmDisjointRulesController {
             description = "输入一段文本，返回其中触发的互斥冲突明细。conflict[] 为空表示文本无冲突。"
                     + "冲突非空时，LLM 必须直接终止当前生成/写入，按返回的 ruleText 逐条向用户说明冲突点。")
     @PostMapping("/check")
-    public ApiResponse<CheckResult> check(@RequestBody(required = false) DisjointCheckRequest req) {
+    public ApiResponse<CheckResult> check(@RequestBody(required = false) DisjointCheckDTO req) {
         String text = req == null ? "" : req.text();
-        List<DisjointConflictView> conflicts = service.checkConflicts(text);
+        List<DisjointConflictDTO> conflicts = service.checkConflicts(text);
         return ApiResponse.ok(new CheckResult(text == null ? 0 : text.length(), conflicts.size(), conflicts));
     }
 
     public record CheckResult(
             int textLength,
             int conflictCount,
-            List<DisjointConflictView> conflicts) {
+            List<DisjointConflictDTO> conflicts) {
     }
 }

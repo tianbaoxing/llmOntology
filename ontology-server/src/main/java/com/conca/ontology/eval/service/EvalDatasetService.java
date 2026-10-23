@@ -13,8 +13,8 @@ import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.agent.service.AgentSessionService;
-import com.conca.ontology.eval.dto.request.EvalSampleRequest;
-import com.conca.ontology.eval.dto.result.FromChatSampleResult;
+import com.conca.ontology.eval.dto.EvalSampleDTO;
+import com.conca.ontology.eval.dto.FromChatSampleResultDTO;
 import com.conca.ontology.eval.entity.DatasetEntity;
 import com.conca.ontology.eval.entity.DatasetSampleEntity;
 import com.conca.ontology.eval.mapper.DatasetMapper;
@@ -99,7 +99,7 @@ public class EvalDatasetService {
     }
 
     @SuppressWarnings("unchecked")
-    public FromChatSampleResult sampleFromChat(String userId, String sessionId, int msgIndex) {
+    public FromChatSampleResultDTO sampleFromChat(String userId, String sessionId, int msgIndex) {
         Map<String, Object> data = agentSessionService.messages(userId, sessionId);
         List<Map<String, Object>> msgs = (List<Map<String, Object>>) data.get("messages");
         if (msgs == null || msgIndex < 0 || msgIndex >= msgs.size()) {
@@ -126,10 +126,10 @@ public class EvalDatasetService {
             throw new ApiException(400, "未找到对应的提问");
         }
         String ts = target.get("ts") == null ? "" : String.valueOf(target.get("ts"));
-        return new FromChatSampleResult(sessionId, msgIndex, query, answer, ts, turnIndex, msgs.size());
+        return new FromChatSampleResultDTO(sessionId, msgIndex, query, answer, ts, turnIndex, msgs.size());
     }
 
-    public synchronized Map<String, Object> addSample(String name, EvalSampleRequest req) {
+    public synchronized Map<String, Object> addSample(String name, EvalSampleDTO req) {
         requireDataset(name);
         DatasetSampleEntity e = buildSampleEntity(name, req, null);
         try {
@@ -143,7 +143,7 @@ public class EvalDatasetService {
         return m;
     }
 
-    public synchronized Map<String, Object> updateSample(String name, int seq, EvalSampleRequest req) {
+    public synchronized Map<String, Object> updateSample(String name, int seq, EvalSampleDTO req) {
         requireDataset(name);
         DatasetSampleEntity target = rowBySeq(rowsOf(name), seq);
         DatasetSampleEntity e = buildSampleEntity(name, req, target.getId());
@@ -350,7 +350,7 @@ public class EvalDatasetService {
     // ---------------- 内部：写路径（校验与文案同原 buildSampleLine） ----------------
 
     /** 请求 → 样本实体（excludeRowId 为编辑场景排除自身；id 查重含 line-{seq} 伪 id，与原全行扫描同构） */
-    private DatasetSampleEntity buildSampleEntity(String name, EvalSampleRequest req, Long excludeRowId) {
+    private DatasetSampleEntity buildSampleEntity(String name, EvalSampleDTO req, Long excludeRowId) {
         String id = req.id() == null ? "" : req.id().trim();
         if (id.isEmpty()) {
             id = "q-" + STAMP.format(LocalDateTime.now()) + "-"
@@ -371,7 +371,7 @@ public class EvalDatasetService {
         e.setDatasetName(name);
         e.setSampleId(id);
         String sampleType = req.sampleType() == null ? "" : req.sampleType().trim().toLowerCase();
-        List<EvalSampleRequest.TurnRequest> turns = req.turns() == null ? List.of() : req.turns();
+        List<EvalSampleDTO.TurnRequest> turns = req.turns() == null ? List.of() : req.turns();
         if (!sampleType.isEmpty() && !"single".equals(sampleType) && !"multi".equals(sampleType)) {
             throw new ApiException(400, "sampleType 仅支持 single 或 multi");
         }
@@ -382,7 +382,7 @@ public class EvalDatasetService {
             }
             List<Map<String, Object>> ts = new ArrayList<>();
             for (int i = 0; i < turns.size(); i++) {
-                EvalSampleRequest.TurnRequest turn = turns.get(i);
+                EvalSampleDTO.TurnRequest turn = turns.get(i);
                 String q = turn == null || turn.query() == null ? "" : turn.query().trim();
                 if (q.isBlank()) {
                     throw new ApiException(400, "第 " + (i + 1) + " 轮 query 不能为空");

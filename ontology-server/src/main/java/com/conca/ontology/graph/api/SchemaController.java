@@ -11,10 +11,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.graph.dto.result.ClassDeleteResult;
-import com.conca.ontology.graph.dto.view.ClassDetailView;
-import com.conca.ontology.graph.dto.view.ClassSummary;
-import com.conca.ontology.graph.dto.view.SchemaView;
+import com.conca.ontology.graph.dto.ClassDeleteResultDTO;
+import com.conca.ontology.graph.dto.ClassDetailDTO;
+import com.conca.ontology.graph.dto.ClassSummaryDTO;
+import com.conca.ontology.graph.dto.SchemaDTO;
 import com.conca.ontology.graph.model.ClassDef;
 import com.conca.ontology.graph.service.SchemaService;
 
@@ -42,32 +42,32 @@ public class SchemaController {
 
     @Operation(summary = "全量 schema", description = "版本 + 类定义列表 + 关系扁平视图（含实时 count）。")
     @GetMapping
-    public ApiResponse<SchemaView> schema() {
+    public ApiResponse<SchemaDTO> schema() {
         return ApiResponse.ok(schemaService.schemaView());
     }
 
     @Operation(summary = "类列表（摘要）", description = "全部类摘要：名称/中文名/层/keyProp/节点数/属性数/关系数。")
     @GetMapping("/classes")
-    public ApiResponse<List<ClassSummary>> classes() {
+    public ApiResponse<List<ClassSummaryDTO>> classes() {
         return ApiResponse.ok(schemaService.classSummaries());
     }
 
     @Operation(summary = "单类详情", description = "定义 + 出边声明 + 入边（推导）+ 实时 count。")
     @GetMapping("/classes/{name}")
-    public ApiResponse<ClassDetailView> classDetail(
+    public ApiResponse<ClassDetailDTO> classDetail(
             @Parameter(description = "类名", example = "Era") @PathVariable String name) {
         return ApiResponse.ok(schemaService.classView(name));
     }
 
     @Operation(summary = "新增类", description = "写入类定义并自动建唯一约束；校验规则同 LLM 平面。")
     @PostMapping("/classes")
-    public ApiResponse<ClassDetailView> createClass(@RequestBody ClassDef def) {
+    public ApiResponse<ClassDetailDTO> createClass(@RequestBody ClassDef def) {
         return ApiResponse.ok(schemaService.createClass(def));
     }
 
     @Operation(summary = "更新类（整体替换）", description = "name/keyProp 不可变；被移除关系仍有实例时 409。")
     @PutMapping("/classes/{name}")
-    public ApiResponse<ClassDetailView> updateClass(
+    public ApiResponse<ClassDetailDTO> updateClass(
             @Parameter(description = "类名（须与 body 一致）", example = "Era") @PathVariable String name,
             @RequestBody ClassDef def) {
         return ApiResponse.ok(schemaService.updateClass(name, def));
@@ -75,7 +75,7 @@ public class SchemaController {
 
     @Operation(summary = "删除类", description = "被引用或仍有实例 → 409。")
     @DeleteMapping("/classes/{name}")
-    public ApiResponse<ClassDeleteResult> deleteClass(
+    public ApiResponse<ClassDeleteResultDTO> deleteClass(
             @Parameter(description = "类名", example = "Era") @PathVariable String name) {
         return ApiResponse.ok(schemaService.deleteClass(name));
     }

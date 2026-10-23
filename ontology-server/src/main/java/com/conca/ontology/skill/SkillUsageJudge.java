@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.skill.dto.SkillAnalysis;
+import com.conca.ontology.skill.dto.SkillAnalysisDTO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -121,7 +121,7 @@ public class SkillUsageJudge {
         out.put("loadTimes", load.times);
         out.put("description", load.desc);
 
-        SkillAnalysis sa = store.get(name);
+        SkillAnalysisDTO sa = store.get(name);
         if (sa == null) {
             return verdict(out, "undeterminable", "no_analysis", null, null);
         }
@@ -363,7 +363,7 @@ public class SkillUsageJudge {
     private record Fingerprints(List<String> apis, List<String> shells,
             List<String> scripts, List<String> keywords) {
 
-        static Fingerprints of(SkillAnalysis sa) {
+        static Fingerprints of(SkillAnalysisDTO sa) {
             List<String> hiddenApis = nz(sa.hiddenApis());
             List<String> hiddenCmds = nz(sa.hiddenShellCommands());
             List<String> apis = new ArrayList<>();
@@ -374,7 +374,7 @@ public class SkillUsageJudge {
             }
             List<String> shells = new ArrayList<>();
             if (sa.shellCommands() != null) {
-                for (SkillAnalysis.ShellCmd c : sa.shellCommands()) {
+                for (SkillAnalysisDTO.ShellCmd c : sa.shellCommands()) {
                     if (c.command() != null && !hiddenCmds.contains(c.command())) {
                         shells.add(c.command());
                     }

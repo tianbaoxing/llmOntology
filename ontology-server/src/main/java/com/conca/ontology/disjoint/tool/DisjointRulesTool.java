@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.conca.ontology.disjoint.dto.view.DisjointRulesView;
+import com.conca.ontology.disjoint.dto.DisjointRulesDTO;
 import com.conca.ontology.disjoint.model.DisjointRule;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 
@@ -58,7 +58,7 @@ public class DisjointRulesTool {
                     + "无参数，调用一次返回全部规则。")
     public String list(RuntimeContext ctx) {
         try {
-            DisjointRulesView f = service.loadAll();
+            DisjointRulesDTO f = service.loadAll();
             StringBuilder sb = new StringBuilder();
             sb.append("# 互斥约束词典（DisjointClasses 简化版 · CRM-ACA 建模红线）\n");
             sb.append("count: ").append(f.rules().size()).append('\n');

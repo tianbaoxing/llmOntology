@@ -8,9 +8,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.graph.dto.view.EntityDictEntry;
+import com.conca.ontology.graph.dto.EntityDictEntryDTO;
 import com.conca.ontology.graph.service.GraphQueryService;
-import com.conca.ontology.wiki.dto.view.WikiEntityView;
+import com.conca.ontology.wiki.dto.WikiEntityDTO;
 
 /**
  * Wiki 正文实体匹配：GraphQueryService 实体词典（概念层 + 实例层）在 MD 原文上做最长优先、
@@ -32,32 +32,32 @@ public class WikiEntityService {
 
     private final GraphQueryService graphQueryService;
 
-    private volatile List<EntityDictEntry> dict;
+    private volatile List<EntityDictEntryDTO> dict;
     private volatile long dictLoadedAt;
-    private final Map<String, List<WikiEntityView>> docCache = new ConcurrentHashMap<>();
+    private final Map<String, List<WikiEntityDTO>> docCache = new ConcurrentHashMap<>();
 
     public WikiEntityService(GraphQueryService graphQueryService) {
         this.graphQueryService = graphQueryService;
     }
 
     /** 单篇文档实体匹配（结果缓存；content 为剔除首行转换信息后的 MD 原文） */
-    public List<WikiEntityView> match(String mdName, String convertedAt, String content) {
+    public List<WikiEntityDTO> match(String mdName, String convertedAt, String content) {
         String cacheKey = mdName + "\n" + (convertedAt == null ? "" : convertedAt);
         return docCache.computeIfAbsent(cacheKey, k -> doMatch(content));
     }
 
-    private List<WikiEntityView> doMatch(String content) {
+    private List<WikiEntityDTO> doMatch(String content) {
         if (content == null || content.isBlank()) {
             return List.of();
         }
         String lc = content.toLowerCase();
-        List<EntityDictEntry> entries = dict();
+        List<EntityDictEntryDTO> entries = dict();
         if (entries.isEmpty()) {
             return List.of();
         }
         boolean[] occupied = new boolean[lc.length()];
-        List<WikiEntityView> hits = new ArrayList<>();
-        for (EntityDictEntry e : entries) {   // 词典已按名称长度降序：最长优先
+        List<WikiEntityDTO> hits = new ArrayList<>();
+        for (EntityDictEntryDTO e : entries) {   // 词典已按名称长度降序：最长优先
             String name = e.name();
             if (name == null || name.length() < MIN_NAME_LEN) {
                 continue;
@@ -76,29 +76,29 @@ public class WikiEntityService {
                 idx = end;
             }
             if (count > 0) {
-                hits.add(new WikiEntityView(name, e.label(), e.key(), e.layer(), count));
+                hits.add(new WikiEntityDTO(name, e.label(), e.key(), e.layer(), count));
             }
         }
         return hits.size() > MAX_ENTITIES_PER_DOC ? List.copyOf(hits.subList(0, MAX_ENTITIES_PER_DOC)) : List.copyOf(hits);
     }
 
     /** 实体词典：同名实体保留 label 字典序最小者（Cypher 已 ORDER BY label，顺序稳定） */
-    private List<EntityDictEntry> dict() {
+    private List<EntityDictEntryDTO> dict() {
         long now = System.currentTimeMillis();
-        List<EntityDictEntry> d = dict;
+        List<EntityDictEntryDTO> d = dict;
         if (d == null || now - dictLoadedAt > DICT_TTL_MS) {
             synchronized (this) {
                 if (dict == null || System.currentTimeMillis() - dictLoadedAt > DICT_TTL_MS) {
-                    Map<String, EntityDictEntry> byName = new LinkedHashMap<>();
-                    for (EntityDictEntry e : graphQueryService.entityDict()) {
+                    Map<String, EntityDictEntryDTO> byName = new LinkedHashMap<>();
+                    for (EntityDictEntryDTO e : graphQueryService.entityDict()) {
                         if (e.name() != null && !e.name().isBlank()) {
                             byName.putIfAbsent(e.name(), e);
                         }
                     }
                     // 最长优先：名称长度降序，同长按名称字典序稳定
-                    List<EntityDictEntry> list = new ArrayList<>(byName.values());
-                    list.sort(Comparator.comparingInt((EntityDictEntry e) -> e.name().length()).reversed()
-                            .thenComparing(EntityDictEntry::name));
+                    List<EntityDictEntryDTO> list = new ArrayList<>(byName.values());
+                    list.sort(Comparator.comparingInt((EntityDictEntryDTO e) -> e.name().length()).reversed()
+                            .thenComparing(EntityDictEntryDTO::name));
                     dict = list;
                     dictLoadedAt = System.currentTimeMillis();
                     docCache.clear();   // 词典刷新，文档级结果一并失效

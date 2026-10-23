@@ -4,11 +4,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.conca.ontology.quality.dto.view.ClassHistogramView;
-import com.conca.ontology.quality.dto.view.QualityReportView;
-import com.conca.ontology.quality.dto.view.RelationHistogramView;
-import com.conca.ontology.quality.dto.view.SchemaCoverageView;
-import com.conca.ontology.quality.dto.view.TopologyAnomalyView;
+import com.conca.ontology.quality.dto.ClassHistogramDTO;
+import com.conca.ontology.quality.dto.QualityReportDTO;
+import com.conca.ontology.quality.dto.RelationHistogramDTO;
+import com.conca.ontology.quality.dto.SchemaCoverageDTO;
+import com.conca.ontology.quality.dto.TopologyAnomalyDTO;
 import com.conca.ontology.quality.service.GraphDiagnosticsService;
 import com.conca.ontology.shared.web.ApiResponse;
 
@@ -39,32 +39,32 @@ public class GraphQualityController {
     @Operation(summary = "全量质量诊断报告", description = "一次性返回 4 大模块：拓扑异常 + Schema 覆盖率 + "
             + "节点分布直方图 + 关系分布直方图，供页面初次加载或手动刷新。")
     @GetMapping("/report")
-    public ApiResponse<QualityReportView> report() {
+    public ApiResponse<QualityReportDTO> report() {
         return ApiResponse.ok(service.fullReport());
     }
 
     @Operation(summary = "仅拓扑异常模块", description = "孤立点、自环、悬挂边、出入度 3σ 异常 Top-K。")
     @GetMapping("/topology")
-    public ApiResponse<TopologyAnomalyView> topology() {
+    public ApiResponse<TopologyAnomalyDTO> topology() {
         return ApiResponse.ok(service.topologyAnomaly(20, 500));
     }
 
     @Operation(summary = "仅 Schema 覆盖率模块", description = "对比 graph-schema.json 的声明与库中实际实例，"
             + "输出未使用（零实例）的类/关系明细及覆盖率百分比。")
     @GetMapping("/coverage")
-    public ApiResponse<SchemaCoverageView> coverage() {
+    public ApiResponse<SchemaCoverageDTO> coverage() {
         return ApiResponse.ok(service.schemaCoverage());
     }
 
     @Operation(summary = "仅节点类分布直方图", description = "各 label 的节点数 + 占比 + min/avg/median/max 统计。")
     @GetMapping("/histogram/nodes")
-    public ApiResponse<ClassHistogramView> classHistogram() {
+    public ApiResponse<ClassHistogramDTO> classHistogram() {
         return ApiResponse.ok(service.classHistogram());
     }
 
     @Operation(summary = "仅关系类分布直方图", description = "各关系类型的边数 + 占比 + min/avg/median/max 统计。")
     @GetMapping("/histogram/relations")
-    public ApiResponse<RelationHistogramView> relHistogram() {
+    public ApiResponse<RelationHistogramDTO> relHistogram() {
         return ApiResponse.ok(service.relationHistogram());
     }
 }

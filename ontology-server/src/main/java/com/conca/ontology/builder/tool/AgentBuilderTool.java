@@ -7,7 +7,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.conca.ontology.builder.dto.request.AgentSaveRequest;
+import com.conca.ontology.builder.dto.AgentSaveDTO;
 import com.conca.ontology.builder.service.AgentBuilderService;
 import com.conca.ontology.shared.web.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -40,7 +40,7 @@ public class AgentBuilderTool {
     private static final Logger log = LoggerFactory.getLogger(AgentBuilderTool.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** AgentSaveRequest 可写字段白名单：payload 只认这些 key，其余（如 id/version）一律丢弃 */
+    /** AgentSaveDTO 可写字段白名单：payload 只认这些 key，其余（如 id/version）一律丢弃 */
     private static final Set<String> WRITABLE_FIELDS = Set.of(
             "name", "description", "sysPrompt", "greeting", "baseUrl", "modelName",
             "maxIters", "skills", "tools", "httpTools", "mcps", "subagents",
@@ -114,11 +114,11 @@ public class AgentBuilderTool {
     }
 
     /**
-     * payload → AgentSaveRequest（变更字段合并）：
+     * payload → AgentSaveDTO（变更字段合并）：
      * 以 current（当前定义，create 时为 null）为底，payload 中出现在白名单内
      * 且非 null 的字段覆盖之，最后转全量表单。payload 字段缺失或为 null 均沿用当前值。
      */
-    private static AgentSaveRequest parseRequest(Map<String, Object> current, String payload) {
+    private static AgentSaveDTO parseRequest(Map<String, Object> current, String payload) {
         JsonNode node = parsePayload(payload);
         Map<String, Object> merged = new LinkedHashMap<>();
         for (String field : WRITABLE_FIELDS) {
@@ -139,7 +139,7 @@ public class AgentBuilderTool {
             throw new ApiException(400, "payload 不能为空且须包含至少一个可写字段（"
                     + String.join("/", WRITABLE_FIELDS) + "）");
         }
-        return MAPPER.convertValue(merged, AgentSaveRequest.class);
+        return MAPPER.convertValue(merged, AgentSaveDTO.class);
     }
 
     /** 解析 payload 字符串：null/空白返回 null，非法 JSON 抛参数错误 */

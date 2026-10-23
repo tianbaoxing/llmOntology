@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.conca.ontology.dedup.dto.request.DedupScanRequest;
-import com.conca.ontology.dedup.dto.result.DedupScanResult;
+import com.conca.ontology.dedup.dto.DedupScanDTO;
+import com.conca.ontology.dedup.dto.DedupScanResultDTO;
 import com.conca.ontology.dedup.service.DedupScanService;
 import com.conca.ontology.shared.web.ApiResponse;
 
@@ -45,19 +45,19 @@ public class GraphDedupController {
                     + "综合分 ≥ threshold 判定为重复候选组，返回 KPI 汇总 + 候选组分页列表。"
                     + "候选组内按 survivorPriority 给出合并后保留节点（Survivor）建议，按综合分降序排序。")
     @PostMapping("/scan")
-    public ApiResponse<DedupScanResult> scan(@RequestBody(required = false) DedupScanRequest req) {
-        return ApiResponse.ok(service.scan(req == null ? new DedupScanRequest(null, null, null, null, null) : req));
+    public ApiResponse<DedupScanResultDTO> scan(@RequestBody(required = false) DedupScanDTO req) {
+        return ApiResponse.ok(service.scan(req == null ? new DedupScanDTO(null, null, null, null, null) : req));
     }
 
     @Operation(summary = "快捷 GET 扫描（默认参数：全量 label，threshold 0.95，不限制组数）",
             description = "与 POST /scan 相同语义，便于 Swagger Try it out 一键调用与 curl 调试。")
     @GetMapping("/scan")
-    public ApiResponse<DedupScanResult> scanGet(
+    public ApiResponse<DedupScanResultDTO> scanGet(
             @RequestParam(required = false) String label,
             @RequestParam(required = false) Double threshold,
             @RequestParam(required = false) Integer limitGroups,
             @RequestParam(required = false) Integer skipGroups,
             @RequestParam(required = false) String ruleSetId) {
-        return ApiResponse.ok(service.scan(new DedupScanRequest(label, threshold, limitGroups, skipGroups, ruleSetId)));
+        return ApiResponse.ok(service.scan(new DedupScanDTO(label, threshold, limitGroups, skipGroups, ruleSetId)));
     }
 }

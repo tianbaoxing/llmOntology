@@ -6,13 +6,13 @@ import org.neo4j.driver.Driver;
 import org.neo4j.driver.Session;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.graph.dto.result.NodeCreateResult;
-import com.conca.ontology.graph.dto.result.NodeDeleteResult;
-import com.conca.ontology.graph.dto.result.NodeUpdateResult;
-import com.conca.ontology.graph.dto.result.RelCreateResult;
-import com.conca.ontology.graph.dto.result.RelDeleteResult;
-import com.conca.ontology.graph.dto.request.RelRequest;
-import com.conca.ontology.graph.dto.result.RelUpdateResult;
+import com.conca.ontology.graph.dto.NodeCreateResultDTO;
+import com.conca.ontology.graph.dto.NodeDeleteResultDTO;
+import com.conca.ontology.graph.dto.NodeUpdateResultDTO;
+import com.conca.ontology.graph.dto.RelCreateResultDTO;
+import com.conca.ontology.graph.dto.RelDeleteResultDTO;
+import com.conca.ontology.graph.dto.RelDTO;
+import com.conca.ontology.graph.dto.RelUpdateResultDTO;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.graph.model.GraphSchema;
 
@@ -37,7 +37,7 @@ public class GraphWriteService {
 
     // ---------------- node ----------------
 
-    public NodeCreateResult createNode(String label, Map<String, Object> props) {
+    public NodeCreateResultDTO createNode(String label, Map<String, Object> props) {
         String keyProp = schema.keyPropOf(label);
         Object key = props.get(keyProp);
         if (key == null || String.valueOf(key).isBlank()) {
@@ -46,10 +46,10 @@ public class GraphWriteService {
         boolean existed = nodeCount(label, keyProp, key) > 0;
         write("MERGE (n:`" + label + "` {`" + keyProp + "`: $key}) SET n += $props",
                 Map.of("key", key, "props", props));
-        return new NodeCreateResult(label, keyProp, key, existed);
+        return new NodeCreateResultDTO(label, keyProp, key, existed);
     }
 
-    public NodeUpdateResult updateNode(String label, String key, Map<String, Object> props) {
+    public NodeUpdateResultDTO updateNode(String label, String key, Map<String, Object> props) {
         String keyProp = schema.keyPropOf(label);
         Map<String, Object> setProps = new LinkedHashMap<>(props);
         setProps.remove(keyProp);
@@ -61,10 +61,10 @@ public class GraphWriteService {
         if (c == 0) {
             throw new ApiException(404, "node not found: " + label + "/" + key);
         }
-        return new NodeUpdateResult(label, key, setProps.size());
+        return new NodeUpdateResultDTO(label, key, setProps.size());
     }
 
-    public NodeDeleteResult deleteNode(String label, String key, boolean detach) {
+    public NodeDeleteResultDTO deleteNode(String label, String key, boolean detach) {
         String keyProp = schema.keyPropOf(label);
         if (!detach) {
             long rels = scalar("MATCH (n:`" + label + "` {`" + keyProp + "`: $key})-[r]-() RETURN count(r) AS c",
@@ -79,12 +79,12 @@ public class GraphWriteService {
         if (c == 0) {
             throw new ApiException(404, "node not found: " + label + "/" + key);
         }
-        return new NodeDeleteResult(label, key, true, detach);
+        return new NodeDeleteResultDTO(label, key, true, detach);
     }
 
     // ---------------- relationship ----------------
 
-    public RelCreateResult createRel(RelRequest req) {
+    public RelCreateResultDTO createRel(RelDTO req) {
         schema.checkRelSignature(req.type(), req.fromLabel(), req.toLabel());
         if (nodeCount(req.fromLabel(), schema.keyPropOf(req.fromLabel()), req.fromKey()) == 0) {
             throw new ApiException(404, "from node not found: " + req.fromLabel() + "/" + req.fromKey());
@@ -94,10 +94,10 @@ public class GraphWriteService {
         }
         boolean existed = relCount(req) > 0;
         write(relEndpoints(req) + "MERGE (a)-[r:`" + req.type() + "`]->(b) SET r += $props", relParams(req));
-        return new RelCreateResult(req.type(), req.fromKey(), req.toKey(), existed);
+        return new RelCreateResultDTO(req.type(), req.fromKey(), req.toKey(), existed);
     }
 
-    public RelUpdateResult updateRel(RelRequest req) {
+    public RelUpdateResultDTO updateRel(RelDTO req) {
         schema.checkRelSignature(req.type(), req.fromLabel(), req.toLabel());
         Map<String, Object> props = req.props();
         if (props == null || props.isEmpty()) {
@@ -107,39 +107,39 @@ public class GraphWriteService {
         if (c == 0) {
             throw new ApiException(404, relNotFoundMsg(req));
         }
-        return new RelUpdateResult(req.type(), req.fromKey(), req.toKey(), props.size());
+        return new RelUpdateResultDTO(req.type(), req.fromKey(), req.toKey(), props.size());
     }
 
-    public RelDeleteResult deleteRel(RelRequest req) {
+    public RelDeleteResultDTO deleteRel(RelDTO req) {
         schema.checkRelSignature(req.type(), req.fromLabel(), req.toLabel());
         long c = writeCount(relCypher(req, "DELETE r RETURN count(r) AS c"), relParams(req));
         if (c == 0) {
             throw new ApiException(404, relNotFoundMsg(req));
         }
-        return new RelDeleteResult(req.type(), req.fromKey(), req.toKey(), true);
+        return new RelDeleteResultDTO(req.type(), req.fromKey(), req.toKey(), true);
     }
 
     // ---------------- helpers ----------------
 
-    private String relNotFoundMsg(RelRequest req) {
+    private String relNotFoundMsg(RelDTO req) {
         return "relationship not found: " + req.type() + " ("
                 + req.fromLabel() + "/" + req.fromKey() + ")->(" + req.toLabel() + "/" + req.toKey() + ")";
     }
 
     /** 关系操作通用骨架：MATCH 两端 + MATCH 关系 + action（用于更新/删除/计数） */
-    private String relCypher(RelRequest req, String action) {
+    private String relCypher(RelDTO req, String action) {
         return relEndpoints(req) + "MATCH (a)-[r:`" + req.type() + "`]->(b) " + action;
     }
 
     /** 仅 MATCH 两端节点（用于 MERGE 创建） */
-    private String relEndpoints(RelRequest req) {
+    private String relEndpoints(RelDTO req) {
         String fromKeyProp = schema.keyPropOf(req.fromLabel());
         String toKeyProp = schema.keyPropOf(req.toLabel());
         return "MATCH (a:`" + req.fromLabel() + "` {`" + fromKeyProp + "`: $from}) "
                 + "MATCH (b:`" + req.toLabel() + "` {`" + toKeyProp + "`: $to}) ";
     }
 
-    private Map<String, Object> relParams(RelRequest req) {
+    private Map<String, Object> relParams(RelDTO req) {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("from", req.fromKey());
         params.put("to", req.toKey());
@@ -152,7 +152,7 @@ public class GraphWriteService {
                 Map.of("key", key));
     }
 
-    private long relCount(RelRequest req) {
+    private long relCount(RelDTO req) {
         return scalar(relCypher(req, "RETURN count(r) AS c"), relParams(req));
     }
 

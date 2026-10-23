@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 
 import com.conca.ontology.eval.Grader;
 import com.conca.ontology.eval.JudgeClient;
-import com.conca.ontology.eval.dto.request.EvalCustomGraderRequest;
-import com.conca.ontology.eval.dto.request.EvalCustomGraderTestRequest;
+import com.conca.ontology.eval.dto.EvalCustomGraderDTO;
+import com.conca.ontology.eval.dto.EvalCustomGraderTestDTO;
 import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
 import com.conca.ontology.eval.model.AgentRecord;
 import com.conca.ontology.eval.model.CustomGraderDefinition;
@@ -87,7 +87,7 @@ public class EvalCustomGraderService {
         return m;
     }
 
-    public synchronized Map<String, Object> createCustomGrader(EvalCustomGraderRequest req) {
+    public synchronized Map<String, Object> createCustomGrader(EvalCustomGraderDTO req) {
         CustomGraderDefinition def = CustomGraderStore.validate(req.name(), req.description(),
                 req.mode(), req.prompt(), null);
         if (graderRegistry.containsKey(def.name())) {
@@ -99,7 +99,7 @@ public class EvalCustomGraderService {
         return Map.of("name", def.name(), "mode", def.mode());
     }
 
-    public synchronized Map<String, Object> updateCustomGrader(String name, EvalCustomGraderRequest req) {
+    public synchronized Map<String, Object> updateCustomGrader(String name, EvalCustomGraderDTO req) {
         if (graderRegistry.customGraderStore().find(name) == null) {
             throw new ApiException(404, "自定义评测器不存在: " + name);
         }
@@ -129,7 +129,7 @@ public class EvalCustomGraderService {
         return Map.of("name", name);
     }
 
-    public Map<String, Object> testCustomGrader(String name, EvalCustomGraderTestRequest req) {
+    public Map<String, Object> testCustomGrader(String name, EvalCustomGraderTestDTO req) {
         Grader g = graderRegistry.get(name);
         if (g == null || !(g instanceof CustomLlmGrader cg)) {
             throw new ApiException(404, "自定义评测器不存在: " + name);

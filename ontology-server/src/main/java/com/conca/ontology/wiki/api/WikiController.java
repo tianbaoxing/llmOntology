@@ -10,12 +10,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.wiki.dto.request.WikiMetaRequest;
-import com.conca.ontology.wiki.dto.result.WikiBySourceResult;
-import com.conca.ontology.wiki.dto.result.WikiDocResult;
-import com.conca.ontology.wiki.dto.result.WikiMetaUpdateResult;
-import com.conca.ontology.wiki.dto.result.WikiSearchResult;
-import com.conca.ontology.wiki.dto.view.WikiListView;
+import com.conca.ontology.wiki.dto.WikiMetaDTO;
+import com.conca.ontology.wiki.dto.WikiBySourceResultDTO;
+import com.conca.ontology.wiki.dto.WikiDocResultDTO;
+import com.conca.ontology.wiki.dto.WikiMetaUpdateResultDTO;
+import com.conca.ontology.wiki.dto.WikiSearchResultDTO;
+import com.conca.ontology.wiki.dto.WikiListDTO;
 import com.conca.ontology.wiki.service.WikiService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,7 +46,7 @@ public class WikiController {
     @Operation(summary = "文档列表", description = "仅含转换 SUCCESS 的 MD（与 LLM 可见性一致）；"
             + "元信息 = 正文自动抽取 + wiki-metadata.json 手工维护合并；顺带清理孤儿元数据。")
     @GetMapping
-    public ApiResponse<WikiListView> list() {
+    public ApiResponse<WikiListDTO> list() {
         return ApiResponse.ok(wikiService.list());
     }
 
@@ -54,7 +54,7 @@ public class WikiController {
             + "返回 MD 原文，前端 marked + DOMPurify 渲染；"
             + "entities 为正文实际命中的图谱实体（概念层 + 实例层，结果缓存随重转失效），前端包裹链接跳 /instances。")
     @GetMapping("/doc")
-    public ApiResponse<WikiDocResult> doc(
+    public ApiResponse<WikiDocResultDTO> doc(
             @Parameter(description = "MD 文件名", example = "报告.docx.md") @RequestParam String name) {
         return ApiResponse.ok(wikiService.doc(name));
     }
@@ -63,7 +63,7 @@ public class WikiController {
             + "加权分 = 标题 ×40 + 元信息 ×20 + 正文单次 ×1（降序，标题命中的文档排在纯正文命中之前）；"
             + "每篇最多 3 个命中片段，结果上限 50 篇；空白关键词返回空列表。")
     @GetMapping("/search")
-    public ApiResponse<WikiSearchResult> search(
+    public ApiResponse<WikiSearchResultDTO> search(
             @Parameter(description = "关键词", example = "陨铁") @RequestParam String q) {
         return ApiResponse.ok(wikiService.search(q));
     }
@@ -72,7 +72,7 @@ public class WikiController {
             + "（原始上传文件名）匹配文档 sourceName（两侧均源自 FileEntry.name，字符串相等）；"
             + "供 instances 页实例展开属性区的「相关文档」块懒加载。")
     @GetMapping("/by-source")
-    public ApiResponse<WikiBySourceResult> bySource(
+    public ApiResponse<WikiBySourceResultDTO> bySource(
             @Parameter(description = "原始上传文件名", example = "三星堆陨铁器分析报告.docx")
             @RequestParam String file) {
         return ApiResponse.ok(wikiService.bySource(file));
@@ -81,9 +81,9 @@ public class WikiController {
     @Operation(summary = "编辑元信息", description = "{*name} 为 MD 文件名（支持子目录路径，入参带前导斜杠需截去）；"
             + "category/tags 置空即清除。")
     @PutMapping("/meta/{*name}")
-    public ApiResponse<WikiMetaUpdateResult> updateMeta(
+    public ApiResponse<WikiMetaUpdateResultDTO> updateMeta(
             @Parameter(description = "MD 文件名（可含子目录路径）", example = "报告.docx.md") @PathVariable String name,
-            @Valid @RequestBody WikiMetaRequest req) {
+            @Valid @RequestBody WikiMetaDTO req) {
         return ApiResponse.ok(wikiService.updateMeta(stripSlash(name), req.category(), req.tags()));
     }
 

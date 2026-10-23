@@ -19,7 +19,7 @@ import com.conca.ontology.dedup.model.DedupRuleset;
  * 按 DedupRuleset.labelConfig 中 exactModes 的配置动态执行：
  *   NAME_AUX：name 规范化后相同 + 辅助属性值相同（若都非空）
  *
- * MatchBucket.subStage 统一取值（与 DedupAlgorithmScore.SUB_* 常量对齐）：
+ * MatchBucket.subStage 统一取值（与 DedupAlgorithmScoreDTO.SUB_* 常量对齐）：
  *   "exact-nameAux"  NAME_AUX
  *
  * @author tianbaoxing
@@ -38,7 +38,7 @@ public class ExactKeyStage {
     public record NodeProps(String nodeRef, String label, Map<String, Object> props,
                             long totalDegree, int propCount) {}
 
-    /** subStage = DedupAlgorithmScore.SUB_EXACT_* 三选一 */
+    /** subStage = DedupAlgorithmScoreDTO.SUB_EXACT_* 三选一 */
     public record MatchBucket(String patternMode, String subStage, List<NodeProps> nodes) {}
 
     public List<MatchBucket> run(List<NodeProps> nodes, DedupRuleset rules) {

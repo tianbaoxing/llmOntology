@@ -14,8 +14,8 @@ import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.content.model.ContentSecurityAllowlistView;
 import com.conca.ontology.content.model.ContentSecurityRule;
 import com.conca.ontology.content.model.ContentSecurityRulesView;
-import com.conca.ontology.content.dto.result.ContentSecurityCheckResult;
-import com.conca.ontology.content.dto.result.PromptInjectionScanResult;
+import com.conca.ontology.content.dto.ContentSecurityCheckResultDTO;
+import com.conca.ontology.content.dto.PromptInjectionScanResultDTO;
 import com.conca.ontology.content.service.ContentSecurityService;
 
 import io.agentscope.core.message.Msg;
@@ -76,16 +76,16 @@ public class ContentSecurityController {
 
     @Operation(summary = "一体化检测测试", description = "body: { \"text\": \"要测的文本\" }，返回注入合并结果")
     @PostMapping("/check")
-    public ApiResponse<ContentSecurityCheckResult> check(@RequestBody Map<String, String> body) {
+    public ApiResponse<ContentSecurityCheckResultDTO> check(@RequestBody Map<String, String> body) {
         String text = body.get("text");
         return ApiResponse.ok(securityService.checkUserMessages(
                 List.of(Msg.builder().role(MsgRole.USER).textContent(text).build())
         ));
     }
 
-    @Operation(summary = "注入单独测试", description = "返回 PromptInjectionScanResult（decision/confidence/reasons 等）")
+    @Operation(summary = "注入单独测试", description = "返回 PromptInjectionScanResultDTO（decision/confidence/reasons 等）")
     @PostMapping("/scan-injection")
-    public ApiResponse<PromptInjectionScanResult> scanInjection(@RequestBody Map<String, String> body) {
+    public ApiResponse<PromptInjectionScanResultDTO> scanInjection(@RequestBody Map<String, String> body) {
         return ApiResponse.ok(securityService.promptInjectionCheck(body.get("text")));
     }
 }

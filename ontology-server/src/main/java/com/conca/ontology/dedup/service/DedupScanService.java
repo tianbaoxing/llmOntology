@@ -16,17 +16,17 @@ import java.util.zip.CRC32;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.dedup.dto.request.DedupScanRequest;
-import com.conca.ontology.dedup.dto.result.DedupScanResult;
-import com.conca.ontology.dedup.dto.view.DedupAlgorithmScore;
-import com.conca.ontology.dedup.dto.view.DupCandidate;
-import com.conca.ontology.dedup.dto.view.DupCandidateGroup;
-import com.conca.ontology.dedup.dto.view.DupCandidateGroup.ConflictLevel;
+import com.conca.ontology.dedup.dto.DedupScanDTO;
+import com.conca.ontology.dedup.dto.DedupScanResultDTO;
+import com.conca.ontology.dedup.dto.DedupAlgorithmScoreDTO;
+import com.conca.ontology.dedup.dto.DupCandidateDTO;
+import com.conca.ontology.dedup.dto.DupCandidateGroupDTO;
+import com.conca.ontology.dedup.dto.DupCandidateGroupDTO.ConflictLevel;
 import com.conca.ontology.dedup.service.pipeline.ExactKeyStage;
 import com.conca.ontology.dedup.service.pipeline.ExactKeyStage.NodeProps;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage.NodeName;
-import com.conca.ontology.graph.dto.result.QueryResult;
+import com.conca.ontology.graph.dto.QueryResultDTO;
 import com.conca.ontology.graph.model.ClassDef;
 import com.conca.ontology.graph.model.GraphSchema;
 import com.conca.ontology.graph.service.GraphQueryService;
@@ -36,7 +36,7 @@ import com.conca.ontology.shared.web.ApiException;
  * 去重扫描服务（M1）：
  *   - 调度 NormalizeAliasStage（规范化别名）+ ExactKeyStage（精确 key 组合）
  *   - Neo4j 节点数据经 GraphQueryService（只读红线保护）拉取
- *   - 阶段结果合并去重 → 生成 DupCandidateGroup 列表 + KPI 汇总
+ *   - 阶段结果合并去重 → 生成 DupCandidateGroupDTO 列表 + KPI 汇总
  *   - ConflictGuard 属性冲突检测：全局冲突属性 + 类级冲突属性并集检测
  *   - 规则集快照：每次 scan 从 DedupRulesService 取不可变 DedupRuleset，跨线程安全
  *
@@ -71,7 +71,7 @@ public class DedupScanService {
     // 对外主入口
     // ============================================================
 
-    public DedupScanResult scan(DedupScanRequest req) {
+    public DedupScanResultDTO scan(DedupScanDTO req) {
         long startMs = System.currentTimeMillis();
         double threshold = req.thresholdSafe();
         String scanLabel = req.labelSafe();
@@ -96,21 +96,21 @@ public class DedupScanService {
             allRaws.add(raw);
         }
 
-        List<DupCandidateGroup> mergedGroups = new ArrayList<>();
+        List<DupCandidateGroupDTO> mergedGroups = new ArrayList<>();
         for (LabelRaw raw : allRaws) {
-            List<DupCandidateGroup> g1 = runNormalizeAlias(raw, rules);
-            List<DupCandidateGroup> g2 = runExactKey(raw, rules);
+            List<DupCandidateGroupDTO> g1 = runNormalizeAlias(raw, rules);
+            List<DupCandidateGroupDTO> g2 = runExactKey(raw, rules);
             mergedGroups.addAll(mergeGroupResults(raw, g1, g2, threshold, rules));
         }
 
-        mergedGroups.sort(Comparator.comparingDouble((DupCandidateGroup g) -> g.maxComposite()).reversed()
-                .thenComparingInt(DupCandidateGroup::size).reversed()
-                .thenComparingInt(DupCandidateGroup::multiHitCount).reversed()
-                .thenComparing(DupCandidateGroup::label));
+        mergedGroups.sort(Comparator.comparingDouble((DupCandidateGroupDTO g) -> g.maxComposite()).reversed()
+                .thenComparingInt(DupCandidateGroupDTO::size).reversed()
+                .thenComparingInt(DupCandidateGroupDTO::multiHitCount).reversed()
+                .thenComparing(DupCandidateGroupDTO::label));
 
         long totalGroups = mergedGroups.size();
         long autoReady = 0, manual = 0, blocked = 0, saved = 0;
-        for (DupCandidateGroup g : mergedGroups) {
+        for (DupCandidateGroupDTO g : mergedGroups) {
             saved += g.estimatedSaved();
             if (g.conflictLevel() == ConflictLevel.DISJOINT) blocked++;
             else if (g.autoMergeReady()) autoReady++;
@@ -119,7 +119,7 @@ public class DedupScanService {
 
         int skip = req.skipGroupsSafe();
         int limit = req.limitGroupsSafe();
-        List<DupCandidateGroup> page;
+        List<DupCandidateGroupDTO> page;
         boolean hasMore;
         if (limit > 0) {
             int from = Math.min(skip, mergedGroups.size());
@@ -132,7 +132,7 @@ public class DedupScanService {
         }
 
         long endMs = System.currentTimeMillis();
-        return new DedupScanResult(
+        return new DedupScanResultDTO(
                 startMs, endMs, endMs - startMs,
                 scanLabel, scannedNodes, classes.size(),
                 threshold, totalGroups, autoReady, manual, blocked, saved,
@@ -159,7 +159,7 @@ public class DedupScanService {
         cypher.append("RETURN eid, lbl, props, (outD + inD) AS totalDeg ");
         cypher.append("ORDER BY eid");
         if (perLabelNodeLimit > 0) cypher.append(" LIMIT ").append(perLabelNodeLimit);
-        QueryResult qr = qs.query(cypher.toString(), Map.of());
+        QueryResultDTO qr = qs.query(cypher.toString(), Map.of());
         List<RawNode> nodes = new ArrayList<>(qr.rows().size());
         for (Map<String, Object> r : qr.rows()) {
             String eid = String.valueOf(r.get("eid"));
@@ -175,7 +175,7 @@ public class DedupScanService {
     // 阶段调度
     // ============================================================
 
-    private List<DupCandidateGroup> runNormalizeAlias(LabelRaw raw, com.conca.ontology.dedup.model.DedupRuleset rules) {
+    private List<DupCandidateGroupDTO> runNormalizeAlias(LabelRaw raw, com.conca.ontology.dedup.model.DedupRuleset rules) {
         String nameProp = rulesService.namePropOf(rules, raw.label);
         List<NodeName> inputs = new ArrayList<>(raw.nodes.size());
         for (RawNode rn : raw.nodes) {
@@ -187,24 +187,24 @@ public class DedupScanService {
                     rn.totalDegree, rn.propCount));
         }
         List<NormalizeAliasStage.MatchBucket> buckets = normStage.run(inputs, rules);
-        List<DupCandidateGroup> out = new ArrayList<>(buckets.size());
+        List<DupCandidateGroupDTO> out = new ArrayList<>(buckets.size());
         for (NormalizeAliasStage.MatchBucket b : buckets) {
             out.add(buildGroupFromNodeRefs(raw, dedupeRefs(b.nodes().stream().map(NodeName::nodeRef).toList()),
-                    "normalizeAlias", DedupAlgorithmScore.exactNormalizeOnly(), rules));
+                    "normalizeAlias", DedupAlgorithmScoreDTO.exactNormalizeOnly(), rules));
         }
         return out;
     }
 
-    private List<DupCandidateGroup> runExactKey(LabelRaw raw, com.conca.ontology.dedup.model.DedupRuleset rules) {
+    private List<DupCandidateGroupDTO> runExactKey(LabelRaw raw, com.conca.ontology.dedup.model.DedupRuleset rules) {
         List<NodeProps> inputs = new ArrayList<>(raw.nodes.size());
         for (RawNode rn : raw.nodes) {
             inputs.add(new NodeProps(rn.eid, raw.label, rn.props, rn.totalDegree, rn.propCount));
         }
         List<ExactKeyStage.MatchBucket> buckets = exactStage.run(inputs, rules);
-        List<DupCandidateGroup> out = new ArrayList<>(buckets.size());
+        List<DupCandidateGroupDTO> out = new ArrayList<>(buckets.size());
         for (ExactKeyStage.MatchBucket b : buckets) {
             out.add(buildGroupFromNodeRefs(raw, dedupeRefs(b.nodes().stream().map(NodeProps::nodeRef).toList()),
-                    "exactKey", DedupAlgorithmScore.exactKeyOnly(b.subStage()), rules));
+                    "exactKey", DedupAlgorithmScoreDTO.exactKeyOnly(b.subStage()), rules));
         }
         return out;
     }
@@ -220,17 +220,17 @@ public class DedupScanService {
     // 合并阶段结果（跨阶段去重同一组节点）
     // ============================================================
 
-    private List<DupCandidateGroup> mergeGroupResults(LabelRaw raw,
-            List<DupCandidateGroup> g1, List<DupCandidateGroup> g2, double threshold,
+    private List<DupCandidateGroupDTO> mergeGroupResults(LabelRaw raw,
+            List<DupCandidateGroupDTO> g1, List<DupCandidateGroupDTO> g2, double threshold,
             com.conca.ontology.dedup.model.DedupRuleset rules) {
         Map<String, GroupBuilder> builders = new LinkedHashMap<>();
-        for (DupCandidateGroup g : g1) absorb(builders, g);
-        for (DupCandidateGroup g : g2) absorb(builders, g);
+        for (DupCandidateGroupDTO g : g1) absorb(builders, g);
+        for (DupCandidateGroupDTO g : g2) absorb(builders, g);
 
-        List<DupCandidateGroup> out = new ArrayList<>(builders.size());
+        List<DupCandidateGroupDTO> out = new ArrayList<>(builders.size());
         for (GroupBuilder b : builders.values()) {
             if (b.composite < threshold || b.eids == null || b.eids.size() < 2) continue;
-            DupCandidateGroup finalGroup = finalize(raw, b, rules);
+            DupCandidateGroupDTO finalGroup = finalize(raw, b, rules);
             if (finalGroup != null) out.add(finalGroup);
         }
         return out;
@@ -241,13 +241,13 @@ public class DedupScanService {
         Set<String> hitStages = new LinkedHashSet<>();
         double bestNorm = 0.0, bestExact = 0.0;
         double composite = 0.0;
-        List<DupCandidate> candidates; // 在 absorb 第一次被调用时初始化占位，finalize 时重算
-        Map<String, DedupAlgorithmScore> perNodeScore = new LinkedHashMap<>();
+        List<DupCandidateDTO> candidates; // 在 absorb 第一次被调用时初始化占位，finalize 时重算
+        Map<String, DedupAlgorithmScoreDTO> perNodeScore = new LinkedHashMap<>();
     }
 
-    private void absorb(Map<String, GroupBuilder> map, DupCandidateGroup g) {
+    private void absorb(Map<String, GroupBuilder> map, DupCandidateGroupDTO g) {
         if (g.candidates().isEmpty()) return;
-        List<String> eids = g.candidates().stream().map(DupCandidate::eid).sorted().toList();
+        List<String> eids = g.candidates().stream().map(DupCandidateDTO::eid).sorted().toList();
         if (eids.size() < 2) return;
         String key = groupKey(eids);
         GroupBuilder b = map.get(key);
@@ -257,9 +257,9 @@ public class DedupScanService {
             map.put(key, b);
         }
         b.hitStages.addAll(g.hitStages());
-        for (DupCandidate c : g.candidates()) {
-            DedupAlgorithmScore s = c.score();
-            DedupAlgorithmScore prev = b.perNodeScore.get(c.eid());
+        for (DupCandidateDTO c : g.candidates()) {
+            DedupAlgorithmScoreDTO s = c.score();
+            DedupAlgorithmScoreDTO prev = b.perNodeScore.get(c.eid());
             // 跨阶段命中：用 merge（位或合并子策略命中，取各维分最大值，合并 hitStages 并集）
             b.perNodeScore.put(c.eid(), prev == null ? s : prev.merge(s));
             b.bestNorm  = Math.max(b.bestNorm,  s.normalizeAlias());
@@ -280,11 +280,11 @@ public class DedupScanService {
     }
 
     // ============================================================
-    // 最终组装 DupCandidateGroup（含 survivor 优先级 + 冲突标记 + 组级子策略聚合）
+    // 最终组装 DupCandidateGroupDTO（含 survivor 优先级 + 冲突标记 + 组级子策略聚合）
     // ============================================================
 
-    private DupCandidateGroup buildGroupFromNodeRefs(LabelRaw raw, List<String> eidRefs,
-                                                      String stageName, DedupAlgorithmScore baseScore,
+    private DupCandidateGroupDTO buildGroupFromNodeRefs(LabelRaw raw, List<String> eidRefs,
+                                                      String stageName, DedupAlgorithmScoreDTO baseScore,
                                                       com.conca.ontology.dedup.model.DedupRuleset rules) {
         if (eidRefs.size() < 2) return null;
         Map<String, RawNode> byEid = new LinkedHashMap<>();
@@ -299,30 +299,30 @@ public class DedupScanService {
         return finalize(raw, gb, rules);
     }
 
-    private DupCandidateGroup finalize(LabelRaw raw, GroupBuilder b,
+    private DupCandidateGroupDTO finalize(LabelRaw raw, GroupBuilder b,
                                        com.conca.ontology.dedup.model.DedupRuleset rules) {
         Map<String, RawNode> byEid = new LinkedHashMap<>();
         for (RawNode rn : raw.nodes) byEid.put(rn.eid, rn);
 
         int groupMask = 0;
-        List<DupCandidate> cands = new ArrayList<>(b.eids.size());
+        List<DupCandidateDTO> cands = new ArrayList<>(b.eids.size());
         for (String eid : b.eids) {
             RawNode rn = byEid.get(eid);
             if (rn == null) continue;
             Object keyVal = rn.props.getOrDefault(raw.keyProp, "");
-            DedupAlgorithmScore sc = b.perNodeScore.get(eid);
+            DedupAlgorithmScoreDTO sc = b.perNodeScore.get(eid);
             if (sc == null) {
-                int mask = (b.bestNorm  > 0 ? DedupAlgorithmScore.MASK_NORM : 0)
-                         | (b.bestExact > 0 ? DedupAlgorithmScore.MASK_EXACT_NAME_AUX : 0);
-                sc = new DedupAlgorithmScore(
+                int mask = (b.bestNorm  > 0 ? DedupAlgorithmScoreDTO.MASK_NORM : 0)
+                         | (b.bestExact > 0 ? DedupAlgorithmScoreDTO.MASK_EXACT_NAME_AUX : 0);
+                sc = new DedupAlgorithmScoreDTO(
                         b.bestNorm, b.bestExact, 0.0, 0.0, 0.0, b.composite,
                         List.copyOf(b.hitStages),
-                        (mask & DedupAlgorithmScore.MASK_NORM) != 0,
-                        (mask & DedupAlgorithmScore.MASK_EXACT_NAME_AUX) != 0,
+                        (mask & DedupAlgorithmScoreDTO.MASK_NORM) != 0,
+                        (mask & DedupAlgorithmScoreDTO.MASK_EXACT_NAME_AUX) != 0,
                         mask);
             }
             groupMask |= sc.subStageMask();
-            cands.add(new DupCandidate(eid, raw.label, raw.keyProp, String.valueOf(keyVal),
+            cands.add(new DupCandidateDTO(eid, raw.label, raw.keyProp, String.valueOf(keyVal),
                     rn.props, rn.totalDegree, rn.propCount, -1, "", sc));
         }
         if (cands.size() < 2) return null;
@@ -336,24 +336,24 @@ public class DedupScanService {
             if (d != 0) return d;
             return a.eid().compareTo(c.eid());
         });
-        List<DupCandidate> ordered = new ArrayList<>(cands.size());
+        List<DupCandidateDTO> ordered = new ArrayList<>(cands.size());
         for (int i = 0; i < cands.size(); i++) {
-            DupCandidate c = cands.get(i);
+            DupCandidateDTO c = cands.get(i);
             String reason = "";
             if (i == 0) {
                 List<String> parts = new ArrayList<>(3);
                 if (c.propCount() > 0) {
-                    int maxOther = cands.stream().skip(1).mapToInt(DupCandidate::propCount).max().orElse(-1);
+                    int maxOther = cands.stream().skip(1).mapToInt(DupCandidateDTO::propCount).max().orElse(-1);
                     if (c.propCount() > maxOther) parts.add("属性数最多(" + c.propCount() + ")");
                 }
                 if (c.totalDegree() > 0) {
-                    long maxOther = cands.stream().skip(1).mapToLong(DupCandidate::totalDegree).max().orElse(-1L);
+                    long maxOther = cands.stream().skip(1).mapToLong(DupCandidateDTO::totalDegree).max().orElse(-1L);
                     if (c.totalDegree() > maxOther) parts.add("关联度最高(" + c.totalDegree() + ")");
                 }
                 if (parts.isEmpty()) parts.add("默认优先级（首元素）");
                 reason = String.join("，", parts);
             }
-            ordered.add(new DupCandidate(c.eid(), c.label(), c.keyProp(), c.keyValue(),
+            ordered.add(new DupCandidateDTO(c.eid(), c.label(), c.keyProp(), c.keyValue(),
                     c.props(), c.totalDegree(), c.propCount(), i, reason, c.score()));
         }
 
@@ -363,7 +363,7 @@ public class DedupScanService {
         String clReason = "";
         for (String cp : critical) {
             Set<Object> seen = new LinkedHashSet<>();
-            for (DupCandidate c : ordered) {
+            for (DupCandidateDTO c : ordered) {
                 Object v = c.props().get(cp);
                 if (v != null && !String.valueOf(v).isBlank()) seen.add(v);
             }
@@ -377,15 +377,15 @@ public class DedupScanService {
         }
 
         List<String> subStages = new ArrayList<>(2);
-        if ((groupMask & DedupAlgorithmScore.MASK_NORM) != 0)              subStages.add(DedupAlgorithmScore.SUB_NORM);
-        if ((groupMask & DedupAlgorithmScore.MASK_EXACT_NAME_AUX) != 0)    subStages.add(DedupAlgorithmScore.SUB_EXACT_NAME_AUX);
+        if ((groupMask & DedupAlgorithmScoreDTO.MASK_NORM) != 0)              subStages.add(DedupAlgorithmScoreDTO.SUB_NORM);
+        if ((groupMask & DedupAlgorithmScoreDTO.MASK_EXACT_NAME_AUX) != 0)    subStages.add(DedupAlgorithmScoreDTO.SUB_EXACT_NAME_AUX);
 
         double minC = ordered.stream().mapToDouble(c -> c.score().composite()).min().orElse(b.composite);
         double maxC = ordered.stream().mapToDouble(c -> c.score().composite()).max().orElse(b.composite);
         boolean autoReady = cl == ConflictLevel.NONE && minC >= 0.95;
         String gid = "G-" + groupKey(b.eids);
         int saved = ordered.size() - 1;
-        return new DupCandidateGroup(
+        return new DupCandidateGroupDTO(
                 gid, ordered.size(), raw.label, minC, maxC, cl, clReason, autoReady,
                 List.copyOf(b.hitStages), List.copyOf(ordered), saved,
                 List.copyOf(subStages), subStages.size());

@@ -15,13 +15,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.conca.ontology.eval.dto.request.EvalCustomGraderRequest;
-import com.conca.ontology.eval.dto.request.EvalCustomGraderTestRequest;
-import com.conca.ontology.eval.dto.request.EvalDatasetRequest;
-import com.conca.ontology.eval.dto.request.EvalHumanScoreRequest;
-import com.conca.ontology.eval.dto.request.EvalRunRequest;
-import com.conca.ontology.eval.dto.request.EvalSampleRequest;
-import com.conca.ontology.eval.dto.result.FromChatSampleResult;
+import com.conca.ontology.eval.dto.EvalCustomGraderDTO;
+import com.conca.ontology.eval.dto.EvalCustomGraderTestDTO;
+import com.conca.ontology.eval.dto.EvalDatasetDTO;
+import com.conca.ontology.eval.dto.EvalHumanScoreDTO;
+import com.conca.ontology.eval.dto.EvalRunDTO;
+import com.conca.ontology.eval.dto.EvalSampleDTO;
+import com.conca.ontology.eval.dto.FromChatSampleResultDTO;
 import com.conca.ontology.eval.service.EvalCustomGraderService;
 import com.conca.ontology.eval.service.EvalDatasetService;
 import com.conca.ontology.eval.service.EvalRunService;
@@ -71,7 +71,7 @@ public class EvalController {
 
     @PostMapping("/datasets")
     @Operation(summary = "新建数据集", description = "创建空 jsonl 文件（同名已存在 409）")
-    public ApiResponse<Map<String, Object>> createDataset(@Valid @RequestBody EvalDatasetRequest request) {
+    public ApiResponse<Map<String, Object>> createDataset(@Valid @RequestBody EvalDatasetDTO request) {
         return ApiResponse.ok(datasetService.createDataset(request.name()));
     }
 
@@ -88,7 +88,7 @@ public class EvalController {
     @Operation(summary = "新增样本", description = "校验后追加一行（query 必填、评测器须已注册、id 唯一）")
     @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
     public ApiResponse<Map<String, Object>> addSample(@PathVariable String name,
-            @Valid @RequestBody EvalSampleRequest request) {
+            @Valid @RequestBody EvalSampleDTO request) {
         return ApiResponse.ok(datasetService.addSample(name, request));
     }
 
@@ -97,7 +97,7 @@ public class EvalController {
     @Parameter(name = "name", description = "数据集文件名（如 demo.jsonl）", example = "demo.jsonl")
     @Parameter(name = "seq", description = "非空行序号（从 1 起）", example = "1")
     public ApiResponse<Map<String, Object>> updateSample(@PathVariable String name, @PathVariable int seq,
-            @Valid @RequestBody EvalSampleRequest request) {
+            @Valid @RequestBody EvalSampleDTO request) {
         return ApiResponse.ok(datasetService.updateSample(name, seq, request));
     }
 
@@ -114,7 +114,7 @@ public class EvalController {
             + "预填评测样本表单（不落盘；仅自己创建的会话，期望回答由人工补齐后走新增样本接口）")
     @Parameter(name = "sessionId", description = "会话 ID", example = "s-20260901-101530-abc")
     @Parameter(name = "msgIndex", description = "AI 回答在消息数组中的下标（从 0 起）", example = "5")
-    public ApiResponse<FromChatSampleResult> sampleFromChat(@RequestParam String sessionId,
+    public ApiResponse<FromChatSampleResultDTO> sampleFromChat(@RequestParam String sessionId,
             @RequestParam int msgIndex, HttpSession session) {
         SessionUser user = SessionUser.of(session);
         if (user == null) {
@@ -147,7 +147,7 @@ public class EvalController {
     @Operation(summary = "创建自定义评测器", description = "mode=criteria：prompt 仅写评分标准（样本内容框架隔离拼接）；"
             + "mode=template：prompt 为完整模板，占位符 {{query}}/{{answer}}/{{reference}}/{{context}}/{{rubric}}；"
             + "与内置评测器重名 400")
-    public ApiResponse<Map<String, Object>> createCustomGrader(@Valid @RequestBody EvalCustomGraderRequest request) {
+    public ApiResponse<Map<String, Object>> createCustomGrader(@Valid @RequestBody EvalCustomGraderDTO request) {
         return ApiResponse.ok(customGraderService.createCustomGrader(request));
     }
 
@@ -156,7 +156,7 @@ public class EvalController {
             + "prompt 变更后历史 run 对比会标注「定义已变更」")
     @Parameter(name = "name", description = "评测器名（不可改）", example = "my_concise_check")
     public ApiResponse<Map<String, Object>> updateCustomGrader(@PathVariable String name,
-            @Valid @RequestBody EvalCustomGraderRequest request) {
+            @Valid @RequestBody EvalCustomGraderDTO request) {
         return ApiResponse.ok(customGraderService.updateCustomGrader(name, request));
     }
 
@@ -172,14 +172,14 @@ public class EvalController {
             + "先验证提示词有效再入库，避免整批跑完才发现评分细则写歪")
     @Parameter(name = "name", description = "评测器名", example = "my_concise_check")
     public ApiResponse<Map<String, Object>> testCustomGrader(@PathVariable String name,
-            @Valid @RequestBody EvalCustomGraderTestRequest request) {
+            @Valid @RequestBody EvalCustomGraderTestDTO request) {
         return ApiResponse.ok(customGraderService.testCustomGrader(name, request));
     }
 
     @PostMapping("/runs")
     @Operation(summary = "创建评测任务", description = "异步执行，返回 taskId；同一时间仅允许一个任务（409）；"
             + "agent 未装配（未配置 OPENROUTER_API_KEY）时 409")
-    public ApiResponse<Map<String, Object>> start(@Valid @RequestBody EvalRunRequest request,
+    public ApiResponse<Map<String, Object>> start(@Valid @RequestBody EvalRunDTO request,
             HttpSession session) {
         SessionUser user = SessionUser.of(session);
         if (user == null) {
@@ -221,7 +221,7 @@ public class EvalController {
             + "打分写回结果文件并重算汇总，全部样本评完任务状态翻转 success；可重复提交覆盖修改（留 grader/scoredAt 留痕）")
     @Parameter(name = "id", description = "任务 id（eval-时间-随机码）", example = "eval-20260902-100000-a1b")
     public ApiResponse<Map<String, Object>> humanScore(@PathVariable String id,
-            @Valid @RequestBody EvalHumanScoreRequest request, HttpSession session) {
+            @Valid @RequestBody EvalHumanScoreDTO request, HttpSession session) {
         SessionUser user = SessionUser.of(session);
         if (user == null) {
             throw new ApiException(401, "未登录或会话已过期");

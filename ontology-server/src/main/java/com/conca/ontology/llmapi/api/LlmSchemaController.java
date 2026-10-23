@@ -11,11 +11,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.graph.dto.result.ClassDeleteResult;
-import com.conca.ontology.graph.dto.view.ClassDetailView;
-import com.conca.ontology.graph.dto.view.ClassSummary;
-import com.conca.ontology.graph.dto.view.RelationView;
-import com.conca.ontology.graph.dto.view.SchemaView;
+import com.conca.ontology.graph.dto.ClassDeleteResultDTO;
+import com.conca.ontology.graph.dto.ClassDetailDTO;
+import com.conca.ontology.graph.dto.ClassSummaryDTO;
+import com.conca.ontology.graph.dto.RelationDTO;
+import com.conca.ontology.graph.dto.SchemaDTO;
 import com.conca.ontology.graph.model.ClassDef;
 import com.conca.ontology.graph.service.SchemaService;
 
@@ -45,21 +45,21 @@ public class LlmSchemaController {
             description = "版本 + 全部类定义（属性/出边声明/实时 count）+ 全部关系扁平视图。"
                     + "构建期可直接整体注入 LLM 上下文。")
     @GetMapping
-    public ApiResponse<SchemaView> schema() {
+    public ApiResponse<SchemaDTO> schema() {
         return ApiResponse.ok(schemaService.schemaView());
     }
 
     @Operation(summary = "类列表（摘要）",
             description = "全部类的摘要行：名称/中文名/层/keyProp/说明/实时节点数/属性数/关系数。不含明细。")
     @GetMapping("/classes")
-    public ApiResponse<List<ClassSummary>> classes() {
+    public ApiResponse<List<ClassSummaryDTO>> classes() {
         return ApiResponse.ok(schemaService.classSummaries());
     }
 
     @Operation(summary = "单类详情",
             description = "类定义全字段 + 出边关系声明（本类声明）+ 入边关系（由其他类声明推导）+ 实时 count。")
     @GetMapping("/classes/{name}")
-    public ApiResponse<ClassDetailView> classDetail(
+    public ApiResponse<ClassDetailDTO> classDetail(
             @Parameter(description = "类名（如 Era）", example = "Era") @PathVariable String name) {
         return ApiResponse.ok(schemaService.classView(name));
     }
@@ -70,7 +70,7 @@ public class LlmSchemaController {
                     + "properties 非空且必须包含 keyProp；关系名全 schema 唯一；"
                     + "toClass 必须已存在（自引用除外）。已存在同名类返回 409。")
     @PostMapping("/classes")
-    public ApiResponse<ClassDetailView> createClass(@RequestBody ClassDef def) {
+    public ApiResponse<ClassDetailDTO> createClass(@RequestBody ClassDef def) {
         return ApiResponse.ok(schemaService.createClass(def));
     }
 
@@ -78,7 +78,7 @@ public class LlmSchemaController {
             description = "整体替换该类的属性与关系声明。name 与 keyProp 不可变（违反返回 400）。"
                     + "被移除或改向的关系若库中仍有实例返回 409，需先删实例。")
     @PutMapping("/classes/{name}")
-    public ApiResponse<ClassDetailView> updateClass(
+    public ApiResponse<ClassDetailDTO> updateClass(
             @Parameter(description = "类名（须与 body 的 name 一致）", example = "Era") @PathVariable String name,
             @RequestBody ClassDef def) {
         return ApiResponse.ok(schemaService.updateClass(name, def));
@@ -88,7 +88,7 @@ public class LlmSchemaController {
             description = "删除类定义并撤销唯一约束。保护：类被其他类关系引用（409）、"
                     + "库中仍有该类节点（409）时拒绝删除。")
     @DeleteMapping("/classes/{name}")
-    public ApiResponse<ClassDeleteResult> deleteClass(
+    public ApiResponse<ClassDeleteResultDTO> deleteClass(
             @Parameter(description = "类名", example = "Era") @PathVariable String name) {
         return ApiResponse.ok(schemaService.deleteClass(name));
     }
@@ -96,7 +96,7 @@ public class LlmSchemaController {
     @Operation(summary = "关系扁平视图（全量只读）",
             description = "全部关系类型一条不漏：两端类 + 属性定义 + 语义说明/示例 + 实时数量。LLM 一次拿全。")
     @GetMapping("/relations")
-    public ApiResponse<List<RelationView>> relations() {
+    public ApiResponse<List<RelationDTO>> relations() {
         return ApiResponse.ok(schemaService.relationViews());
     }
 }

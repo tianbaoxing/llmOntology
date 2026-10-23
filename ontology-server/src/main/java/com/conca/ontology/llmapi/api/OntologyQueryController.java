@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.llmapi.dto.OntologyQueryRequest;
+import com.conca.ontology.llmapi.dto.OntologyQueryDTO;
 import com.conca.ontology.llmapi.service.OntologyQueryExecutionService;
 
 /**
@@ -27,7 +27,7 @@ public class OntologyQueryController {
     }
 
     @PostMapping("/query")
-    public ApiResponse<Map<String, Object>> query(@Valid @RequestBody OntologyQueryRequest req) {
+    public ApiResponse<Map<String, Object>> query(@Valid @RequestBody OntologyQueryDTO req) {
         return ApiResponse.ok(queryExecutionService.execute(req.question(), req.cypher(), req.params()));
     }
 }

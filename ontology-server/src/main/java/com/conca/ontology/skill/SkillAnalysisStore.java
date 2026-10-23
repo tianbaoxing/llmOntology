@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.skill.converter.SkillAnalysisConverter;
-import com.conca.ontology.skill.dto.SkillAnalysis;
+import com.conca.ontology.skill.dto.SkillAnalysisDTO;
 import com.conca.ontology.skill.entity.SkillAnalysisEntity;
 import com.conca.ontology.skill.mapper.SkillAnalysisMapper;
 
@@ -30,14 +30,14 @@ public class SkillAnalysisStore {
         this.skillMapper = skillMapper;
     }
 
-    public SkillAnalysis get(String name) {
+    public SkillAnalysisDTO get(String name) {
         SkillAnalysisEntity e = skillMapper.selectById(name);
         return e == null ? null : SkillAnalysisConverter.toModel(e);
     }
 
     /** 全部分析结果（技能名 → 分析记录，按主键技能名排序） */
-    public Map<String, SkillAnalysis> all() {
-        Map<String, SkillAnalysis> out = new LinkedHashMap<>();
+    public Map<String, SkillAnalysisDTO> all() {
+        Map<String, SkillAnalysisDTO> out = new LinkedHashMap<>();
         List<SkillAnalysisEntity> rows = skillMapper.selectList(Wrappers.<SkillAnalysisEntity>lambdaQuery()
                 .orderByAsc(SkillAnalysisEntity::getSkillName));
         for (SkillAnalysisEntity e : rows) {
@@ -46,7 +46,7 @@ public class SkillAnalysisStore {
         return out;
     }
 
-    public synchronized void put(String name, SkillAnalysis analysis) {
+    public synchronized void put(String name, SkillAnalysisDTO analysis) {
         SkillAnalysisEntity row = SkillAnalysisConverter.toEntity(name, analysis);
         if (skillMapper.selectById(name) == null) {
             skillMapper.insert(row);

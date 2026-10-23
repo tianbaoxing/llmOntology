@@ -26,10 +26,10 @@ import org.springframework.stereotype.Service;
 
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.skill.SkillAnalysisStore;
-import com.conca.ontology.skill.dto.SkillAnalysis;
-import com.conca.ontology.skill.dto.SkillAnalysis.ShellCmd;
-import com.conca.ontology.skill.dto.SkillAnalysis.ToolHit;
-import com.conca.ontology.skill.dto.SkillAnalysis.ToolUsage;
+import com.conca.ontology.skill.dto.SkillAnalysisDTO;
+import com.conca.ontology.skill.dto.SkillAnalysisDTO.ShellCmd;
+import com.conca.ontology.skill.dto.SkillAnalysisDTO.ToolHit;
+import com.conca.ontology.skill.dto.SkillAnalysisDTO.ToolUsage;
 import com.conca.ontology.agent.service.AgentChatService;
 
 import io.agentscope.harness.agent.HarnessAgent;
@@ -116,7 +116,7 @@ public class SkillAnalysisService {
         List<Map<String, Object>> out = new ArrayList<>();
         for (String name : order) {
             Path dir = byName.get(name);
-            SkillAnalysis sa = store.get(name);
+            SkillAnalysisDTO sa = store.get(name);
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("name", name);
             item.put("description", descFromRepo.getOrDefault(name, dir != null ? parseDescription(dir) : ""));
@@ -141,12 +141,12 @@ public class SkillAnalysisService {
         locateSkill(name); // 技能不存在 404
         List<String> clean = keywords == null ? List.of()
                 : keywords.stream().map(String::trim).filter(k -> !k.isBlank()).distinct().toList();
-        SkillAnalysis prev = store.get(name);
-        SkillAnalysis next = prev == null
-                ? new SkillAnalysis(null, null, List.of(),
-                        new SkillAnalysis.ToolUsage(List.of(), List.of()), List.of(), List.of(), clean,
+        SkillAnalysisDTO prev = store.get(name);
+        SkillAnalysisDTO next = prev == null
+                ? new SkillAnalysisDTO(null, null, List.of(),
+                        new SkillAnalysisDTO.ToolUsage(List.of(), List.of()), List.of(), List.of(), clean,
                         List.of(), List.of(), List.of())
-                : new SkillAnalysis(prev.analyzedAt(), prev.contentHash(), prev.scannedFiles(),
+                : new SkillAnalysisDTO(prev.analyzedAt(), prev.contentHash(), prev.scannedFiles(),
                         prev.tools(), prev.apis(), prev.shellCommands(), clean,
                         nz(prev.hiddenTools()), nz(prev.hiddenApis()), nz(prev.hiddenShellCommands()));
         store.put(name, next);
@@ -162,18 +162,18 @@ public class SkillAnalysisService {
     public Map<String, Object> hideItems(String name, List<String> tools, List<String> apis,
             List<String> shellCommands) {
         locateSkill(name); // 技能不存在 404
-        SkillAnalysis prev = store.get(name);
+        SkillAnalysisDTO prev = store.get(name);
         List<String> hTools = new ArrayList<>(nz(prev == null ? null : prev.hiddenTools()));
         List<String> hApis = new ArrayList<>(nz(prev == null ? null : prev.hiddenApis()));
         List<String> hCmds = new ArrayList<>(nz(prev == null ? null : prev.hiddenShellCommands()));
         mergeDistinct(hTools, tools);
         mergeDistinct(hApis, apis);
         mergeDistinct(hCmds, shellCommands);
-        SkillAnalysis next = prev == null
-                ? new SkillAnalysis(null, null, List.of(),
-                        new SkillAnalysis.ToolUsage(List.of(), List.of()), List.of(), List.of(), List.of(),
+        SkillAnalysisDTO next = prev == null
+                ? new SkillAnalysisDTO(null, null, List.of(),
+                        new SkillAnalysisDTO.ToolUsage(List.of(), List.of()), List.of(), List.of(), List.of(),
                         hTools, hApis, hCmds)
-                : new SkillAnalysis(prev.analyzedAt(), prev.contentHash(), prev.scannedFiles(),
+                : new SkillAnalysisDTO(prev.analyzedAt(), prev.contentHash(), prev.scannedFiles(),
                         prev.tools(), prev.apis(), prev.shellCommands(), nz(prev.keyInfo()),
                         hTools, hApis, hCmds);
         store.put(name, next);
@@ -190,7 +190,7 @@ public class SkillAnalysisService {
         out.put("description", parseDescription(dir));
         out.put("dir", dir.toString());
         out.put("files", listFiles(dir));
-        SkillAnalysis sa = store.get(name);
+        SkillAnalysisDTO sa = store.get(name);
         out.put("summary", filtered(sa));
         out.put("stale", sa != null && !sa.contentHash().equals(currentHash(dir)));
         return out;
@@ -235,7 +235,7 @@ public class SkillAnalysisService {
 
         // 工具检测：系统工具名反向比对（词边界，排除名字中的 _ -）
         List<Map<String, String>> sysTools = agentChatService.listTools();
-        List<SkillAnalysis.ToolHit> used = new ArrayList<>();
+        List<SkillAnalysisDTO.ToolHit> used = new ArrayList<>();
         List<String> notUsed = new ArrayList<>();
         for (Map<String, String> t : sysTools) {
             String toolName = t.get("name");
@@ -244,12 +244,12 @@ public class SkillAnalysisService {
             }
             Hit h = countHits(text, toolName);
             if (h.count > 0) {
-                used.add(new SkillAnalysis.ToolHit(toolName, h.count, h.inCodeBlock));
+                used.add(new SkillAnalysisDTO.ToolHit(toolName, h.count, h.inCodeBlock));
             } else {
                 notUsed.add(toolName);
             }
         }
-        used.sort(Comparator.comparing(SkillAnalysis.ToolHit::name));
+        used.sort(Comparator.comparing(SkillAnalysisDTO.ToolHit::name));
 
         // API 提取：/api/ 开头的相对路径，去尾 * 与 /，去重保序
         Set<String> apis = new LinkedHashSet<>();
@@ -275,15 +275,15 @@ public class SkillAnalysisService {
                 }
             }
         }
-        List<SkillAnalysis.ShellCmd> cmds = new ArrayList<>();
-        cmdCnt.forEach((c, n) -> cmds.add(new SkillAnalysis.ShellCmd(c, n)));
-        cmds.sort(Comparator.comparing(SkillAnalysis.ShellCmd::command));
+        List<SkillAnalysisDTO.ShellCmd> cmds = new ArrayList<>();
+        cmdCnt.forEach((c, n) -> cmds.add(new SkillAnalysisDTO.ShellCmd(c, n)));
+        cmds.sort(Comparator.comparing(SkillAnalysisDTO.ShellCmd::command));
 
-        SkillAnalysis prev = store.get(name);
+        SkillAnalysisDTO prev = store.get(name);
         List<String> keyInfo = prev != null && prev.keyInfo() != null ? prev.keyInfo() : List.of();
-        SkillAnalysis sa = new SkillAnalysis(LocalDateTime.now().toString(),
+        SkillAnalysisDTO sa = new SkillAnalysisDTO(LocalDateTime.now().toString(),
                 hash, relPaths,
-                new SkillAnalysis.ToolUsage(used, notUsed),
+                new SkillAnalysisDTO.ToolUsage(used, notUsed),
                 new ArrayList<>(apis), cmds, keyInfo,
                 nz(prev == null ? null : prev.hiddenTools()),
                 nz(prev == null ? null : prev.hiddenApis()),
@@ -351,19 +351,19 @@ public class SkillAnalysisService {
      * 并携带 hiddenTools / hiddenApis / hiddenShellCommands 供前端提示「已忽略 N 项」。
      * 存储层保持完整检测结果（重新检测后隐藏项仍保留）。
      */
-    private static SkillAnalysis filtered(SkillAnalysis sa) {
+    private static SkillAnalysisDTO filtered(SkillAnalysisDTO sa) {
         if (sa == null) {
             return null;
         }
         List<String> ht = nz(sa.hiddenTools());
         List<String> ha = nz(sa.hiddenApis());
         List<String> hsc = nz(sa.hiddenShellCommands());
-        SkillAnalysis.ToolUsage tu = sa.tools();
-        SkillAnalysis.ToolUsage ntu = tu == null ? new SkillAnalysis.ToolUsage(List.of(), List.of())
-                : new SkillAnalysis.ToolUsage(tu.used() == null ? List.of()
+        SkillAnalysisDTO.ToolUsage tu = sa.tools();
+        SkillAnalysisDTO.ToolUsage ntu = tu == null ? new SkillAnalysisDTO.ToolUsage(List.of(), List.of())
+                : new SkillAnalysisDTO.ToolUsage(tu.used() == null ? List.of()
                         : tu.used().stream().filter(t -> !ht.contains(t.name())).toList(),
                         tu.notUsed() == null ? List.of() : tu.notUsed());
-        return new SkillAnalysis(sa.analyzedAt(), sa.contentHash(),
+        return new SkillAnalysisDTO(sa.analyzedAt(), sa.contentHash(),
                 sa.scannedFiles() == null ? List.of() : sa.scannedFiles(), ntu,
                 sa.apis() == null ? List.of() : sa.apis().stream().filter(a -> !ha.contains(a)).toList(),
                 sa.shellCommands() == null ? List.of()

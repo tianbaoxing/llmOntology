@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.user.dto.request.PromptSaveRequest;
-import com.conca.ontology.user.dto.request.PromptToSkillRequest;
+import com.conca.ontology.user.dto.PromptSaveDTO;
+import com.conca.ontology.user.dto.PromptToSkillDTO;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.user.model.UserPromptEntry;
 import com.conca.ontology.user.service.UserPromptService;
@@ -70,13 +70,13 @@ public class UserPromptController {
     }
 
     @PostMapping
-    public ApiResponse<UserPromptEntry> create(@Valid @RequestBody PromptSaveRequest request, HttpSession session) {
+    public ApiResponse<UserPromptEntry> create(@Valid @RequestBody PromptSaveDTO request, HttpSession session) {
         return ApiResponse.ok(userPromptService.create(currentUserId(session), request.title(), request.content()));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<UserPromptEntry> update(@PathVariable String id,
-            @Valid @RequestBody PromptSaveRequest request, HttpSession session) {
+            @Valid @RequestBody PromptSaveDTO request, HttpSession session) {
         return ApiResponse.ok(userPromptService.update(currentUserId(session), id, request.title(), request.content()));
     }
 
@@ -89,7 +89,7 @@ public class UserPromptController {
     /** 提示词沉淀为 skill：写 skills/{name}/，HarnessSkillMiddleware 动态扫描，新会话即生效 */
     @PostMapping("/{id}/to-skill")
     public ApiResponse<Map<String, Object>> toSkill(@PathVariable String id,
-            @Valid @RequestBody(required = false) PromptToSkillRequest request, HttpSession session) {
+            @Valid @RequestBody(required = false) PromptToSkillDTO request, HttpSession session) {
         String userId = currentUserId(session);
         String name = request == null ? null : request.name();
         String description = request == null ? null : request.description();

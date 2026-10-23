@@ -18,17 +18,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.file.dto.view.FileListView;
+import com.conca.ontology.file.dto.FileListDTO;
 import com.conca.ontology.file.model.FileEntry;
 import com.conca.ontology.file.service.FileStorageService;
 import com.conca.ontology.file.service.MdConvertService;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.wiki.dto.result.WikiBySourceResult;
-import com.conca.ontology.wiki.dto.result.WikiDocResult;
-import com.conca.ontology.wiki.dto.result.WikiMetaUpdateResult;
-import com.conca.ontology.wiki.dto.result.WikiSearchResult;
-import com.conca.ontology.wiki.dto.view.WikiDocView;
-import com.conca.ontology.wiki.dto.view.WikiListView;
+import com.conca.ontology.wiki.dto.WikiBySourceResultDTO;
+import com.conca.ontology.wiki.dto.WikiDocResultDTO;
+import com.conca.ontology.wiki.dto.WikiMetaUpdateResultDTO;
+import com.conca.ontology.wiki.dto.WikiSearchResultDTO;
+import com.conca.ontology.wiki.dto.WikiDocDTO;
+import com.conca.ontology.wiki.dto.WikiListDTO;
 import com.conca.ontology.wiki.model.WikiMetaEntry;
 import com.conca.ontology.wiki.model.WikiMetadataFile;
 
@@ -80,26 +80,26 @@ public class WikiService {
     }
 
     /** 文档列表（先与文件元数据对账并清理孤儿，再逐篇抽取/合并元信息） */
-    public synchronized WikiListView list() {
+    public synchronized WikiListDTO list() {
         List<FileEntry> entries = successEntries();
         Set<String> valid = Set.copyOf(entries.stream().map(FileEntry::mdName).toList());
         WikiMetadataFile mf = cleanup(loadMetadata(), valid);
         Map<String, WikiMetaEntry> manual = byMdName(mf);
-        List<WikiDocView> docs = new ArrayList<>();
+        List<WikiDocDTO> docs = new ArrayList<>();
         for (FileEntry e : entries) {
             String content = readMd(e);
             docs.add(viewOf(e, content, manual.get(e.mdName())));
         }
-        return new WikiListView(mf.version(), docs);
+        return new WikiListDTO(mf.version(), docs);
     }
 
     /** 单篇文档（MD 原文 + 合并元信息 + 正文命中的图谱实体） */
-    public synchronized WikiDocResult doc(String mdName) {
+    public synchronized WikiDocResultDTO doc(String mdName) {
         FileEntry e = findSuccess(mdName, successEntries());
         WikiMetaEntry meta = byMdName(loadMetadata()).get(mdName);
         String content = readMd(e);
         String body = stripSourceLine(content);
-        return new WikiDocResult(e.mdName(), e.name(), extractTitle(body, e.mdName()),
+        return new WikiDocResultDTO(e.mdName(), e.name(), extractTitle(body, e.mdName()),
                 extract(P_DATE, body), extract(P_SOURCE, body), extract(P_AUTHOR, body),
                 meta == null ? null : meta.category(), meta == null ? null : meta.tags(),
                 e.convertedAt(), content,
@@ -111,10 +111,10 @@ public class WikiService {
      * 加权分 = 标题命中 ×40 + 元信息（来源/分类/标签/作者/时间）命中 ×20 + 正文每次命中 ×1，降序。
      * 空白关键词返回空列表（不报错）；结果上限 50 篇。
      */
-    public synchronized WikiSearchResult search(String q) {
+    public synchronized WikiSearchResultDTO search(String q) {
         String kw = q == null ? "" : q.strip().toLowerCase();
         if (kw.isEmpty()) {
-            return new WikiSearchResult(q, List.of());
+            return new WikiSearchResultDTO(q, List.of());
         }
         List<FileEntry> entries = successEntries();
         Map<String, WikiMetaEntry> manual = byMdName(loadMetadata());
@@ -132,32 +132,32 @@ public class WikiService {
                 continue;
             }
             long score = (titleHit ? SCORE_TITLE : 0) + (metaHit ? SCORE_META : 0) + bodyHits;
-            hits.add(new SearchHit(score, bodyHits, new WikiSearchResult.Doc(
+            hits.add(new SearchHit(score, bodyHits, new WikiSearchResultDTO.Doc(
                     e.mdName(), e.name(), title, extract(P_DATE, body), extract(P_SOURCE, body),
                     meta == null ? null : meta.category(), meta == null ? null : meta.tags(),
                     bodyHits, snippets(lc, body, kw))));
         }
         hits.sort(HIT_ORDER);
-        List<WikiSearchResult.Doc> docs = hits.stream()
+        List<WikiSearchResultDTO.Doc> docs = hits.stream()
                 .limit(SEARCH_MAX_DOCS)
                 .map(h -> h.doc)
                 .toList();
-        return new WikiSearchResult(q, docs);
+        return new WikiSearchResultDTO(q, docs);
     }
 
     /** 反向溯源：按来源上传文件名查相关文档（两侧均源自 FileEntry.name，字符串相等即匹配） */
-    public synchronized WikiBySourceResult bySource(String file) {
+    public synchronized WikiBySourceResultDTO bySource(String file) {
         if (file == null || file.isBlank()) {
             throw new ApiException(400, "缺少 file 参数");
         }
-        List<WikiDocView> docs = list().docs().stream()
+        List<WikiDocDTO> docs = list().docs().stream()
                 .filter(d -> file.equals(d.sourceName()))
                 .toList();
-        return new WikiBySourceResult(docs);
+        return new WikiBySourceResultDTO(docs);
     }
 
     /** 编辑元信息（category 置空、tags 置空即清除；孤儿清理后 upsert，version +1） */
-    public synchronized WikiMetaUpdateResult updateMeta(String mdName, String category, List<String> tags) {
+    public synchronized WikiMetaUpdateResultDTO updateMeta(String mdName, String category, List<String> tags) {
         List<FileEntry> entries = successEntries();
         FileEntry e = findSuccess(mdName, entries);
         Set<String> valid = Set.copyOf(entries.stream().map(FileEntry::mdName).toList());
@@ -168,14 +168,14 @@ public class WikiService {
         WikiMetadataFile next = new WikiMetadataFile(mf.version() + 1, new ArrayList<>(byName.values()));
         persist(next);
         log.info("wiki meta updated: {} -> category={}, tags={}", mdName, updated.category(), updated.tags());
-        return new WikiMetaUpdateResult(next.version(),
+        return new WikiMetaUpdateResultDTO(next.version(),
                 viewOf(e, readMd(e), updated));
     }
 
     // ---------------- 内部 ----------------
 
     /** 搜索中间结构：加权分排序（标题/元信息命中的文档始终排在纯正文命中之前；同分按命中次数） */
-    private record SearchHit(long score, long hits, WikiSearchResult.Doc doc) {
+    private record SearchHit(long score, long hits, WikiSearchResultDTO.Doc doc) {
     }
 
     private static final Comparator<SearchHit> HIT_ORDER =
@@ -217,7 +217,7 @@ public class WikiService {
     }
 
     /** 命中片段：以命中点为中心前后各 ~40 字符；相邻命中（相距 < 40 字符）合并为一段；每篇最多 3 段 */
-    private static List<WikiSearchResult.Snippet> snippets(String lc, String body, String kw) {
+    private static List<WikiSearchResultDTO.Snippet> snippets(String lc, String body, String kw) {
         List<int[]> ranges = new ArrayList<>();
         int idx = 0;
         while ((idx = lc.indexOf(kw, idx)) >= 0) {
@@ -229,20 +229,20 @@ public class WikiService {
             }
             idx = end;
         }
-        List<WikiSearchResult.Snippet> out = new ArrayList<>(Math.min(MAX_SNIPPETS, ranges.size()));
+        List<WikiSearchResultDTO.Snippet> out = new ArrayList<>(Math.min(MAX_SNIPPETS, ranges.size()));
         for (int i = 0; i < Math.min(MAX_SNIPPETS, ranges.size()); i++) {
             int[] r = ranges.get(i);
             int s = Math.max(0, r[0] - SNIPPET_PAD);
             int e = Math.min(body.length(), r[1] + SNIPPET_PAD);
             String text = (s > 0 ? "…" : "") + body.substring(s, e) + (e < body.length() ? "…" : "");
-            out.add(new WikiSearchResult.Snippet(text));
+            out.add(new WikiSearchResultDTO.Snippet(text));
         }
         return out;
     }
 
     /** SUCCESS 条目（保持文件列表顺序）；顺带触发文件对账与 MD 转换补齐 */
     private List<FileEntry> successEntries() {
-        FileListView fv = fileStorageService.list();
+        FileListDTO fv = fileStorageService.list();
         return fv.files().stream()
                 .filter(f -> FileEntry.STATUS_SUCCESS.equals(f.convertStatus()) && f.mdName() != null)
                 .toList();
@@ -279,9 +279,9 @@ public class WikiService {
         return byName;
     }
 
-    private WikiDocView viewOf(FileEntry e, String content, WikiMetaEntry meta) {
+    private WikiDocDTO viewOf(FileEntry e, String content, WikiMetaEntry meta) {
         String body = stripSourceLine(content);
-        return new WikiDocView(e.mdName(), e.name(), extractTitle(body, e.mdName()),
+        return new WikiDocDTO(e.mdName(), e.name(), extractTitle(body, e.mdName()),
                 extract(P_DATE, body), extract(P_SOURCE, body), extract(P_AUTHOR, body),
                 meta == null ? null : meta.category(), meta == null ? null : meta.tags(),
                 e.description(), e.convertedAt(), mdSize(e.mdName()));

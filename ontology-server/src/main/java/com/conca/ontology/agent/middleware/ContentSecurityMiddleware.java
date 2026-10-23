@@ -5,7 +5,7 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.conca.ontology.content.dto.result.ContentSecurityCheckResult;
+import com.conca.ontology.content.dto.ContentSecurityCheckResultDTO;
 import com.conca.ontology.content.service.ContentSecurityService;
 
 import io.agentscope.core.ReActAgent;
@@ -47,7 +47,7 @@ public class ContentSecurityMiddleware implements HarnessRuntimeMiddleware {
     public Flux<AgentEvent> onAgent(Agent agent, RuntimeContext ctx, AgentInput input,
             Function<AgentInput, Flux<AgentEvent>> next) {
 
-        ContentSecurityCheckResult result = securityService.checkUserMessages(input.msgs());
+        ContentSecurityCheckResultDTO result = securityService.checkUserMessages(input.msgs());
 
         if (!result.shouldBlock() || !(agent instanceof ReActAgent react)) {
             return next.apply(input);

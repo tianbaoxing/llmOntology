@@ -22,7 +22,7 @@ import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.content.entity.RuleContentSecurity;
 import com.conca.ontology.content.mapper.RuleContentSecurityMapper;
 import com.conca.ontology.content.model.*;
-import com.conca.ontology.content.dto.result.*;
+import com.conca.ontology.content.dto.*;
 
 import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.Msg;
@@ -131,18 +131,18 @@ public class ContentSecurityService {
 
     // ========== 核心检测入口 ==========
 
-    public ContentSecurityCheckResult checkUserMessages(List<Msg> msgs) {
+    public ContentSecurityCheckResultDTO checkUserMessages(List<Msg> msgs) {
         ContentDecision globalDecision = ContentDecision.ALLOW;
         double maxConfidence = 0.0;
         ContentRiskLevel globalRiskLevel = ContentRiskLevel.LOW;
-        LinkedHashMap<String, ContentSecurityRuleHit> allReasons = new LinkedHashMap<>();
-        LinkedHashMap<String, ContentSecurityRuleHit> allAllowlisted = new LinkedHashMap<>();
+        LinkedHashMap<String, ContentSecurityRuleHitDTO> allReasons = new LinkedHashMap<>();
+        LinkedHashMap<String, ContentSecurityRuleHitDTO> allAllowlisted = new LinkedHashMap<>();
 
         if (msgs != null) {
             for (Msg msg : msgs) {
                 if (msg.getRole() != MsgRole.USER) continue;
                 String text = textOf(msg);
-                PromptInjectionScanResult injection = promptInjectionCheck(text);
+                PromptInjectionScanResultDTO injection = promptInjectionCheck(text);
 
                 if (injection.confidence() > maxConfidence) {
                     maxConfidence = injection.confidence();
@@ -153,12 +153,12 @@ public class ContentSecurityService {
                 if (injection.riskLevel().ordinal() > globalRiskLevel.ordinal()) {
                     globalRiskLevel = injection.riskLevel();
                 }
-                for (ContentSecurityRuleHit r : injection.reasons()) {
+                for (ContentSecurityRuleHitDTO r : injection.reasons()) {
                     if (!allReasons.containsKey(r.ruleId())) {
                         allReasons.put(r.ruleId(), r);
                     }
                 }
-                for (ContentSecurityRuleHit r : injection.allowlistedHits()) {
+                for (ContentSecurityRuleHitDTO r : injection.allowlistedHits()) {
                     if (!allAllowlisted.containsKey(r.ruleId())) {
                         allAllowlisted.put(r.ruleId(), r);
                     }
@@ -166,7 +166,7 @@ public class ContentSecurityService {
             }
         }
 
-        PromptInjectionScanResult combinedInjection = new PromptInjectionScanResult(
+        PromptInjectionScanResultDTO combinedInjection = new PromptInjectionScanResultDTO(
                 globalDecision,
                 round3(maxConfidence),
                 globalRiskLevel,
@@ -198,7 +198,7 @@ public class ContentSecurityService {
             } else if ("log-only".equalsIgnoreCase(reviewStrategy)) {
                 log.warn("ContentSecurity REVIEW 判决：confidence={} reasons={}，按策略放行不拦截",
                         maxConfidence,
-                        combinedInjection.reasons().stream().map(ContentSecurityRuleHit::ruleId).collect(Collectors.toList()));
+                        combinedInjection.reasons().stream().map(ContentSecurityRuleHitDTO::ruleId).collect(Collectors.toList()));
             }
         }
 
@@ -207,7 +207,7 @@ public class ContentSecurityService {
             blockTip = "⚠ 您的消息存在安全风险，已被拦截，请修改后重新发送";
         }
 
-        return new ContentSecurityCheckResult(
+        return new ContentSecurityCheckResultDTO(
                 combinedInjection,
                 shouldBlock,
                 blockTip
@@ -226,7 +226,7 @@ public class ContentSecurityService {
 
     // ========== Prompt 注入检测 ==========
 
-    public PromptInjectionScanResult promptInjectionCheck(String text) {
+    public PromptInjectionScanResultDTO promptInjectionCheck(String text) {
         if (text == null) text = "";
 
         List<Variant> variants;
@@ -236,15 +236,15 @@ public class ContentSecurityService {
             variants = List.of(new Variant(text, "plain"));
         }
 
-        LinkedHashMap<String, ContentSecurityRuleHit> reasonsByRuleId = new LinkedHashMap<>();
-        LinkedHashMap<String, ContentSecurityRuleHit> allowlistedByRuleId = new LinkedHashMap<>();
+        LinkedHashMap<String, ContentSecurityRuleHitDTO> reasonsByRuleId = new LinkedHashMap<>();
+        LinkedHashMap<String, ContentSecurityRuleHitDTO> allowlistedByRuleId = new LinkedHashMap<>();
         double score = 0;
         boolean anyCritical = false;
 
         for (Variant variant : variants) {
             if (anyCritical) break;
-            List<ContentSecurityRuleHit> hits = ruleScanOneVariant(variant.text(), variant.via());
-            for (ContentSecurityRuleHit hit : hits) {
+            List<ContentSecurityRuleHitDTO> hits = ruleScanOneVariant(variant.text(), variant.via());
+            for (ContentSecurityRuleHitDTO hit : hits) {
                 if (allowlistedIds.contains(hit.ruleId())) {
                     if (!allowlistedByRuleId.containsKey(hit.ruleId())) {
                         allowlistedByRuleId.put(hit.ruleId(), hit);
@@ -261,8 +261,8 @@ public class ContentSecurityService {
             }
         }
 
-        List<ContentSecurityRuleHit> reasons = new ArrayList<>(reasonsByRuleId.values());
-        List<ContentSecurityRuleHit> allowlistedHits = new ArrayList<>(allowlistedByRuleId.values());
+        List<ContentSecurityRuleHitDTO> reasons = new ArrayList<>(reasonsByRuleId.values());
+        List<ContentSecurityRuleHitDTO> allowlistedHits = new ArrayList<>(allowlistedByRuleId.values());
 
         double confidence;
         if (anyCritical) {
@@ -281,7 +281,7 @@ public class ContentSecurityService {
         }
 
         ContentRiskLevel riskLevel = ContentRiskLevel.LOW;
-        for (ContentSecurityRuleHit r : reasons) {
+        for (ContentSecurityRuleHitDTO r : reasons) {
             if (r.severity() == ContentSeverity.CRITICAL || r.severity() == ContentSeverity.HIGH) {
                 riskLevel = ContentRiskLevel.HIGH;
                 break;
@@ -295,7 +295,7 @@ public class ContentSecurityService {
             riskLevel = ContentRiskLevel.MEDIUM;
         }
 
-        return new PromptInjectionScanResult(
+        return new PromptInjectionScanResultDTO(
                 decision,
                 round3(confidence),
                 riskLevel,
@@ -305,8 +305,8 @@ public class ContentSecurityService {
         );
     }
 
-    private List<ContentSecurityRuleHit> ruleScanOneVariant(String subject, String via) {
-        List<ContentSecurityRuleHit> hits = new ArrayList<>();
+    private List<ContentSecurityRuleHitDTO> ruleScanOneVariant(String subject, String via) {
+        List<ContentSecurityRuleHitDTO> hits = new ArrayList<>();
         for (ContentSecurityRule rule : allRules) {
             Pattern patternG = compiledGlobalPatterns.get(rule.id());
             if (patternG == null) continue;
@@ -324,7 +324,7 @@ public class ContentSecurityService {
             }
             if (matches > 0) {
                     String snippet = makeSnippet(subject, firstIndex, firstMatch);
-                    ContentSecurityRuleHit hit = new ContentSecurityRuleHit(
+                    ContentSecurityRuleHitDTO hit = new ContentSecurityRuleHitDTO(
                             rule.id(), rule.category(), rule.severity(), rule.action(),
                             rule.description(), matches, snippet, via
                     );

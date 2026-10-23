@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.conca.ontology.disjoint.dto.view.DisjointConflictView;
-import com.conca.ontology.disjoint.dto.view.DisjointRulesView;
+import com.conca.ontology.disjoint.dto.DisjointConflictDTO;
+import com.conca.ontology.disjoint.dto.DisjointRulesDTO;
 import com.conca.ontology.disjoint.entity.RuleDisjoint;
 import com.conca.ontology.disjoint.mapper.RuleDisjointMapper;
 import com.conca.ontology.disjoint.model.DisjointRule;
@@ -38,8 +38,8 @@ public class DisjointRuleService {
         this.ruleMapper = ruleMapper;
     }
 
-    public DisjointRulesView loadAll() {
-        return new DisjointRulesView(listOrdered());
+    public DisjointRulesDTO loadAll() {
+        return new DisjointRulesDTO(listOrdered());
     }
 
     public DisjointRule get(String id) {
@@ -51,7 +51,7 @@ public class DisjointRuleService {
     }
 
     @Transactional
-    public DisjointRulesView save(DisjointRule rule) {
+    public DisjointRulesDTO save(DisjointRule rule) {
         if (rule.id() == null || rule.id().isBlank()) {
             throw new ApiException(400, "规则 ID 不能为空");
         }
@@ -79,7 +79,7 @@ public class DisjointRuleService {
     }
 
     @Transactional
-    public DisjointRulesView delete(String id) {
+    public DisjointRulesDTO delete(String id) {
         if (ruleMapper.deleteById(id) <= 0) {
             throw new ApiException(404, "规则不存在: " + id);
         }
@@ -113,8 +113,8 @@ public class DisjointRuleService {
     }
 
     /** 对单段文本执行冲突检测：逐条规则扫描，返回所有命中 ≥2 候选项的冲突。 */
-    public List<DisjointConflictView> checkConflicts(String text) {
-        List<DisjointConflictView> out = new ArrayList<>();
+    public List<DisjointConflictDTO> checkConflicts(String text) {
+        List<DisjointConflictDTO> out = new ArrayList<>();
         if (text == null || text.isBlank()) return out;
         for (DisjointRule r : listOrdered()) {
             List<String> items = parseItems(r.text());
@@ -124,7 +124,7 @@ public class DisjointRuleService {
                 if (text.contains(it)) hits.add(it);
             }
             if (hits.size() >= 2) {
-                out.add(new DisjointConflictView(r.id(), r.text(), hits));
+                out.add(new DisjointConflictDTO(r.id(), r.text(), hits));
             }
         }
         return out;

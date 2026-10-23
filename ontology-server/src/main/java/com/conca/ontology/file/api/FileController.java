@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.file.dto.result.FileDeleteResult;
-import com.conca.ontology.file.dto.request.FileDescRequest;
-import com.conca.ontology.file.dto.view.FileListView;
-import com.conca.ontology.file.dto.result.FileUpdateResult;
-import com.conca.ontology.file.dto.result.FileUploadResult;
+import com.conca.ontology.file.dto.FileDeleteResultDTO;
+import com.conca.ontology.file.dto.FileDescDTO;
+import com.conca.ontology.file.dto.FileListDTO;
+import com.conca.ontology.file.dto.FileUpdateResultDTO;
+import com.conca.ontology.file.dto.FileUploadResultDTO;
 import com.conca.ontology.file.service.FileStorageService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,7 +48,7 @@ public class FileController {
     @Operation(summary = "上传文件", description = "multipart：file + description（可选）。扩展名白名单校验，"
             + "同名覆盖，原子落盘（tmp + rename）。")
     @PostMapping
-    public ApiResponse<FileUploadResult> upload(
+    public ApiResponse<FileUploadResultDTO> upload(
             @Parameter(description = "文件本体（multipart）") @RequestParam("file") MultipartFile file,
             @Parameter(description = "文件说明（可选）") @RequestParam(value = "description", required = false) String description) {
         return ApiResponse.ok(storageService.upload(file, description));
@@ -56,21 +56,21 @@ public class FileController {
 
     @Operation(summary = "文件列表", description = "与磁盘对账后返回（新文件补录、消失文件剔除）。")
     @GetMapping
-    public ApiResponse<FileListView> list() {
+    public ApiResponse<FileListDTO> list() {
         return ApiResponse.ok(storageService.list());
     }
 
     @Operation(summary = "编辑文件说明", description = "{*name} 支持子目录路径，入参带前导斜杠需截去。")
     @PutMapping("/{*name}")
-    public ApiResponse<FileUpdateResult> updateDescription(
+    public ApiResponse<FileUpdateResultDTO> updateDescription(
             @Parameter(description = "文件名（可含子目录路径）", example = "artifact.csv") @PathVariable String name,
-            @Valid @RequestBody FileDescRequest req) {
+            @Valid @RequestBody FileDescDTO req) {
         return ApiResponse.ok(storageService.updateDescription(stripSlash(name), req.description()));
     }
 
     @Operation(summary = "删除文件", description = "文件实体 + 对应 MD + 元数据记录一并移除。")
     @DeleteMapping("/{*name}")
-    public ApiResponse<FileDeleteResult> delete(
+    public ApiResponse<FileDeleteResultDTO> delete(
             @Parameter(description = "文件名（可含子目录路径）", example = "artifact.csv") @PathVariable String name) {
         return ApiResponse.ok(storageService.delete(stripSlash(name)));
     }
@@ -78,7 +78,7 @@ public class FileController {
     @Operation(summary = "重试 MD 转换", description = "对 pdf/word/excel 强制重转（先删旧 MD）；"
             + "转换失败（如扫描件）修复后手动触发。name 为查询参数（可含子目录路径）。")
     @PostMapping("/reconvert")
-    public ApiResponse<FileUpdateResult> reconvert(
+    public ApiResponse<FileUpdateResultDTO> reconvert(
             @Parameter(description = "文件名（可含子目录路径）", example = "报告.docx") @RequestParam("name") String name) {
         return ApiResponse.ok(storageService.reconvert(name));
     }

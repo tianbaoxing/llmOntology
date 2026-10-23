@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.user.dto.request.InitRequest;
-import com.conca.ontology.user.dto.request.LoginRequest;
+import com.conca.ontology.user.dto.InitDTO;
+import com.conca.ontology.user.dto.LoginDTO;
 import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.user.service.UserService;
 
@@ -39,7 +39,7 @@ public class AuthController {
 
     /** 创建会话（登录） */
     @PostMapping("/session")
-    public ApiResponse<Map<String, Object>> login(@RequestBody @Valid LoginRequest req, HttpSession session) {
+    public ApiResponse<Map<String, Object>> login(@RequestBody @Valid LoginDTO req, HttpSession session) {
         UserEntry u = users.login(req.username(), req.password());
         session.setAttribute(SessionUser.SESSION_KEY, SessionUser.from(u));
         return ApiResponse.ok(userInfo(u));
@@ -66,7 +66,7 @@ public class AuthController {
 
     /** 系统初始化：设置 admin 密码并直接登录（仅当不存在任何 ADMIN 时可用） */
     @PostMapping("/setup")
-    public ApiResponse<Map<String, Object>> init(@RequestBody @Valid InitRequest req, HttpSession session) {
+    public ApiResponse<Map<String, Object>> init(@RequestBody @Valid InitDTO req, HttpSession session) {
         UserEntry admin = users.initAdmin(req.password());
         session.setAttribute(SessionUser.SESSION_KEY, SessionUser.from(admin));
         return ApiResponse.ok(userInfo(admin));
