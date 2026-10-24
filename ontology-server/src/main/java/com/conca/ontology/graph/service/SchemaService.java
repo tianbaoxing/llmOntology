@@ -95,7 +95,14 @@ public class SchemaService {
 
     // ---------------- views ----------------
 
+    /** 读路径实时重载：GET 视图前从 MySQL 事实源重读 meta 与三表定义（去掉定义的内存缓存语义） */
+    private void reloadFromDb() {
+        this.version = ensureMeta();
+        schema.reload(loadClasses());
+    }
+
     public SchemaDTO schemaView() {
+        reloadFromDb();
         Map<String, Long> nodeCounts = nodeCounts();
         Map<String, Long> relCounts = relCounts();
         List<ClassDTO> classes = new ArrayList<>();
@@ -110,6 +117,7 @@ public class SchemaService {
     }
 
     public List<ClassSummaryDTO> classSummaries() {
+        reloadFromDb();
         Map<String, Long> nodeCounts = nodeCounts();
         List<ClassSummaryDTO> list = new ArrayList<>();
         for (ClassDef c : schema.allClasses()) {
