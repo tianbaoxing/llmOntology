@@ -4,7 +4,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * Wiki 手工元数据条目：data/wiki-metadata.json 的单元，以 mdName 为 key 关联转换产物。
+ * Wiki 手工元数据条目：wiki_metadata 表的单元（P10 起由 data/wiki-metadata.json 迁入），
+ * 以 mdName 为 key 关联转换产物。
  *
  * @author tianbaoxing
  * @date 2026-09-23

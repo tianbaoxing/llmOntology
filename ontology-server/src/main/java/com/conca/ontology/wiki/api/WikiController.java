@@ -27,7 +27,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * 只读呈现 files-md/ 转换产物：列表 = SUCCESS 条目 + 元信息自动抽取/手工维护合并。
  */
 @Tag(name = "Admin-Wiki", description = "Wiki 知识库（wiki.html 数据源）：文档列表、单篇读取（MD 原文 + 元信息）、"
-        + "编辑分类/标签（data/wiki-metadata.json）。")
+        + "编辑分类/标签（wiki_metadata 表）。")
 
 /**
  * @author tianbaoxing
@@ -44,7 +44,7 @@ public class WikiController {
     }
 
     @Operation(summary = "文档列表", description = "仅含转换 SUCCESS 的 MD（与 LLM 可见性一致）；"
-            + "元信息 = 正文自动抽取 + wiki-metadata.json 手工维护合并；顺带清理孤儿元数据。")
+            + "元信息 = 正文自动抽取 + wiki_metadata 表手工维护合并；顺带清理孤儿元数据。")
     @GetMapping
     public ApiResponse<WikiListDTO> list() {
         return ApiResponse.ok(wikiService.list());

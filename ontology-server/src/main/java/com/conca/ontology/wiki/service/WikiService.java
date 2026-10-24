@@ -2,11 +2,8 @@ package com.conca.ontology.wiki.service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -15,7 +12,6 @@ import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.conca.ontology.file.dto.FileListDTO;
@@ -30,15 +26,13 @@ import com.conca.ontology.wiki.dto.WikiSearchResultDTO;
 import com.conca.ontology.wiki.dto.WikiDocDTO;
 import com.conca.ontology.wiki.dto.WikiListDTO;
 import com.conca.ontology.wiki.model.WikiMetaEntry;
-import com.conca.ontology.wiki.model.WikiMetadataFile;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.conca.ontology.wiki.store.WikiMetaStore;
 
 /**
  * Wiki 知识库：files-md/ 转换产物的只读呈现层（不做编辑，上传/删除/重转仍由 /files 独占管理）。
  * 文档清单 = FileStorageService 对账结果中 convertStatus=SUCCESS 的条目（与 LLM 可见性一致）；
  * 元信息 = MD 正文自动抽取（标题/发布时间/来源/作者，全角冒号匹配，避开首行半角"来源:"转换信息）
- *         + data/wiki-metadata.json 手工维护（分类/标签，以 mdName 为 key）。
+ *         + wiki_metadata 表手工维护（分类/标签，以 mdName 为 key）。
  * 列表加载时顺带剔除孤儿元数据（对应 MD 已删除），文件删除无需联动通知。
  *
  * @author tianbaoxing
@@ -65,38 +59,35 @@ public class WikiService {
 
     private final FileStorageService fileStorageService;
     private final MdConvertService convertService;
-    private final ObjectMapper mapper;
     private final WikiEntityService entityService;
-
-    @Value("${app.wiki-metadata-file:data/wiki-metadata.json}")
-    private String metadataFile;
+    private final WikiMetaStore metaStore;
 
     public WikiService(FileStorageService fileStorageService, MdConvertService convertService,
-            ObjectMapper mapper, WikiEntityService entityService) {
+            WikiEntityService entityService, WikiMetaStore metaStore) {
         this.fileStorageService = fileStorageService;
         this.convertService = convertService;
-        this.mapper = mapper;
         this.entityService = entityService;
+        this.metaStore = metaStore;
     }
 
     /** 文档列表（先与文件元数据对账并清理孤儿，再逐篇抽取/合并元信息） */
     public synchronized WikiListDTO list() {
         List<FileEntry> entries = successEntries();
         Set<String> valid = Set.copyOf(entries.stream().map(FileEntry::mdName).toList());
-        WikiMetadataFile mf = cleanup(loadMetadata(), valid);
-        Map<String, WikiMetaEntry> manual = byMdName(mf);
+        removeOrphans(valid);
+        Map<String, WikiMetaEntry> manual = metaStore.byMdName();
         List<WikiDocDTO> docs = new ArrayList<>();
         for (FileEntry e : entries) {
             String content = readMd(e);
             docs.add(viewOf(e, content, manual.get(e.mdName())));
         }
-        return new WikiListDTO(mf.version(), docs);
+        return new WikiListDTO(docs);
     }
 
     /** 单篇文档（MD 原文 + 合并元信息 + 正文命中的图谱实体） */
     public synchronized WikiDocResultDTO doc(String mdName) {
         FileEntry e = findSuccess(mdName, successEntries());
-        WikiMetaEntry meta = byMdName(loadMetadata()).get(mdName);
+        WikiMetaEntry meta = metaStore.get(mdName);
         String content = readMd(e);
         String body = stripSourceLine(content);
         return new WikiDocResultDTO(e.mdName(), e.name(), extractTitle(body, e.mdName()),
@@ -117,7 +108,7 @@ public class WikiService {
             return new WikiSearchResultDTO(q, List.of());
         }
         List<FileEntry> entries = successEntries();
-        Map<String, WikiMetaEntry> manual = byMdName(loadMetadata());
+        Map<String, WikiMetaEntry> manual = metaStore.byMdName();
         List<SearchHit> hits = new ArrayList<>();
         for (FileEntry e : entries) {
             String content = readMd(e);
@@ -156,20 +147,16 @@ public class WikiService {
         return new WikiBySourceResultDTO(docs);
     }
 
-    /** 编辑元信息（category 置空、tags 置空即清除；孤儿清理后 upsert，version +1） */
+    /** 编辑元信息（category 置空、tags 置空即清除；孤儿清理后行级 upsert） */
     public synchronized WikiMetaUpdateResultDTO updateMeta(String mdName, String category, List<String> tags) {
         List<FileEntry> entries = successEntries();
         FileEntry e = findSuccess(mdName, entries);
         Set<String> valid = Set.copyOf(entries.stream().map(FileEntry::mdName).toList());
-        WikiMetadataFile mf = cleanup(loadMetadata(), valid);
+        removeOrphans(valid);
         WikiMetaEntry updated = new WikiMetaEntry(mdName, cleanCategory(category), cleanTags(tags));
-        Map<String, WikiMetaEntry> byName = byMdName(mf);
-        byName.put(mdName, updated);
-        WikiMetadataFile next = new WikiMetadataFile(mf.version() + 1, new ArrayList<>(byName.values()));
-        persist(next);
+        metaStore.upsert(updated);
         log.info("wiki meta updated: {} -> category={}, tags={}", mdName, updated.category(), updated.tags());
-        return new WikiMetaUpdateResultDTO(next.version(),
-                viewOf(e, readMd(e), updated));
+        return new WikiMetaUpdateResultDTO(viewOf(e, readMd(e), updated));
     }
 
     // ---------------- 内部 ----------------
@@ -258,25 +245,12 @@ public class WikiService {
                 .orElseThrow(() -> new ApiException(404, "文档不存在: " + mdName));
     }
 
-    /** 剔除孤儿元数据（MD 已删除的条目） */
-    private WikiMetadataFile cleanup(WikiMetadataFile mf, Set<String> valid) {
-        List<WikiMetaEntry> kept = mf.entries().stream()
-                .filter(e -> valid.contains(e.mdName())).toList();
-        if (kept.size() == mf.entries().size()) {
-            return mf;
+    /** 剔除孤儿元数据（MD 已删除的行）；文件删除无联动通知，靠读时对账 */
+    private void removeOrphans(Set<String> valid) {
+        int removed = metaStore.deleteNotIn(valid);
+        if (removed > 0) {
+            log.info("wiki meta orphans removed: {}", removed);
         }
-        WikiMetadataFile next = new WikiMetadataFile(mf.version() + 1, kept);
-        persist(next);
-        log.info("wiki meta orphans removed: {} -> {}", mf.entries().size(), kept.size());
-        return next;
-    }
-
-    private Map<String, WikiMetaEntry> byMdName(WikiMetadataFile mf) {
-        Map<String, WikiMetaEntry> byName = new LinkedHashMap<>();
-        for (WikiMetaEntry e : mf.entries()) {
-            byName.put(e.mdName(), e);
-        }
-        return byName;
     }
 
     private WikiDocDTO viewOf(FileEntry e, String content, WikiMetaEntry meta) {
@@ -376,35 +350,5 @@ public class WikiService {
         } catch (IOException e) {
             return 0;
         }
-    }
-
-    // ---------------- 元数据存取 ----------------
-
-    private void persist(WikiMetadataFile mf) {
-        try {
-            Path file = metadataPath();
-            Files.createDirectories(file.getParent());
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            mapper.writerWithDefaultPrettyPrinter().writeValue(tmp.toFile(), mf);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to save wiki metadata: " + metadataFile, e);
-        }
-    }
-
-    private WikiMetadataFile loadMetadata() {
-        Path file = metadataPath();
-        if (Files.notExists(file)) {
-            return WikiMetadataFile.empty();
-        }
-        try {
-            return mapper.readValue(file.toFile(), WikiMetadataFile.class);
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load wiki metadata: " + file.toAbsolutePath(), e);
-        }
-    }
-
-    private Path metadataPath() {
-        return Path.of(metadataFile).toAbsolutePath();
     }
 }

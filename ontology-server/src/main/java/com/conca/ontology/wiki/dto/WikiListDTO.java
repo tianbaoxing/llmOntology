@@ -11,6 +11,5 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 @Schema(description = "Wiki 文档列表（仅转换成功的 MD）")
 public record WikiListDTO(
-        @Schema(description = "元数据版本（编辑元信息后 +1）", example = "3") int version,
         @Schema(description = "文档列表") List<WikiDocDTO> docs) {
 }
