@@ -405,8 +405,11 @@ public class EvalDatasetService {
             }
         }
         String type = req.referenceType() == null ? "" : req.referenceType().trim();
+        String text = req.referenceText() == null ? "" : req.referenceText().trim();
+        if (type.isEmpty() && !text.isEmpty()) {
+            throw new ApiException(400, "已填写期望回答文本，但未选择 referenceType（string|number|array）");
+        }
         if (!type.isEmpty()) {
-            String text = req.referenceText() == null ? "" : req.referenceText().trim();
             switch (type) {
                 case "string" -> e.setReferenceResponse(text);
                 case "number" -> {

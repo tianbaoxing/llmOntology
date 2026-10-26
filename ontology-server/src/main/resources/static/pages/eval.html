@@ -2297,6 +2297,7 @@ async function saveSample() {
   const refType = $('sm-reftype').value;
   const refText = $('sm-reftext').value.trim();
   if (refType && !refText) return showMsg('已选期望回答类型，请填写期望回答', false);
+  if (!refType && refText) return showMsg('已填写期望回答，请选择期望回答类型', false);
   const tol = $('sm-tolerance').value;
   const body = {
     id: $('sm-id').value.trim(),
@@ -2325,7 +2326,7 @@ async function saveSample() {
     if (smModal.mode === 'add') {
       await api('POST', '/api/eval/datasets/' + encodeURIComponent(target) + '/samples', body);
       showMsg('已新增到 ' + target + '（文件现 ' + await lastTotal(target) + ' 条）', true);
-      if (target !== dsState.name) await loadDsSelector(target);
+      await loadDsSelector(target); // 无条件刷新：往当前数据集新增也要更新下拉计数
       await loadSamples(999999);
     } else {
       await api('PUT', '/api/eval/datasets/' + encodeURIComponent(target) + '/samples/' + smModal.seq, body);
@@ -2352,6 +2353,7 @@ async function deleteSample(seq) {
     // 若删空当前页则回退一页
     const page = dsState.total % dsState.pageSize === 1 && dsState.page > 1 ? dsState.page - 1 : dsState.page;
     await loadSamples(page);
+    await loadDsSelector(dsState.name); // 同步刷新数据集下拉计数
     refreshRunDatasets().catch(() => {});
   } catch (e) { showMsg('删除失败：' + e.message, false); }
 }
