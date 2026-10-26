@@ -21,6 +21,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -238,6 +239,9 @@ public class BackupService {
      * 表清单 information_schema 自动发现（排除 flyway_schema_history 迁移簿记——恢复时目标库
      * Flyway 自管，带上必然 checksum 冲突；排除 SPRING_SESSION(_ATTRIBUTES) 登录会话运行态，
      * 易失数据无备份价值），后续期次新增表零改动自动进备份。
+     * 列清单按 information_schema.columns 过滤生成列（P1 起 eval_run.running_flag 为 VIRTUAL
+     * GENERATED——导出后恢复时 INSERT 含生成列会报错，必须排除；用 generation_expression 判定
+     * 而非 EXTRA，因 MySQL 8.0 普通 DEFAULT 列的 EXTRA='DEFAULT_GENERATED' 会误伤）。
      * 空表也写空 .jsonl 占位（恢复时区分"0 行"与"表缺失"）。
      */
     private long exportTables(Task task, Path dbDir) throws IOException {
@@ -254,7 +258,7 @@ public class BackupService {
             Path out = dbDir.resolve(table + ".jsonl");
             try (BufferedWriter w = Files.newBufferedWriter(out, StandardCharsets.UTF_8)) {
                 try {
-                    jdbc.query("SELECT * FROM `" + table + "`", rs -> {
+                    jdbc.query("SELECT " + physicalColumns(table) + " FROM `" + table + "`", rs -> {
                         try {
                             w.write(rowLine(rs));
                             w.newLine();
@@ -271,6 +275,16 @@ public class BackupService {
             task.percent = 70 + (int) (5.0 * done / tables.size());
         }
         return tables.size();
+    }
+
+    /** 表的非生成物理列清单（反引号逐列拼接；表必有主键等普通列，结果非空） */
+    private String physicalColumns(String table) {
+        List<String> cols = jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_schema = DATABASE() AND table_name = ? "
+                        + "AND IFNULL(generation_expression, '') = '' "
+                        + "ORDER BY ordinal_position", String.class, table);
+        return cols.stream().map(c -> "`" + c + "`").collect(Collectors.joining(", "));
     }
 
     /** 结果集当前行 → JSON 行：列名→值（JSON 列字符串转嵌套结构，DATETIME 由 mapper 序列化为 ISO） */

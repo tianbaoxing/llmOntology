@@ -1,6 +1,8 @@
 package com.conca.ontology.eval.service;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
@@ -19,10 +21,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.conca.ontology.agent.service.AgentSessionService;
 import com.conca.ontology.eval.AgenticJudgeHolder;
 import com.conca.ontology.eval.Grader;
@@ -58,11 +62,17 @@ import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.harness.agent.HarnessAgent;
 
+import jakarta.annotation.PostConstruct;
+
 /**
  * 评测任务存储层（P6 起 DB 化：eval_run + eval_run_sample，替代 data/eval/results/*.json）。
  * 运行态任务 start 时 INSERT（status=running），进度 UPDATE，完成时样本批量 INSERT + 任务行
  * UPDATE（TransactionTemplate 单事务）；历史读路径按原结果文件语义重建 Map（NULL 的 key 省略，
  * status NULL 按 success 处理），公共签名与 404/409 文案不变。
+ *
+ * <p>P1 多实例改造：全局"仅一个 running"约束由 eval_run.running_flag 生成列 + uk_running 唯一索引
+ * 保证（start INSERT 即抢锁，跨实例原子互斥）；进度权威源为 DB 行（内存 current 仅本实例读缓存），
+ * progress/listRuns 降级路径按心跳（heartbeat_at，15 分钟阈值）分流 running/interrupted。</p>
  */
 
 /**
@@ -78,6 +88,9 @@ public class EvalRunService {
     private static final Pattern RUN_ID_RE = Pattern.compile("^eval-\\d{8}-\\d{6}-[0-9a-f]{1,3}$");
     private static final int TRUNCATE = 500;
 
+    /** 心跳判活阈值（分钟）：agent 单轮硬超时 5min + LLM/Agentic 判分余量，超时无心跳判实例失联 */
+    private static final long HEARTBEAT_STALE_MINUTES = 15;
+
     private final ObjectProvider<HarnessAgent> agentProvider;
     private final ObjectMapper mapper;
     private final JudgeClient judgeClient;
@@ -92,7 +105,12 @@ public class EvalRunService {
     @Value("${app.eval.pass-threshold:0.8}")
     private double passThreshold;
 
+    @Value("${server.port:0}")
+    private int serverPort;
+
     private final AtomicReference<EvalTask> current = new AtomicReference<>();
+    /** 本实例标识（IP:端口@启动时间，随 running 行落库 owner_instance，409 文案与排查定位用） */
+    private String instanceId = "unknown";
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "eval-worker");
         t.setDaemon(true);
@@ -118,18 +136,29 @@ public class EvalRunService {
         this.txTemplate = txTemplate;
     }
 
+    /**
+     * 实例标识：IP:端口@启动时间（如 192.168.1.100:9876@20261026-143025）。
+     * @PostConstruct 时 serverPort 已注入、时刻≈服务启动，用户可直接读出"哪台机器哪个进程"；
+     * IP 解析失败（容器/hosts 异常）降级 local，不影响互斥正确性（互斥靠 DB 唯一索引，标识仅定位用）。
+     */
+    @PostConstruct
+    void initInstanceId() {
+        String ip;
+        try {
+            ip = InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            ip = "local";
+        }
+        instanceId = ip + ":" + serverPort + "@" + LocalDateTime.now().format(STAMP);
+        log.info("eval 实例标识: {}（多实例部署时用于评测任务定位）", instanceId);
+    }
+
     public synchronized Map<String, Object> start(String dataset, List<String> graderNames, Integer judgeRuns, String userId) {
         EvalTask t = current.get();
         if (t != null && "running".equals(t.status)) {
             throw new ApiException(409, "已有评测任务进行中，请等待完成（任务 id：" + t.id + "，当前进度：" + t.detail + "）");
         }
-        List<EvalRunEntity> zombies = runMapper.selectList(new LambdaQueryWrapper<EvalRunEntity>()
-                .eq(EvalRunEntity::getStatus, "running")
-                .orderByAsc(EvalRunEntity::getRunId));
-        if (!zombies.isEmpty()) {
-            throw new ApiException(409, "检测到未完成的历史评测任务「" + zombies.get(0).getRunId()
-                    + "」（服务重启或崩溃前遗留），请手动处理该结果文件后重试，或重启服务清理内存态");
-        }
+        // 跨实例互斥不再前置检查：INSERT 撞 uk_running（running_flag 生成列唯一索引）即 409，原子无竞态窗口
         Integer runs = null;
         if (judgeRuns != null) {
             if (judgeRuns < 1 || judgeRuns > 3) {
@@ -204,6 +233,28 @@ public class EvalRunService {
             }
             return m;
         }
+        // P1 跨实例 running：DB 行即权威进度（每秒节流落库，延迟 ≤1s），心跳分流 running/interrupted，
+        // 不读样本表（运行中样本未落库，原降级写死 percent=100 的假完成已修复）
+        if (taskId != null && RUN_ID_RE.matcher(taskId).matches()) {
+            EvalRunEntity row = runMapper.selectById(taskId);
+            if (row != null && "running".equals(row.getStatus())) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("taskId", taskId);
+                if (isHeartbeatFresh(row)) {
+                    m.put("status", "running");
+                    m.put("detail", row.getDetail() == null ? "准备中" : row.getDetail());
+                    m.put("percent", row.getPercent() == null ? 0 : row.getPercent());
+                    m.put("error", null);
+                } else {
+                    m.put("status", "interrupted");
+                    m.put("detail", "实例" + (row.getOwnerInstance() == null ? "" : " " + row.getOwnerInstance())
+                            + " 心跳超时，任务中断");
+                    m.put("percent", row.getPercent() == null ? 0 : row.getPercent());
+                    m.put("error", "评测实例失联，任务中断");
+                }
+                return m;
+            }
+        }
         Map<String, Object> saved = readResult(taskId);
         if (saved == null) {
             throw new ApiException(404, "task not found: " + taskId);
@@ -233,20 +284,29 @@ public class EvalRunService {
             m.put("finishedAt", e.getFinishedAt());
             m.put("startedAt", e.getStartedAt());
             String st = e.getStatus() == null ? "success" : e.getStatus();
-            if ("running".equals(st) && !id.equals(runningId)) {
-                m.put("status", "interrupted");
-                m.put("_zombie", true);
-                m.put("detail", e.getDetail() == null ? "检测到服务重启前未完成任务（当前未续跑）"
-                        : e.getDetail());
-                m.put("percent", e.getPercent());
-            } else {
-                m.put("status", st);
-            }
             if (id.equals(runningId)) {
+                // 本实例运行中（内存实时进度）
+                m.put("status", st);
                 m.put("_live", true);
                 m.put("detail", running.detail);
                 m.put("percent", running.percent);
                 m.put("graders", running.graderNames);
+            } else if ("running".equals(st) && isHeartbeatFresh(e)) {
+                // P1 跨实例运行中（他实例任务，DB 节流进度）；原逻辑此处误标 _zombie 已修复
+                m.put("status", "running");
+                m.put("_remote", true);
+                m.put("detail", e.getDetail());
+                m.put("percent", e.getPercent());
+                m.put("graders", e.getGraders());
+            } else if ("running".equals(st)) {
+                // running 但心跳超时：实例崩溃/失联遗留（心跳超时前最后进度）
+                m.put("status", "interrupted");
+                m.put("_zombie", true);
+                m.put("detail", e.getDetail() == null
+                        ? "实例失联，任务中断遗留" : e.getDetail());
+                m.put("percent", e.getPercent());
+            } else {
+                m.put("status", st);
             }
             m.put("summary", toSummaryMap(e));
             if (e.getError() != null) {
@@ -271,8 +331,20 @@ public class EvalRunService {
         if (taskId == null || !RUN_ID_RE.matcher(taskId).matches()) {
             throw new ApiException(400, "非法任务 id: " + taskId);
         }
-        if (runMapper.selectById(taskId) == null) {
+        EvalRunEntity row = runMapper.selectById(taskId);
+        if (row == null) {
             throw new ApiException(404, "评测结果不存在: " + taskId);
+        }
+        // P1 跨实例保护：running 且心跳新鲜（或本实例在跑）的行不可删——删行即释放 uk_running
+        // 全局锁且执行中实例完成后落库将 0 行回滚白跑；心跳超时的僵死行放行删除（清理路径）
+        if ("running".equals(row.getStatus())) {
+            EvalTask t = current.get();
+            boolean localRunning = t != null && taskId.equals(t.id) && "running".equals(t.status);
+            if (localRunning || isHeartbeatFresh(row)) {
+                throw new ApiException(409, "评测任务正在运行中"
+                        + (row.getOwnerInstance() == null ? "" : "，实例 " + row.getOwnerInstance())
+                        + "，无法删除，请等待完成");
+            }
         }
         log.warn("[EVAL-DELETE] 准备删除评测记录 id={} 操作者={}({})",
                 taskId, operator == null ? "null" : operator.username(),
@@ -299,6 +371,12 @@ public class EvalRunService {
     public synchronized Map<String, Object> humanScore(String taskId, String sampleId,
             Integer rawScore, String comment, Boolean skip, String userId) {
         Map<String, Object> result = requireResult(taskId);
+        // P1 跨实例保护：运行中任务样本未落库（toResultMap 无 samples 键），failed 任务同样无样本明细，
+        // 前置 409 替代原对 null 强转的 NPE 500
+        List<Map<String, Object>> samples = (List<Map<String, Object>>) result.get("samples");
+        if (samples == null) {
+            throw new ApiException(409, "该任务无样本明细（运行中或已失败），无法人工评分");
+        }
         if (!graderNames(result).contains("human_review")) {
             throw new ApiException(400, "该任务未启用人工评测器（human_review），无需人工评分");
         }
@@ -308,7 +386,6 @@ public class EvalRunService {
                 throw new ApiException(400, "rawScore 须在 1-5 之间（1 星最低，5 星最高）");
             }
         }
-        List<Map<String, Object>> samples = (List<Map<String, Object>>) result.get("samples");
         Map<String, Object> row = null;
         for (Map<String, Object> r : samples) {
             if (sampleId.equals(String.valueOf(r.get("id")))) {
@@ -404,35 +481,79 @@ public class EvalRunService {
         });
     }
 
-    /** start 时首写运行态任务行（status=running，summary/finished_at 各列为 NULL） */
+    /**
+     * start 时首写运行态任务行（status=running，summary/finished_at 各列为 NULL）。
+     * P1 起 INSERT 即全局抢锁：running_flag 生成列 + uk_running 唯一索引，撞键 409（跨实例原子互斥）；
+     * 其他落库异常同样阻断启动（互斥前提是锁行必须写入成功，不再 best-effort）。
+     */
     private void insertRunRow(EvalTask task) {
+        EvalRunEntity row = new EvalRunEntity();
+        row.setRunId(task.id);
+        row.setDataset(task.dataset);
+        row.setGraders(task.graderNames);
+        row.setJudgeRuns(task.judgeRuns);
+        row.setStatus(task.status);
+        row.setDetail(task.detail);
+        row.setPercent(task.percent);
+        row.setUserId(task.userId);
+        row.setOwnerInstance(instanceId);
+        row.setHeartbeatAt(LocalDateTime.now());
+        row.setStartedAt(task.startedAt.toString());
         try {
-            EvalRunEntity row = new EvalRunEntity();
-            row.setRunId(task.id);
-            row.setDataset(task.dataset);
-            row.setGraders(task.graderNames);
-            row.setJudgeRuns(task.judgeRuns);
-            row.setStatus(task.status);
-            row.setDetail(task.detail);
-            row.setPercent(task.percent);
-            row.setUserId(task.userId);
-            row.setStartedAt(task.startedAt.toString());
             runMapper.insert(row);
+        } catch (DuplicateKeyException e) {
+            throw runningConflict();
         } catch (Exception e) {
-            log.warn("insertRunRow failed id={}: {}", task.id, e.getMessage());
+            throw new ApiException(500, "评测任务启动落库失败: " + e.getMessage());
         }
     }
 
-    /** 进度落库：UPDATE status/detail/percent/error（null 字段不覆盖，对齐原整文件覆写语义） */
+    /** 撞 uk_running：全局已有 running 行，按心跳分流 409 文案（别实例在跑 vs 疑似僵死可清理） */
+    private ApiException runningConflict() {
+        List<EvalRunEntity> holders = runMapper.selectList(new LambdaQueryWrapper<EvalRunEntity>()
+                .eq(EvalRunEntity::getStatus, "running"));
+        if (!holders.isEmpty()) {
+            EvalRunEntity h = holders.get(0);
+            String where = h.getOwnerInstance() == null ? "" : "，实例 " + h.getOwnerInstance();
+            if (isHeartbeatFresh(h)) {
+                return new ApiException(409, "已有评测任务进行中" + where + "（任务 id：" + h.getRunId()
+                        + "，当前进度：" + (h.getPercent() == null ? 0 : h.getPercent()) + "%），请等待完成");
+            }
+            return new ApiException(409, "疑似僵死任务「" + h.getRunId() + "」" + where
+                    + "（心跳超时，实例可能已失联），管理员可删除该记录后重试");
+        }
+        return new ApiException(409, "已有评测任务进行中，请稍后重试");
+    }
+
+    /** 心跳判活：running 行 heartbeat_at 距今在阈值内视为存活（实例可能仍在执行） */
+    private static boolean isHeartbeatFresh(EvalRunEntity row) {
+        return row.getHeartbeatAt() != null
+                && row.getHeartbeatAt().isAfter(LocalDateTime.now().minusMinutes(HEARTBEAT_STALE_MINUTES));
+    }
+
+    /**
+     * 进度落库：UPDATE status/detail/percent/error + 心跳（null 字段不覆盖，对齐原整文件覆写语义）。
+     * P1 起条件更新 WHERE status='running'：任务行被删除或状态已变更（他实例清理）时放弃写入仅告警，
+     * 防止实例恢复后把已清理的行改写回去；status 置 failed/success 的更新（失败/完成路径）同样在
+     * WHERE running 匹配下执行，即任务行状态翻转即释放 uk_running 全局锁。
+     */
     private void writeTaskMeta(EvalTask task) {
         try {
             EvalRunEntity row = new EvalRunEntity();
-            row.setRunId(task.id);
             row.setStatus(task.status);
             row.setDetail(task.detail);
             row.setPercent(task.percent);
-            row.setError(task.error);
-            runMapper.updateById(row);
+            row.setHeartbeatAt(LocalDateTime.now());
+            if (task.error != null) {
+                row.setError(task.error);
+            }
+            int rows = runMapper.update(row, new LambdaUpdateWrapper<EvalRunEntity>()
+                    .eq(EvalRunEntity::getRunId, task.id)
+                    .eq(EvalRunEntity::getStatus, "running"));
+            if (rows == 0) {
+                log.warn("writeTaskMeta affected 0 rows id={} status={}（任务行已被删除或状态已变更）",
+                        task.id, task.status);
+            }
         } catch (Exception e) {
             log.warn("writeTaskMeta failed id={} status={}: {}", task.id, task.status, e.getMessage());
         }
@@ -450,7 +571,11 @@ public class EvalRunService {
         writeTaskMeta(task);
     }
 
-    /** 完成落库：样本行批量 INSERT + 任务行 UPDATE（单事务；失败抛出由 runEval 兜底置 failed） */
+    /**
+     * 完成落库：样本行批量 INSERT + 任务行 UPDATE（单事务；失败抛出由 runEval 兜底置 failed）。
+     * P1 起任务行 UPDATE 带 WHERE status='running'：影响 0 行（任务行已被删除或他实例清理）时
+     * 抛异常回滚整事务，防止残留孤儿样本行。
+     */
     private void completeRun(EvalTask task, Map<String, Object> result,
             List<Map<String, Object>> sampleResults) {
         txTemplate.executeWithoutResult(tx -> {
@@ -458,12 +583,16 @@ public class EvalRunService {
                 sampleMapper.insert(EvalRunSampleEntity.of(task.id, row));
             }
             EvalRunEntity run = new EvalRunEntity();
-            run.setRunId(task.id);
             run.setDatasetHash(result.get("datasetHash") instanceof String h ? h : null);
             run.setFinishedAt(result.get("finishedAt") instanceof String f ? f : null);
             run.setStatus(result.get("status") instanceof String s ? s : null);
             run.applySummary(result.get("summary") instanceof Map<?, ?> sm ? (Map<String, Object>) sm : null);
-            runMapper.updateById(run);
+            int rows = runMapper.update(run, new LambdaUpdateWrapper<EvalRunEntity>()
+                    .eq(EvalRunEntity::getRunId, task.id)
+                    .eq(EvalRunEntity::getStatus, "running"));
+            if (rows == 0) {
+                throw new IllegalStateException("任务行已不存在或状态已变更，放弃完成落库: " + task.id);
+            }
         });
     }
 
@@ -618,6 +747,7 @@ public class EvalRunService {
                 m.put("pending", true);
             }
             scores.add(m);
+            persistProgress(task, false); // P1：评测器间刷心跳（LLM/Agentic 判分单次可达分钟级，防同任务内心跳超时）
         }
         return scores;
     }
@@ -1070,6 +1200,7 @@ public class EvalRunService {
             EvalSample.Turn turn = sample.turns().get(i);
             task.detail = "评测 " + displayQuery(sample) + " —— 第 " + (i + 1) + "/" + sample.turns().size() + " 轮";
             AgentRecord r = askAgent(turn.query(), task);
+            persistProgress(task, false); // P1：多轮样本每轮刷心跳（单轮 agent 硬超时 5min，防心跳超时误判失联）
             rounds += r.rounds();
             promptTokens += r.promptTokens();
             completionTokens += r.completionTokens();

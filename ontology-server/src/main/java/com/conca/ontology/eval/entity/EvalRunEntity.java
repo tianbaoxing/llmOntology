@@ -1,5 +1,6 @@
 package com.conca.ontology.eval.entity;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -49,6 +50,12 @@ public class EvalRunEntity {
 
     /** 发起人用户 id（start 时留痕） */
     private String userId;
+
+    /** 发起评测的实例标识（P1 多实例：409 文案定位与排查；running_flag 为 DB 生成列，实体不映射） */
+    private String ownerInstance;
+
+    /** 进度心跳时间（P1 多实例：writeTaskMeta 落库时刷新，超 15 分钟无心跳判实例失联） */
+    private LocalDateTime heartbeatAt;
 
     /** 开始时间 ISO-8601 原文（保纳秒） */
     private String startedAt;
@@ -214,6 +221,22 @@ public class EvalRunEntity {
 
     public void setUserId(String userId) {
         this.userId = userId;
+    }
+
+    public String getOwnerInstance() {
+        return ownerInstance;
+    }
+
+    public void setOwnerInstance(String ownerInstance) {
+        this.ownerInstance = ownerInstance;
+    }
+
+    public LocalDateTime getHeartbeatAt() {
+        return heartbeatAt;
+    }
+
+    public void setHeartbeatAt(LocalDateTime heartbeatAt) {
+        this.heartbeatAt = heartbeatAt;
     }
 
     public String getStartedAt() {
