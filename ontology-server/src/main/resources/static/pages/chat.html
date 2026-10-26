@@ -79,6 +79,25 @@ body { display: flex; flex-direction: column; }
 .to-eval:hover { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
 .caret { display: inline-block; width: 7px; height: 15px; background: #2563eb; vertical-align: -2px; animation: blink .9s infinite; margin-left: 2px; }
 @keyframes blink { 50% { opacity: 0; } }
+/* ---------- 轮次刻度导航：消息区左侧，每条用户消息一个刻度横线，点击跳转到该条消息 ---------- */
+.msg-area { flex: 1; min-height: 0; display: flex; }
+.turn-rail { position: relative; width: 44px; flex-shrink: 0; display: none; }
+.turn-rail.show { display: block; }
+.turn-rail::before { content: ""; position: absolute; left: 21px; top: 20px; bottom: 20px; width: 2px; background: #e5e7eb; border-radius: 999px; }
+.turn-vp { position: absolute; left: 4px; right: 4px; top: 20px; height: 36px; background: rgba(37,99,235,.10); border: 1px solid rgba(37,99,235,.35); border-radius: 999px; pointer-events: none; display: none; }
+.turn-tick { position: absolute; left: 0; width: 44px; height: 16px; display: flex; align-items: center; padding: 0 0 0 14px; background: none; border: none; cursor: pointer; transform: translateY(-50%); }
+.turn-tick:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; border-radius: 8px; }
+.turn-tick .bar { width: 16px; height: 2px; border-radius: 999px; background: #9ca3af; opacity: .55; }
+.turn-tick:hover .bar, .turn-tick.active .bar { width: 26px; background: #2563eb; opacity: 1; }
+.turn-tick .tip { display: none; position: absolute; left: 44px; top: 50%; transform: translateY(-50%); max-width: 260px; padding: 4px 8px; background: #1f2937; color: #f9fafb; font-size: 12px; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 8px; z-index: 10; }
+.turn-tick:hover .tip, .turn-tick:focus-visible .tip { display: block; }
+.turn-tick .tip b { font-weight: 600; margin-right: 4px; }
+.turn-pos { margin-left: auto; font-size: 12px; color: #9ca3af; flex-shrink: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .turn-tick .bar { transition: width .12s ease, background .12s ease, opacity .12s ease; }
+  .msg-user.flash { animation: turn-flash 1.1s ease-out; }
+}
+@keyframes turn-flash { from { box-shadow: 0 0 0 4px rgba(37,99,235,.45); } to { box-shadow: 0 0 0 4px transparent; } }
 .input-area { background: #fff; border-top: 1px solid #e5e7eb; padding: 14px 24px; }
 .tools-bar { display: flex; align-items: center; gap: 8px; max-width: 900px; margin: 0 auto 10px; }
 .skills-row { display: none; gap: 8px; flex: 1; flex-wrap: wrap; padding-bottom: 2px; }
@@ -178,12 +197,15 @@ textarea:focus { outline: none; border-color: #2563eb; }
   </div>
   <div class="main">
     <div class="chat-wrap">
-    <div class="chat-head"><span class="chat-label">当前会话</span><span class="chat-title" id="chat-title">新会话</span></div>
+    <div class="chat-head"><span class="chat-label">当前会话</span><span class="chat-title" id="chat-title">新会话</span><span class="turn-pos" id="turn-pos"></span></div>
+    <div class="msg-area">
+    <div class="turn-rail" id="turn-rail" aria-label="消息定位导航"><div class="turn-vp" id="turn-vp"></div></div>
     <div class="messages" id="messages">
       <div class="empty-tip" id="empty-tip">
         <div class="big">向 AI 助手提问<span id="tip-title"></span>相关问题</div>
         <div>回答过程会实时展示思考与执行过程</div>
       </div>
+    </div>
     </div>
     <div class="input-area">
       <div class="tools-bar">
@@ -1183,6 +1205,127 @@ function addAgentMsg() {
     }
   };
 }
+
+// ---------- 轮次刻度导航（Turn Rail）：消息区左侧刻度轨，每条用户消息一个刻度横线，点击跳转到该条消息 ----------
+const railEl = $('turn-rail');
+const railVpEl = $('turn-vp');
+const turnPosEl = $('turn-pos');
+const RAIL_PAD = 20;   // 刻度映射区上下留白（与 .turn-rail::before 轨道线的 top/bottom 一致）
+const TICK_GAP = 12;   // 相邻刻度最小间距，长会话防重叠
+let railUsers = [];    // 重排时捕获的 .msg-user 列表（点击跳转与当前刻度判定走缓存，滚动路径零查询）
+let railTops = [];     // 与 railUsers 对齐：各消息顶边相对内容顶的距离（messages 未定位，不能用 offsetTop）
+let railTicks = [];    // 与 railUsers 对齐的刻度按钮缓存
+let railH = 0;         // 刻度轨高度缓存
+let railContentH = 1;  // 消息内容总高缓存
+let railTimer = null;  // 重排节流定时器
+
+/** 刻度悬停预览：取用户消息首个非空文本节点前 20 字（跳过 flat-tag 角标与 to-prompt 按钮） */
+function railPreview(el) {
+  for (const n of el.childNodes) {
+    if (n.nodeType === 3 && n.textContent.trim()) return n.textContent.trim().replace(/\s+/g, ' ').slice(0, 20);
+  }
+  return '';
+}
+
+/** 节流重排：流式追加文本会高频触发 mutation，以 200ms 周期批量收敛 */
+function scheduleRailLayout() {
+  if (railTimer) return;
+  railTimer = setTimeout(relayoutRail, 200);
+}
+
+/** 全量重排：重建刻度（数量 = 用户消息数，2 条及以上才显示轨道，单条无定位意义）、位置按内容分布等比映射、相邻不足时顺序下压、过密降级等距 */
+function relayoutRail() {
+  railTimer = null;
+  railUsers = Array.from(messagesEl.querySelectorAll('.msg-user'));
+  railEl.classList.toggle('show', railUsers.length > 1);
+  railTops = [];
+  railTicks = [];
+  turnPosEl.textContent = '';
+  railVpEl.style.display = 'none';
+  if (railUsers.length < 2) return;
+  railH = railEl.clientHeight;
+  if (!railH) return;
+  railContentH = messagesEl.scrollHeight || 1;
+  const usable = railH - RAIL_PAD * 2;
+  const baseTop = messagesEl.getBoundingClientRect().top;
+  railUsers.forEach((el, i) => {
+    railTops[i] = el.getBoundingClientRect().top - baseTop + messagesEl.scrollTop;
+  });
+  // 纵坐标：内容比例映射；相邻不足 TICK_GAP 时顺序下压；刻度数超出轨道容量时降级等距（保序保可点）
+  let ys;
+  if (railUsers.length > Math.floor(usable / TICK_GAP) + 1) {
+    const step = railUsers.length > 1 ? usable / (railUsers.length - 1) : 0;
+    ys = railUsers.map((_, i) => RAIL_PAD + i * step);
+  } else {
+    ys = [];
+    let prev = -Infinity;
+    for (const top of railTops) {
+      let y = RAIL_PAD + (top / railContentH) * usable;
+      if (y < prev + TICK_GAP) y = prev + TICK_GAP;
+      y = Math.min(y, railH - RAIL_PAD);
+      prev = y;
+      ys.push(y);
+    }
+  }
+  railEl.querySelectorAll('.turn-tick').forEach(t => t.remove());
+  const frag = document.createDocumentFragment();
+  ys.forEach((y, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'turn-tick';
+    btn.style.top = y + 'px';
+    btn.dataset.idx = String(i);
+    btn.setAttribute('aria-label', '跳到第 ' + (i + 1) + ' 条消息');
+    const bar = document.createElement('span');
+    bar.className = 'bar';
+    const tip = document.createElement('span');
+    tip.className = 'tip';
+    const label = document.createElement('b');
+    label.textContent = '第 ' + (i + 1) + ' 条' + (railUsers[i].querySelector('.flat-tag') ? '（压缩前）' : '');
+    tip.appendChild(label);
+    tip.appendChild(document.createTextNode(railPreview(railUsers[i])));
+    btn.appendChild(bar);
+    btn.appendChild(tip);
+    frag.appendChild(btn);
+  });
+  railEl.appendChild(frag);
+  railTicks = Array.from(railEl.querySelectorAll('.turn-tick'));
+  syncRail();
+}
+
+/** 滚动联动（轻量）：只更新视口块/当前刻度高亮/头部计数，全部走缓存；单条消息无轨道，同样短路；内容高度变化时顺手预约重排（图片加载等场景） */
+function syncRail() {
+  if (railUsers.length < 2 || !railH) return;
+  if (messagesEl.scrollHeight !== railContentH) scheduleRailLayout();
+  const usable = railH - RAIL_PAD * 2;
+  railVpEl.style.display = '';
+  railVpEl.style.top = (RAIL_PAD + (messagesEl.scrollTop / railContentH) * usable) + 'px';
+  railVpEl.style.height = Math.max(16, (messagesEl.clientHeight / railContentH) * usable) + 'px';
+  const probe = messagesEl.scrollTop + 30;
+  let active = 0;
+  for (let i = 0; i < railTops.length; i++) if (railTops[i] <= probe) active = i;
+  for (let i = 0; i < railTicks.length; i++) railTicks[i].classList.toggle('active', i === active);
+  turnPosEl.textContent = '第 ' + (active + 1) + ' / ' + railUsers.length + ' 条';
+}
+
+// 点击刻度：跳到对应用户消息（顶部留 10px），蓝色光环渐隐提示落点
+railEl.addEventListener('click', e => {
+  const tick = e.target.closest('.turn-tick');
+  if (!tick) return;
+  const i = Number(tick.dataset.idx);
+  const el = railUsers[i];
+  if (!el) return;
+  messagesEl.scrollTo({ top: Math.max(0, railTops[i] - 10), behavior: 'smooth' });
+  el.classList.remove('flash');
+  void el.offsetWidth; // 强制回流以重启动画
+  el.classList.add('flash');
+});
+// 触发源统一收敛到节流重排：新消息/流式追加/历史恢复/思考与执行过程展开收起均改变消息区子树
+new MutationObserver(scheduleRailLayout).observe(messagesEl, {
+  childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['open']
+});
+messagesEl.addEventListener('scroll', () => requestAnimationFrame(syncRail), { passive: true });
+window.addEventListener('resize', scheduleRailLayout);
+relayoutRail(); // 首次排版（后续新消息与会话恢复由 MutationObserver 接管）
 
 // ---------- SSE 解析 ----------
 /** 轮次块懒创建：round start 已建则复用；兼容未发 round 事件的旧流（首个内容事件时兜底创建） */
