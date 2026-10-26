@@ -55,6 +55,13 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-mysql</artifactId>
         </dependency>
+        <!-- Spring Session JDBC：登录会话落 MySQL（SPRING_SESSION(_ATTRIBUTES) 表），
+             多实例部署任一实例按 SessionID 查库命中、重启不掉登录态；版本由 Boot BOM 管理，
+             表由 Boot 内置 schema 幂等建（spring.session.jdbc.initialize-schema），不进 Flyway -->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-jdbc</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.neo4j.driver</groupId>
             <artifactId>neo4j-java-driver</artifactId>

@@ -236,7 +236,8 @@ public class BackupService {
     /**
      * 导出全部业务表为 db/{table}.jsonl（每行一 JSON 对象，列名→值）。
      * 表清单 information_schema 自动发现（排除 flyway_schema_history 迁移簿记——恢复时目标库
-     * Flyway 自管，带上必然 checksum 冲突），后续期次新增表零改动自动进备份。
+     * Flyway 自管，带上必然 checksum 冲突；排除 SPRING_SESSION(_ATTRIBUTES) 登录会话运行态，
+     * 易失数据无备份价值），后续期次新增表零改动自动进备份。
      * 空表也写空 .jsonl 占位（恢复时区分"0 行"与"表缺失"）。
      */
     private long exportTables(Task task, Path dbDir) throws IOException {
@@ -245,6 +246,7 @@ public class BackupService {
         List<String> tables = jdbc.queryForList(
                 "SELECT table_name FROM information_schema.tables "
                         + "WHERE table_schema = DATABASE() AND table_name <> 'flyway_schema_history' "
+                        + "AND table_name NOT LIKE 'SPRING_SESSION%' "
                         + "ORDER BY table_name", String.class);
         long done = 0;
         for (String table : tables) {

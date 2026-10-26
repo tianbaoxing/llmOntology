@@ -14,9 +14,17 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
-    # 登录会话有效期（内存会话，重启需重新登录）
+    # 登录会话有效期（spring.session.timeout 未设时由此兜底）
     session:
       timeout: 24h
+  # 登录会话落 MySQL（Spring Session JDBC）：多实例部署任一实例按 Cookie 中 SessionID 查库命中，
+  # 重启不掉登录态。表 SPRING_SESSION(_ATTRIBUTES) 由 Boot 内置 schema 幂等建（不进 Flyway），
+  # 过期行由默认 cleanup-cron 每分钟清理。注意：接管后 Cookie 名 JSESSIONID→SESSION，
+  # 上线瞬间存量登录态失效一次（全员重新登录，预期内）
+  session:
+    store-type: jdbc
+    jdbc:
+      initialize-schema: always
   # MySQL 持久化（P0）：平台数据从 JSON 文件迁入；本地 Docker mysql:8.0 容器 ontology-mysql
   # （宿主机端口 3306）
   datasource:
