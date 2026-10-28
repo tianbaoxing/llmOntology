@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import com.conca.ontology.agent.entity.RewriteConfigItem;
 import com.conca.ontology.agent.mapper.RewriteConfigItemMapper;
-import com.conca.ontology.agent.service.RewriteAgentHolder;
 import com.conca.ontology.shared.web.ApiException;
 import com.conca.ontology.agent.model.RewriteConfig;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -244,10 +243,10 @@ public class RewriteConfigService {
                 .userId("rewrite-" + type)
                 .sessionId(RewriteAgentHolder.nextSessionId(type))
                 .build();
-        Msg reply = agent.call(userMsg, rc).block(Duration.ofSeconds(timeoutSeconds + 5L));
+        Msg reply = agent.call(userMsg, rc).block(Duration.ofSeconds(timeoutSeconds));
         String content = reply == null ? null : reply.getTextContent();
         RewriteOutcome outcome = parseOutcome(content, text);
-        boolean applied = !outcome.text().equals(text);
+        boolean applied = !outcome.text().trim().equals(text.trim());
         ChatUsage usage = reply == null ? null : reply.getUsage();
         long in = usage == null ? 0L : usage.getInputTokens();
         long out = usage == null ? 0L : usage.getOutputTokens();

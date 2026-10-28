@@ -109,7 +109,7 @@ public class JudgeClient {
                         .sessionId(sessionId)
                         .build();
                 Msg reply = agent.call(userMsg, ctx)
-                        .block(Duration.ofSeconds(timeoutSeconds + 5L)); // 模型层已设超时，此处兜底防悬挂
+                        .block(Duration.ofSeconds(timeoutSeconds)); // 模型层已设超时，此处兜底防悬挂
                 ChatUsage usage = reply == null ? null : reply.getUsage();
                 if (usage != null) {
                     promptTokens += usage.getInputTokens();
