@@ -37,7 +37,6 @@ public class GetLocationTool {
     public String getLocation(RuntimeContext ctx) {
         try {
             String clientIp = ctx.get(GeoLocationService.CTX_CLIENT_IP_KEY, String.class);
-            // String clientIp = "27.189.239.56";
             return locationService.resolve(clientIp);
         } catch (Exception e) {
             log.error("get_location failed", e);
