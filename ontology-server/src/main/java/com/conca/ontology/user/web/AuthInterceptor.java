@@ -14,11 +14,12 @@ import jakarta.servlet.http.HttpServletResponse;
  * 认证拦截（Session + 角色）：
  * - 公开页面：/login（含静态 /pages/login.html）
  * - 公开接口：/api/session（登录登出/当前用户，敏感操作在 Controller 内校验）、/api/setup（初始化向导）、
- *   /api/app、/api/llm/**（LLM 专属，后续做 token 验证）、POST /api/users（自助注册）、
- *   PUT /api/users/me/password（自助改密，Controller 内校验会话）
+ *   /api/app、POST /api/users（自助注册）、PUT /api/users/me/password（自助改密，Controller 内校验会话）
  * - 页面（/、/data、/files、/wiki、/chat、/dashboard、/session-detail、/users、/instances、/graph、/eval、/pages/**）：
  *   未登录 302 跳登录页；/users、/eval 与 /wiki 仅 ADMIN（/data 页面级权限由前端控制，接口层 403 兜底；备份为其二级 Tab）
  * - /api/** 其余：未登录 401 JSON；/api/users、/api/eval、/api/wiki 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
+ * - /api/llm/**：同受会话认证——GET 与语义只读 POST（LLM_READ_POST_PATHS）登录即可，其余方法仅 ADMIN；
+ *   agent 工具链的会话凭据由 AgentChatService 经 RuntimeContext 注入、HttpProxyTool 以 Cookie 头透传
  */
 
 /**
@@ -31,6 +32,13 @@ public class AuthInterceptor implements HandlerInterceptor {
     private static final Set<String> PAGE_PATHS = Set.of("/", "/data", "/files", "/wiki",
             "/chat", "/dashboard", "/session-detail", "/users", "/instances", "/graph", "/eval");
 
+    /**
+     * /api/llm 平面语义只读的 POST 端点（查询/冲突校验类）：登录即可调用，豁免“非读方法仅 ADMIN”规则。
+     * /api/llm/graph/query 可执行任意 Cypher（存在写语句绕过校验的已知缺陷），不在此列，仅 ADMIN。
+     */
+    private static final Set<String> LLM_READ_POST_PATHS = Set.of(
+            "/api/llm/ontology-query/query", "/api/llm/disjoint-rules/check");
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws Exception {
@@ -41,9 +49,8 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (uri.equals("/login") || uri.equals("/pages/login.html")) {
             return true;
         }
-        // 公开接口：会话自身（login/logout/me，登出幂等）、系统初始化、应用信息、LLM 专属
-        if (uri.equals("/api/session") || uri.equals("/api/setup") || uri.equals("/api/app")
-                || uri.startsWith("/api/llm/")) {
+        // 公开接口：会话自身（login/logout/me，登出幂等）、系统初始化、应用信息
+        if (uri.equals("/api/session") || uri.equals("/api/setup") || uri.equals("/api/app")) {
             return true;
         }
         // 公开接口：自助注册与自助改密（改密在 Controller 内校验会话）
@@ -82,7 +89,8 @@ public class AuthInterceptor implements HandlerInterceptor {
                     || uri.startsWith("/api/skills") || uri.startsWith("/api/admin")
                     || uri.startsWith("/api/wiki");
             if (!adminOnly && !isReadMethod(method)
-                    && !uri.startsWith("/api/agent")) {
+                    && !uri.startsWith("/api/agent")
+                    && !LLM_READ_POST_PATHS.contains(uri)) {
                 adminOnly = true;
             }
             if (adminOnly && !user.isAdmin()) {

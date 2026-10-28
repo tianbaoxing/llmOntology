@@ -24,8 +24,11 @@ import io.agentscope.core.tool.ToolParam;
  *
  * 安全边界：
  * - base-url 服务端固定（构造注入），agent 只能传 path，无 SSRF 面；
- * - path 前缀白名单 /api/llm/（该平面全只读、免登录、无管理面端点）；
- * - 方法白名单 GET/POST；写语句由服务端只读红线兜底拦截。
+ * - path 前缀白名单 /api/llm/（语义只读平面，无管理面端点），平面已纳入会话认证；
+ * - 方法白名单 GET/POST/PUT/DELETE（写方法由会话认证按角色拦截：非 ADMIN 403）；
+ * - 会话凭据不经模型：由 AgentChatService 经 RuntimeContext（CTX_SESSION_ID_KEY）
+ *   程序态注入，本工具读取后以 Cookie 头透传；严禁把会话 ID 写入 prompt、
+ *   工具参数或日志（会话 ID 为全账号凭据，见 AuthInterceptor）。
  *
  * 错误返回为确定性中文文案并带层前缀，便于模型机械判层：
  * [连接失败] 服务未启动 / [参数错误] 本地校验拒绝 / [服务错误] 服务端 4xx/5xx
@@ -39,6 +42,12 @@ public class HttpProxyTool {
     private static final HttpClient HTTP = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
+
+    /** RuntimeContext 载荷键：AgentChatService 注入当前登录会话 ID（SESSION Cookie 原值），本工具读取后透传（对齐 CTX_CLIENT_IP_KEY 模式） */
+    public static final String CTX_SESSION_ID_KEY = "http.sessionId";
+
+    /** Spring Session 接管后的会话 Cookie 名（JSESSIONID → SESSION）；Controller 提取同名入站 Cookie 时复用 */
+    public static final String SESSION_COOKIE_NAME = "SESSION";
 
     private static final String PATH_PREFIX = "/api/llm/";
     private static final int MAX_BODY_CHARS = 16 * 1024;
@@ -54,10 +63,10 @@ public class HttpProxyTool {
     }
 
     @Tool(name = "http_request_ontology_query", readOnly = true, concurrencySafe = true,
-            description = "向本体服务只读平面发送 HTTP 请求的哑管道。"
-                    + "适用：按 ontology-query skill 的端点速查表查询概念层、执行只读 Cypher、"
-                    + "列出已上传文件、查询构建背景 profile。"
-                    + "path 必须以 /api/llm/ 开头；GET 传 params，POST 传 body（JSON 对象字符串）。"
+            description = "向本体服务 /api/llm 平面发送 HTTP 请求的哑管道。"
+                    + "适用：按 ontology-query / ontology-builder skill 的端点速查表查询概念层、"
+                    + "执行只读 Cypher、读写构建 profile 与图谱写入（写方法需管理员会话，服务端按角色拦截）。"
+                    + "path 必须以 /api/llm/ 开头；GET 传 params，POST/PUT 传 body（JSON 对象字符串），DELETE 只传 path。"
                     + "示例：查概念层 → path=/api/llm/schema；执行查询 → "
                     + "path=/api/llm/ontology-query/query, method=POST, "
                     + "body={\"question\":\"有多少文物\",\"cypher\":\"MATCH (n:`CulturalRelic`) RETURN count(n) AS c\",\"params\":{}}")
@@ -86,8 +95,8 @@ public class HttpProxyTool {
         }
 
         String m = (method == null || method.isBlank()) ? "GET" : method.trim().toUpperCase();
-        if (!m.equals("GET") && !m.equals("POST")) {
-            return "[参数错误] method 仅支持 GET / POST，收到：" + method;
+        if (!m.equals("GET") && !m.equals("POST") && !m.equals("PUT") && !m.equals("DELETE")) {
+            return "[参数错误] method 仅支持 GET / POST / PUT / DELETE，收到：" + method;
         }
 
         String query = buildQuery(params);
@@ -97,8 +106,8 @@ public class HttpProxyTool {
 
         String jsonBody = null;
         if (body != null && !body.isBlank()) {
-            if (m.equals("GET")) {
-                return "[参数错误] GET 请求不支持 body，查询参数请放 params";
+            if (m.equals("GET") || m.equals("DELETE")) {
+                return "[参数错误] " + m + " 请求不支持 body，查询参数请放 params";
             }
             if (body.length() > MAX_BODY_CHARS) {
                 return "[参数错误] body 超长：当前 " + body.length() + " 字符，上限 " + MAX_BODY_CHARS + " 字符";
@@ -115,11 +124,18 @@ public class HttpProxyTool {
         URI uri = URI.create(baseUrl + p + query);
         HttpRequest.Builder rb = HttpRequest.newBuilder(uri)
                 .timeout(REQUEST_TIMEOUT);
-        if (m.equals("POST")) {
-            rb.header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody == null ? "" : jsonBody));
-        } else {
+        // 会话凭据仅存在于程序态：RuntimeContext → Cookie 头，不进参数表与任何日志
+        String sessionId = ctx == null ? null : ctx.get(CTX_SESSION_ID_KEY, String.class);
+        if (sessionId != null && !sessionId.isBlank()) {
+            rb.header("Cookie", SESSION_COOKIE_NAME + "=" + sessionId.strip());
+        }
+        if (m.equals("GET")) {
             rb.GET();
+        } else if (m.equals("DELETE")) {
+            rb.DELETE();
+        } else {
+            rb.header("Content-Type", "application/json")
+                    .method(m, HttpRequest.BodyPublishers.ofString(jsonBody == null ? "" : jsonBody));
         }
         return send(rb.build());
     }

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.conca.ontology.agent.tool.HttpProxyTool;
 import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.builder.service.AgentBuilderService;
 import com.conca.ontology.agent.dto.AgentChatDTO;
@@ -25,6 +26,7 @@ import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.agent.service.AgentChatService;
 import com.conca.ontology.agent.service.AgentSessionService;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -106,7 +108,7 @@ public class AgentChatController {
             agentBuilderService.requireChatAllowed(agentId, user.isAdmin());
         }
         return agentChatService.chat(id, request.message(), user.userId(), agentId,
-                resolveClientIp(httpRequest));
+                resolveClientIp(httpRequest), resolveSessionCookie(httpRequest, session));
     }
 
     /**
@@ -131,6 +133,24 @@ public class AgentChatController {
             }
         }
         return request.getRemoteAddr();
+    }
+
+    /**
+     * 提取登录会话的 SESSION Cookie 原值（graph-query 工具透传 /api/llm 认证用）。
+     * 必须取入站 Cookie 原值而非 session.getId()：Spring Session 默认对 Cookie 值
+     * 做 Base64 编码（useBase64Encoding），两者不一致时透传凭据无法解析（401）；
+     * 本请求刚凭该 Cookie 通过会话认证，原样回发必然可解析。取不到时兜底 id。
+     */
+    private static String resolveSessionCookie(HttpServletRequest request, HttpSession session) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie c : cookies) {
+                if (HttpProxyTool.SESSION_COOKIE_NAME.equals(c.getName()) && !c.getValue().isBlank()) {
+                    return c.getValue();
+                }
+            }
+        }
+        return session.getId();
     }
 
     /** 会话列表（?agentId= 自建智能体会话；缺省主智能体） */

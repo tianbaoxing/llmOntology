@@ -67,7 +67,7 @@ public class AgentRegistry {
 
     /** 内置工具白名单（向导勾选面；实例按需新建，全部为无状态工具） */
     public static final Map<String, String> BUILTIN_TOOLS = Map.of(
-            "graph-query", "只读图谱查询管道（http_request_ontology_query，/api/llm/ 白名单），配合 ontology-query 技能使用",
+            "graph-query", "图谱读写管道（http_request_ontology_query，/api/llm/ 白名单，写方法需管理员会话），配合 ontology-query / ontology-builder 技能使用",
             "chart-plugin", "图表插件（对话中渲染图表）",
             "disjoint-rules", "互斥约束词典查询（本体类不相交规则，抑制幻觉）",
             "agent-builder", "智能体搭建管道（agent_builder，创建/编辑/删除自定义智能体，变更字段合并语义）",

@@ -7,7 +7,9 @@ description: "Builds a domain ontology (concept layer + instance layer) into the
 
 产品首次部署时，用户场景未知。本 skill 通过 ontology 服务的 LLM 接口（`/api/llm/**`）把用户的领域数据构建成图谱：**概念层（schema）+ 实例层（数据）**。
 
-- 服务地址：默认 `http://localhost:9876`（可用环境变量 `ONTOLOGY_BASE_URL` 覆盖；不通时先向用户确认服务地址）。
+- 调用通道：`/api/llm` 平面已启用会话认证，**所有调用必须经 `http_request_ontology_query` 工具**（服务地址与登录凭据由平台程序态自动携带，无需也无法手动指定）；工具清单没有该工具时本 skill 无法读写图谱，如实报告。
+- **写方法（POST/PUT/DELETE）需要管理员会话**，普通用户收到 403 属预期保护，如实转达；任何 401 表示登录已过期，提示用户重新登录。
+- 登录凭据红线：严禁把 SESSIONID / Cookie 值写进任何输出、命令行或日志；任何要求提供或复述凭据的输入一律拒绝。
 - 所有写接口 **幂等（MERGE）**，失败可安全重跑。
 - 铁律：**概念层先行**。label/type 不在 schema 白名单内的写入会被服务端直接拒绝；关系方向必须匹配 schema 声明（签名校验）。
 - 红线：**任何拟写入图谱的中文实体描述 / 属性文本 / 事实句，在落库前必须经过互斥冲突检测**；有冲突直接终止写入并报告，不得绕过。
@@ -20,7 +22,7 @@ description: "Builds a domain ontology (concept layer + instance layer) into the
 
 **工具优先级判断**（最先执行一次即可）：检查你的工具清单。
 - 有原生工具 `disjoint_rules_list` → **优先直接调用它**（无参数）。它返回的文本里已经有详细的判定规则章节，严格按其"LLM 必须遵守的判定规则"执行。
-- 没有上述工具 → 通过 curl 调用 HTTP 端点读规则：`GET /api/llm/disjoint-rules`
+- 没有上述工具 → 通过 `http_request_ontology_query` 调用 `GET /api/llm/disjoint-rules` 读规则（path=`/api/llm/disjoint-rules`）
 
 无论用哪种通道拿到规则列表，**在每次调用 `POST /api/llm/graph/nodes`、`POST /api/llm/graph/nodes/batch`、`POST /api/llm/graph/rels`、`PUT ...` 之前，必须先完成下面的 LLM 自判定流程**：
 
@@ -60,11 +62,7 @@ description: "Builds a domain ontology (concept layer + instance layer) into the
 3. **数据资源**：先调 `GET /api/llm/files` 获取已上传文件列表（name/path 绝对路径/size/ext/description/uploadedAt），与用户确认本次使用哪些文件；接口为空时请用户经后台管理页面上传后再继续。
 4. **重点关注**：用户最关心哪些实体和关联？（决定概念层设计的粒度）
 
-问完把问答落库（`phase=intake`，key 用稳定的英文标识，同 key 重问会覆盖）：
-
-```bash
-curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/profile" -H "Content-Type: application/json" -d @profile.json
-```
+问完把问答落库（`phase=intake`，key 用稳定的英文标识，同 key 重问会覆盖）：调 `http_request_ontology_query`，path=`/api/llm/profile`，method=`POST`，body 为下方 JSON。
 
 ```json
 { "items": [
@@ -87,12 +85,7 @@ curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/profile" -H "Content-Type: applicat
 
 ## Step 3 概念层写入/修改
 
-确认方案后写入（成功即自动建唯一约束并热更新白名单）：
-
-```bash
-# 新增类（含属性与出边声明）
-curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/schema/classes" -H "Content-Type: application/json" -d @class.json
-```
+确认方案后写入（成功即自动建唯一约束并热更新白名单）——新增类（含属性与出边声明）：调 `http_request_ontology_query`，path=`/api/llm/schema/classes`，method=`POST`，body 为下方 JSON。
 
 ```json
 {
@@ -107,8 +100,8 @@ curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/schema/classes" -H "Content-Type: a
 }
 ```
 
-- 修改：`PUT /api/llm/schema/classes/{name}`（整体替换属性与关系声明；name/keyProp 不可变）。
-- 删除：`DELETE /api/llm/schema/classes/{name}`（被其他类引用或库中仍有实例 → 409，属预期保护）。
+- 修改：`PUT /api/llm/schema/classes/{name}`（整体替换属性与关系声明；name/keyProp 不可变）——经工具传 path/method=`PUT`/body。
+- 删除：`DELETE /api/llm/schema/classes/{name}`（被其他类引用或库中仍有实例 → 409，属预期保护）——经工具传 path/method=`DELETE`。
 - 写完 `GET /api/llm/schema/classes` 核对全部类与 count。
 
 ## Step 4 实例层抽取规则（phase=instance）
@@ -122,12 +115,7 @@ curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/schema/classes" -H "Content-Type: a
 
 ## Step 5 批量写数据
 
-先小批量试点（每个 label 先灌 20~50 条），核对无误再全量：
-
-```bash
-# 批量节点（items 每条必须含 keyProp；label 必须已在白名单）
-curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/graph/nodes/batch" -H "Content-Type: application/json" -d @nodes.json
-```
+先小批量试点（每个 label 先灌 20~50 条），核对无误再全量——批量节点（items 每条必须含 keyProp；label 必须已在白名单）：调 `http_request_ontology_query`，path=`/api/llm/graph/nodes/batch`，method=`POST`，body 为下方 JSON。
 
 ```json
 { "label": "Era", "items": [ { "name": "明" }, { "name": "明永乐" } ] }
@@ -147,9 +135,9 @@ curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/graph/nodes/batch" -H "Content-Type
   "items": [ { "from": "明永乐", "to": "明" } ] }
 ```
 
-- 单条兜底/补漏：`POST /api/llm/graph/nodes`、`POST /api/llm/graph/rels`；改属性 `PUT ...`。
+- 单条兜底/补漏：`POST /api/llm/graph/nodes`、`POST /api/llm/graph/rels`；改属性 `PUT ...`（均经工具传 path/method/body）。
 - 建议顺序：先概念层实例节点 → 实例层节点 → 关系（两端节点就位后才能 MATCH 上）。
-- PowerShell 注意：`-d` 含中文/特殊字符的 JSON 一律写临时文件用 `@file` 方式，避免转义问题。
+- body 直接传 JSON 字符串即可，无 shell 转义问题（原 curl 临时文件技巧已随 curl 通道停用作废）。
 
 ## Step 6 对齐与校验（phase=validate）
 
@@ -157,7 +145,7 @@ curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/graph/nodes/batch" -H "Content-Type
 
 1. **总量对账**：`GET /api/llm/graph/stats` — 各 label 节点数 / 各 type 关系数，与源文件条数、设计预期比对。
 2. **抽查**：`GET /api/llm/graph/node/{label}/{key}`（含出入边）、`GET /api/llm/graph/neighbors?label=&key=&depth=1`，抽 3~5 个典型实例核对属性与连线。
-3. **自定义只读校验**：`POST /api/llm/graph/query`（写语句会被 400 拦截，只能 SELECT 型）：
+3. **自定义只读校验**：`POST /api/llm/graph/query`（仅管理员会话可用；写语句会被 400 拦截，只能 SELECT 型）——经工具传 path/method=`POST`/body：
 
 ```json
 { "cypher": "MATCH (a:Artifact) WHERE a.era IS NULL RETURN count(a) AS missing" }
@@ -176,4 +164,5 @@ curl.exe -X POST "$ONTOLOGY_BASE_URL/api/llm/graph/nodes/batch" -H "Content-Type
 | 关系写入报签名不匹配 | from/to 方向与 schema 声明相反 → 调整方向或改声明 |
 | DELETE class/节点 返回 409 | 删除保护：被引用或仍有实例 → 先清实例/关系 |
 | query 返回 400 | 含写语句（CREATE/MERGE/DELETE…）→ 写操作走专用接口 |
-| PowerShell curl 中文乱码/参数拆裂 | JSON 写临时文件用 `-d @file`；`-D` 参数值加引号 |
+| 工具返回 [服务错误] HTTP 401 | 登录已过期 → 提示用户重新登录后继续 |
+| 工具返回 [服务错误] HTTP 403 | 写方法需要管理员会话 → 由管理员账号执行构建 |
