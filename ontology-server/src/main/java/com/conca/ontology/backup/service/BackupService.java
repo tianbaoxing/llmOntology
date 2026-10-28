@@ -84,7 +84,7 @@ public class BackupService {
     @Value("${app.backup-dir:backups}")
     private String backupDir;
 
-    @Value("${app.data-dir:data}")
+    @Value("${app.agent.data-root:data}")
     private String dataDir;
 
     @Value("${app.upload-dir:files}")
