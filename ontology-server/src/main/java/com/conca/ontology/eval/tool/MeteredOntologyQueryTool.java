@@ -58,9 +58,10 @@ public class MeteredOntologyQueryTool {
     @Tool(name = "http_request_ontology_query", readOnly = true, concurrencySafe = true,
             description = "向本体服务只读平面发送 HTTP 请求的取证管道。"
                     + "适用：核查断言时查询概念层、执行只读 Cypher、查看节点详情。"
-                    + "path 必须以 /api/llm/ 开头；GET 传 params，POST 传 body（JSON 对象字符串）。"
+                    + "path 必须以 /api/llm/ 开头；GET 传 params，POST 传 body（JSON 对象字符串）；"
+                    + "类名/属性名/关系名以 /api/llm/schema 实际返回为准，不要预设领域词汇。"
                     + "示例：path=/api/llm/graph/query, method=POST, "
-                    + "body={\"cypher\":\"MATCH (n:`CulturalRelic` {name:'定窑白釉莲纹大碗'})-[r]->(v) RETURN type(r), v.name\",\"params\":{}}")
+                    + "body={\"cypher\":\"MATCH (n:`类名`)-[r]->(v) RETURN type(r), v.name LIMIT 10\",\"params\":{}}")
     public String httpRequest(
             RuntimeContext ctx,
             @ToolParam(name = "path", description = "API 路径，必须以 /api/llm/ 开头，如 /api/llm/graph/stats") String path,
