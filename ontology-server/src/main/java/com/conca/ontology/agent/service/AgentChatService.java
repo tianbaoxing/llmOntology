@@ -766,7 +766,7 @@ public class AgentChatService {
         try {
             emitter.send(SseEmitter.event().name(name).data(data));
         } catch (Exception e) {
-            log.debug("SSE 发送失败（连接可能已断开）：{}", e.getMessage());
+            log.warn("SSE 发送失败（连接可能已断开）：{}", e.getMessage());
         }
     }
 
