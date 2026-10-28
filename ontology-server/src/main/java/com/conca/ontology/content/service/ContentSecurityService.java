@@ -95,14 +95,12 @@ public class ContentSecurityService {
 
     private final RuleContentSecurityMapper ruleMapper;
 
-    private transient Map<String, Pattern> compiledPatterns;
     private transient Map<String, Pattern> compiledGlobalPatterns;
     private transient List<ContentSecurityRule> allRules;
     private transient Set<String> allowlistedIds;
 
     public ContentSecurityService(RuleContentSecurityMapper ruleMapper) {
         this.ruleMapper = ruleMapper;
-        this.compiledPatterns = new HashMap<>();
         this.compiledGlobalPatterns = new HashMap<>();
         this.allRules = new ArrayList<>();
         this.allowlistedIds = new HashSet<>();
@@ -121,19 +119,17 @@ public class ContentSecurityService {
         for (ContentSecurityRule r : allRules) {
             if (r.allowlistedEffective()) allowlistedIds.add(r.id());
         }
-        compiledPatterns.clear();
         compiledGlobalPatterns.clear();
         int flags = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
         for (ContentSecurityRule rule : allRules) {
             try {
-                compiledPatterns.put(rule.id(), Pattern.compile(rule.pattern(), flags));
                 compiledGlobalPatterns.put(rule.id(), Pattern.compile(rule.pattern(), flags));
             } catch (Exception e) {
                 log.warn("failed to compile regex for rule {}: {}", rule.id(), e.getMessage());
             }
         }
-        log.info("content security rules loaded: {} rules ({} allowlisted), {} patterns compiled",
-                allRules.size(), allowlistedIds.size(), compiledPatterns.size());
+        log.info("content security rules loaded: {} rules ({} allowlisted)",
+                allRules.size(), allowlistedIds.size());
     }
 
     // ========== 核心检测入口 ==========
