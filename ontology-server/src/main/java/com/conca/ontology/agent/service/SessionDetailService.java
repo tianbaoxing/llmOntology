@@ -42,8 +42,8 @@ public class SessionDetailService {
 
     /** 框架 ReActAgent 落盘 state 用的 key（与 DashboardService/AgentSessionService 一致） */
     static final String STATE_KEY = "agent_state";
-    /** 与框架同款 sessionId 合法字符集，先挡路径穿越 */
-    private static final Pattern SESSION_ID = Pattern.compile("^[a-zA-Z0-9_\\-.]+$");
+    /** sessionId 合法字符集：首字符字母数字（挡裸 .. 与前导点）+ 长度 ≤64（对齐 DB 列宽防超长），与 AgentSessionService 一致 */
+    private static final Pattern SESSION_ID = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9_\\-.]{0,63}$");
 
     private final ObjectProvider<HarnessAgent> agentProvider;
     private final AgentSessionService agentSessionService;

@@ -55,8 +55,8 @@ public class AgentSessionService {
 
     /** 框架 ReActAgent 落盘 state 用的 key（JsonFileAgentStateStore 对应 agent_state.json） */
     static final String STATE_KEY = "agent_state";
-    /** 与框架同款 sessionId 合法字符集，先挡路径穿越 */
-    private static final Pattern SESSION_ID = Pattern.compile("^[a-zA-Z0-9_\\-.]+$");
+    /** sessionId 合法字符集：首字符字母数字（挡裸 .. 与前导点）+ 长度 ≤64（对齐 DB 列宽防超长） */
+    private static final Pattern SESSION_ID = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9_\\-.]{0,63}$");
     private static final int TITLE_MAX = 30;
     private static final int TOOL_SUMMARY_MAX = 300;
     /** 框架写入 workspace 的 agent 名（AgentScopeConfig 固定 .name("ontology-assistant")） */
