@@ -50,7 +50,7 @@ public class ChartPluginTool {
             }
 
             Map<String, Object> out = new LinkedHashMap<>();
-            out.put("type", type);
+            out.put("type", type.trim());
             out.put("title", title == null ? "" : title.trim());
             out.put("xAxis", xAxis);
             out.put("series", series);
