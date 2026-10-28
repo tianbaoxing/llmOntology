@@ -29,7 +29,7 @@ import io.agentscope.core.tool.ToolParam;
    非 null 字段覆盖合并后全量保存，防止 LLM 遗漏字段清空 sysPrompt 等；
  * - create 的 owner 固定 "agent-builder" 留痕（工具链取不到真实用户）。
  *
- * 错误文案分层与 HttpProxyTool 对齐，便于模型机械判层：
+ * 错误文案分层与 HttpRequestOntologyQueryTool 对齐，便于模型机械判层：
  * [参数错误] 本地校验拒绝或业务校验 4xx / [服务错误] 服务端 5xx
  *
  * @author tianbaoxing

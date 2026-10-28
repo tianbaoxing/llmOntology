@@ -36,7 +36,7 @@ import io.agentscope.core.tool.ToolParam;
  * @author tianbaoxing
  * @date 2026-08-24
  */
-public class HttpProxyTool {
+public class HttpRequestOntologyQueryTool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final HttpClient HTTP = HttpClient.newBuilder()
@@ -56,7 +56,7 @@ public class HttpProxyTool {
 
     private final String baseUrl;
 
-    public HttpProxyTool(String baseUrl) {
+    public HttpRequestOntologyQueryTool(String baseUrl) {
         this.baseUrl = (baseUrl == null || baseUrl.isBlank())
                 ? "http://127.0.0.1:9876"
                 : baseUrl.trim().replaceAll("/+$", "");

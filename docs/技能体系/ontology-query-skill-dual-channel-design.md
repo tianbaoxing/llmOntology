@@ -4,7 +4,7 @@
 |---|---|
 | 日期 | 2026-08-24 |
 | 状态 | 设计稿（待评审） |
-| 范围 | skills/ontology-query/SKILL.md 改造 + 新增 HttpProxyTool 工具（仅本项目） |
+| 范围 | skills/ontology-query/SKILL.md 改造 + 新增 HttpRequestOntologyQueryTool 工具（仅本项目） |
 | 不改动 | /api/llm/** 接口平面（冻结区）、外部 Qwen CLI 既有使用方式 |
 
 ---
@@ -98,7 +98,7 @@ SKILL.md 固定主线前置一步"Step 0 通道探测"，规则：
 
 ### 5.1 工具定义
 
-新建 `agent/HttpProxyTool.java`，注册为单一工具 `http_request_ontology_query`，`readOnly=true`（硬约束）。
+新建 `agent/HttpRequestOntologyQueryTool.java`，注册为单一工具 `http_request_ontology_query`，`readOnly=true`（硬约束）。
 
 **定位**：无业务语义的哑 HTTP 管道，与 read_file / grep_files 同级的基础设施。不知道 schema、不认识 cypher、不预置端点——**不加载 skill 就无法正确使用**，"查询经由 skills"由形式合规变为实质必然（这是相比直接恢复 OntologyHttpTools 五件套的根本区别）。
 
@@ -135,9 +135,9 @@ SKILL.md 固定主线前置一步"Step 0 通道探测"，规则：
 
 ### 5.3 服务端改动清单
 
-1. 新建 `src/main/java/com/conca/ontology/agent/HttpProxyTool.java`（可参照现存 OntologyHttpTools.java 的 JDK HttpClient 基建与错误分层实现，收敛为单方法 + 参数校验）；
-2. [AgentScopeConfig.java] 取消 toolkit 注册注释，改为注册 HttpProxyTool，并更新注释说明架构理由："工具层仅提供无业务语义的 HTTP 管道，查询协议由 skill 承载，外部 CLI 调用方走 execute+curl 通道"；
-3. OntologyHttpTools.java 处置：删除（其职责已被 HttpProxyTool + SKILL.md 协议表取代，避免留下两个相似的 HTTP 工具造成混淆）。
+1. 新建 `src/main/java/com/conca/ontology/agent/HttpRequestOntologyQueryTool.java`（可参照现存 OntologyHttpTools.java 的 JDK HttpClient 基建与错误分层实现，收敛为单方法 + 参数校验）；
+2. [AgentScopeConfig.java] 取消 toolkit 注册注释，改为注册 HttpRequestOntologyQueryTool，并更新注释说明架构理由："工具层仅提供无业务语义的 HTTP 管道，查询协议由 skill 承载，外部 CLI 调用方走 execute+curl 通道"；
+3. OntologyHttpTools.java 处置：删除（其职责已被 HttpRequestOntologyQueryTool + SKILL.md 协议表取代，避免留下两个相似的 HTTP 工具造成混淆）。
 
 ---
 
@@ -221,7 +221,7 @@ frontmatter（name/description 不变）
 
 | 步骤 | 内容 | 依赖 |
 |---|---|---|
-| 1 | 新建 HttpProxyTool.java（哑管道 + 参数校验 + 错误分层） | 无 |
+| 1 | 新建 HttpRequestOntologyQueryTool.java（哑管道 + 参数校验 + 错误分层） | 无 |
 | 2 | AgentScopeConfig 注册；删除 OntologyHttpTools.java | 步骤 1 |
 | 3 | 按 §8 蓝图改写 SKILL.md（通道 B 内容从现文件原样迁移） | 步骤 1（端点表需与工具参数对齐） |
 | 4 | 编译、重启服务 | 步骤 1~3 |

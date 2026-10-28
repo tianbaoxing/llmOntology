@@ -28,7 +28,7 @@ import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
 import com.conca.ontology.agent.tool.ChartPluginTool;
 import com.conca.ontology.agent.tool.CurrentTimeTool;
 import com.conca.ontology.agent.tool.GetLocationTool;
-import com.conca.ontology.agent.tool.HttpProxyTool;
+import com.conca.ontology.agent.tool.HttpRequestOntologyQueryTool;
 import com.conca.ontology.agent.tool.SystemResourceTool;
 import com.conca.ontology.agent.service.GeoLocationService;
 import com.conca.ontology.builder.service.AgentBuilderService;
@@ -236,7 +236,7 @@ public class AgentRegistry {
         List<Object> tools = new ArrayList<>();
         for (String name : def.tools()) {
             switch (name) {
-                case "graph-query" -> tools.add(new HttpProxyTool(llmBaseUrl));
+                case "graph-query" -> tools.add(new HttpRequestOntologyQueryTool(llmBaseUrl));
                 case "chart-plugin" -> tools.add(new ChartPluginTool());
                 case "disjoint-rules" -> tools.add(new DisjointRulesTool(disjointRuleService));
                 case "agent-builder" -> tools.add(new AgentBuilderTool(builderServiceProvider.getObject()));

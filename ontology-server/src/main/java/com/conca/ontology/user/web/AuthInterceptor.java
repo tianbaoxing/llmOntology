@@ -19,7 +19,7 @@ import jakarta.servlet.http.HttpServletResponse;
  *   未登录 302 跳登录页；/users、/eval 与 /wiki 仅 ADMIN（/data 页面级权限由前端控制，接口层 403 兜底；备份为其二级 Tab）
  * - /api/** 其余：未登录 401 JSON；/api/users、/api/eval、/api/wiki 与写方法（POST/PUT/DELETE/PATCH，/api/agent AI 问答除外）仅 ADMIN
  * - /api/llm/**：同受会话认证——GET 与语义只读 POST（LLM_READ_POST_PATHS）登录即可，其余方法仅 ADMIN；
- *   agent 工具链的会话凭据由 AgentChatService 经 RuntimeContext 注入、HttpProxyTool 以 Cookie 头透传
+ *   agent 工具链的会话凭据由 AgentChatService 经 RuntimeContext 注入、HttpRequestOntologyQueryTool 以 Cookie 头透传
  */
 
 /**

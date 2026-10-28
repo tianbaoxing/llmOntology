@@ -23,7 +23,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
 import com.conca.ontology.builder.AgentRegistry;
 import com.conca.ontology.agent.config.AgentScopeConfig;
-import com.conca.ontology.agent.tool.HttpProxyTool;
+import com.conca.ontology.agent.tool.HttpRequestOntologyQueryTool;
 import com.conca.ontology.agent.model.RewriteConfig;
 import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.user.service.RolePermissionService;
@@ -416,7 +416,7 @@ public class AgentChatService {
      * clientIp 为 Controller 解析的客户端来源 IP（get_location 工具的位置锚点），
      * 两条链均随 RuntimeContext 注入；null（非聊天链路）跳过注入。
      * httpSessionId 为当前登录会话 ID（SESSION Cookie 原值），经 RuntimeContext
-     * （HttpProxyTool.CTX_SESSION_ID_KEY）程序态注入，graph-query 工具据此以 Cookie
+     * HttpRequestOntologyQueryTool.CTX_SESSION_ID_KEY）程序态注入，graph-query 工具据此以 Cookie
      * 头透传 /api/llm 平面认证（会话 ID 为全账号凭据，严禁进入 prompt 与日志）；
      * null（非聊天链路）跳过注入。
      */
@@ -523,7 +523,7 @@ public class AgentChatService {
             builder.put(GeoLocationService.CTX_CLIENT_IP_KEY, clientIp.strip());
         }
         if (httpSessionId != null && !httpSessionId.isBlank()) {
-            builder.put(HttpProxyTool.CTX_SESSION_ID_KEY, httpSessionId.strip());
+            builder.put(HttpRequestOntologyQueryTool.CTX_SESSION_ID_KEY, httpSessionId.strip());
         }
         return builder.build();
     }
@@ -534,7 +534,7 @@ public class AgentChatService {
      *   onSystemPrompt 提示的依据（聊天开始时的角色快照，免中途查库）；
      * - clientIp（GeoLocationService.CTX_CLIENT_IP_KEY）：get_location 工具的
      *   位置锚点（Controller 解析的客户端来源 IP，null 时跳过注入）；
-     * - httpSessionId（HttpProxyTool.CTX_SESSION_ID_KEY）：graph-query 工具透传
+     * - httpSessionId（HttpRequestOntologyQueryTool.CTX_SESSION_ID_KEY）：graph-query 工具透传
      *   /api/llm 平面认证的会话凭据（null 时跳过注入，仅程序态流转）；
      * - SkillFilter（被禁技能非空时）：框架 HarnessSkillMiddleware 原生支持，
      *   从 <available_skills> 清单与 SkillCatalog 中隐藏被禁技能（模型不可见）。
@@ -550,7 +550,7 @@ public class AgentChatService {
             builder.put(GeoLocationService.CTX_CLIENT_IP_KEY, clientIp.strip());
         }
         if (httpSessionId != null && !httpSessionId.isBlank()) {
-            builder.put(HttpProxyTool.CTX_SESSION_ID_KEY, httpSessionId.strip());
+            builder.put(HttpRequestOntologyQueryTool.CTX_SESSION_ID_KEY, httpSessionId.strip());
         }
         List<String> deniedSkills = rolePermissionService.ruleOf(role).deniedSkills();
         if (!deniedSkills.isEmpty()) {

@@ -141,7 +141,7 @@ build(def, workspace, stateStore, apiKey, extraTools, middlewares, envLookup)
 - **关键点**：
   - MCP 注册复用现有 Streamable→SSE 兜底与降级告警逻辑（`McpSupport.register`，握手失败不阻断装配，工具静默缺失在对话中暴露）；
   - `HttpToolAdapter`：按 `httpTools[]` 声明（name/description/endpoint/method/pathPrefix）生成通用 HTTP 工具（→ function calling 描述），这是"工具数据化"的最小实现；
-  - `tools[]` 白名单映射表（`AgentRegistry.BUILTIN_TOOLS`，4 个）：`graph-query`→HttpProxyTool（回连本平台 llmBaseUrl）、`chart-plugin`→ChartPluginTool、`disjoint-rules`→DisjointRulesTool、`agent-builder`→AgentBuilderTool；白名单中不存在即 400 拒绝（保存与装配双重校验）；
+  - `tools[]` 白名单映射表（`AgentRegistry.BUILTIN_TOOLS`，4 个）：`graph-query`→HttpRequestOntologyQueryTool（回连本平台 llmBaseUrl）、`chart-plugin`→ChartPluginTool、`disjoint-rules`→DisjointRulesTool、`agent-builder`→AgentBuilderTool；白名单中不存在即 400 拒绝（保存与装配双重校验）；
   - Bootstrapper 内不做任何 Spring 注入（runtime 模块零 Spring 依赖）。
 
 #### 步骤 4：AgentRegistry（多实例工厂）

@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.conca.ontology.agent.tool.HttpProxyTool;
+import com.conca.ontology.agent.tool.HttpRequestOntologyQueryTool;
 import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.builder.service.AgentBuilderService;
 import com.conca.ontology.agent.dto.AgentChatDTO;
@@ -145,7 +145,7 @@ public class AgentChatController {
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie c : cookies) {
-                if (HttpProxyTool.SESSION_COOKIE_NAME.equals(c.getName()) && !c.getValue().isBlank()) {
+                if (HttpRequestOntologyQueryTool.SESSION_COOKIE_NAME.equals(c.getName()) && !c.getValue().isBlank()) {
                     return c.getValue();
                 }
             }

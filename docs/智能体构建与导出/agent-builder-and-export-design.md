@@ -15,7 +15,7 @@
 | 装配配置 | name / sysPrompt / model(baseUrl,apiKey,modelName) / maxIters | application.yml → Builder | 纯数据，天然可打包 |
 | 技能 | `skills/<id>/`：SKILL.md（frontmatter）+ scripts/ + 资源 | 纯文件夹 | 天然可打包（与 Anthropic Agent Skills 文件夹标准同构） |
 | 子智能体 | `data/agent-workspace/subagents/*.md`（frontmatter: name/description/emoji/color + 人格 prompt），模型可经 AgentSpawnTool 自建、DynamicSubagentsMiddleware 懒加载 | 纯文件 | 天然可打包（与 Claude Code subagents 机制同构） |
-| 工具 | Java 类注册进 Toolkit：HttpProxyTool（哑 HTTP 管道，/api/llm/ 白名单）、DisjointRulesTool、ChartPluginTool；可选 MCP 客户端（Streamable HTTP→SSE 兜底） | **Java 代码** | **不可随数据包走——导出的核心难点** |
+| 工具 | Java 类注册进 Toolkit：HttpRequestOntologyQueryTool（哑 HTTP 管道，/api/llm/ 白名单）、DisjointRulesTool、ChartPluginTool；可选 MCP 客户端（Streamable HTTP→SSE 兜底） | **Java 代码** | **不可随数据包走——导出的核心难点** |
 | 中间件 | ContentSecurityMiddleware、RolePermissionMiddleware | **Java 代码** | 平台属性，随运行时走 |
 | 状态 | JsonFileAgentStateStore（data/agent-state/）+ workspace 目录骨架 | 运行时生成 | 不随包走，导入时重建 |
 
@@ -105,7 +105,7 @@ agent-package/
 ### 技术难点（按严重程度排序）
 
 1. **工具可移植性（最大难点）**。工具是 Java 类，无法随数据包走。三种解法（可组合）：
-   - **工具数据化**：把 HttpProxyTool 的哑管道模式推广——agent.yaml 中声明 HTTP 工具（endpoint + path 白名单 + 参数 schema），运行时由通用 `HttpToolAdapter` 装配。导出包因此不依赖任何业务 Java 类；
+   - **工具数据化**：把 HttpRequestOntologyQueryTool 的哑管道模式推广——agent.yaml 中声明 HTTP 工具（endpoint + path 白名单 + 参数 schema），运行时由通用 `HttpToolAdapter` 装配。导出包因此不依赖任何业务 Java 类；
    - **MCP 优先**：导出包内工具尽量写成 MCP 端点引用（本平台已有 Streamable HTTP/SSE 双通道注册能力），目标环境只需网络可达；
    - **内置白名单**：平台运行时自带工具（如 DisjointRulesTool）只在包里存名字，导入端不存在该名字则降级/禁用并提示。
 2. **密钥外置**。apiKey 绝不入包：agent.yaml 用 `${OPENROUTER_API_KEY}` 式占位，导入端从环境变量/密管服务注入，缺失时给确定性中文报错（沿用本项目错误分层规范）。

@@ -15,7 +15,7 @@ import com.conca.ontology.agent.tool.CurrentTimeTool;
 import com.conca.ontology.agent.tool.GetLocationTool;
 import com.conca.ontology.agent.tool.SystemResourceTool;
 import com.conca.ontology.disjoint.tool.DisjointRulesTool;
-import com.conca.ontology.agent.tool.HttpProxyTool;
+import com.conca.ontology.agent.tool.HttpRequestOntologyQueryTool;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 import com.conca.ontology.agent.service.GeoLocationService;
 import com.conca.ontology.shared.db.AgentDistributedStores;
@@ -41,7 +41,7 @@ import com.conca.ontology.user.service.RolePermissionService;
  * AgentScope 2.0 Harness 装配：
  * OpenAI 兼容协议模型（OpenRouter）+ HarnessAgent（ReAct 循环 + 事件流）。
  *
- * 工具层仅注册 HttpProxyTool——一个无业务语义的哑 HTTP 管道（path 白名单 /api/llm/），
+ * 工具层仅注册 HttpRequestOntologyQueryTool——一个无业务语义的哑 HTTP 管道（path 白名单 /api/llm/），
  * 查询协议（端点速查、只读 Cypher 红线、执行主线）由 ontology-query skill 承载，
  * 保证"查询经由 skills"；外部 Qwen CLI 调用方无此工具，走 skill 中的 execute + curl 通道。
  * harness 内置的 execute 在 Windows 下存在参数死锁（working_directory 单引号拼接），
@@ -123,7 +123,7 @@ public class AgentScopeConfig {
 
         Toolkit toolkit = new Toolkit();
         // 哑 HTTP 管道：base-url 服务端固定（llmBaseUrl Bean 统一解析），agent 只传 path（前缀白名单 /api/llm/）
-        toolkit.registerTool(new HttpProxyTool(llmBaseUrl));
+        toolkit.registerTool(new HttpRequestOntologyQueryTool(llmBaseUrl));
         // 互斥约束词典工具：agent 侧幻觉抑制。有 tool 就优先调工具；工具不可用时走
         // /api/llm/disjoint-rules HTTP 通道兜底。
         toolkit.registerTool(new DisjointRulesTool(disjointRuleService));

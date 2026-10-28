@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.conca.ontology.agent.tool.HttpProxyTool;
+import com.conca.ontology.agent.tool.HttpRequestOntologyQueryTool;
 
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.tool.Tool;
@@ -13,7 +13,7 @@ import io.agentscope.core.tool.ToolParam;
 
 /**
  * Agentic 取证评测专用的只读 HTTP 管道（三期模块一）：复用主问答 agent 同款
- * HttpProxyTool 通道（/api/llm/ 只读平面 + 服务端红线双保险），叠加两个评测诉求：
+ * HttpRequestOntologyQueryTool 通道（/api/llm/ 只读平面 + 服务端红线双保险），叠加两个评测诉求：
  * 1. 成本控制——单样本取证查询次数上限（app.eval.agent.max-queries），超限返回
  *    [参数错误] 确定性文案，agent 停止取证按已获证据判分（对齐设计方案 6.1）；
  * 2. 证据留痕——记录每次实际调用（path/body/返回摘要）供结果 metadata 回查，
@@ -29,13 +29,13 @@ public class EvalProxyTool {
 
     private static final int RECORD_RESULT_CHARS = 300;
 
-    private final HttpProxyTool proxy;
+    private final HttpRequestOntologyQueryTool proxy;
     private final int maxQueries;
     private final AtomicInteger queryCount = new AtomicInteger();
     private final List<Map<String, Object>> records = new ArrayList<>();
 
     public EvalProxyTool(String baseUrl, int maxQueries) {
-        this.proxy = new HttpProxyTool(baseUrl);
+        this.proxy = new HttpRequestOntologyQueryTool(baseUrl);
         this.maxQueries = maxQueries;
     }
 
