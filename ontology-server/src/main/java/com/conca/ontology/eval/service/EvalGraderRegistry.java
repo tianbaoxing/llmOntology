@@ -10,7 +10,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.eval.Grader;
+import com.conca.ontology.eval.graders.Grader;
 import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
 import com.conca.ontology.eval.JudgeClient;
 import com.conca.ontology.eval.model.CustomGraderDefinition;

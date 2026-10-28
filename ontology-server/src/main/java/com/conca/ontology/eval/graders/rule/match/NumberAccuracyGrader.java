@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.eval.Grader;
+import com.conca.ontology.eval.graders.Grader;
 import com.conca.ontology.eval.model.GraderInput;
 import com.conca.ontology.eval.model.GraderScore;
 

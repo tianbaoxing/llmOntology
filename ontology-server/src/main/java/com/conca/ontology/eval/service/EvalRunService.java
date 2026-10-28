@@ -29,7 +29,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.conca.ontology.agent.service.AgentSessionService;
 import com.conca.ontology.eval.AgenticJudgeHolder;
-import com.conca.ontology.eval.Grader;
+import com.conca.ontology.eval.graders.Grader;
 import com.conca.ontology.eval.JudgeClient;
 import com.conca.ontology.eval.entity.EvalRunEntity;
 import com.conca.ontology.eval.entity.EvalRunSampleEntity;

@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.eval.Grader;
+import com.conca.ontology.eval.graders.Grader;
 import com.conca.ontology.eval.JudgeClient;
 import com.conca.ontology.eval.dto.EvalCustomGraderDTO;
 import com.conca.ontology.eval.dto.EvalCustomGraderTestDTO;

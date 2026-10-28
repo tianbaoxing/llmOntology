@@ -1,4 +1,4 @@
-package com.conca.ontology.eval;
+package com.conca.ontology.eval.graders;
 
 import com.conca.ontology.eval.model.GraderInput;
 import com.conca.ontology.eval.model.GraderScore;
