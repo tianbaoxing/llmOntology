@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 
 import io.agentscope.core.model.ExecutionConfig;
 import io.agentscope.core.model.GenerateOptions;
+
+import com.conca.ontology.eval.tool.MeteredOntologyQueryTool;
 import com.conca.ontology.shared.db.AgentDistributedStores;
 import com.conca.ontology.shared.db.MySqlAgentStateStores;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
@@ -84,7 +86,7 @@ public class AgenticJudgeHolder {
     private int serverPort;
 
     private volatile HarnessAgent agent;
-    private volatile EvalProxyTool tool;
+    private volatile MeteredOntologyQueryTool tool;
 
     /** 取证评测 agent（未配置 key 或装配失败时为 null，调用方降级报错） */
     public HarnessAgent agent() {
@@ -92,7 +94,7 @@ public class AgenticJudgeHolder {
     }
 
     /** 取证工具实例（与 agent 内注册的是同一对象：判分前 reset，判分后读计数与记录） */
-    public EvalProxyTool tool() {
+    public MeteredOntologyQueryTool tool() {
         return tool;
     }
 
@@ -135,7 +137,7 @@ public class AgenticJudgeHolder {
             String llmBaseUrl = (ontologyBaseUrl == null || ontologyBaseUrl.isBlank())
                     ? "http://127.0.0.1:" + serverPort
                     : ontologyBaseUrl.trim().replaceAll("/+$", "");
-            tool = new EvalProxyTool(llmBaseUrl, maxQueries);
+            tool = new MeteredOntologyQueryTool(llmBaseUrl, maxQueries);
 
             io.agentscope.core.tool.Toolkit toolkit = new io.agentscope.core.tool.Toolkit();
             toolkit.registerTool(tool);

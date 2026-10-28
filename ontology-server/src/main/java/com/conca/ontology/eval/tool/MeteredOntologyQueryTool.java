@@ -1,4 +1,4 @@
-package com.conca.ontology.eval;
+package com.conca.ontology.eval.tool;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +25,7 @@ import io.agentscope.core.tool.ToolParam;
  * @author tianbaoxing
  * @date 2026-09-16
  */
-public class EvalProxyTool {
+public class MeteredOntologyQueryTool {
 
     private static final int RECORD_RESULT_CHARS = 300;
 
@@ -34,7 +34,7 @@ public class EvalProxyTool {
     private final AtomicInteger queryCount = new AtomicInteger();
     private final List<Map<String, Object>> records = new ArrayList<>();
 
-    public EvalProxyTool(String baseUrl, int maxQueries) {
+    public MeteredOntologyQueryTool(String baseUrl, int maxQueries) {
         this.proxy = new HttpRequestOntologyQueryTool(baseUrl);
         this.maxQueries = maxQueries;
     }
