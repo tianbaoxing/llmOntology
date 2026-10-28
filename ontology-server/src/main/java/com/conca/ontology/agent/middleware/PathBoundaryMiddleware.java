@@ -82,18 +82,24 @@ public class PathBoundaryMiddleware implements HarnessRuntimeMiddleware {
      * @param dataRootCfg 数据根配置值（相对 cwd 解析）；目录必须已存在，fail-fast
      * @param workspace   当前智能体工作区；必须位于数据根内（词法判定），fail-fast
      */
-    public PathBoundaryMiddleware(String dataRootCfg, Path workspace) {
-        //用户可以看到/data/agent-workspace信息，现在这个信息禁止查看，只允许查看/data/agent-workspace/files目录
-        String dataRoot = dataRootCfg.trim()+File.separator+"files";
-        Path root = Path.of(dataRoot.trim()).toAbsolutePath().normalize();
-        if (!Files.isDirectory(root)) {
-            throw new IllegalStateException("[配置错误] 数据根目录不存在或不是目录：" + root
+       public PathBoundaryMiddleware(String dataRootCfg, Path workspace) {
+        // 配置根：工作区必须位于其内（fail-fast）；文件访问边界另行收窄到其下 files/ 子目录
+        Path configuredRoot = Path.of(dataRootCfg.trim()).toAbsolutePath().normalize();
+        if (!Files.isDirectory(configuredRoot)) {
+            throw new IllegalStateException("[配置错误] 数据根目录不存在或不是目录：" + configuredRoot
                     + "（app.agent.data-root=" + dataRootCfg + "），请先创建该目录");
         }
         Path ws = workspace.toAbsolutePath().normalize();
-        if (!ws.startsWith(root)) {
+        if (!ws.startsWith(configuredRoot)) {
             throw new IllegalStateException("[配置错误] 工作区不在数据根内：workspace=" + ws
-                    + "，dataRoot=" + root + "，请检查 app.agent.workspace-dir 与 app.agent.data-root 配置");
+                    + "，dataRoot=" + configuredRoot + "，请检查 app.agent.workspace-dir 与 app.agent.data-root 配置");
+        }
+        // 实际文件边界（防线一 ROOTED 根 + 防线二 PATH_TOOLS 判定）：
+        // 只允许访问 <data-root>/files，agent-workspace 等其余目录对文件工具不可见
+        Path root = configuredRoot.resolve("files");
+        if (!Files.isDirectory(root)) {
+            throw new IllegalStateException("[配置错误] 文件边界目录不存在或不是目录：" + root
+                    + "（app.agent.data-root=" + dataRootCfg + " 下需存在 files 子目录），请先创建该目录");
         }
         try {
             this.dataRoot = root.toRealPath();
