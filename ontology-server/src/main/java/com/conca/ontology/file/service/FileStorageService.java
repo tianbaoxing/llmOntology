@@ -65,7 +65,7 @@ public class FileStorageService {
     }
 
     /** 全量列表（先与磁盘对账、补齐 MD 转换再返回；供 admin 页与 LLM 共用） */
-    public synchronized FileListDTO list() {
+    public FileListDTO list() {
         List<FileEntry> files = ensureConverted(reconcile()).stream()
                 .map(FileEntryConverter::toModel).toList();
         return new FileListDTO(files);
