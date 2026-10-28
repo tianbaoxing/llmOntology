@@ -73,9 +73,6 @@ import jakarta.annotation.PostConstruct;
  * <p>P1 多实例改造：全局"仅一个 running"约束由 eval_run.running_flag 生成列 + uk_running 唯一索引
  * 保证（start INSERT 即抢锁，跨实例原子互斥）；进度权威源为 DB 行（内存 current 仅本实例读缓存），
  * progress/listRuns 降级路径按心跳（heartbeat_at，15 分钟阈值）分流 running/interrupted。</p>
- */
-
-/**
  * @author tianbaoxing
  * @date 2026-08-26
  */
