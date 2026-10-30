@@ -38,7 +38,7 @@ app:
 - MD 命名：`<原文件全名>.md`（如 `报告.docx` → `报告.docx.md`，零命名冲突、文件名可溯源）
 - 空结果检测：剥掉 MD 语法符号后有效字符（字母/数字/汉字）不足阈值 → FAILED"疑似扫描件或空文档，无文本层"
 
-**元数据模型**（FileEntry 扩展，向后兼容，旧 JSON 缺省 null 自动回填）：
+**元数据模型**（FileEntryDTO 扩展，向后兼容，旧 JSON 缺省 null 自动回填）：
 
 | 字段 | 说明 |
 |---|---|
@@ -108,7 +108,7 @@ LlmFileController.files
 | `service/FileStorageService.java` | 挂钩：上传即转、删除连带删 MD、ensureConverted 对账补转、reconvert |
 | `controller/llmapi/LlmFileController.java` | LLM 只读视图：FAILED 过滤 + path 分流 |
 | `controller/api/FileController.java` | 管理端：上传/列表/说明/删除/reconvert |
-| `model/FileEntry.java` | 元数据条目（含 4 个转换扩展字段） |
+| `dto/FileEntryDTO.java` | 元数据条目（含 4 个转换扩展字段） |
 | `dto/view/LlmFileEntryView.java`、`LlmFileListView.java` | LLM 视图 DTO |
 | `static/pages/files.html` | 前端：MD 状态列（✅/—/❌+原因悬停+重试按钮）、上传提示带转换结果 |
 | `skills/ontology-builder/SKILL.md`、`skills/ontology-query/SKILL.md` | 微调：path 恒为可直接读取的 Markdown/文本 |

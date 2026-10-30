@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.file.model.FileEntry;
+import com.conca.ontology.file.dto.FileEntryDTO;
 import com.vladsch.flexmark.html2md.converter.FlexmarkHtmlConverter;
 
 /**
@@ -52,8 +52,8 @@ public class MdConvertService {
 
     /** 转换结果：状态 + 失败原因（成功时 content 已写入 MD 文件） */
     public record ConvertResult(String status, String msg) {
-        static ConvertResult ok() { return new ConvertResult(FileEntry.STATUS_SUCCESS, null); }
-        static ConvertResult fail(String msg) { return new ConvertResult(FileEntry.STATUS_FAILED, msg); }
+        static ConvertResult ok() { return new ConvertResult(FileEntryDTO.STATUS_SUCCESS, null); }
+        static ConvertResult fail(String msg) { return new ConvertResult(FileEntryDTO.STATUS_FAILED, msg); }
     }
 
     /** 是否属于需转换的二进制扩展名 */

@@ -1,5 +1,4 @@
 package com.conca.ontology.file.dto;
-import com.conca.ontology.file.model.FileEntry;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -11,5 +10,5 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 @Schema(description = "上传文件结果（同名覆盖）")
 public record FileUploadResultDTO(
-        @Schema(description = "上传后的文件条目（含绝对路径）") FileEntry file) {
+        @Schema(description = "上传后的文件条目（含绝对路径）") FileEntryDTO file) {
 }

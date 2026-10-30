@@ -101,7 +101,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph W ["写入侧：建图时写 _sourceFile"]
-        I1["批量导入建图（主路径）<br/>POST /api/llm/graph/nodes/batch<br/>LlmGraphController → GraphImportService"] -->|"请求级 sourceFile 字段，服务端注入每个 item"| P["节点属性 _sourceFile = FileEntry.name<br/>（原始上传文件名，即 LLM 侧 originName）"]
+        I1["批量导入建图（主路径）<br/>POST /api/llm/graph/nodes/batch<br/>LlmGraphController → GraphImportService"] -->|"请求级 sourceFile 字段，服务端注入每个 item"| P["节点属性 _sourceFile = FileEntryDTO.name<br/>（原始上传文件名，即 LLM 侧 originName）"]
         I2["单条写入<br/>POST /api/llm/graph/nodes<br/>LlmGraphController → GraphWriteService"] -->|"props 全量透写，item 直接携带"| P
     end
     subgraph R ["读取侧：instances 页展开实例属性"]
@@ -112,7 +112,7 @@ flowchart TD
     P -. 同一个 Neo4j 节点 .-> EX
 ```
 
-说明：`_sourceFile` 存的是**原始上传文件名**（`FileEntry.name`），wiki 文档的 `sourceName` 同样来自 `FileEntry.name`——两侧天然同源，反向匹配即字符串相等。
+说明：`_sourceFile` 存的是**原始上传文件名**（`FileEntryDTO.name`），wiki 文档的 `sourceName` 同样来自 `FileEntryDTO.name`——两侧天然同源，反向匹配即字符串相等。
 
 具体改动点：
 
@@ -121,7 +121,7 @@ flowchart TD
 - **LlmGraphController**（LLM 建图 HTTP 平面，供执行 ontology-builder skill 的 LLM 调用）：文件名经 `GET /api/llm/files` 进入 LLM 上下文；**注意转换成功文件的 `name` 字段是 mdName（如 `报告.docx.md`），原始文件名在 `originName` 字段**——透传必须取 `originName`，否则反向匹配全部落空
 - 管理页手工建点（`/api/graph`，data.html）无来源文件概念，不注入
 - 其余溯源字段（`_sourceChunk/_sourceSpan/_extractedBy/_extractedAt/_confidence`）**不在 P1 范围**，仍按原规划独立排期
-- 值规范：统一存 `FileEntry.name`（原始上传文件名，含子目录相对路径，即 LLM 侧 `originName`），与 wiki 文档的 `sourceName` 同源，反向匹配即字符串相等；文件改名/重传会使两侧断链，P1 接受，对账提示列附录 A.3
+- 值规范：统一存 `FileEntryDTO.name`（原始上传文件名，含子目录相对路径，即 LLM 侧 `originName`），与 wiki 文档的 `sourceName` 同源，反向匹配即字符串相等；文件改名/重传会使两侧断链，P1 接受，对账提示列附录 A.3
 - **存量实例无 `_sourceFile`**：反向"相关文档"为空即可接受；已确认不做批量回填（见 §8 决策点 3）
 
 ### 4.1 正向：正文实体自动链接
@@ -170,7 +170,7 @@ flowchart TD
 **API**：`GET /api/wiki/by-source?file=<sourceName>`（仅 ADMIN）
 
 - 实现：WikiService.list() 结果按 `sourceName == file` 过滤，返回 `{docs: [WikiDocView...]}`
-- 匹配语义：字符串相等（两侧均源自 `FileEntry.name`，天然对齐）
+- 匹配语义：字符串相等（两侧均源自 `FileEntryDTO.name`，天然对齐）
 
 **前端（instances.html）**：
 - 实例行展开属性区（detail-row）末尾追加"相关文档"块：

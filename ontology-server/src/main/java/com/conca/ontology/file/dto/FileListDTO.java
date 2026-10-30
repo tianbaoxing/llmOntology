@@ -1,8 +1,6 @@
 package com.conca.ontology.file.dto;
 import java.util.List;
 
-import com.conca.ontology.file.model.FileEntry;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -13,5 +11,5 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 @Schema(description = "上传文件全量列表（与磁盘对账后返回）")
 public record FileListDTO(
-        @Schema(description = "文件列表（含绝对路径，LLM 按路径用自身工具读取内容）") List<FileEntry> files) {
+        @Schema(description = "文件列表（含绝对路径，LLM 按路径用自身工具读取内容）") List<FileEntryDTO> files) {
 }

@@ -6,10 +6,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
+import com.conca.ontology.file.dto.FileEntryDTO;
 import com.conca.ontology.file.dto.FileListDTO;
 import com.conca.ontology.file.dto.LlmFileEntryDTO;
 import com.conca.ontology.file.dto.LlmFileListDTO;
-import com.conca.ontology.file.model.FileEntry;
 import com.conca.ontology.file.service.FileStorageService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,14 +40,14 @@ public class LlmFileController {
     public ApiResponse<LlmFileListDTO> files() {
         FileListDTO list = storageService.list();
         List<LlmFileEntryDTO> files = list.files().stream()
-                .filter(f -> !FileEntry.STATUS_FAILED.equals(f.convertStatus()))
+                .filter(f -> !FileEntryDTO.STATUS_FAILED.equals(f.convertStatus()))
                 .map(this::toView)
                 .toList();
         return ApiResponse.ok(new LlmFileListDTO(files));
     }
 
-    private LlmFileEntryDTO toView(FileEntry f) {
-        if (FileEntry.STATUS_SUCCESS.equals(f.convertStatus()) && f.mdName() != null) {
+    private LlmFileEntryDTO toView(FileEntryDTO f) {
+        if (FileEntryDTO.STATUS_SUCCESS.equals(f.convertStatus()) && f.mdName() != null) {
             return new LlmFileEntryDTO(f.mdName(), storageService.mdPathOf(f.mdName()), f.name(),
                     f.size(), f.ext(), f.description(), f.uploadedAt());
         }

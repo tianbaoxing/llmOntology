@@ -69,7 +69,7 @@ public class WikiController {
     }
 
     @Operation(summary = "按来源文件查相关文档", description = "实例详情反向溯源：按节点的 _sourceFile"
-            + "（原始上传文件名）匹配文档 sourceName（两侧均源自 FileEntry.name，字符串相等）；"
+            + "（原始上传文件名）匹配文档 sourceName（两侧均源自 FileEntryDTO.name，字符串相等）；"
             + "供 instances 页实例展开属性区的「相关文档」块懒加载。")
     @GetMapping("/by-source")
     public ApiResponse<WikiBySourceResultDTO> bySource(

@@ -24,12 +24,12 @@ import org.springframework.web.multipart.MultipartFile;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.file.converter.FileEntryConverter;
 import com.conca.ontology.file.dto.FileDeleteResultDTO;
+import com.conca.ontology.file.dto.FileEntryDTO;
 import com.conca.ontology.file.dto.FileListDTO;
 import com.conca.ontology.file.dto.FileUpdateResultDTO;
 import com.conca.ontology.file.dto.FileUploadResultDTO;
 import com.conca.ontology.file.entity.FileMetadataRow;
 import com.conca.ontology.file.mapper.FileMetadataMapper;
-import com.conca.ontology.file.model.FileEntry;
 import com.conca.ontology.shared.web.ApiException;
 
 /**
@@ -66,8 +66,8 @@ public class FileStorageService {
 
     /** 全量列表（先与磁盘对账、补齐 MD 转换再返回；供 admin 页与 LLM 共用） */
     public FileListDTO list() {
-        List<FileEntry> files = ensureConverted(reconcile()).stream()
-                .map(FileEntryConverter::toModel).toList();
+        List<FileEntryDTO> files = ensureConverted(reconcile()).stream()
+                .map(FileEntryConverter::toDto).toList();
         return new FileListDTO(files);
     }
 
@@ -112,7 +112,7 @@ public class FileStorageService {
             reconcile();
             upsert(row);
             FileMetadataRow finalRow = requireRow(ensureConverted(loadRows()), name);
-            FileEntry finalEntry = FileEntryConverter.toModel(finalRow);
+            FileEntryDTO finalEntry = FileEntryConverter.toDto(finalRow);
             log.info("file uploaded: {} ({} bytes, convert: {})", name, finalEntry.size(), finalEntry.convertStatus());
             return new FileUploadResultDTO(finalEntry);
         } catch (ApiException e) {
@@ -127,7 +127,7 @@ public class FileStorageService {
         FileMetadataRow row = requireRow(reconcile(), name);
         row.setDescription(cleanDesc(description));
         fileMapper.updateById(row);
-        return new FileUpdateResultDTO(FileEntryConverter.toModel(row));
+        return new FileUpdateResultDTO(FileEntryConverter.toDto(row));
     }
 
     /** 删除：文件实体 + 对应 MD + 元数据记录一并移除 */
@@ -157,7 +157,7 @@ public class FileStorageService {
             throw new ApiException(400, "该类型无需转换: " + row.getExt());
         }
         convertRow(row, true);
-        return new FileUpdateResultDTO(FileEntryConverter.toModel(row));
+        return new FileUpdateResultDTO(FileEntryConverter.toDto(row));
     }
 
     /** MD 绝对路径（LLM 视图用；入参 mdName） */
@@ -230,8 +230,8 @@ public class FileStorageService {
     private List<FileMetadataRow> ensureConverted(List<FileMetadataRow> rows) {
         for (FileMetadataRow row : rows) {
             if (!convertService.shouldConvert(row.getExt())) {
-                if (!FileEntry.STATUS_NONE.equals(row.getConvertStatus())) {
-                    applyConvert(row, null, FileEntry.STATUS_NONE, null, null);
+                if (!FileEntryDTO.STATUS_NONE.equals(row.getConvertStatus())) {
+                    applyConvert(row, null, FileEntryDTO.STATUS_NONE, null, null);
                     fileMapper.updateById(row);
                 }
             } else {
@@ -246,10 +246,10 @@ public class FileStorageService {
         String mdName = convertService.mdNameOf(row.getName());
         Path mdPath = convertService.mdPathOf(mdName);
         boolean mdExists = Files.exists(mdPath);
-        if (!force && (mdExists || FileEntry.STATUS_FAILED.equals(row.getConvertStatus()))) {
+        if (!force && (mdExists || FileEntryDTO.STATUS_FAILED.equals(row.getConvertStatus()))) {
             // MD 在而状态缺失（旧数据/中间态）→ 回填；FAILED 且无 MD → 不动
-            if (mdExists && !FileEntry.STATUS_SUCCESS.equals(row.getConvertStatus())) {
-                applyConvert(row, mdName, FileEntry.STATUS_SUCCESS, null,
+            if (mdExists && !FileEntryDTO.STATUS_SUCCESS.equals(row.getConvertStatus())) {
+                applyConvert(row, mdName, FileEntryDTO.STATUS_SUCCESS, null,
                         FileEntryConverter.parseTime(convertService.mtimeOf(mdPath)));
                 fileMapper.updateById(row);
             }
@@ -258,7 +258,7 @@ public class FileStorageService {
         MdConvertService.ConvertResult r = convertService.convertAndWrite(
                 Path.of(row.getPath()), row.getName());
         applyConvert(row, mdName, r.status(), r.msg(),
-                FileEntry.STATUS_SUCCESS.equals(r.status()) ? LocalDateTime.now() : null);
+                FileEntryDTO.STATUS_SUCCESS.equals(r.status()) ? LocalDateTime.now() : null);
         fileMapper.updateById(row);
     }
 

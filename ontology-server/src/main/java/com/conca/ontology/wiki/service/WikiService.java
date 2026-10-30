@@ -14,8 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.conca.ontology.file.dto.FileEntryDTO;
 import com.conca.ontology.file.dto.FileListDTO;
-import com.conca.ontology.file.model.FileEntry;
 import com.conca.ontology.file.service.FileStorageService;
 import com.conca.ontology.file.service.MdConvertService;
 import com.conca.ontology.shared.web.ApiException;
@@ -72,12 +72,12 @@ public class WikiService {
 
     /** 文档列表（先与文件元数据对账并清理孤儿，再逐篇抽取/合并元信息） */
     public synchronized WikiListDTO list() {
-        List<FileEntry> entries = successEntries();
-        Set<String> valid = Set.copyOf(entries.stream().map(FileEntry::mdName).toList());
+        List<FileEntryDTO> entries = successEntries();
+        Set<String> valid = Set.copyOf(entries.stream().map(FileEntryDTO::mdName).toList());
         removeOrphans(valid);
         Map<String, WikiMetaEntry> manual = metaStore.byMdName();
         List<WikiDocDTO> docs = new ArrayList<>();
-        for (FileEntry e : entries) {
+        for (FileEntryDTO e : entries) {
             String content = readMd(e);
             docs.add(viewOf(e, content, manual.get(e.mdName())));
         }
@@ -86,7 +86,7 @@ public class WikiService {
 
     /** 单篇文档（MD 原文 + 合并元信息 + 正文命中的图谱实体） */
     public synchronized WikiDocResultDTO doc(String mdName) {
-        FileEntry e = findSuccess(mdName, successEntries());
+        FileEntryDTO e = findSuccess(mdName, successEntries());
         WikiMetaEntry meta = metaStore.get(mdName);
         String content = readMd(e);
         String body = stripSourceLine(content);
@@ -107,10 +107,10 @@ public class WikiService {
         if (kw.isEmpty()) {
             return new WikiSearchResultDTO(q, List.of());
         }
-        List<FileEntry> entries = successEntries();
+        List<FileEntryDTO> entries = successEntries();
         Map<String, WikiMetaEntry> manual = metaStore.byMdName();
         List<SearchHit> hits = new ArrayList<>();
-        for (FileEntry e : entries) {
+        for (FileEntryDTO e : entries) {
             String content = readMd(e);
             String body = stripSourceLine(content);
             String lc = body.toLowerCase();
@@ -136,7 +136,7 @@ public class WikiService {
         return new WikiSearchResultDTO(q, docs);
     }
 
-    /** 反向溯源：按来源上传文件名查相关文档（两侧均源自 FileEntry.name，字符串相等即匹配） */
+    /** 反向溯源：按来源上传文件名查相关文档（两侧均源自 FileEntryDTO.name，字符串相等即匹配） */
     public synchronized WikiBySourceResultDTO bySource(String file) {
         if (file == null || file.isBlank()) {
             throw new ApiException(400, "缺少 file 参数");
@@ -149,9 +149,9 @@ public class WikiService {
 
     /** 编辑元信息（category 置空、tags 置空即清除；孤儿清理后行级 upsert） */
     public synchronized WikiMetaUpdateResultDTO updateMeta(String mdName, String category, List<String> tags) {
-        List<FileEntry> entries = successEntries();
-        FileEntry e = findSuccess(mdName, entries);
-        Set<String> valid = Set.copyOf(entries.stream().map(FileEntry::mdName).toList());
+        List<FileEntryDTO> entries = successEntries();
+        FileEntryDTO e = findSuccess(mdName, entries);
+        Set<String> valid = Set.copyOf(entries.stream().map(FileEntryDTO::mdName).toList());
         removeOrphans(valid);
         WikiMetaEntry updated = new WikiMetaEntry(mdName, cleanCategory(category), cleanTags(tags));
         metaStore.upsert(updated);
@@ -228,14 +228,14 @@ public class WikiService {
     }
 
     /** SUCCESS 条目（保持文件列表顺序）；顺带触发文件对账与 MD 转换补齐 */
-    private List<FileEntry> successEntries() {
+    private List<FileEntryDTO> successEntries() {
         FileListDTO fv = fileStorageService.list();
         return fv.files().stream()
-                .filter(f -> FileEntry.STATUS_SUCCESS.equals(f.convertStatus()) && f.mdName() != null)
+                .filter(f -> FileEntryDTO.STATUS_SUCCESS.equals(f.convertStatus()) && f.mdName() != null)
                 .toList();
     }
 
-    private FileEntry findSuccess(String mdName, List<FileEntry> entries) {
+    private FileEntryDTO findSuccess(String mdName, List<FileEntryDTO> entries) {
         if (mdName == null || mdName.isBlank() || mdName.contains("..")) {
             throw new ApiException(400, "非法文件名: " + mdName);
         }
@@ -253,7 +253,7 @@ public class WikiService {
         }
     }
 
-    private WikiDocDTO viewOf(FileEntry e, String content, WikiMetaEntry meta) {
+    private WikiDocDTO viewOf(FileEntryDTO e, String content, WikiMetaEntry meta) {
         String body = stripSourceLine(content);
         return new WikiDocDTO(e.mdName(), e.name(), extractTitle(body, e.mdName()),
                 extract(P_DATE, body), extract(P_SOURCE, body), extract(P_AUTHOR, body),
@@ -262,7 +262,7 @@ public class WikiService {
     }
 
     /** 读 MD 原文（路径来自文件元数据，非用户输入） */
-    private String readMd(FileEntry e) {
+    private String readMd(FileEntryDTO e) {
         try {
             return Files.readString(convertService.mdPathOf(e.mdName()), StandardCharsets.UTF_8);
         } catch (IOException ex) {
