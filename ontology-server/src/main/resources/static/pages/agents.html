@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" href="/logo.png">
 <link rel="stylesheet" href="/pages/common.css">
 <style>
-.ag-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px 24px; max-width: 1100px; }
+.ag-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px 24px; }
 .ag-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
 .ag-head h2 { margin: 0; font-size: 16px; color: #166534; border-left: 3px solid #16a34a; padding-left: 10px; }
 .ag-hint { color: #9ca3af; font-size: 12px; font-weight: normal; margin-left: 8px; }
@@ -76,10 +76,50 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: top; }
 th { color: #6b7280; font-weight: 600; white-space: nowrap; }
 td .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------- 模型管理 Tab（mi- 前缀，与 ag- 隔离） ---------- */
+.mi-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.mi-bar input[type=text] { width: 190px; }
+.mi-bar input, .mi-bar select { border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 9px; font-size: 13px; }
+.mi-c { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mi-tbl-scroll { overflow-x: auto; }
+.mi-tbl-scroll table { width: max-content; min-width: 100%; }
+.mi-tbl-scroll td { white-space: nowrap; }
+.mi-flag { display: inline-block; border-radius: 999px; padding: 0 7px; font-size: 11px; margin-right: 4px; }
+.mi-flag.f { background: #eff6ff; color: #1e40af; }
+.mi-flag.r { background: #fef3c7; color: #92400e; }
+.mi-flag.w { background: #dcfce7; color: #166534; }
+.mi-pager { display: flex; align-items: center; gap: 6px; margin-top: 14px; flex-wrap: wrap; font-size: 13px; color: #374151; }
+.mi-pager .mi-cur { background: #2563eb; color: #fff; border-color: #2563eb; }
+.mi-pager select, .mi-pager input { border: 1px solid #d1d5db; border-radius: 6px; padding: 5px 7px; font-size: 13px; }
+.mi-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 9999; align-items: center; justify-content: center; }
+.mi-modal.open { display: flex; }
+.mi-modal-box { background: #fff; border-radius: 8px; width: 980px; max-width: 94vw; max-height: 88vh; display: flex; flex-direction: column; }
+.mi-modal-box h3 { margin: 0; padding: 14px 20px; border-bottom: 1px solid #e5e7eb; color: #1e40af; display: flex; justify-content: space-between; align-items: center; }
+.mi-modal-box h3 .x { cursor: pointer; font-size: 18px; color: #6b7280; padding: 0 8px; }
+.mi-modal-body { flex: 1; overflow: auto; padding: 14px 20px; }
+.mi-modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid #e5e7eb; }
+.mi-grp { border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 10px; }
+.mi-grp summary { cursor: pointer; padding: 8px 12px; font-size: 13px; color: #1e40af; user-select: none; }
+.mi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+.mi-grp .mi-grid { padding: 4px 14px 14px; }
+.mi-field > label { display: block; color: #374151; font-weight: 600; font-size: 12px; margin-bottom: 4px; }
+.mi-field > label .hint { color: #9ca3af; font-weight: normal; margin-left: 6px; font-size: 11px; }
+.mi-field input, .mi-field select, .mi-field textarea { width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 9px; font-size: 13px; font-family: inherit; }
+.mi-field textarea { min-height: 48px; resize: vertical; }
+.mi-field.full { grid-column: 1 / -1; }
+.mi-field input[readonly] { background: #f9fafb; color: #6b7280; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="container">
+  <div class="page-tabs">
+    <a class="ptab active" data-tab="agents" onclick="agSwitchTab('agents')">智能体管理</a>
+    <a class="ptab" data-tab="models" onclick="agSwitchTab('models')">模型管理</a>
+  </div>
+
+  <!-- Tab 1：智能体管理（现有内容，逻辑零改动） -->
+  <div id="tab-agents">
   <div id="ag-list-view" class="ag-wrap">
     <div class="ag-head">
       <h2>智能体列表 <span class="ag-hint">9 槽位定义：提示词 / 模型 / 技能 / MCP / 子 agent / 工具 / 开场白；密钥经环境变量 AGENT_API_KEY 注入；平台内运行，可导出二次开发工程</span></h2>
@@ -199,6 +239,45 @@ td .acts { display: flex; flex-wrap: wrap; gap: 6px; }
     <div style="margin-top:18px; display:flex; gap:8px">
       <button class="btn primary" onclick="agSave()">💾 保存</button>
       <button class="btn" onclick="agBackToList()">取消</button>
+    </div>
+  </div>
+  </div><!-- /tab-agents -->
+
+  <!-- Tab 2：模型管理（model_info 表，源 Epoch AI 数据集） -->
+  <div id="tab-models" class="ag-wrap" style="display:none">
+    <div class="ag-head">
+      <h2>模型管理 <span class="ag-hint">AI 模型信息库（57 字段，分页浏览）；新增/编辑弹框分组维护，大数列以字符串显示避免精度丢失</span></h2>
+      <button class="btn primary" onclick="miOpenCreate()">＋ 新增模型</button>
+    </div>
+    <div class="mi-bar">
+      <input type="text" id="mi-q-model" placeholder="模型名，模糊">
+      <input type="text" id="mi-q-org" placeholder="发布组织，模糊">
+      <select id="mi-q-conf">
+        <option value="">置信度：全部</option>
+        <option value="Confident">Confident</option>
+        <option value="Likely">Likely</option>
+        <option value="Speculative">Speculative</option>
+        <option value="Unknown">Unknown</option>
+      </select>
+      <select id="mi-q-fm"><option value="">基础模型：全部</option><option value="true">是</option><option value="false">否</option></select>
+      <select id="mi-q-fr"><option value="">前沿模型：全部</option><option value="true">是</option><option value="false">否</option></select>
+      <select id="mi-q-ow"><option value="">开放权重：全部</option><option value="true">是</option><option value="false">否</option></select>
+      <button class="btn sm" onclick="miSearch()">查询</button>
+      <button class="btn sm" onclick="miReset()">重置</button>
+    </div>
+    <div id="mi-tbl-wrap">加载中…</div>
+    <div class="mi-pager" id="mi-pager"></div>
+  </div>
+</div>
+
+<!-- 模型新增/编辑对话框（分组折叠面板，980px，内容区滚动） -->
+<div class="mi-modal" id="mi-modal">
+  <div class="mi-modal-box">
+    <h3><span id="mi-modal-title">新增模型</span><span class="x" onclick="miCloseModal()">×</span></h3>
+    <div class="mi-modal-body" id="mi-modal-body"></div>
+    <div class="mi-modal-foot">
+      <button class="btn" onclick="miCloseModal()">取消</button>
+      <button class="btn primary" onclick="miSave()">保存</button>
     </div>
   </div>
 </div>
@@ -550,6 +629,352 @@ async function agTrialSend() {
     if (agTrial) agTrial.busy = false;
     log.scrollTop = log.scrollHeight;
   }
+}
+
+/* ================== 模型管理（mi- 前缀，与 ag- 隔离） ================== */
+let miLoaded = false;   // Tab 首次激活才加载列表（懒加载）
+let miEditing = null;   // null=新增；否则 detail 响应对象
+let miRows = [];        // 当前页数据（操作按钮按行索引定位，规避主键特殊字符转义问题）
+const miState = { page: 1, pageSize: 10, model: '', organization: '', confidence: '', foundationModel: '', frontierModel: '', openWeights: '' };
+
+const MI_CONF = ['Confident', 'Likely', 'Speculative', 'Unknown'];
+const MI_NUM_RE = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/;
+
+/** 57 字段分组规格（t 控件类型：text/date/textarea/bool/conf/big/num/ro；full=整行） */
+const MI_GROUPS = [
+  { t: '一、基本信息', fs: [
+    { k: 'model', l: '模型名称', t: 'text', max: 160, req: 1, hint: '主键，保存后不可修改' },
+    { k: 'domain', l: '领域', t: 'text', max: 128, hint: '逗号分隔多值' },
+    { k: 'task', l: '任务', t: 'text', max: 512, hint: '逗号分隔多值', full: 1 },
+    { k: 'organization', l: '发布组织', t: 'text', max: 1024, hint: '多值', full: 1 },
+    { k: 'organizationCategorization', l: '组织分类', t: 'text', max: 512, hint: '多值' },
+    { k: 'countryOfOrganization', l: '组织所在国家', t: 'text', max: 1024, hint: '多值' },
+    { k: 'baseModel', l: '基座模型', t: 'text', max: 128 },
+    { k: 'modelAccessibility', l: '模型可获取方式', t: 'text', max: 64 },
+    { k: 'huggingFaceDeveloperId', l: 'Hugging Face 开发者 ID', t: 'text', max: 64 },
+    { k: 'publicationDate', l: '发布日期', t: 'date' },
+    { k: 'lastModified', l: '数据最后修改时间', t: 'ro', hint: 'UTC，系统维护' }
+  ] },
+  { t: '二、标志位', fs: [
+    { k: 'foundationModel', l: '基础模型', t: 'bool' },
+    { k: 'frontierModel', l: '前沿模型', t: 'bool' },
+    { k: 'openModelWeights', l: '开放模型权重', t: 'bool' }
+  ] },
+  { t: '三、文献与知名度', fs: [
+    { k: 'reference', l: '参考文献/来源标题', t: 'text', max: 512 },
+    { k: 'link', l: '来源链接', t: 'text', max: 1024, full: 1 },
+    { k: 'archivedLinks', l: '存档链接', t: 'text', max: 512, full: 1 },
+    { k: 'citations', l: '引用数', t: 'num' },
+    { k: 'notabilityCriteria', l: '知名度判定标准', t: 'text', max: 128 },
+    { k: 'notabilityCriteriaNotes', l: '判定标准备注', t: 'textarea', rows: 2 },
+    { k: 'abstractText', l: '摘要', t: 'textarea', rows: 6, full: 1 }
+  ] },
+  { t: '四、规模与算力', fs: [
+    { k: 'authors', l: '作者列表', t: 'textarea', rows: 3, full: 1 },
+    { k: 'parameters', l: '参数量', t: 'big' },
+    { k: 'parametersNotes', l: '参数量备注', t: 'textarea', rows: 2 },
+    { k: 'trainingComputeFlop', l: '训练算力', t: 'big', hint: 'FLOP' },
+    { k: 'trainingComputeNotes', l: '训练算力备注', t: 'textarea', rows: 2 },
+    { k: 'trainingComputeLowerBound', l: '训练算力下界', t: 'big', hint: 'FLOP' },
+    { k: 'trainingComputeUpperBound', l: '训练算力上界', t: 'big', hint: 'FLOP' },
+    { k: 'trainingComputeEstimationMethod', l: '算力估算方法', t: 'text', max: 128 },
+    { k: 'possiblyOver1e23Flop', l: '可能超 1e23 FLOP', t: 'bool' }
+  ] },
+  { t: '五、数据与训练过程', fs: [
+    { k: 'trainingDatasetSizeTotal', l: '训练数据总规模', t: 'big', hint: 'token 数' },
+    { k: 'datasetSizeNotes', l: '数据规模备注', t: 'textarea', rows: 2 },
+    { k: 'epochs', l: '训练轮数', t: 'num' },
+    { k: 'batchSize', l: '批大小', t: 'num' },
+    { k: 'batchSizeNotes', l: '批大小备注', t: 'textarea', rows: 2 },
+    { k: 'approach', l: '训练方法', t: 'text', max: 128, hint: '逗号分隔多值' },
+    { k: 'confidence', l: '数据置信度', t: 'conf' },
+    { k: 'trainingTimeHours', l: '训练时长', t: 'num', hint: '小时' },
+    { k: 'trainingTimeNotes', l: '训练时长备注', t: 'textarea', rows: 2 }
+  ] },
+  { t: '六、硬件与运行环境', fs: [
+    { k: 'trainingHardware', l: '训练硬件', t: 'text', max: 128 },
+    { k: 'hardwareQuantity', l: '硬件数量', t: 'num' },
+    { k: 'trainingChipHours', l: '训练芯片小时数', t: 'num' },
+    { k: 'hardwareUtilizationMfu', l: '硬件利用率', t: 'num', hint: 'MFU' },
+    { k: 'hardwareUtilizationHfu', l: '硬件利用率', t: 'num', hint: 'HFU' },
+    { k: 'utilizationNotes', l: '利用率备注', t: 'textarea', rows: 2 },
+    { k: 'trainingPowerDrawW', l: '训练功耗', t: 'num', hint: '瓦' },
+    { k: 'numericalFormat', l: '数值精度格式', t: 'text', max: 64 },
+    { k: 'trainingCloudComputeVendor', l: '训练云计算厂商', t: 'text', max: 64 },
+    { k: 'trainingDataCenter', l: '训练数据中心', t: 'text', max: 255 },
+    { k: 'trainingCodeAccessibility', l: '训练代码可获取性', t: 'text', max: 32 },
+    { k: 'accessibilityNotes', l: '可获取性备注', t: 'textarea', rows: 2 }
+  ] },
+  { t: '七、成本与后训练', fs: [
+    { k: 'trainingComputeCost2023Usd', l: '训练算力成本', t: 'num', hint: '2023 年美元' },
+    { k: 'finetuneComputeFlop', l: '微调算力', t: 'big', hint: 'FLOP' },
+    { k: 'finetuneComputeNotes', l: '微调算力备注', t: 'textarea', rows: 2 },
+    { k: 'postTrainingComputeFlop', l: '后训练算力', t: 'big', hint: 'FLOP' },
+    { k: 'postTrainingComputeNotes', l: '后训练算力备注', t: 'textarea', rows: 2 }
+  ] },
+  { t: '八、其他', fs: [
+    { k: 'wikitextAndPennTreebankData', l: 'WikiText/Penn Treebank 数据标注', t: 'text', max: 255, full: 1 }
+  ] }
+];
+
+/** 字段规格索引（收集/校验用） */
+const MI_SPECS = {};
+MI_GROUPS.forEach(g => g.fs.forEach(f => { MI_SPECS[f.k] = f; }));
+
+/** 二级 Tab 切换（互斥显示；模型管理首次激活时懒加载列表） */
+function agSwitchTab(tab) {
+  document.querySelectorAll('.page-tabs .ptab').forEach(el =>
+    el.classList.toggle('active', el.dataset.tab === tab));
+  $('tab-agents').style.display = tab === 'agents' ? '' : 'none';
+  $('tab-models').style.display = tab === 'models' ? '' : 'none';
+  if (tab === 'models' && !miLoaded) { miLoaded = true; miLoadList(); }
+}
+
+/* ---------- 列表 ---------- */
+async function miLoadList() {
+  const q = new URLSearchParams();
+  q.set('page', miState.page);
+  q.set('pageSize', miState.pageSize);
+  if (miState.model) q.set('model', miState.model);
+  if (miState.organization) q.set('organization', miState.organization);
+  if (miState.confidence) q.set('confidence', miState.confidence);
+  if (miState.foundationModel) q.set('foundationModel', miState.foundationModel);
+  if (miState.frontierModel) q.set('frontierModel', miState.frontierModel);
+  if (miState.openWeights) q.set('openWeights', miState.openWeights);
+  try {
+    const d = await api('GET', '/api/model-info/page?' + q.toString());
+    miRows = d.rows || [];
+    miRenderTable();
+    miRenderPager(d);
+  } catch (e) { showMsg('模型列表加载失败：' + e.message, false); }
+}
+
+/** 大数列显示：≥1e6 转科学计数法（如 1.75e11），其余原样（源数据已是字符串） */
+function miFmtBig(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (!isFinite(n)) return esc(String(v));
+  return Math.abs(n) >= 1e6 ? n.toExponential().replace('e+', 'e') : String(n);
+}
+
+function miFlags(a) {
+  return (a.foundationModel ? '<span class="mi-flag f">基础</span>' : '') +
+    (a.frontierModel ? '<span class="mi-flag r">前沿</span>' : '') +
+    (a.openModelWeights ? '<span class="mi-flag w">开放权重</span>' : '');
+}
+
+/** 文本单元格：截断 + title 悬浮全文 */
+function miTrunc(v) {
+  return `<td class="mi-c" title="${esc(v == null ? '' : String(v))}">${v == null || v === '' ? '—' : esc(String(v))}</td>`;
+}
+/** 数值/短文本单元格：不截断 */
+function miNum(v) {
+  return `<td>${v == null || v === '' ? '—' : esc(String(v))}</td>`;
+}
+/** 日期单元格（yyyy-MM-dd） */
+function miDate(v) {
+  return `<td>${v ? esc(String(v).slice(0, 10)) : '—'}</td>`;
+}
+/** 日期时间单元格（yyyy-MM-dd HH:mm） */
+function miDT(v) {
+  return `<td>${v ? esc(String(v).replace('T', ' ').slice(0, 16)) : '—'}</td>`;
+}
+
+function miRenderTable() {
+  const wrap = $('mi-tbl-wrap');
+  if (!miRows.length) {
+    wrap.innerHTML = '<div style="color:#9ca3af;font-size:13px;padding:20px 0">暂无数据，调整筛选条件或点右上角「新增模型」。</div>';
+    return;
+  }
+  const heads = ['模型', '发布组织', '组织所在国家', '发布日期', '领域', '任务', '基座模型', '参数量',
+    '训练算力(FLOP)', '训练数据规模', '训练时长(h)', '训练硬件', '训练方法', '微调算力(FLOP)', '后训练算力(FLOP)',
+    '训练成本(USD)', '标志', '引用数', '置信度', '可获取方式', 'HF 开发者', '最后修改', '操作'];
+  const rows = miRows.map((a, i) => '<tr>' + [
+    `<td class="mi-c" title="${esc(a.model)}"><b>${esc(a.model)}</b></td>`,
+    miTrunc(a.organization),
+    miTrunc(a.countryOfOrganization),
+    miDate(a.publicationDate),
+    miTrunc(a.domain),
+    miTrunc(a.task),
+    miTrunc(a.baseModel),
+    `<td>${miFmtBig(a.parameters)}</td>`,
+    `<td>${miFmtBig(a.trainingComputeFlop)}</td>`,
+    `<td>${miFmtBig(a.trainingDatasetSizeTotal)}</td>`,
+    miNum(a.trainingTimeHours),
+    miTrunc(a.trainingHardware),
+    miTrunc(a.approach),
+    `<td>${miFmtBig(a.finetuneComputeFlop)}</td>`,
+    `<td>${miFmtBig(a.postTrainingComputeFlop)}</td>`,
+    miNum(a.trainingComputeCost2023Usd),
+    `<td>${miFlags(a) || '—'}</td>`,
+    miNum(a.citations),
+    miNum(a.confidence),
+    miTrunc(a.modelAccessibility),
+    miTrunc(a.huggingFaceDeveloperId),
+    miDT(a.lastModified),
+    `<td><div class="acts">
+      <button class="btn sm" onclick="miOpenEdit(${i})">编辑</button>
+      <button class="btn sm" onclick="miDelete(${i})">删除</button>
+    </div></td>`
+  ].join('') + '</tr>');
+  wrap.innerHTML = '<div class="mi-tbl-scroll"><table><tr>' +
+    heads.map(h => `<th>${h}</th>`).join('') + '</tr>' + rows.join('') + '</table></div>';
+}
+
+function miRenderPager(d) {
+  const totalPages = Math.max(1, Math.ceil(d.total / d.pageSize));
+  const cur = d.page;
+  const from = Math.max(1, Math.min(cur - 2, totalPages - 4));
+  const to = Math.min(totalPages, from + 4);
+  let nums = '';
+  for (let p = from; p <= to; p++) {
+    nums += `<button class="btn sm${p === cur ? ' mi-cur' : ''}"${p === cur ? ' disabled' : ''} onclick="miGoPage(${p})">${p}</button>`;
+  }
+  $('mi-pager').innerHTML =
+    `<span>共 ${d.total} 条 · 第 ${cur}/${totalPages} 页</span>` +
+    `<button class="btn sm"${cur <= 1 ? ' disabled' : ''} onclick="miGoPage(1)">«</button>` +
+    `<button class="btn sm"${cur <= 1 ? ' disabled' : ''} onclick="miGoPage(${cur - 1})">‹</button>` +
+    nums +
+    `<button class="btn sm"${cur >= totalPages ? ' disabled' : ''} onclick="miGoPage(${cur + 1})">›</button>` +
+    `<button class="btn sm"${cur >= totalPages ? ' disabled' : ''} onclick="miGoPage(${totalPages})">»</button>` +
+    `<span>每页</span><select onchange="miState.pageSize=+this.value;miGoPage(1)">` +
+    [10, 20, 50].map(s => `<option value="${s}"${s === d.pageSize ? ' selected' : ''}>${s}</option>`).join('') +
+    `</select>` +
+    `<span>跳至</span><input type="number" id="mi-jump" min="1" max="${totalPages}" style="width:52px"
+      onkeydown="if(event.key==='Enter')miJump(${totalPages})">` +
+    `<button class="btn sm" onclick="miJump(${totalPages})">GO</button>`;
+}
+
+function miGoPage(p) { miState.page = p; miLoadList(); }
+
+function miJump(totalPages) {
+  const v = parseInt($('mi-jump').value, 10);
+  if (!isNaN(v)) miGoPage(Math.max(1, Math.min(v, totalPages)));
+}
+
+function miSearch() {
+  miState.model = $('mi-q-model').value.trim();
+  miState.organization = $('mi-q-org').value.trim();
+  miState.confidence = $('mi-q-conf').value;
+  miState.foundationModel = $('mi-q-fm').value;
+  miState.frontierModel = $('mi-q-fr').value;
+  miState.openWeights = $('mi-q-ow').value;
+  miGoPage(1);
+}
+
+function miReset() {
+  $('mi-q-model').value = '';
+  $('mi-q-org').value = '';
+  $('mi-q-conf').value = '';
+  $('mi-q-fm').value = '';
+  $('mi-q-fr').value = '';
+  $('mi-q-ow').value = '';
+  miSearch();
+}
+
+/* ---------- 新增/编辑弹框（57 字段分组折叠面板） ---------- */
+function miFieldHtml(f) {
+  const v = miEditing ? miEditing[f.k] : null;
+  let ctrl;
+  if (f.t === 'bool') {
+    ctrl = `<select data-k="${f.k}">
+      <option value="">未知</option>
+      <option value="1"${v === true ? ' selected' : ''}>是</option>
+      <option value="0"${v === false ? ' selected' : ''}>否</option>
+    </select>`;
+  } else if (f.t === 'conf') {
+    ctrl = `<select data-k="${f.k}"><option value=""></option>` +
+      MI_CONF.map(c => `<option value="${c}"${v === c ? ' selected' : ''}>${c}</option>`).join('') + '</select>';
+  } else if (f.t === 'date') {
+    ctrl = `<input type="date" data-k="${f.k}" value="${v ? esc(String(v).slice(0, 10)) : ''}">`;
+  } else if (f.t === 'textarea') {
+    ctrl = `<textarea data-k="${f.k}" rows="${f.rows || 2}">${esc(v == null ? '' : String(v))}</textarea>`;
+  } else if (f.t === 'ro') {
+    const txt = v == null ? '' : String(v).replace('T', ' ').slice(0, 19);
+    ctrl = `<input type="text" data-k="${f.k}" readonly value="${esc(txt)}" placeholder="（系统维护）">`;
+  } else {
+    const isNum = f.t === 'big' || f.t === 'num';
+    ctrl = `<input type="text" data-k="${f.k}"${f.max ? ` maxlength="${f.max}"` : ''}` +
+      (f.k === 'model' && miEditing ? ' readonly' : '') +
+      (isNum ? ' placeholder="数值，支持科学计数法"' : '') +
+      ` value="${esc(v == null ? '' : String(v))}">`;
+  }
+  const req = f.req ? ' <span style="color:#b91c1c">*</span>' : '';
+  const hint = f.hint ? ` <span class="hint">${esc(f.hint)}</span>` : '';
+  return `<div class="mi-field${f.full ? ' full' : ''}"><label>${esc(f.l)}${req}${hint}</label>${ctrl}</div>`;
+}
+
+function miRenderModal() {
+  $('mi-modal-title').textContent = miEditing ? `编辑模型：${miEditing.model}` : '新增模型';
+  $('mi-modal-body').innerHTML = MI_GROUPS.map((g, gi) => `
+    <details class="mi-grp"${gi === 0 ? ' open' : ''}>
+      <summary>${esc(g.t)}（${g.fs.length} 字段）</summary>
+      <div class="mi-grid">${g.fs.map(miFieldHtml).join('')}</div>
+    </details>`).join('');
+}
+
+function miOpenCreate() {
+  miEditing = null;
+  miRenderModal();
+  $('mi-modal').classList.add('open');
+}
+
+async function miOpenEdit(i) {
+  const a = miRows[i];
+  if (!a) return;
+  try {
+    miEditing = await api('GET', '/api/model-info/detail?model=' + encodeURIComponent(a.model));
+    miRenderModal();
+    $('mi-modal').classList.add('open');
+  } catch (e) { showMsg('读取模型详情失败：' + e.message, false); }
+}
+
+function miCloseModal() { $('mi-modal').classList.remove('open'); }
+
+/** 收集表单：bool 三态（null/true/false）；空文本归一为 null（空值语义与源数据一致）；ro 字段不提交 */
+function miCollect() {
+  const out = {};
+  document.querySelectorAll('#mi-modal-body [data-k]').forEach(el => {
+    const f = MI_SPECS[el.dataset.k];
+    if (f.t === 'ro') return;
+    if (f.t === 'bool') { const v = el.value; out[f.k] = v === '' ? null : v === '1'; return; }
+    if (f.t === 'date') { out[f.k] = el.value ? el.value : null; return; }
+    let v = String(el.value == null ? '' : el.value);
+    if (f.k === 'model') v = v.trim();
+    out[f.k] = v === '' ? null : v;
+  });
+  return out;
+}
+
+async function miSave() {
+  const body = miCollect();
+  if (!body.model) { showMsg('模型名称必填', false); return; }
+  for (const g of MI_GROUPS) {
+    for (const f of g.fs) {
+      if (f.t !== 'big' && f.t !== 'num') continue;
+      const v = body[f.k];
+      if (v != null && !MI_NUM_RE.test(v)) { showMsg(`「${f.l}」格式错误：须为数字（支持科学计数法）`, false); return; }
+    }
+  }
+  try {
+    if (miEditing) await api('PUT', '/api/model-info', body);
+    else await api('POST', '/api/model-info', body);
+    showMsg('已保存', true);
+    miCloseModal();
+    await miLoadList();
+  } catch (e) { showMsg('保存失败：' + e.message, false); }
+}
+
+async function miDelete(i) {
+  const a = miRows[i];
+  if (!a) return;
+  if (!confirm(`确认删除模型「${a.model}」？该操作不可恢复。`)) return;
+  try {
+    await api('DELETE', '/api/model-info?model=' + encodeURIComponent(a.model));
+    showMsg('已删除', true);
+    if (miRows.length === 1 && miState.page > 1) miState.page--; // 当前页删空回退一页
+    await miLoadList();
+  } catch (e) { showMsg('删除失败：' + e.message, false); }
 }
 </script>
 </body>
