@@ -17,13 +17,14 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
 import com.conca.ontology.builder.AgentRegistry;
-import com.conca.ontology.agent.config.AgentScopeConfig;
 import com.conca.ontology.agent.tool.HttpRequestOntologyQueryTool;
+import com.conca.ontology.model.service.ModelSlugService;
 import com.conca.ontology.agent.model.RewriteConfig;
 import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.user.service.RolePermissionService;
@@ -101,7 +102,7 @@ public class AgentChatService {
     /** 进行中会话的所属用户（sessionId → userId），供停止接口校验归属并作用域中断 */
     private final Map<String, String> sessionOwners = new ConcurrentHashMap<>();
 
-    /** 进行中的自建智能体会话（sessionId → 实例引用）：stop 中断取 delegate 用（不持有所有权，release 走 doFinally） */
+    /** 进行中的非单例会话（sessionId → 实例引用：自建智能体或模型级实例）：stop 中断取 delegate 用（不持有所有权，release 走 doFinally） */
     private final Map<String, HarnessAgent> sessionAgents = new ConcurrentHashMap<>();
 
     /** 反射缓存：HarnessAgent 持有的底层 ReActAgent（interrupt 需按其会话作用域触发） */
@@ -112,17 +113,26 @@ public class AgentChatService {
     private final RolePermissionService rolePermissionService;
     private final UserService userService;
     private final AgentRegistry agentRegistry;
+    private final ModelAgentRegistry modelAgentRegistry;
+    private final ModelSlugService modelSlugService;
+    /** 主智能体默认模型 slug（app.agent.model）：请求 model 与其相同 = 不切换 */
+    private final String defaultModel;
 
     public AgentChatService(ObjectProvider<HarnessAgent> agentProvider,
             ContentSecurityService contentSecurityService, RewriteConfigService rewriteConfigService,
             RolePermissionService rolePermissionService, UserService userService,
-            AgentRegistry agentRegistry) {
+            AgentRegistry agentRegistry, ModelAgentRegistry modelAgentRegistry,
+            ModelSlugService modelSlugService,
+            @Value("${app.agent.model:}") String defaultModel) {
         this.agentProvider = agentProvider;
         this.contentSecurityService = contentSecurityService;
         this.rewriteConfigService = rewriteConfigService;
         this.rolePermissionService = rolePermissionService;
         this.userService = userService;
         this.agentRegistry = agentRegistry;
+        this.modelAgentRegistry = modelAgentRegistry;
+        this.modelSlugService = modelSlugService;
+        this.defaultModel = defaultModel == null ? "" : defaultModel.strip();
     }
 
     /** agent 是否已装配（OPENROUTER_API_KEY 已配置） */
@@ -153,9 +163,9 @@ public class AgentChatService {
         if (!runningSessions.contains(sessionId)) {
             return false;
         }
-        // 自建智能体会话：实例引用直达 getDelegate；主智能体走反射缓存
-        HarnessAgent customAgent = sessionAgents.get(sessionId);
-        ReActAgent delegate = customAgent != null ? customAgent.getDelegate() : delegate();
+        // 非单例会话（自建智能体/模型级实例）：实例引用直达 getDelegate；主智能体走反射缓存
+        HarnessAgent sessionAgent = sessionAgents.get(sessionId);
+        ReActAgent delegate = sessionAgent != null ? sessionAgent.getDelegate() : delegate();
         if (delegate == null) {
             log.warn("无法获取底层 ReActAgent，停止功能不可用（session={}）", sessionId);
             return false;
@@ -405,7 +415,7 @@ public class AgentChatService {
      * userId 为当前登录用户（会话/记忆按用户隔离，落盘在 workspace/{userId}/ 下）。
      */
     public SseEmitter chat(String sessionId, String message, String userId) {
-        return chat(sessionId, message, userId, null, null, null);
+        return chat(sessionId, message, userId, null, null, null, null);
     }
 
     /**
@@ -413,18 +423,25 @@ public class AgentChatService {
      * 非空走 AgentRegistry 实例。事件契约与主智能体完全一致（前端 chat 页零改动渲染），
      * 差异仅两点：不经改写管道（自建 agent 语义自治）；上下文不注入角色权限
      * （平台治理对自建 agent 仅保留内容安全中间件，装配期已挂）。
+     * model 为 chat 页底部「模型切换」所选 OpenRouter slug（仅主智能体生效，自建智能体忽略）：
+     * 空或等于默认模型 = 主智能体单例；非空先经 ModelSlugService.isRoutable 校验，
+     * 通过后从 ModelAgentRegistry 取同能力、仅 modelName 不同的实例（会话与记忆连续）。
      * clientIp 为 Controller 解析的客户端来源 IP（get_location 工具的位置锚点），
-     * 两条链均随 RuntimeContext 注入；null（非聊天链路）跳过注入。
+     * 各链均随 RuntimeContext 注入；null（非聊天链路）跳过注入。
      * httpSessionId 为当前登录会话 ID（SESSION Cookie 原值），经 RuntimeContext
      * HttpRequestOntologyQueryTool.CTX_SESSION_ID_KEY）程序态注入，graph-query 工具据此以 Cookie
      * 头透传 /api/llm 平面认证（会话 ID 为全账号凭据，严禁进入 prompt 与日志）；
      * null（非聊天链路）跳过注入。
      */
     public SseEmitter chat(String sessionId, String message, String userId, String agentId,
-            String clientIp, String httpSessionId) {
+            String model, String clientIp, String httpSessionId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         String session = (sessionId == null || sessionId.isBlank()) ? UUID.randomUUID().toString() : sessionId;
         boolean custom = agentId != null && !agentId.isBlank();
+
+        // 模型级路由：仅主智能体；与默认模型相同 = 不切换（主智能体单例）。
+        // final 单次赋值（lambda 捕获要求），解析逻辑抽 resolveRouterModel
+        final String routerModel = custom ? null : resolveRouterModel(model);
 
         HarnessAgent agent;
         if (custom) {
@@ -433,6 +450,21 @@ public class AgentChatService {
             } catch (Exception e) {
                 // 构建失败（密钥缺失/MCP 不通等）以 SSE error 事件回传，文案沿用分层中文错误
                 log.warn("自建智能体获取失败（agentId={}）：{}", agentId, e.getMessage());
+                send(emitter, "error", Map.of("message", safeMessage(e)));
+                emitter.complete();
+                return emitter;
+            }
+        } else if (routerModel != null) {
+            if (!modelSlugService.isRoutable(routerModel)) {
+                log.warn("请求模型不在可选清单（model={}），已拒绝", routerModel);
+                send(emitter, "error", Map.of("message", "所选模型不存在，请在底部模型名中重新选择。"));
+                emitter.complete();
+                return emitter;
+            }
+            try {
+                agent = modelAgentRegistry.acquire(routerModel);
+            } catch (Exception e) {
+                log.warn("模型级智能体获取失败（model={}）：{}", routerModel, e.getMessage());
                 send(emitter, "error", Map.of("message", safeMessage(e)));
                 emitter.complete();
                 return emitter;
@@ -448,13 +480,15 @@ public class AgentChatService {
         if (!runningSessions.add(session)) {
             if (custom) {
                 agentRegistry.release(agentId);
+            } else if (routerModel != null) {
+                modelAgentRegistry.release(routerModel);
             }
             send(emitter, "error", Map.of("message", "上一条消息还在处理中，请稍候。"));
             emitter.complete();
             return emitter;
         }
         sessionOwners.put(session, userId);
-        if (custom) {
+        if (custom || routerModel != null) {
             sessionAgents.put(session, agent);
         }
 
@@ -497,6 +531,8 @@ public class AgentChatService {
                     sessionAgents.remove(session);
                     if (custom) {
                         agentRegistry.release(agentId);
+                    } else if (routerModel != null) {
+                        modelAgentRegistry.release(routerModel);
                     }
                     heartbeat.shutdownNow();
                     emitter.complete();
@@ -509,6 +545,15 @@ public class AgentChatService {
                         });
         emitter.onError(t -> disposable.dispose());
         return emitter;
+    }
+
+    /** 解析请求携带的切换模型：空或等于默认模型返回 null（主智能体单例），否则返回去空格 slug */
+    private String resolveRouterModel(String model) {
+        if (model == null || model.isBlank()) {
+            return null;
+        }
+        String m = model.strip();
+        return m.equals(defaultModel) ? null : m;
     }
 
     // ---------------- 角色权限上下文 ----------------

@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.conca.ontology.agent.tool.HttpRequestOntologyQueryTool;
+import com.conca.ontology.model.dto.ModelOptionPageDTO;
+import com.conca.ontology.model.service.ModelSlugService;
 import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.builder.service.AgentBuilderService;
 import com.conca.ontology.agent.dto.AgentChatDTO;
@@ -43,6 +45,7 @@ import jakarta.validation.Valid;
  * DELETE /api/agent/sessions/{id}          → 删除会话（含 AI 记忆）
  * GET  /api/agent/skills                   → 技能清单（chat 页输入区快捷插入）
  * GET  /api/agent/tools                    → 工具清单（chat 页「工具列表」悬停面板）
+ * GET  /api/agent/models                   → 模型切换选项（chat 页底部模型名弹框，登录即可用）
  * 会话/记忆按登录用户隔离：userId 一律取当前会话，不信任请求参数。
  *
  * @author tianbaoxing
@@ -56,15 +59,18 @@ public class AgentChatController {
     private final AgentChatService agentChatService;
     private final AgentSessionService agentSessionService;
     private final AgentBuilderService agentBuilderService;
+    private final ModelSlugService modelSlugService;
     /** 是否部署在可信反向代理后（get_location 采信 X-Forwarded-For / X-Real-IP 的开关） */
     private final boolean behindProxy;
 
     public AgentChatController(AgentChatService agentChatService,
             AgentSessionService agentSessionService, AgentBuilderService agentBuilderService,
+            ModelSlugService modelSlugService,
             @Value("${app.agent.location-behind-proxy:false}") boolean behindProxy) {
         this.agentChatService = agentChatService;
         this.agentSessionService = agentSessionService;
         this.agentBuilderService = agentBuilderService;
+        this.modelSlugService = modelSlugService;
         this.behindProxy = behindProxy;
     }
 
@@ -95,7 +101,7 @@ public class AgentChatController {
                 "subagents", agentChatService.listSubagents(currentRole(session), agentId)));
     }
 
-    /** 流式问答：agentId 留空 = 主智能体；非空 = 自建智能体（active 所有人，test 仅管理员试运行） */
+    /** 流式问答：agentId 留空 = 主智能体（model 留空或等于默认模型 = 单例）；非空 = 自建智能体（active 所有人，test 仅管理员试运行，忽略 model） */
     @PostMapping(value = "/sessions/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@PathVariable String id, @Valid @RequestBody AgentChatDTO request,
             HttpSession session, HttpServletRequest httpRequest) {
@@ -107,8 +113,27 @@ public class AgentChatController {
         if (agentId != null && !agentId.isBlank()) {
             agentBuilderService.requireChatAllowed(agentId, user.isAdmin());
         }
-        return agentChatService.chat(id, request.message(), user.userId(), agentId,
+        return agentChatService.chat(id, request.message(), user.userId(), agentId, request.model(),
                 resolveClientIp(httpRequest), resolveSessionCookie(httpRequest, session));
+    }
+
+    /**
+     * 模型切换选项分页（chat 页底部模型名弹框）：model_info 精简行 + 展示名推导的
+     * OpenRouter slug（routerSlug）。model_info 管理接口为 ADMIN-only，
+     * 此处为登录即可用的只读视图；筛选维度与分页语义同管理页。
+     */
+    @GetMapping("/models")
+    public ApiResponse<ModelOptionPageDTO> models(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) String model,
+            @RequestParam(required = false) String organization,
+            @RequestParam(required = false) String confidence,
+            @RequestParam(required = false) Boolean foundationModel,
+            @RequestParam(required = false) Boolean frontierModel,
+            @RequestParam(required = false) Boolean openWeights) {
+        return ApiResponse.ok(modelSlugService.options(page, pageSize, model, organization,
+                confidence, foundationModel, frontierModel, openWeights));
     }
 
     /**

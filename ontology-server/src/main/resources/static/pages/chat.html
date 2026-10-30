@@ -182,6 +182,32 @@ textarea:focus { outline: none; border-color: #2563eb; }
 /* 自建智能体开场白气泡徽标 */
 .greet-tag { display: inline-block; margin-bottom: 6px; padding: 1px 10px; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; font-size: 11px; }
 .agent-sel { font-size: 12px; border: 1px solid #d1d5db; border-radius: 6px; padding: 3px 8px; color: #374151; max-width: 220px; background: #fff; }
+/* ---------- 底部模型切换（hint 中模型名可点击，唤起选择弹框；仅本端生效） ---------- */
+.hint .model-switch { color: #2563eb; cursor: pointer; }
+.hint .model-switch:hover { text-decoration: underline; }
+.mm-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.mm-bar input[type=text] { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; color: #1f2937; background: #f9fafb; width: 150px; }
+.mm-bar input[type=text]:focus { outline: none; border-color: #2563eb; background: #fff; }
+.mm-bar select { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; color: #1f2937; background: #f9fafb; }
+.mm-count { margin-left: auto; font-size: 12px; color: #9ca3af; white-space: nowrap; }
+.mm-tbl-wrap { overflow: auto; max-height: 46vh; border: 1px solid #e5e7eb; border-radius: 8px; }
+table.mm-tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
+.mm-tbl th, .mm-tbl td { border-bottom: 1px solid #f3f4f6; padding: 7px 10px; text-align: left; white-space: nowrap; }
+.mm-tbl thead th { position: sticky; top: 0; background: #f9fafb; color: #6b7280; font-weight: 500; z-index: 2; }
+.mm-tbl td.model, .mm-tbl th.model { position: sticky; left: 0; min-width: 160px; }
+.mm-tbl td.model { background: #fff; z-index: 1; }
+.mm-tbl thead th.model { background: #f9fafb; z-index: 3; }
+.mm-tbl tbody tr { cursor: pointer; }
+.mm-tbl tbody tr:hover td, .mm-tbl tbody tr.picked td { background: #eff6ff; }
+.mm-slug { font-family: Consolas, monospace; font-size: 12px; color: #2563eb; }
+.mm-flag { display: inline-block; margin-right: 4px; padding: 0 6px; border-radius: 10px; font-size: 11px; border: 1px solid #e5e7eb; background: #f9fafb; color: #6b7280; }
+.mm-flag.f { background: #fffbeb; border-color: #fde68a; color: #b45309; }
+.mm-flag.o { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.mm-cur { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 10px; font-size: 11px; background: #2563eb; color: #fff; }
+.mm-empty { text-align: center; color: #9ca3af; font-size: 13px; padding: 24px 0; }
+.mm-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.mm-pager { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b7280; }
+.mm-actions { margin-left: auto; display: flex; gap: 8px; }
 </style>
 </head>
 <body>
@@ -271,6 +297,67 @@ textarea:focus { outline: none; border-color: #2563eb; }
           <span class="pf-err" id="ps-err"></span>
         </div>
         <div class="ps-tip">转换写入项目 skills 目录，新会话即刻生效；可在新会话问「你有哪些技能」验证</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 模型切换弹窗（底部模型名点击唤起；选项来自 /api/agent/models，含展示名推导的 OpenRouter slug；
+     选中仅写入 localStorage（本端临时体验），发送消息时随请求携带 slug 交给服务端校验装配） -->
+<div class="modal-mask" id="model-modal">
+  <div class="modal-box" style="width:960px;">
+    <div class="modal-head"><span>切换模型</span><span class="m-close" id="mm-close" title="关闭">✕</span></div>
+    <div class="modal-body">
+      <div class="mm-bar">
+        <input type="text" id="mm-q-model" placeholder="按模型名搜索" maxlength="64" autocomplete="off">
+        <input type="text" id="mm-q-org" placeholder="按组织搜索" maxlength="64" autocomplete="off">
+        <select id="mm-q-conf">
+          <option value="">置信度：全部</option>
+          <option value="Confident">Confident</option>
+          <option value="Likely">Likely</option>
+          <option value="Speculative">Speculative</option>
+          <option value="Unknown">Unknown</option>
+        </select>
+        <select id="mm-q-found">
+          <option value="">基础模型：全部</option>
+          <option value="true">是</option>
+          <option value="false">否</option>
+        </select>
+        <select id="mm-q-front">
+          <option value="">前沿模型：全部</option>
+          <option value="true">是</option>
+          <option value="false">否</option>
+        </select>
+        <select id="mm-q-open">
+          <option value="">开放权重：全部</option>
+          <option value="true">是</option>
+          <option value="false">否</option>
+        </select>
+        <button class="btn sm ghost" id="mm-reset" type="button">重置</button>
+        <span class="mm-count" id="mm-count"></span>
+      </div>
+      <div class="mm-tbl-wrap">
+        <table class="mm-tbl">
+          <thead><tr>
+            <th class="model">模型</th><th>OpenRouter 标识</th><th>发布组织</th><th>发布日期</th>
+            <th>领域</th><th>任务</th><th>置信度</th><th>参数量</th><th>训练算力(FLOP)</th>
+            <th>分类</th><th>基座模型</th>
+          </tr></thead>
+          <tbody id="mm-tbody"></tbody>
+        </table>
+        <div class="mm-empty" id="mm-empty" style="display:none;">没有匹配的模型</div>
+      </div>
+      <div class="mm-foot">
+        <div class="mm-pager">
+          <button class="btn sm ghost" id="mm-prev" type="button">上一页</button>
+          <span id="mm-page-info">1 / 1</span>
+          <button class="btn sm ghost" id="mm-next" type="button">下一页</button>
+        </div>
+        <div class="mm-actions">
+          <button class="btn sm ghost" id="mm-cancel" type="button">取消</button>
+          <button class="btn sm ghost" id="mm-default" type="button">恢复默认</button>
+          <button class="btn sm" id="mm-ok" type="button" disabled>确定</button>
+        </div>
       </div>
     </div>
   </div>
@@ -474,23 +561,20 @@ let isAdminUser = false;
 
 // 标题与提示语中的图谱名均取自 app.title（/api/app），失败保留默认文案
 let appTitle = '';
+// 底部模型切换：默认模型 slug 与服务商标识（/api/app），切换仅存 localStorage（本端临时体验）
+let defaultChatModel = '';
+let defaultProvider = '';
 fetch('/api/app').then(r => r.json()).then(j => {
   if (j && j.data && j.data.title) {
     appTitle = j.data.title;
     const el = $('tip-title');
     if (el) el.textContent = appTitle;
   }
-  // 模型提示文案取自 app.agent.base-url / model 配置（无硬编码默认值），无配置时仅显示通用声明
-  const hint = $('ai-hint');
-  if (hint) {
-    if (j && j.data && j.data.model) {
-      let provider = '';
-      try { provider = new URL(j.data.baseUrl).hostname.replace(/^www\./, ''); } catch (e) {}
-      hint.textContent = '内容由 AI 生成（' + (provider ? provider + ' · ' : '') + j.data.model + '），仅供参考';
-    } else {
-      hint.textContent = '内容由 AI 生成，仅供参考';
-    }
+  if (j && j.data) {
+    defaultChatModel = j.data.model || '';
+    try { defaultProvider = new URL(j.data.baseUrl).hostname.replace(/^www\./, ''); } catch (e) {}
   }
+  renderHint();
 }).catch(() => {});
 
 // 会话控制（header 渲染 + 登录校验 + 管理菜单显隐）由 common.js 提供
@@ -1079,6 +1163,7 @@ async function loadChatAgents() {
   if (!sel) return;
   if (!chatAgents.length) {
     localStorage.removeItem(AGENT_KEY);
+    renderHint(); // 智能体选择器不出现（纯主智能体），hint 按主智能体模型渲染
     return;
   }
   sel.innerHTML = '<option value="">平台智能体</option>' +
@@ -1088,6 +1173,7 @@ async function loadChatAgents() {
   else { sel.value = ''; localStorage.removeItem(AGENT_KEY); }
   sel.style.display = '';
   sel.addEventListener('change', onAgentSwitch);
+  renderHint(); // 恢复的自建智能体选择决定 hint 是否展示模型切换入口
 }
 
 /** 切换智能体：持久化选择并开新会话 + 重拉该智能体的会话列表与三清单（技能/工具/子 Agent 与所选智能体对应） */
@@ -1098,7 +1184,143 @@ function onAgentSwitch() {
   startNewSession();
   loadSessions(); // startNewSession 仅重渲染内存旧数据，必须重拉列表（否则侧边栏残留上一智能体的会话）
   refreshCapabilities(); // 三清单同样按智能体隔离，切换后重拉
+  renderHint(); // 模型切换仅对主智能体生效：切自建智能体后 hint 回退为通用声明
 }
+
+// ---------- 底部模型切换（数据源 model_info，/api/agent/models 返回展示名推导的 OpenRouter slug） ----------
+const CHAT_MODEL_KEY = 'agent-chat-model'; // localStorage：当前切换的模型 slug（空 = 默认模型）
+const MM_PAGE_SIZE = 20;
+let mmState = { page: 1, total: 0, picked: null, timer: null };
+
+function selectedChatModel() {
+  return localStorage.getItem(CHAT_MODEL_KEY) || '';
+}
+
+/** hint 文案：主智能体显示「服务商标识 · 模型 slug」（模型名可点击切换）；自建智能体不感知模型，显示通用声明 */
+function renderHint() {
+  const hint = $('ai-hint');
+  if (!hint) return;
+  const m = currentAgentId() ? '' : (selectedChatModel() || defaultChatModel);
+  if (!m) {
+    hint.textContent = '内容由 AI 生成，仅供参考';
+    return;
+  }
+  const prefix = defaultProvider ? defaultProvider + ' · ' : '';
+  hint.innerHTML = '内容由 AI 生成（' + esc(prefix)
+      + '<span class="model-switch" id="model-switch" title="点击切换模型（仅本端生效）">' + esc(m)
+      + '</span>），仅供参考';
+  $('model-switch').addEventListener('click', mmOpen);
+}
+
+function mmOpen() {
+  mmState.page = 1;
+  mmState.picked = null;
+  $('mm-ok').disabled = true;
+  $('model-modal').classList.add('show');
+  mmLoad();
+}
+
+function mmClose() {
+  $('model-modal').classList.remove('show');
+  if (mmState.timer) { clearTimeout(mmState.timer); mmState.timer = null; }
+}
+
+/** 查询条件变更：300ms 防抖后回到第 1 页重查 */
+function mmQuery() {
+  if (mmState.timer) clearTimeout(mmState.timer);
+  mmState.timer = setTimeout(() => { mmState.page = 1; mmLoad(); }, 300);
+}
+
+function mmLoad() {
+  const p = new URLSearchParams({ page: String(mmState.page), pageSize: String(MM_PAGE_SIZE) });
+  const m = $('mm-q-model').value.trim(); if (m) p.set('model', m);
+  const o = $('mm-q-org').value.trim(); if (o) p.set('organization', o);
+  const c = $('mm-q-conf').value; if (c) p.set('confidence', c);
+  const f = $('mm-q-found').value; if (f) p.set('foundationModel', f);
+  const fr = $('mm-q-front').value; if (fr) p.set('frontierModel', fr);
+  const ow = $('mm-q-open').value; if (ow) p.set('openWeights', ow);
+  fetch('/api/agent/models?' + p).then(r => r.json()).then(j => {
+    if (j && j.code === 0 && j.data) mmRender(j.data);
+  }).catch(() => { /* 拉取失败保留当前列表，不打断弹框 */ });
+}
+
+function mmRender(d) {
+  mmState.total = d.total || 0;
+  const rows = d.rows || [];
+  const cur = selectedChatModel() || defaultChatModel;
+  const picked = mmState.picked;
+  $('mm-tbody').innerHTML = rows.map(r => {
+    const cls = picked === r.routerSlug ? ' picked' : '';
+    const flags = (r.foundationModel ? '<span class="mm-flag">基础</span>' : '')
+        + (r.frontierModel ? '<span class="mm-flag f">前沿</span>' : '')
+        + (r.openWeights ? '<span class="mm-flag o">开放权重</span>' : '');
+    return '<tr class="' + cls + '" data-slug="' + esc(r.routerSlug) + '">'
+        + '<td class="model">' + esc(r.model) + (r.routerSlug === cur ? '<span class="mm-cur">当前</span>' : '') + '</td>'
+        + '<td class="mm-slug">' + esc(r.routerSlug || '—') + '</td>'
+        + '<td>' + esc(r.organization || '—') + '</td>'
+        + '<td>' + esc(r.publicationDate || '—') + '</td>'
+        + '<td>' + esc(r.domain || '—') + '</td>'
+        + '<td>' + esc(r.task || '—') + '</td>'
+        + '<td>' + esc(r.confidence || '—') + '</td>'
+        + '<td>' + mmFmtBig(r.parameters) + '</td>'
+        + '<td>' + mmFmtBig(r.trainingComputeFlop) + '</td>'
+        + '<td>' + (flags || '—') + '</td>'
+        + '<td>' + esc(r.baseModel || '—') + '</td>'
+        + '</tr>';
+  }).join('');
+  $('mm-empty').style.display = rows.length ? 'none' : '';
+  const pages = Math.max(1, Math.ceil(mmState.total / MM_PAGE_SIZE));
+  $('mm-page-info').textContent = mmState.page + ' / ' + pages;
+  $('mm-prev').disabled = mmState.page <= 1;
+  $('mm-next').disabled = mmState.page >= pages;
+  $('mm-count').textContent = mmState.total ? '共 ' + mmState.total + ' 个模型' : '';
+}
+
+/** 大数列科学计数法（后端传字符串，前端格式化；≥1e6 缩写，与模型管理页一致） */
+function mmFmtBig(v) {
+  if (v == null || v === '') return '—';
+  const n = Number(v);
+  if (!isFinite(n)) return String(v);
+  return Math.abs(n) >= 1e6 ? n.toExponential().replace('e+', 'e') : String(n);
+}
+
+// 弹框交互绑定（DOM 已就绪，脚本位于 body 尾部）
+$('mm-tbody').addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if (!tr) return; // 服务端校验兜底：slug 必须来自 model_info 推导
+  mmState.picked = tr.dataset.slug;
+  $('mm-ok').disabled = false;
+  $('mm-tbody').querySelectorAll('tr.picked').forEach(n => n.classList.remove('picked'));
+  tr.classList.add('picked');
+});
+$('mm-close').addEventListener('click', mmClose);
+$('mm-cancel').addEventListener('click', mmClose);
+$('mm-ok').addEventListener('click', () => {
+  const p = mmState.picked;
+  if (p != null) {
+    if (p !== defaultChatModel) localStorage.setItem(CHAT_MODEL_KEY, p);
+    else localStorage.removeItem(CHAT_MODEL_KEY); // 选默认模型 = 恢复默认（走主智能体单例）
+    renderHint();
+  }
+  mmClose();
+});
+$('mm-default').addEventListener('click', () => {
+  localStorage.removeItem(CHAT_MODEL_KEY);
+  renderHint();
+  mmClose();
+});
+$('mm-prev').addEventListener('click', () => { if (mmState.page > 1) { mmState.page--; mmLoad(); } });
+$('mm-next').addEventListener('click', () => {
+  const pages = Math.max(1, Math.ceil(mmState.total / MM_PAGE_SIZE));
+  if (mmState.page < pages) { mmState.page++; mmLoad(); }
+});
+$('mm-reset').addEventListener('click', () => {
+  ['mm-q-model', 'mm-q-org', 'mm-q-conf', 'mm-q-found', 'mm-q-front', 'mm-q-open'].forEach(id => $(id).value = '');
+  mmState.page = 1;
+  mmLoad();
+});
+['mm-q-model', 'mm-q-org'].forEach(id => $(id).addEventListener('input', mmQuery));
+['mm-q-conf', 'mm-q-found', 'mm-q-front', 'mm-q-open'].forEach(id => $(id).addEventListener('change', mmQuery));
 
 /** 渲染开场白为首条气泡（纯前端展示：不入消息历史、不占 msgIndex，与后端设计一致）；无开场白返回 false */
 function showGreeting(agentId) {
@@ -1498,10 +1720,13 @@ async function send() {
   aborter = new AbortController();
 
   try {
+    const payload = { message: text, agentId: currentAgentId() || null };
+    // 模型切换仅主智能体生效：所选 slug 随请求携带，服务端校验并装配对应模型级实例
+    if (!currentAgentId() && selectedChatModel()) payload.model = selectedChatModel();
     const res = await fetch('/api/agent/sessions/' + encodeURIComponent(sessionId) + '/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, agentId: currentAgentId() || null }),
+      body: JSON.stringify(payload),
       signal: aborter.signal
     });
     if (!res.ok || !res.body) {
