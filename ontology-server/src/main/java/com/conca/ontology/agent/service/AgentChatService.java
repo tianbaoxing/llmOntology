@@ -26,7 +26,6 @@ import com.conca.ontology.builder.AgentRegistry;
 import com.conca.ontology.agent.tool.HttpRequestOntologyQueryTool;
 import com.conca.ontology.model.service.ModelSlugService;
 import com.conca.ontology.agent.model.RewriteConfig;
-import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.user.service.RolePermissionService;
 import com.conca.ontology.user.service.UserService;
 import com.conca.ontology.agent.service.RewriteConfigService.PipelineStep;
@@ -320,7 +319,7 @@ public class AgentChatService {
 
     /** 工具清单（剔除该角色被禁工具；ADMIN/无角色返回全集） */
     public List<Map<String, String>> listTools(String role) {
-        List<String> denied = rolePermissionService.ruleOf(role).deniedTools();
+        List<String> denied = rolePermissionService.ruleOf(role).getDeniedTools();
         if (denied.isEmpty()) {
             return listTools();
         }
@@ -331,7 +330,7 @@ public class AgentChatService {
 
     /** 技能清单（剔除该角色被禁技能；ADMIN/无角色返回全集） */
     public List<Map<String, String>> listSkills(String role) {
-        List<String> denied = rolePermissionService.ruleOf(role).deniedSkills();
+        List<String> denied = rolePermissionService.ruleOf(role).getDeniedSkills();
         if (denied.isEmpty()) {
             return listSkills();
         }
@@ -342,7 +341,7 @@ public class AgentChatService {
 
     /** 子 Agent 清单（剔除该角色被禁子代理；ADMIN/无角色返回全集） */
     public List<Map<String, String>> listSubagents(String role) {
-        List<String> denied = rolePermissionService.ruleOf(role).deniedSubagents();
+        List<String> denied = rolePermissionService.ruleOf(role).getDeniedSubagents();
         if (denied.isEmpty()) {
             return listSubagents();
         }
@@ -597,7 +596,7 @@ public class AgentChatService {
         if (httpSessionId != null && !httpSessionId.isBlank()) {
             builder.put(HttpRequestOntologyQueryTool.CTX_SESSION_ID_KEY, httpSessionId.strip());
         }
-        List<String> deniedSkills = rolePermissionService.ruleOf(role).deniedSkills();
+        List<String> deniedSkills = rolePermissionService.ruleOf(role).getDeniedSkills();
         if (!deniedSkills.isEmpty()) {
             builder.put(SkillFilter.class,
                     SkillFilter.disable(deniedSkills.toArray(String[]::new)));
@@ -607,8 +606,7 @@ public class AgentChatService {
 
     /** 当前用户角色；查不到（防御，拦截器已保证登录）按 USER 最小权限 */
     private String roleOf(String userId) {
-        UserEntry u = userService.findByUserId(userId);
-        return u != null ? u.role() : UserEntry.ROLE_USER;
+        return userService.roleOf(userId);
     }
 
     // ---------------- 聊天前置改写编排 ----------------

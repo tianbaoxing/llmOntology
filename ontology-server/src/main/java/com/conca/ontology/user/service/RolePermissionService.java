@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,10 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.shared.web.ApiException;
+import com.conca.ontology.user.dto.RoleRuleDTO;
 import com.conca.ontology.user.entity.SysRolePermission;
+import com.conca.ontology.user.entity.SysUser;
 import com.conca.ontology.user.mapper.SysRolePermissionMapper;
-import com.conca.ontology.user.model.RoleRule;
-import com.conca.ontology.user.model.UserEntry;
 
 /**
  * 角色权限管理：MySQL sys_role_permission 唯一事实源（P1 起，由 JSON 文件迁移而来），
@@ -48,37 +49,46 @@ public class RolePermissionService {
 
     // ---------------- 查询 ----------------
 
-    /** 全部角色规则 */
-    public Map<String, RoleRule> all() {
-        Map<String, RoleRule> roles = new LinkedHashMap<>();
+    /** 全部角色规则（GET 出参装配，运行时快照另见 ruleOf） */
+    public Map<String, RoleRuleDTO> all() {
+        Map<String, RoleRuleDTO> roles = new LinkedHashMap<>();
         for (SysRolePermission row : ruleMapper.selectList(
                 new LambdaQueryWrapper<SysRolePermission>().orderByAsc(SysRolePermission::getRole))) {
-            roles.put(row.getRole(), toRule(row));
+            roles.put(row.getRole(), RoleRuleDTO.from(row));
         }
         return roles;
     }
 
-    /** 指定角色的规则；ADMIN / 未知角色返回空规则（全放行） */
-    public RoleRule ruleOf(String role) {
-        if (role == null || UserEntry.ROLE_ADMIN.equals(role)) {
-            return RoleRule.EMPTY;
+    /**
+     * 指定角色的规则快照（detached SysRolePermission，三清单已归一化非 null，仅作判定数据载体）；
+     * ADMIN / 未知角色返回空规则（全放行）。供中间件与 isDeniedXxx 判定链消费。
+     */
+    public SysRolePermission ruleOf(String role) {
+        if (role == null || SysUser.ROLE_ADMIN.equals(role)) {
+            return emptyRule();
         }
         SysRolePermission row = ruleMapper.selectById(role);
-        return row == null ? RoleRule.EMPTY : toRule(row);
+        if (row == null) {
+            return emptyRule();
+        }
+        row.setDeniedTools(normalize(row.getDeniedTools()));
+        row.setDeniedSkills(normalize(row.getDeniedSkills()));
+        row.setDeniedSubagents(normalize(row.getDeniedSubagents()));
+        return row;
     }
 
     public boolean isDeniedTool(String role, String toolName) {
-        return toolName != null && ruleOf(role).deniedTools().contains(toolName);
+        return toolName != null && ruleOf(role).getDeniedTools().contains(toolName);
     }
 
     public boolean isDeniedSubagent(String role, String agentId) {
         return agentId != null && !agentId.isBlank()
-                && ruleOf(role).deniedSubagents().contains(agentId);
+                && ruleOf(role).getDeniedSubagents().contains(agentId);
     }
 
     /** skillId 匹配：等于被禁技能名，或以「被禁技能名_」开头（SkillCatalog 键为 name_source） */
     public boolean isDeniedSkillId(String role, String skillId) {
-        return matchesDeniedSkill(ruleOf(role).deniedSkills(), skillId);
+        return matchesDeniedSkill(ruleOf(role).getDeniedSkills(), skillId);
     }
 
     /** skillId 纯匹配（无 IO，供中间件逐调用判定，避免循环内重复查库） */
@@ -100,38 +110,47 @@ public class RolePermissionService {
      * 子代理 → subagents/{agentId}.md（人格定义文件）。
      * 与中间件文件工具路径拦截联动，封堵"绕过技能入口直接读文件"的泄露链。
      */
-    public static List<String> deriveDeniedPaths(RoleRule rule) {
-        if (rule == null || rule.isEmpty()) {
+    public static List<String> deriveDeniedPaths(SysRolePermission rule) {
+        if (isEmpty(rule)) {
             return List.of();
         }
-        List<String> paths = new ArrayList<>(rule.deniedSkills().size() + rule.deniedSubagents().size());
-        for (String skill : rule.deniedSkills()) {
+        List<String> skills = safe(rule.getDeniedSkills());
+        List<String> subs = safe(rule.getDeniedSubagents());
+        List<String> paths = new ArrayList<>(skills.size() + subs.size());
+        for (String skill : skills) {
             paths.add(("skills/" + skill).toLowerCase());
         }
-        for (String sub : rule.deniedSubagents()) {
+        for (String sub : subs) {
             paths.add(("subagents/" + sub + ".md").toLowerCase());
         }
         return paths;
+    }
+
+    /** 规则快照是否全空（null 安全；空 = 放行一切，中间件据此短路） */
+    public static boolean isEmpty(SysRolePermission rule) {
+        return rule == null
+                || (safe(rule.getDeniedTools()).isEmpty()
+                && safe(rule.getDeniedSkills()).isEmpty()
+                && safe(rule.getDeniedSubagents()).isEmpty());
     }
 
     // ---------------- 更新（ADMIN） ----------------
 
     /** 更新角色规则（UPSERT）；ADMIN 拒绝（代码级全放行，配置无意义） */
     @Transactional
-    public void update(String role, RoleRule rule) {
+    public void update(String role, RoleRuleDTO rule) {
         if (role == null || role.isBlank()) {
             throw new ApiException(400, "角色不能为空");
         }
         String normalized = role.trim().toUpperCase();
-        if (UserEntry.ROLE_ADMIN.equals(normalized)) {
+        if (SysUser.ROLE_ADMIN.equals(normalized)) {
             throw new ApiException(400, "ADMIN 角色固定全量放行，无需配置");
         }
-        RoleRule safe = rule == null ? RoleRule.EMPTY : rule;
         SysRolePermission row = new SysRolePermission();
         row.setRole(normalized);
-        row.setDeniedTools(safe.deniedTools());
-        row.setDeniedSkills(safe.deniedSkills());
-        row.setDeniedSubagents(safe.deniedSubagents());
+        row.setDeniedTools(rule == null ? List.of() : rule.deniedTools());
+        row.setDeniedSkills(rule == null ? List.of() : rule.deniedSkills());
+        row.setDeniedSubagents(rule == null ? List.of() : rule.deniedSubagents());
         row.setUpdateTime(LocalDateTime.now());
         if (ruleMapper.selectById(normalized) == null) {
             ruleMapper.insert(row);
@@ -139,12 +158,34 @@ public class RolePermissionService {
             ruleMapper.updateById(row);
         }
         log.info("角色权限已更新：{} -> tools={} skills={} subagents={}",
-                normalized, safe.deniedTools(), safe.deniedSkills(), safe.deniedSubagents());
+                normalized, row.getDeniedTools(), row.getDeniedSkills(), row.getDeniedSubagents());
     }
 
     // ---------------- 内部 ----------------
 
-    private static RoleRule toRule(SysRolePermission row) {
-        return new RoleRule(row.getDeniedTools(), row.getDeniedSkills(), row.getDeniedSubagents());
+    /** 全放行空快照（fresh 实例防共享可变状态） */
+    private static SysRolePermission emptyRule() {
+        SysRolePermission rule = new SysRolePermission();
+        rule.setDeniedTools(List.of());
+        rule.setDeniedSkills(List.of());
+        rule.setDeniedSubagents(List.of());
+        return rule;
+    }
+
+    /** null → 空列表；剔除空白项并去重（DB 行可能含历史脏数据，容错对齐原 RoleRule 归一化语义） */
+    private static List<String> normalize(List<String> list) {
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(Objects::nonNull)
+                .filter(s -> !s.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+    }
+
+    private static List<String> safe(List<String> list) {
+        return list == null ? List.of() : list;
     }
 }

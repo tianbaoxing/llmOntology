@@ -10,13 +10,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.user.model.RoleRule;
+import com.conca.ontology.user.dto.RoleRuleDTO;
 import com.conca.ontology.user.service.RolePermissionService;
 
 /**
  * 角色权限管理（仅 ADMIN：AuthInterceptor 按 /api/admin 前缀拦截）：
  * GET /api/admin/role-permissions         → 全部角色规则
- * PUT /api/admin/role-permissions/{role}  → 更新角色黑名单（body 为 RoleRule 三清单）
+ * PUT /api/admin/role-permissions/{role}  → 更新角色黑名单（body 为 RoleRuleDTO 三清单）
  * 资源全集（工具/技能/子代理）由 GET /api/agent/tools|skills|subagents 提供，前端自行取用。
  *
  * @author tianbaoxing
@@ -39,7 +39,7 @@ public class RolePermissionController {
 
     @PutMapping("/{role}")
     public ApiResponse<Map<String, Object>> update(@PathVariable String role,
-            @RequestBody(required = false) RoleRule rule) {
+            @RequestBody(required = false) RoleRuleDTO rule) {
         rolePermissionService.update(role, rule);
         return ApiResponse.ok(Map.of("updated", true));
     }

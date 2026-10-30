@@ -24,7 +24,7 @@ import com.conca.ontology.agent.dto.AgentChatDTO;
 import com.conca.ontology.agent.dto.SessionTitleDTO;
 import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.user.model.UserEntry;
+import com.conca.ontology.user.entity.SysUser;
 import com.conca.ontology.agent.service.AgentChatService;
 import com.conca.ontology.agent.service.AgentSessionService;
 
@@ -230,6 +230,6 @@ public class AgentChatController {
     /** 当前用户角色（清单过滤用；未登录防御性按 USER 最小权限） */
     private static String currentRole(HttpSession session) {
         SessionUser u = SessionUser.of(session);
-        return u == null ? UserEntry.ROLE_USER : u.role();
+        return u == null ? SysUser.ROLE_USER : u.role();
     }
 }

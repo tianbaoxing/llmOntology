@@ -11,7 +11,7 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.conca.ontology.user.model.RoleRule;
+import com.conca.ontology.user.entity.SysRolePermission;
 import com.conca.ontology.user.service.RolePermissionService;
 
 import io.agentscope.core.agent.Agent;
@@ -83,8 +83,8 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
 
     @Override
     public Mono<String> onSystemPrompt(Agent agent, RuntimeContext ctx, String currentPrompt) {
-        RoleRule rule = rolePermissionService.ruleOf(roleOf(ctx));
-        if (rule.isEmpty()) {
+        SysRolePermission rule = rolePermissionService.ruleOf(roleOf(ctx));
+        if (RolePermissionService.isEmpty(rule)) {
             return Mono.just(currentPrompt);
         }
         String base = currentPrompt != null ? currentPrompt : "";
@@ -95,11 +95,11 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
         sb.append("\n<role_permissions>\n")
           .append("当前用户角色无权使用以下资源，调用会被系统拒绝，请勿尝试，")
           .append("直接以现有能力回答或向用户说明无权限：\n");
-        if (!rule.deniedTools().isEmpty()) {
-            sb.append("- 禁用工具：").append(String.join("、", rule.deniedTools())).append('\n');
+        if (!rule.getDeniedTools().isEmpty()) {
+            sb.append("- 禁用工具：").append(String.join("、", rule.getDeniedTools())).append('\n');
         }
-        if (!rule.deniedSubagents().isEmpty()) {
-            sb.append("- 禁用子代理：").append(String.join("、", rule.deniedSubagents())).append('\n');
+        if (!rule.getDeniedSubagents().isEmpty()) {
+            sb.append("- 禁用子代理：").append(String.join("、", rule.getDeniedSubagents())).append('\n');
         }
         sb.append("同样禁止通过任何文件、搜索或终端工具读取、搜索或间接访问")
           .append("被禁技能与子代理的文件内容，此类调用一律会被系统拒绝。\n");
@@ -114,8 +114,8 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
             return next.apply(input);
         }
         String role = roleOf(ctx);
-        RoleRule rule = rolePermissionService.ruleOf(role);
-        if (rule.isEmpty()) {
+        SysRolePermission rule = rolePermissionService.ruleOf(role);
+        if (RolePermissionService.isEmpty(rule)) {
             return next.apply(input);
         }
         List<String> deniedPaths = RolePermissionService.deriveDeniedPaths(rule);
@@ -172,19 +172,19 @@ public class RolePermissionMiddleware implements HarnessRuntimeMiddleware {
      * 文件类工具的 path 落在被禁路径树内；execute 的 command/working_directory
      * 含被禁路径片段（终端读文件的兜底）。
      */
-    private static boolean isDenied(RoleRule rule, List<String> deniedPaths, ToolUseBlock call) {
+    private static boolean isDenied(SysRolePermission rule, List<String> deniedPaths, ToolUseBlock call) {
         String name = call.getName();
         if (name == null) {
             return false;
         }
-        if (rule.deniedTools().contains(name)) {
+        if (rule.getDeniedTools().contains(name)) {
             return true;
         }
         if (TOOL_AGENT_SPAWN.equals(name)) {
-            return rule.deniedSubagents().contains(stringArg(call, "agent_id"));
+            return rule.getDeniedSubagents().contains(stringArg(call, "agent_id"));
         }
         if (TOOL_LOAD_SKILL.equals(name)) {
-            return RolePermissionService.matchesDeniedSkill(rule.deniedSkills(), stringArg(call, "skillId"));
+            return RolePermissionService.matchesDeniedSkill(rule.getDeniedSkills(), stringArg(call, "skillId"));
         }
         if (PATH_TOOLS.contains(name)) {
             return inDeniedTree(normalizePath(stringArg(call, "path")), deniedPaths);

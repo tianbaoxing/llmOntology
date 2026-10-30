@@ -20,7 +20,7 @@ import com.conca.ontology.user.dto.RegisterDTO;
 import com.conca.ontology.user.dto.ResetPasswordDTO;
 import com.conca.ontology.user.dto.UserPatchDTO;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.user.model.UserEntry;
+import com.conca.ontology.user.dto.UserVO;
 import com.conca.ontology.agent.service.AgentMemoryService;
 import com.conca.ontology.user.service.UserService;
 
@@ -58,7 +58,7 @@ public class UserController {
     /** 自助注册 → PENDING，需管理员审核（公开接口） */
     @PostMapping
     public ApiResponse<Map<String, Object>> register(@RequestBody @Valid RegisterDTO req) {
-        UserEntry u = users.register(req.username(), req.password());
+        UserVO u = users.register(req.username(), req.password());
         return ApiResponse.ok(Map.of("username", u.username(), "status", u.status()));
     }
 

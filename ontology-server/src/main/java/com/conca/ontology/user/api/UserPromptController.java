@@ -20,7 +20,7 @@ import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.user.dto.PromptSaveDTO;
 import com.conca.ontology.user.dto.PromptToSkillDTO;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.user.model.UserPromptEntry;
+import com.conca.ontology.user.dto.UserPromptVO;
 import com.conca.ontology.user.service.UserPromptService;
 
 import jakarta.servlet.http.HttpSession;
@@ -53,10 +53,10 @@ public class UserPromptController {
     @GetMapping
     public ApiResponse<Map<String, Object>> list(HttpSession session) {
         String userId = currentUserId(session);
-        List<UserPromptEntry> prompts = userPromptService.list(userId);
+        List<UserPromptVO> prompts = userPromptService.list(userId);
         Map<String, List<String>> skillIdx = userPromptService.skillIndex(userId);
         List<Map<String, Object>> rows = new ArrayList<>(prompts.size());
-        for (UserPromptEntry e : prompts) {
+        for (UserPromptVO e : prompts) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", e.id());
             row.put("title", e.title());
@@ -70,12 +70,12 @@ public class UserPromptController {
     }
 
     @PostMapping
-    public ApiResponse<UserPromptEntry> create(@Valid @RequestBody PromptSaveDTO request, HttpSession session) {
+    public ApiResponse<UserPromptVO> create(@Valid @RequestBody PromptSaveDTO request, HttpSession session) {
         return ApiResponse.ok(userPromptService.create(currentUserId(session), request.title(), request.content()));
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<UserPromptEntry> update(@PathVariable String id,
+    public ApiResponse<UserPromptVO> update(@PathVariable String id,
             @Valid @RequestBody PromptSaveDTO request, HttpSession session) {
         return ApiResponse.ok(userPromptService.update(currentUserId(session), id, request.title(), request.content()));
     }

@@ -19,10 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.user.converter.UserEntryConverter;
+import com.conca.ontology.user.dto.UserVO;
 import com.conca.ontology.user.entity.SysUser;
 import com.conca.ontology.user.mapper.SysUserMapper;
-import com.conca.ontology.user.model.UserEntry;
 import com.conca.ontology.user.web.SessionUser;
 
 /**
@@ -62,25 +61,25 @@ public class UserService {
     /** 是否已初始化（存在任一 ADMIN 用户；登录页据此切换"初始化/登录"模式） */
     public boolean initialized() {
         return userMapper.selectCount(new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getRole, UserEntry.ROLE_ADMIN)) > 0;
+                .eq(SysUser::getRole, SysUser.ROLE_ADMIN)) > 0;
     }
 
-    /** 用户列表（status 为空返回全部；忽略大小写匹配；不含密码哈希） */
-    public List<UserEntry> list(String status) {
+    /** 用户列表（status 为空返回全部；忽略大小写匹配；出参 UserVO 不含密码哈希） */
+    public List<UserVO> list(String status) {
         LambdaQueryWrapper<SysUser> qw = new LambdaQueryWrapper<>();
         if (status != null && !status.isBlank()) {
             qw.apply("LOWER(status) = LOWER({0})", status);
         }
         return userMapper.selectList(qw.orderByAsc(SysUser::getUserId))
-                .stream().map(UserEntryConverter::toEntry).map(UserService::withoutHash).toList();
+                .stream().map(UserVO::from).toList();
     }
 
-    public UserEntry findByUsername(String username) {
+    /** 按用户名查询（含密码哈希，仅限 service 内部登录校验，不出 service） */
+    private SysUser findByUsername(String username) {
         String name = username == null ? "" : username.trim();
-        SysUser row = userMapper.selectOne(new LambdaQueryWrapper<SysUser>()
+        return userMapper.selectOne(new LambdaQueryWrapper<SysUser>()
                 .apply("LOWER(username) = LOWER({0})", name)
                 .last("LIMIT 1"));
-        return row == null ? null : UserEntryConverter.toEntry(row);
     }
 
     /** userId 是否存在（记忆查看等场景的用户合法性预检） */
@@ -88,20 +87,17 @@ public class UserService {
         return userId != null && userMapper.selectById(userId) != null;
     }
 
-    /** 按 userId 查询用户（聊天链路取角色等场景；不存在返回 null） */
-    public UserEntry findByUserId(String userId) {
-        if (userId == null) {
-            return null;
-        }
-        SysUser row = userMapper.selectById(userId);
-        return row == null ? null : UserEntryConverter.toEntry(row);
+    /** 当前用户角色（聊天链路取角色等场景；查不到按 USER 最小权限） */
+    public String roleOf(String userId) {
+        SysUser row = userId == null ? null : userMapper.selectById(userId);
+        return row == null ? SysUser.ROLE_USER : row.getRole();
     }
 
     // ---------------- 初始化 / 注册 / 登录 ----------------
 
     /** 系统初始化：创建 admin（仅当不存在任何 ADMIN 时可用，防重复初始化重置系统） */
     @Transactional
-    public UserEntry initAdmin(String password) {
+    public UserVO initAdmin(String password) {
         if (initialized()) {
             throw new ApiException(403, "系统已初始化，禁止重复初始化");
         }
@@ -110,8 +106,8 @@ public class UserService {
         admin.setUserId("admin");
         admin.setUsername("admin");
         admin.setPasswordHash(hash(password));
-        admin.setRole(UserEntry.ROLE_ADMIN);
-        admin.setStatus(UserEntry.STATUS_ACTIVE);
+        admin.setRole(SysUser.ROLE_ADMIN);
+        admin.setStatus(SysUser.STATUS_ACTIVE);
         LocalDateTime now = LocalDateTime.now();
         admin.setCreatedAt(now);
         admin.setUpdatedAt(now);
@@ -122,12 +118,12 @@ public class UserService {
             throw new ApiException(403, "系统已初始化，禁止重复初始化");
         }
         log.info("admin account initialized");
-        return UserEntryConverter.toEntry(admin);
+        return UserVO.from(admin);
     }
 
     /** 自助注册：创建 PENDING 普通用户，需管理员审核后才能登录 */
     @Transactional
-    public UserEntry register(String username, String password) {
+    public UserVO register(String username, String password) {
         String name = username == null ? "" : username.trim();
         if (!USERNAME_RE.matcher(name).matches()) {
             throw new ApiException(400, "用户名需 2-32 位字母/数字/下划线/中文");
@@ -142,8 +138,8 @@ public class UserService {
         u.setUserId(name);
         u.setUsername(name);
         u.setPasswordHash(hash(password));
-        u.setRole(UserEntry.ROLE_USER);
-        u.setStatus(UserEntry.STATUS_PENDING);
+        u.setRole(SysUser.ROLE_USER);
+        u.setStatus(SysUser.STATUS_PENDING);
         LocalDateTime now = LocalDateTime.now();
         u.setCreatedAt(now);
         u.setUpdatedAt(now);
@@ -153,36 +149,36 @@ public class UserService {
             throw new ApiException(409, "用户名已存在");
         }
         log.info("user registered (pending approval): {}", name);
-        return UserEntryConverter.toEntry(u);
+        return UserVO.from(u);
     }
 
-    /** 登录：校验密码与状态，成功更新 lastLoginAt 并返回用户 */
+    /** 登录：校验密码与状态，成功更新 lastLoginAt 并返回用户（UserVO，不含哈希） */
     @Transactional
-    public UserEntry login(String username, String password) {
-        UserEntry u = findByUsername(username);
-        if (u == null || !verify(password, u.passwordHash())) {
+    public UserVO login(String username, String password) {
+        SysUser u = findByUsername(username);
+        if (u == null || !verify(password, u.getPasswordHash())) {
             throw new ApiException(401, "用户名或密码错误");
         }
-        if (UserEntry.STATUS_PENDING.equals(u.status())) {
+        if (SysUser.STATUS_PENDING.equals(u.getStatus())) {
             throw new ApiException(403, "账号待管理员审核，暂时无法登录");
         }
-        if (UserEntry.STATUS_DISABLED.equals(u.status())) {
+        if (SysUser.STATUS_DISABLED.equals(u.getStatus())) {
             throw new ApiException(403, "账号已被禁用，请联系管理员");
         }
         LocalDateTime now = LocalDateTime.now();
         SysUser patch = new SysUser();
-        patch.setUserId(u.userId());
+        patch.setUserId(u.getUserId());
         patch.setLastLoginAt(now);
         patch.setUpdatedAt(now);
         userMapper.updateById(patch);
-        return UserEntryConverter.toEntry(userMapper.selectById(u.userId()));
+        return UserVO.from(userMapper.selectById(u.getUserId()));
     }
 
     /** 修改自己密码：验原密码 */
     @Transactional
     public void changePassword(String userId, String oldPassword, String newPassword) {
-        UserEntry u = require(userId);
-        if (!verify(oldPassword, u.passwordHash())) {
+        SysUser u = require(userId);
+        if (!verify(oldPassword, u.getPasswordHash())) {
             throw new ApiException(400, "原密码错误");
         }
         validatePassword(newPassword);
@@ -195,23 +191,23 @@ public class UserService {
     /** 审核：PENDING → ACTIVE */
     @Transactional
     public void approve(String userId) {
-        UserEntry u = require(userId);
-        if (!UserEntry.STATUS_PENDING.equals(u.status())) {
+        SysUser u = require(userId);
+        if (!SysUser.STATUS_PENDING.equals(u.getStatus())) {
             throw new ApiException(400, "仅待审核用户可通过审核");
         }
-        updateStatusColumn(userId, UserEntry.STATUS_ACTIVE);
+        updateStatusColumn(userId, SysUser.STATUS_ACTIVE);
         log.info("user approved: {}", userId);
     }
 
     /** 启用 / 禁用（保护：不能操作自己、不能禁用最后一个可用管理员） */
     @Transactional
     public void setStatus(String userId, boolean enabled, SessionUser operator) {
-        UserEntry u = require(userId);
+        SysUser u = require(userId);
         ensureNotSelf(u, operator);
         if (u.isAdmin() && u.isActive() && !enabled) {
             ensureNotLastActiveAdmin(u);
         }
-        String status = enabled ? UserEntry.STATUS_ACTIVE : UserEntry.STATUS_DISABLED;
+        String status = enabled ? SysUser.STATUS_ACTIVE : SysUser.STATUS_DISABLED;
         updateStatusColumn(userId, status);
         log.info("user status -> {}: {}", status, userId);
     }
@@ -228,7 +224,7 @@ public class UserService {
     /** 删除用户（保护：不能删自己、不能删最后一个可用管理员） */
     @Transactional
     public void delete(String userId, SessionUser operator) {
-        UserEntry u = require(userId);
+        SysUser u = require(userId);
         ensureNotSelf(u, operator);
         if (u.isAdmin() && u.isActive()) {
             ensureNotLastActiveAdmin(u);
@@ -239,25 +235,25 @@ public class UserService {
 
     // ---------------- 内部 ----------------
 
-    private UserEntry require(String userId) {
+    private SysUser require(String userId) {
         SysUser row = userId == null ? null : userMapper.selectById(userId);
         if (row == null) {
             throw new ApiException(404, "用户不存在: " + userId);
         }
-        return UserEntryConverter.toEntry(row);
+        return row;
     }
 
-    private static void ensureNotSelf(UserEntry u, SessionUser operator) {
-        if (u.userId().equals(operator.userId())) {
+    private static void ensureNotSelf(SysUser u, SessionUser operator) {
+        if (u.getUserId().equals(operator.userId())) {
             throw new ApiException(400, "不能对当前登录账号执行该操作");
         }
     }
 
-    private void ensureNotLastActiveAdmin(UserEntry target) {
+    private void ensureNotLastActiveAdmin(SysUser target) {
         long activeAdmins = userMapper.selectCount(new LambdaQueryWrapper<SysUser>()
-                .eq(SysUser::getRole, UserEntry.ROLE_ADMIN)
-                .eq(SysUser::getStatus, UserEntry.STATUS_ACTIVE)
-                .ne(SysUser::getUserId, target.userId()));
+                .eq(SysUser::getRole, SysUser.ROLE_ADMIN)
+                .eq(SysUser::getStatus, SysUser.STATUS_ACTIVE)
+                .ne(SysUser::getUserId, target.getUserId()));
         if (activeAdmins == 0) {
             throw new ApiException(400, "系统必须保留至少一个可用的管理员账号");
         }
@@ -284,11 +280,6 @@ public class UserService {
         if (password == null || password.length() < MIN_PASSWORD_LEN || password.length() > MAX_PASSWORD_LEN) {
             throw new ApiException(400, "密码长度需 " + MIN_PASSWORD_LEN + "-" + MAX_PASSWORD_LEN + " 位");
         }
-    }
-
-    private static UserEntry withoutHash(UserEntry u) {
-        return new UserEntry(u.userId(), u.username(), "", u.role(), u.status(),
-                u.createdAt(), u.updatedAt(), u.lastLoginAt());
     }
 
     // ---------------- PBKDF2 ----------------

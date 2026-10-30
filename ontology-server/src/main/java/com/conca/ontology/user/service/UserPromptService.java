@@ -25,10 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.user.converter.UserPromptEntryConverter;
+import com.conca.ontology.user.dto.UserPromptVO;
 import com.conca.ontology.user.entity.UserPromptEntity;
 import com.conca.ontology.user.mapper.UserPromptMapper;
-import com.conca.ontology.user.model.UserPromptEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -72,17 +71,17 @@ public class UserPromptService {
     }
 
     /** 列表（updatedAt 倒序；同刻按创建先后，对齐原文件内稳定排序语义） */
-    public List<UserPromptEntry> list(String userId) {
+    public List<UserPromptVO> list(String userId) {
         requireValidUser(userId);
         return promptMapper.selectList(new LambdaQueryWrapper<UserPromptEntity>()
                         .eq(UserPromptEntity::getUserId, userId)
                         .orderByDesc(UserPromptEntity::getUpdatedAt)
                         .orderByAsc(UserPromptEntity::getCreatedAt))
-                .stream().map(UserPromptEntryConverter::toEntry).toList();
+                .stream().map(UserPromptVO::from).toList();
     }
 
     @Transactional
-    public UserPromptEntry create(String userId, String title, String content) {
+    public UserPromptVO create(String userId, String title, String content) {
         requireValidUser(userId);
         if (promptMapper.selectCount(new LambdaQueryWrapper<UserPromptEntity>()
                 .eq(UserPromptEntity::getUserId, userId)) >= MAX_PROMPTS) {
@@ -98,18 +97,18 @@ public class UserPromptService {
         row.setUpdatedAt(now);
         promptMapper.insert(row);
         log.info("user prompt created: {} ({})", userId, row.getId());
-        return UserPromptEntryConverter.toEntry(row);
+        return UserPromptVO.from(row);
     }
 
     @Transactional
-    public UserPromptEntry update(String userId, String id, String title, String content) {
+    public UserPromptVO update(String userId, String id, String title, String content) {
         UserPromptEntity row = selectOwned(userId, id);
         row.setTitle(title);
         row.setContent(content);
         row.setUpdatedAt(LocalDateTime.now());
         promptMapper.updateById(row);
         log.info("user prompt updated: {} ({})", userId, id);
-        return UserPromptEntryConverter.toEntry(row);
+        return UserPromptVO.from(row);
     }
 
     @Transactional
@@ -147,7 +146,7 @@ public class UserPromptService {
      * name 缺省自动生成；description 缺省按模板生成。返回最终 skill 名。
      */
     public synchronized Map<String, Object> toSkill(String userId, String promptId, String name, String description) {
-        UserPromptEntry src = UserPromptEntryConverter.toEntry(selectOwned(userId, promptId));
+        UserPromptEntity src = selectOwned(userId, promptId);
         String finalName = (name == null || name.isBlank()) ? randomSkillName() : name.trim();
         if (!SKILL_NAME_RE.matcher(finalName).matches()) {
             throw new ApiException(400, "skill 名只能包含小写字母、数字、连字符，且不能以连字符开头或结尾");
@@ -157,7 +156,7 @@ public class UserPromptService {
             throw new ApiException(400, "skill 名已存在：" + finalName);
         }
         String desc = (description == null || description.isBlank())
-                ? "用户沉淀的提示词技能「" + src.title() + "」。当用户的问题与「" + src.title() + "」相关时，遵循本技能中的指引作答。"
+                ? "用户沉淀的提示词技能「" + src.getTitle() + "」。当用户的问题与「" + src.getTitle() + "」相关时，遵循本技能中的指引作答。"
                 : description.trim();
         if (desc.length() > 1024) {
             throw new ApiException(400, "description 最长 1024 字");
@@ -168,15 +167,15 @@ public class UserPromptService {
                     + "name: " + yamlQuote(finalName) + "\n"
                     + "description: " + yamlQuote(desc) + "\n"
                     + "---\n\n"
-                    + "# " + src.title() + "\n\n"
-                    + src.content() + "\n";
+                    + "# " + src.getTitle() + "\n\n"
+                    + src.getContent() + "\n";
             writeAtomic(dir.resolve("SKILL.md"), skillMd);
-            PromptSkillMeta meta = new PromptSkillMeta(userId, src.id(), src.title(), now());
+            PromptSkillMeta meta = new PromptSkillMeta(userId, src.getId(), src.getTitle(), now());
             writeAtomic(dir.resolve("prompt-meta.json"), mapper.writerWithDefaultPrettyPrinter().writeValueAsString(meta));
         } catch (IOException e) {
             throw new ApiException(500, "skill 文件写入失败: " + e.getMessage());
         }
-        log.info("user prompt converted to skill: {} -> {} ({})", userId, finalName, src.id());
+        log.info("user prompt converted to skill: {} -> {} ({})", userId, finalName, src.getId());
         return Map.of("name", finalName);
     }
 

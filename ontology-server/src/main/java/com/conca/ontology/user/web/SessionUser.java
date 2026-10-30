@@ -2,7 +2,8 @@ package com.conca.ontology.user.web;
 
 import java.io.Serializable;
 
-import com.conca.ontology.user.model.UserEntry;
+import com.conca.ontology.user.dto.UserVO;
+import com.conca.ontology.user.entity.SysUser;
 
 import jakarta.servlet.http.HttpSession;
 
@@ -22,10 +23,10 @@ public record SessionUser(String userId, String username, String role) implement
     public static final String SESSION_KEY = "AUTH_USER";
 
     public boolean isAdmin() {
-        return UserEntry.ROLE_ADMIN.equals(role);
+        return SysUser.ROLE_ADMIN.equals(role);
     }
 
-    public static SessionUser from(UserEntry u) {
+    public static SessionUser from(UserVO u) {
         return new SessionUser(u.userId(), u.username(), u.role());
     }
 
