@@ -82,7 +82,7 @@ llmOntology/
 ├── docs/                                  # 设计文档 + 截图
 ├── ontology-server/                       # Spring Boot 主应用（REST、静态页、技能、评测）
 │   └── src/main/
-│       ├── java/com/conca/ontology/       # 15 个领域包，包内按 api / service / entity / mapper / model 分层
+│       ├── java/com/conca/ontology/       # 15 个领域包，包内按 api / service / entity / mapper / dto 分层
 │       │   ├── agent/                     # Agent 会话（以此包为例展开）
 │       │   │   ├── api/                   # REST：聊天 SSE / 驾驶舱 / 改写配置
 │       │   │   ├── config/                # AgentScopeConfig，装配 AgentScope Harness
@@ -90,7 +90,6 @@ llmOntology/
 │       │   │   ├── entity/                # 语义改写配置表实体
 │       │   │   ├── mapper/                # MyBatis-Plus Mapper
 │       │   │   ├── middleware/            # 内容安全检测 / 角色权限拦截（挂入 ReAct 管道）
-│       │   │   ├── model/                 # 领域模型（RewriteConfig）
 │       │   │   ├── service/               # 聊天 / 会话 / 记忆 / 语义改写 / 驾驶舱统计
 │       │   │   └── tool/                  # build_chart 图表 / 只读平面哑管道
 │       │   ├── backup/                    # 备份

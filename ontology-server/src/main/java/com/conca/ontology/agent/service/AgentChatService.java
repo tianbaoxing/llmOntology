@@ -25,7 +25,7 @@ import com.conca.ontology.agent.middleware.RolePermissionMiddleware;
 import com.conca.ontology.builder.AgentRegistry;
 import com.conca.ontology.agent.tool.HttpRequestOntologyQueryTool;
 import com.conca.ontology.model.service.ModelSlugService;
-import com.conca.ontology.agent.model.RewriteConfig;
+import com.conca.ontology.agent.dto.RewriteConfig;
 import com.conca.ontology.user.service.RolePermissionService;
 import com.conca.ontology.user.service.UserService;
 import com.conca.ontology.agent.service.RewriteConfigService.PipelineStep;

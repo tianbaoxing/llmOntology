@@ -1,4 +1,4 @@
-package com.conca.ontology.agent.model;
+package com.conca.ontology.agent.dto;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import com.conca.ontology.agent.entity.RewriteConfigItem;
 import com.conca.ontology.agent.mapper.RewriteConfigItemMapper;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.agent.model.RewriteConfig;
+import com.conca.ontology.agent.dto.RewriteConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 

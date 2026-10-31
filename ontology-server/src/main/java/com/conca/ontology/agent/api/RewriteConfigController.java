@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.agent.model.RewriteConfig;
+import com.conca.ontology.agent.dto.RewriteConfig;
 import com.conca.ontology.agent.service.RewriteConfigService;
 import com.conca.ontology.agent.service.RewriteConfigService.ConfigView;
 import com.conca.ontology.agent.service.RewriteConfigService.RewriteResult;
