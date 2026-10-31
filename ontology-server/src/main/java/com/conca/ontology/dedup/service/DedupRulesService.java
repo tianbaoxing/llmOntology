@@ -10,10 +10,10 @@ import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.dedup.model.DedupExactMode;
-import com.conca.ontology.dedup.model.DedupLabelConfig;
-import com.conca.ontology.dedup.model.DedupRuleset;
-import com.conca.ontology.dedup.model.DedupRulesIndexItem;
+import com.conca.ontology.dedup.dto.DedupExactMode;
+import com.conca.ontology.dedup.dto.DedupLabelConfigDTO;
+import com.conca.ontology.dedup.dto.DedupRulesetDTO;
+import com.conca.ontology.dedup.dto.DedupRulesIndexDTO;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage;
 import com.conca.ontology.dedup.store.DedupRulesStore;
 import com.conca.ontology.graph.model.ClassDef;
@@ -46,41 +46,41 @@ public class DedupRulesService {
 
     // ---------- list / get / activate / delete ----------
 
-    public List<DedupRulesIndexItem> listAll() {
+    public List<DedupRulesIndexDTO> listAll() {
         return store.listIndex();
     }
 
-    public DedupRuleset get(String id) {
+    public DedupRulesetDTO get(String id) {
         return store.get(id);
     }
 
-    public DedupRuleset getActive() {
+    public DedupRulesetDTO getActive() {
         return store.getActive();
     }
 
-    public DedupRuleset getOrDefault(String id) {
+    public DedupRulesetDTO getOrDefault(String id) {
         if (id == null || id.isBlank()) return getActive();
         return store.get(id);
     }
 
-    public List<DedupRulesIndexItem> setActive(String id) {
+    public List<DedupRulesIndexDTO> setActive(String id) {
         store.setActive(id);
         return store.listIndex();
     }
 
-    public List<DedupRulesIndexItem> delete(String id) {
+    public List<DedupRulesIndexDTO> delete(String id) {
         store.delete(id);
         return store.listIndex();
     }
 
     // ---------- save (with validation) ----------
 
-    public DedupRulesIndexItem save(DedupRuleset input) {
+    public DedupRulesIndexDTO save(DedupRulesetDTO input) {
         validate(input);
         return store.save(input);
     }
 
-    private void validate(DedupRuleset r) {
+    private void validate(DedupRulesetDTO r) {
         List<String> errors = new ArrayList<>();
         Set<String> knownLabels = new HashSet<>();
         for (ClassDef c : schema.allClasses()) knownLabels.add(c.name());
@@ -89,7 +89,7 @@ public class DedupRulesService {
             errors.add("规则集名称不能为空");
         }
         if (r.labelConfig() != null) {
-            for (Map.Entry<String, DedupLabelConfig> e : r.labelConfig().entrySet()) {
+            for (Map.Entry<String, DedupLabelConfigDTO> e : r.labelConfig().entrySet()) {
                 String label = e.getKey();
                 ClassDef cls = knownLabels.contains(label) ? schema.classOf(label) : null;
                 if (cls == null) {
@@ -98,7 +98,7 @@ public class DedupRulesService {
                 }
                 Set<String> props = new HashSet<>();
                 cls.properties().forEach(p -> props.add(p.name()));
-                DedupLabelConfig cfg = e.getValue();
+                DedupLabelConfigDTO cfg = e.getValue();
                 if (cfg == null) continue;
                 if (cfg.nameProp() != null && !props.contains(cfg.nameProp())) {
                     errors.add("Label '" + label + "' 的 name 属性源 '" + cfg.nameProp() + "' 不存在；可用属性：" + props);
@@ -142,8 +142,8 @@ public class DedupRulesService {
 
     // ---------- helpers: 供 DedupScanService 跨阶段使用的快捷读取 ----------
 
-    public String namePropOf(DedupRuleset rules, String label) {
-        DedupLabelConfig cfg = rules.labelConfig().get(label);
+    public String namePropOf(DedupRulesetDTO rules, String label) {
+        DedupLabelConfigDTO cfg = rules.labelConfig().get(label);
         if (cfg != null && cfg.nameProp() != null && !cfg.nameProp().isBlank()) {
             return cfg.nameProp();
         }
@@ -151,10 +151,10 @@ public class DedupRulesService {
         return cls == null ? "name" : cls.keyProp();
     }
 
-    public List<String> conflictPropsOf(DedupRuleset rules, String label) {
+    public List<String> conflictPropsOf(DedupRulesetDTO rules, String label) {
         LinkedHashSet<String> s = new LinkedHashSet<>();
         if (rules.globalConflictProps() != null) s.addAll(rules.globalConflictProps());
-        DedupLabelConfig cfg = rules.labelConfig().get(label);
+        DedupLabelConfigDTO cfg = rules.labelConfig().get(label);
         if (cfg != null && cfg.conflictProps() != null) s.addAll(cfg.conflictProps());
         return List.copyOf(s);
     }
@@ -172,7 +172,7 @@ public class DedupRulesService {
             List<String> sharedNormKeys,
             List<String> exactSubStagesHit) {}
 
-    public PreviewResult preview(DedupRuleset rules, PreviewSample sample) {
+    public PreviewResult preview(DedupRulesetDTO rules, PreviewSample sample) {
         if (sample == null || sample.label() == null) {
             throw new ApiException(400, "预览缺少 label 参数");
         }
@@ -189,7 +189,7 @@ public class DedupRulesService {
         boolean normHit = !shared.isEmpty();
 
         List<String> exactHits = new ArrayList<>();
-        DedupLabelConfig cfg = rules.labelConfig().get(sample.label());
+        DedupLabelConfigDTO cfg = rules.labelConfig().get(sample.label());
         if (cfg != null && cfg.exactModes() != null) {
             String nm1 = normalizeStage.baseNormalize(readProp(sample.props1(), cfg.nameProp(), sample.name1()));
             String nm2 = normalizeStage.baseNormalize(readProp(sample.props2(), cfg.nameProp(), sample.name2()));
@@ -219,7 +219,7 @@ public class DedupRulesService {
 
     // ---------- internals ----------
 
-    private List<String> generateNormKeysWithRules(DedupRuleset rules, String base, String label) {
+    private List<String> generateNormKeysWithRules(DedupRulesetDTO rules, String base, String label) {
         if (base.isEmpty()) return List.of();
         List<String> suffixes = rules.suffixTable() == null ? List.of()
                 : rules.suffixTable().getOrDefault(label, List.of());
@@ -266,8 +266,8 @@ public class DedupRulesService {
         return String.join("&", vals);
     }
 
-    // 供 NormalizeAliasStage 注入 DedupRuleset 时复用 suffixes 解析（保持原有 generateNormKeys 结构不变，改造另在 Stage 中完成）
-    public List<String> suffixesFor(DedupRuleset rules, String label) {
+    // 供 NormalizeAliasStage 注入 DedupRulesetDTO 时复用 suffixes 解析（保持原有 generateNormKeys 结构不变，改造另在 Stage 中完成）
+    public List<String> suffixesFor(DedupRulesetDTO rules, String label) {
         if (rules == null || label == null) return List.of();
         List<String> s = rules.suffixTable() == null ? null : rules.suffixTable().get(label);
         return s == null ? List.of() : s;

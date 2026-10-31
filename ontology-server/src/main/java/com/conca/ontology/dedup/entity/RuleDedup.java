@@ -8,10 +8,9 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import com.conca.ontology.dedup.model.DedupLabelConfig;
 
 /**
- * 去重规则集表实体（rule_dedup，P2；与 {@link com.conca.ontology.dedup.model.DedupRuleset} 互转）。
+ * 去重规则集表实体（rule_dedup，P2；与 {@link com.conca.ontology.dedup.dto.DedupRulesetDTO} 互转）。
  * suffixTable / labelConfig / globalConflictProps 均为 JSON 列；updated_at 为 epoch 毫秒（API 契约即 long）。
  *
  * @author tianbaoxing
@@ -33,7 +32,7 @@ public class RuleDedup {
     private Map<String, List<String>> suffixTable;
 
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private Map<String, DedupLabelConfig> labelConfig;
+    private Map<String, DedupLabelConfigPO> labelConfig;
 
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> globalConflictProps;
@@ -78,11 +77,11 @@ public class RuleDedup {
         this.suffixTable = suffixTable;
     }
 
-    public Map<String, DedupLabelConfig> getLabelConfig() {
+    public Map<String, DedupLabelConfigPO> getLabelConfig() {
         return labelConfig;
     }
 
-    public void setLabelConfig(Map<String, DedupLabelConfig> labelConfig) {
+    public void setLabelConfig(Map<String, DedupLabelConfigPO> labelConfig) {
         this.labelConfig = labelConfig;
     }
 

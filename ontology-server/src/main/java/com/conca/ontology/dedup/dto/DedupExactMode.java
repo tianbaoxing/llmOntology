@@ -1,4 +1,4 @@
-package com.conca.ontology.dedup.model;
+package com.conca.ontology.dedup.dto;
 
 /**
  * @author tianbaoxing

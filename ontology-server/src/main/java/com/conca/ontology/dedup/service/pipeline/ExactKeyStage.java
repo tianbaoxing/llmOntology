@@ -8,15 +8,15 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.dedup.model.DedupExactMode;
-import com.conca.ontology.dedup.model.DedupLabelConfig;
-import com.conca.ontology.dedup.model.DedupRuleset;
+import com.conca.ontology.dedup.dto.DedupExactMode;
+import com.conca.ontology.dedup.dto.DedupLabelConfigDTO;
+import com.conca.ontology.dedup.dto.DedupRulesetDTO;
 
 /**
  * 精确 key 归一化阶段（A-2）：
  *   规范化 name 仍不相同，但某些属性组合完全一致 → 判重。
  *
- * 按 DedupRuleset.labelConfig 中 exactModes 的配置动态执行：
+ * 按 DedupRulesetDTO.labelConfig 中 exactModes 的配置动态执行：
  *   NAME_AUX：name 规范化后相同 + 辅助属性值相同（若都非空）
  *
  * MatchBucket.subStage 统一取值（与 DedupAlgorithmScoreDTO.SUB_* 常量对齐）：
@@ -41,11 +41,11 @@ public class ExactKeyStage {
     /** subStage = DedupAlgorithmScoreDTO.SUB_EXACT_* 三选一 */
     public record MatchBucket(String patternMode, String subStage, List<NodeProps> nodes) {}
 
-    public List<MatchBucket> run(List<NodeProps> nodes, DedupRuleset rules) {
+    public List<MatchBucket> run(List<NodeProps> nodes, DedupRulesetDTO rules) {
         List<MatchBucket> out = new ArrayList<>();
         if (nodes.isEmpty()) return out;
         String label = nodes.get(0).label;
-        DedupLabelConfig cfg = rules.labelConfig() == null ? null : rules.labelConfig().get(label);
+        DedupLabelConfigDTO cfg = rules.labelConfig() == null ? null : rules.labelConfig().get(label);
         if (cfg == null) return out;
         List<DedupExactMode> modes = cfg.exactModes() == null ? List.of() : cfg.exactModes();
         if (modes.isEmpty()) return out;
@@ -58,7 +58,7 @@ public class ExactKeyStage {
     }
 
     /** NAME_AUX：name(=nameProp) 规范化 + 辅助属性一致性 */
-    private List<MatchBucket> modeNamePlusAux(List<NodeProps> nodes, String label, DedupLabelConfig cfg) {
+    private List<MatchBucket> modeNamePlusAux(List<NodeProps> nodes, String label, DedupLabelConfigDTO cfg) {
         Map<String, List<NodeProps>> buckets = new LinkedHashMap<>();
         String nameProp = cfg.nameProp() == null || cfg.nameProp().isBlank() ? "name" : cfg.nameProp();
         List<String> auxKeys = cfg.auxProps() == null ? List.of() : cfg.auxProps();

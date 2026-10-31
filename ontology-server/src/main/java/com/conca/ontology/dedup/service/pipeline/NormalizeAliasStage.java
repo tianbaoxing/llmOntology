@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.dedup.model.DedupRuleset;
+import com.conca.ontology.dedup.dto.DedupRulesetDTO;
 
 /**
  * 规范化别名阶段（A-1）：
@@ -19,7 +19,7 @@ import com.conca.ontology.dedup.model.DedupRuleset;
  * 规范化顺序（按粒度从粗到细，每个节点生成多 key 以覆盖不同剥离场景）：
  *   1. 统一全角半角标点 + 空白压缩 + 首尾 trim
  *   2. 去除括号内注释【】（）() [] 以及括号本身
- *   3. 剥离后缀表（按 label 不同使用不同的后缀词典，从 DedupRuleset.suffixTable 动态读取）
+ *   3. 剥离后缀表（按 label 不同使用不同的后缀词典，从 DedupRulesetDTO.suffixTable 动态读取）
  *   4. 前后缀剥离后再次 trim + 空值丢弃
  *
  * 最终以 List<normKey> 同 label 内做等值分组。
@@ -40,7 +40,7 @@ public class NormalizeAliasStage {
     /** 输出匹配组：同一 normKey 下所有 NodeName 引用（size≥2 才算候选组）；subStage 恒等于 "norm" */
     public record MatchBucket(String normKey, String subStage, List<NodeName> nodes) {}
 
-    public List<MatchBucket> run(List<NodeName> nodes, DedupRuleset rules) {
+    public List<MatchBucket> run(List<NodeName> nodes, DedupRulesetDTO rules) {
         Map<String, List<NodeName>> buckets = new LinkedHashMap<>();
         for (NodeName n : nodes) {
             if (n.name == null || n.name.isBlank()) continue;
@@ -58,7 +58,7 @@ public class NormalizeAliasStage {
         return out;
     }
 
-    public List<String> generateNormKeys(String rawName, String label, DedupRuleset rules) {
+    public List<String> generateNormKeys(String rawName, String label, DedupRulesetDTO rules) {
         String base = baseNormalize(rawName);
         if (base.isEmpty()) return List.of();
         List<String> out = new ArrayList<>(4);
@@ -83,7 +83,7 @@ public class NormalizeAliasStage {
         return out;
     }
 
-    private List<String> suffixesFor(String label, DedupRuleset rules) {
+    private List<String> suffixesFor(String label, DedupRulesetDTO rules) {
         if (label == null || rules == null || rules.suffixTable() == null) return List.of();
         List<String> s = rules.suffixTable().get(label);
         return s == null ? List.of() : s;

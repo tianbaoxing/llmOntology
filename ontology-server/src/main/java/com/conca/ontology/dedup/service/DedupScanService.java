@@ -22,6 +22,7 @@ import com.conca.ontology.dedup.dto.DedupAlgorithmScoreDTO;
 import com.conca.ontology.dedup.dto.DupCandidateDTO;
 import com.conca.ontology.dedup.dto.DupCandidateGroupDTO;
 import com.conca.ontology.dedup.dto.DupCandidateGroupDTO.ConflictLevel;
+import com.conca.ontology.dedup.dto.DedupRulesetDTO;
 import com.conca.ontology.dedup.service.pipeline.ExactKeyStage;
 import com.conca.ontology.dedup.service.pipeline.ExactKeyStage.NodeProps;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage;
@@ -38,7 +39,7 @@ import com.conca.ontology.shared.web.ApiException;
  *   - Neo4j 节点数据经 GraphQueryService（只读红线保护）拉取
  *   - 阶段结果合并去重 → 生成 DupCandidateGroupDTO 列表 + KPI 汇总
  *   - ConflictGuard 属性冲突检测：全局冲突属性 + 类级冲突属性并集检测
- *   - 规则集快照：每次 scan 从 DedupRulesService 取不可变 DedupRuleset，跨线程安全
+ *   - 规则集快照：每次 scan 从 DedupRulesService 取不可变 DedupRulesetDTO，跨线程安全
  *
  * @author tianbaoxing
  * @date 2026-09-21
@@ -77,7 +78,7 @@ public class DedupScanService {
         String scanLabel = req.labelSafe();
 
         // 规则快照：本次 scan 全程使用同一份不可变 rules（CopyOnRead，并发 save 不影响进行中扫描）
-        final com.conca.ontology.dedup.model.DedupRuleset rules = rulesService.getOrDefault(req.ruleSetId());
+        final DedupRulesetDTO rules = rulesService.getOrDefault(req.ruleSetId());
 
         Collection<ClassDef> classes;
         if ("*".equals(scanLabel)) {
@@ -175,7 +176,7 @@ public class DedupScanService {
     // 阶段调度
     // ============================================================
 
-    private List<DupCandidateGroupDTO> runNormalizeAlias(LabelRaw raw, com.conca.ontology.dedup.model.DedupRuleset rules) {
+    private List<DupCandidateGroupDTO> runNormalizeAlias(LabelRaw raw, DedupRulesetDTO rules) {
         String nameProp = rulesService.namePropOf(rules, raw.label);
         List<NodeName> inputs = new ArrayList<>(raw.nodes.size());
         for (RawNode rn : raw.nodes) {
@@ -195,7 +196,7 @@ public class DedupScanService {
         return out;
     }
 
-    private List<DupCandidateGroupDTO> runExactKey(LabelRaw raw, com.conca.ontology.dedup.model.DedupRuleset rules) {
+    private List<DupCandidateGroupDTO> runExactKey(LabelRaw raw, DedupRulesetDTO rules) {
         List<NodeProps> inputs = new ArrayList<>(raw.nodes.size());
         for (RawNode rn : raw.nodes) {
             inputs.add(new NodeProps(rn.eid, raw.label, rn.props, rn.totalDegree, rn.propCount));
@@ -222,7 +223,7 @@ public class DedupScanService {
 
     private List<DupCandidateGroupDTO> mergeGroupResults(LabelRaw raw,
             List<DupCandidateGroupDTO> g1, List<DupCandidateGroupDTO> g2, double threshold,
-            com.conca.ontology.dedup.model.DedupRuleset rules) {
+            DedupRulesetDTO rules) {
         Map<String, GroupBuilder> builders = new LinkedHashMap<>();
         for (DupCandidateGroupDTO g : g1) absorb(builders, g);
         for (DupCandidateGroupDTO g : g2) absorb(builders, g);
@@ -285,7 +286,7 @@ public class DedupScanService {
 
     private DupCandidateGroupDTO buildGroupFromNodeRefs(LabelRaw raw, List<String> eidRefs,
                                                       String stageName, DedupAlgorithmScoreDTO baseScore,
-                                                      com.conca.ontology.dedup.model.DedupRuleset rules) {
+                                                      DedupRulesetDTO rules) {
         if (eidRefs.size() < 2) return null;
         Map<String, RawNode> byEid = new LinkedHashMap<>();
         for (RawNode rn : raw.nodes) byEid.put(rn.eid, rn);
@@ -300,7 +301,7 @@ public class DedupScanService {
     }
 
     private DupCandidateGroupDTO finalize(LabelRaw raw, GroupBuilder b,
-                                       com.conca.ontology.dedup.model.DedupRuleset rules) {
+                                       DedupRulesetDTO rules) {
         Map<String, RawNode> byEid = new LinkedHashMap<>();
         for (RawNode rn : raw.nodes) byEid.put(rn.eid, rn);
 

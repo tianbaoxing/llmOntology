@@ -1,4 +1,4 @@
-package com.conca.ontology.dedup.model;
+package com.conca.ontology.dedup.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @date 2026-09-22
  */
 @Schema(description = "规则集索引条目（轻量：列表下拉使用）")
-public record DedupRulesIndexItem(
+public record DedupRulesIndexDTO(
         @Schema(description = "规则集 ID", example = "default") String id,
         @Schema(description = "规则集名称", example = "默认规则") String name,
         @Schema(description = "版本号", example = "1") int version,

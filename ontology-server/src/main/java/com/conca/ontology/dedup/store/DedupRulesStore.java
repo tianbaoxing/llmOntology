@@ -12,12 +12,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.conca.ontology.dedup.converter.DedupRulesetConverter;
+import com.conca.ontology.dedup.dto.DedupExactMode;
+import com.conca.ontology.dedup.dto.DedupLabelConfigDTO;
+import com.conca.ontology.dedup.dto.DedupRulesIndexDTO;
+import com.conca.ontology.dedup.dto.DedupRulesetDTO;
 import com.conca.ontology.dedup.entity.RuleDedup;
 import com.conca.ontology.dedup.mapper.RuleDedupMapper;
-import com.conca.ontology.dedup.model.DedupExactMode;
-import com.conca.ontology.dedup.model.DedupLabelConfig;
-import com.conca.ontology.dedup.model.DedupRulesIndexItem;
-import com.conca.ontology.dedup.model.DedupRuleset;
 import com.conca.ontology.shared.web.ApiException;
 
 /**
@@ -45,17 +45,17 @@ public class DedupRulesStore {
     public void ensureInitialized() {
     }
 
-    public List<DedupRulesIndexItem> listIndex() {
+    public List<DedupRulesIndexDTO> listIndex() {
         RuleDedup r = readOrNull();
         return r == null ? List.of() : List.of(toIndex(r));
     }
 
-    public DedupRuleset get(String id) {
-        return DedupRulesetConverter.toModel(require(id));
+    public DedupRulesetDTO get(String id) {
+        return DedupRulesetConverter.toDto(require(id));
     }
 
-    public DedupRuleset getActive() {
-        return DedupRulesetConverter.toModel(require(null));
+    public DedupRulesetDTO getActive() {
+        return DedupRulesetConverter.toDto(require(null));
     }
 
     /** 单套规则恒为激活：仅校验存在性与 id 匹配，无状态可切换 */
@@ -64,7 +64,7 @@ public class DedupRulesStore {
     }
 
     @Transactional
-    public synchronized DedupRulesIndexItem save(DedupRuleset input) {
+    public synchronized DedupRulesIndexDTO save(DedupRulesetDTO input) {
         RuleDedup existing = readOrNull();
         if (existing != null && input.version() > 0 && existing.getVersion() != input.version()) {
             throw new ApiException(409, "规则已被他人修改（当前 v" + existing.getVersion() + "，提交 v" + input.version() + "），请刷新后重试");
@@ -81,7 +81,7 @@ public class DedupRulesStore {
         Map<String, List<String>> suffixTable = new LinkedHashMap<>(input.suffixTable() == null ? Map.of() : input.suffixTable());
         suffixTable.replaceAll((k, v) -> normalizeSuffixes(v));
 
-        Map<String, DedupLabelConfig> labelConfig = new LinkedHashMap<>(input.labelConfig() == null ? Map.of() : input.labelConfig());
+        Map<String, DedupLabelConfigDTO> labelConfig = new LinkedHashMap<>(input.labelConfig() == null ? Map.of() : input.labelConfig());
         labelConfig.replaceAll((k, v) -> normalizeLabelConfig(v));
 
         List<String> global = input.globalConflictProps() == null ? List.of()
@@ -93,7 +93,7 @@ public class DedupRulesStore {
         next.setVersion(version);
         next.setUpdatedAt(System.currentTimeMillis());
         next.setSuffixTable(suffixTable);
-        next.setLabelConfig(labelConfig);
+        next.setLabelConfig(DedupRulesetConverter.toLabelConfigPo(labelConfig));
         next.setGlobalConflictProps(global);
         if (existing == null) {
             ruleMapper.insert(next);
@@ -114,8 +114,8 @@ public class DedupRulesStore {
 
     // ---------- internals ----------
 
-    private static DedupRulesIndexItem toIndex(RuleDedup r) {
-        return new DedupRulesIndexItem(r.getId(), r.getName(), r.getVersion(), r.getUpdatedAt(), true);
+    private static DedupRulesIndexDTO toIndex(RuleDedup r) {
+        return new DedupRulesIndexDTO(r.getId(), r.getName(), r.getVersion(), r.getUpdatedAt(), true);
     }
 
     /** 后缀清洗：trim + 去引号（粘贴 JSON 文本时带入的 " '）+ 去重 + 限 200 项 + 按长度降序 */
@@ -130,13 +130,13 @@ public class DedupRulesStore {
         return out.stream().sorted(Comparator.comparingInt(String::length).reversed()).toList();
     }
 
-    private DedupLabelConfig normalizeLabelConfig(DedupLabelConfig v) {
-        if (v == null) return DedupLabelConfig.empty("name");
+    private DedupLabelConfigDTO normalizeLabelConfig(DedupLabelConfigDTO v) {
+        if (v == null) return DedupLabelConfigDTO.empty("name");
         String nameProp = (v.nameProp() == null || v.nameProp().isBlank()) ? "name" : v.nameProp().trim();
         List<String> auxProps = v.auxProps() == null ? List.of() : v.auxProps().stream().map(String::trim).filter(s -> !s.isBlank()).distinct().toList();
         List<DedupExactMode> modes = v.exactModes() == null ? List.of() : v.exactModes();
         List<String> conf = v.conflictProps() == null ? List.of() : v.conflictProps().stream().map(String::trim).filter(s -> !s.isBlank()).distinct().toList();
-        return new DedupLabelConfig(nameProp, auxProps, modes, conf);
+        return new DedupLabelConfigDTO(nameProp, auxProps, modes, conf);
     }
 
     private RuleDedup readOrNull() {
