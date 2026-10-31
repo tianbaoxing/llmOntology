@@ -8,8 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
+import com.conca.ontology.disjoint.dto.DisjointRule;
 import com.conca.ontology.disjoint.dto.DisjointRulesDTO;
-import com.conca.ontology.disjoint.model.DisjointRule;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.swagger.v3.oas.annotations.Operation;

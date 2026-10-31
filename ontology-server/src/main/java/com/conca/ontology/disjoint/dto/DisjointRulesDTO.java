@@ -1,8 +1,6 @@
 package com.conca.ontology.disjoint.dto;
 import java.util.List;
 
-import com.conca.ontology.disjoint.model.DisjointRule;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**

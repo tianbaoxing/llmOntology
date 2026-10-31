@@ -1,4 +1,4 @@
-package com.conca.ontology.disjoint.model;
+package com.conca.ontology.disjoint.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**

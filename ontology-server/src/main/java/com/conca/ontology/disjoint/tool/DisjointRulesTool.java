@@ -7,8 +7,8 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.conca.ontology.disjoint.dto.DisjointRule;
 import com.conca.ontology.disjoint.dto.DisjointRulesDTO;
-import com.conca.ontology.disjoint.model.DisjointRule;
 import com.conca.ontology.disjoint.service.DisjointRuleService;
 
 import io.agentscope.core.agent.RuntimeContext;

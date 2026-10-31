@@ -12,10 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.disjoint.dto.DisjointConflictDTO;
+import com.conca.ontology.disjoint.dto.DisjointRule;
 import com.conca.ontology.disjoint.dto.DisjointRulesDTO;
 import com.conca.ontology.disjoint.entity.RuleDisjoint;
 import com.conca.ontology.disjoint.mapper.RuleDisjointMapper;
-import com.conca.ontology.disjoint.model.DisjointRule;
 import com.conca.ontology.shared.web.ApiException;
 
 /**
