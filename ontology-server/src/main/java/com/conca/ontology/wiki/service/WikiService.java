@@ -25,7 +25,7 @@ import com.conca.ontology.wiki.dto.WikiMetaUpdateResultDTO;
 import com.conca.ontology.wiki.dto.WikiSearchResultDTO;
 import com.conca.ontology.wiki.dto.WikiDocDTO;
 import com.conca.ontology.wiki.dto.WikiListDTO;
-import com.conca.ontology.wiki.model.WikiMetaEntry;
+import com.conca.ontology.wiki.entity.WikiMetadata;
 import com.conca.ontology.wiki.store.WikiMetaStore;
 
 /**
@@ -75,7 +75,7 @@ public class WikiService {
         List<FileEntryDTO> entries = successEntries();
         Set<String> valid = Set.copyOf(entries.stream().map(FileEntryDTO::mdName).toList());
         removeOrphans(valid);
-        Map<String, WikiMetaEntry> manual = metaStore.byMdName();
+        Map<String, WikiMetadata> manual = metaStore.byMdName();
         List<WikiDocDTO> docs = new ArrayList<>();
         for (FileEntryDTO e : entries) {
             String content = readMd(e);
@@ -87,12 +87,12 @@ public class WikiService {
     /** 单篇文档（MD 原文 + 合并元信息 + 正文命中的图谱实体） */
     public synchronized WikiDocResultDTO doc(String mdName) {
         FileEntryDTO e = findSuccess(mdName, successEntries());
-        WikiMetaEntry meta = metaStore.get(mdName);
+        WikiMetadata meta = metaStore.get(mdName);
         String content = readMd(e);
         String body = stripSourceLine(content);
         return new WikiDocResultDTO(e.mdName(), e.name(), extractTitle(body, e.mdName()),
                 extract(P_DATE, body), extract(P_SOURCE, body), extract(P_AUTHOR, body),
-                meta == null ? null : meta.category(), meta == null ? null : meta.tags(),
+                meta == null ? null : meta.getCategory(), meta == null ? null : meta.getTags(),
                 e.convertedAt(), content,
                 entityService.match(e.mdName(), e.convertedAt(), body));
     }
@@ -108,7 +108,7 @@ public class WikiService {
             return new WikiSearchResultDTO(q, List.of());
         }
         List<FileEntryDTO> entries = successEntries();
-        Map<String, WikiMetaEntry> manual = metaStore.byMdName();
+        Map<String, WikiMetadata> manual = metaStore.byMdName();
         List<SearchHit> hits = new ArrayList<>();
         for (FileEntryDTO e : entries) {
             String content = readMd(e);
@@ -117,7 +117,7 @@ public class WikiService {
             long bodyHits = countOccurrences(lc, kw);
             String title = extractTitle(body, e.mdName());
             boolean titleHit = title != null && title.toLowerCase().contains(kw);
-            WikiMetaEntry meta = manual.get(e.mdName());
+            WikiMetadata meta = manual.get(e.mdName());
             boolean metaHit = metaHit(meta, body, kw);
             if (!titleHit && !metaHit && bodyHits == 0) {
                 continue;
@@ -125,7 +125,7 @@ public class WikiService {
             long score = (titleHit ? SCORE_TITLE : 0) + (metaHit ? SCORE_META : 0) + bodyHits;
             hits.add(new SearchHit(score, bodyHits, new WikiSearchResultDTO.Doc(
                     e.mdName(), e.name(), title, extract(P_DATE, body), extract(P_SOURCE, body),
-                    meta == null ? null : meta.category(), meta == null ? null : meta.tags(),
+                    meta == null ? null : meta.getCategory(), meta == null ? null : meta.getTags(),
                     bodyHits, snippets(lc, body, kw))));
         }
         hits.sort(HIT_ORDER);
@@ -153,9 +153,12 @@ public class WikiService {
         FileEntryDTO e = findSuccess(mdName, entries);
         Set<String> valid = Set.copyOf(entries.stream().map(FileEntryDTO::mdName).toList());
         removeOrphans(valid);
-        WikiMetaEntry updated = new WikiMetaEntry(mdName, cleanCategory(category), cleanTags(tags));
+        WikiMetadata updated = new WikiMetadata();
+        updated.setMdName(mdName);
+        updated.setCategory(cleanCategory(category));
+        updated.setTags(cleanTags(tags));
         metaStore.upsert(updated);
-        log.info("wiki meta updated: {} -> category={}, tags={}", mdName, updated.category(), updated.tags());
+        log.info("wiki meta updated: {} -> category={}, tags={}", mdName, updated.getCategory(), updated.getTags());
         return new WikiMetaUpdateResultDTO(viewOf(e, readMd(e), updated));
     }
 
@@ -181,13 +184,13 @@ public class WikiService {
     }
 
     /** 元信息命中：手工维护（分类/标签）+ 正文抽取（来源/作者/发布时间）任一包含关键词 */
-    private boolean metaHit(WikiMetaEntry meta, String body, String kw) {
+    private boolean metaHit(WikiMetadata meta, String body, String kw) {
         if (meta != null) {
-            if (meta.category() != null && meta.category().toLowerCase().contains(kw)) {
+            if (meta.getCategory() != null && meta.getCategory().toLowerCase().contains(kw)) {
                 return true;
             }
-            if (meta.tags() != null) {
-                for (String t : meta.tags()) {
+            if (meta.getTags() != null) {
+                for (String t : meta.getTags()) {
                     if (t != null && t.toLowerCase().contains(kw)) {
                         return true;
                     }
@@ -253,11 +256,11 @@ public class WikiService {
         }
     }
 
-    private WikiDocDTO viewOf(FileEntryDTO e, String content, WikiMetaEntry meta) {
+    private WikiDocDTO viewOf(FileEntryDTO e, String content, WikiMetadata meta) {
         String body = stripSourceLine(content);
         return new WikiDocDTO(e.mdName(), e.name(), extractTitle(body, e.mdName()),
                 extract(P_DATE, body), extract(P_SOURCE, body), extract(P_AUTHOR, body),
-                meta == null ? null : meta.category(), meta == null ? null : meta.tags(),
+                meta == null ? null : meta.getCategory(), meta == null ? null : meta.getTags(),
                 e.description(), e.convertedAt(), mdSize(e.mdName()));
     }
 

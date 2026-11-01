@@ -10,8 +10,8 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 
 /**
- * Wiki 手工元数据表实体（wiki_metadata，P10；与 {@link com.conca.ontology.wiki.model.WikiMetaEntry} 互转）。
- * tags 为 JSON 列（NULL = 无标签）；updated_at 为行级写入时间（API 不输出）。
+ * Wiki 手工元数据表实体（wiki_metadata，P10；service/store 直接以本实体为领域载体，原 model 层已移除）。
+ * tags 为 JSON 列（NULL = 无标签）；updated_at 为行级写入时间（API 不输出，业务侧不设置，恒由 WikiMetaStore 写入时刷新）。
  *
  * @author tianbaoxing
  * @date 2026-10-24
