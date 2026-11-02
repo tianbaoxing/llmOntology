@@ -11,10 +11,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.conca.ontology.shared.web.ApiResponse;
-import com.conca.ontology.content.model.ContentSecurityAllowlistView;
-import com.conca.ontology.content.model.ContentSecurityRule;
-import com.conca.ontology.content.model.ContentSecurityRulesView;
+import com.conca.ontology.content.dto.ContentSecurityAllowlistView;
 import com.conca.ontology.content.dto.ContentSecurityCheckResultDTO;
+import com.conca.ontology.content.dto.ContentSecurityRule;
+import com.conca.ontology.content.dto.ContentSecurityRulesView;
 import com.conca.ontology.content.dto.PromptInjectionScanResultDTO;
 import com.conca.ontology.content.service.ContentSecurityService;
 

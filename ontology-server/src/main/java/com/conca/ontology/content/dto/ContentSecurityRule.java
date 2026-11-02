@@ -1,4 +1,6 @@
-package com.conca.ontology.content.model;
+package com.conca.ontology.content.dto;
+import com.conca.ontology.content.enums.ContentDecision;
+import com.conca.ontology.content.enums.ContentSeverity;
 
 /**
  * @author tianbaoxing

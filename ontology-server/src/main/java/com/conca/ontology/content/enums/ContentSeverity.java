@@ -1,4 +1,4 @@
-package com.conca.ontology.content.model;
+package com.conca.ontology.content.enums;
 
 /**
  * @author tianbaoxing
@@ -15,5 +15,5 @@ public enum ContentSeverity {
 
     ContentSeverity(double weight) { this.weight = weight; }
 
-    public double weight() { return weight; }
+    public double weight() { return this.weight; }
 }

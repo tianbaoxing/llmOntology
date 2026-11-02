@@ -1,7 +1,7 @@
 package com.conca.ontology.content.dto;
 
-import com.conca.ontology.content.model.ContentDecision;
-import com.conca.ontology.content.model.ContentSeverity;
+import com.conca.ontology.content.enums.ContentDecision;
+import com.conca.ontology.content.enums.ContentSeverity;
 
 /**
  * @author tianbaoxing

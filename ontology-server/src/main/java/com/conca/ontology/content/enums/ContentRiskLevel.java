@@ -1,4 +1,4 @@
-package com.conca.ontology.content.model;
+package com.conca.ontology.content.enums;
 
 /**
  * @author tianbaoxing
