@@ -1,4 +1,4 @@
-package com.conca.ontology.eval.model;
+package com.conca.ontology.eval.domain;
 
 import java.time.LocalDateTime;
 import java.util.List;

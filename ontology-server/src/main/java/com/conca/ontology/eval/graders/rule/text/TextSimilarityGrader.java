@@ -8,8 +8,8 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.graders.Grader;
-import com.conca.ontology.eval.model.GraderInput;
-import com.conca.ontology.eval.model.GraderScore;
+import com.conca.ontology.eval.graders.GraderInput;
+import com.conca.ontology.eval.graders.GraderScore;
 
 /**
  * 文本相似度评测（二期规则补强，OpenJudge SimilarityGrader 的中文可用子集）：

@@ -1,8 +1,5 @@
 package com.conca.ontology.eval.graders;
 
-import com.conca.ontology.eval.model.GraderInput;
-import com.conca.ontology.eval.model.GraderScore;
-
 /**
  * @author tianbaoxing
  * @date 2026-09-16

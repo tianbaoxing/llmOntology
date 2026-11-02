@@ -6,8 +6,8 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.graders.Grader;
-import com.conca.ontology.eval.model.GraderInput;
-import com.conca.ontology.eval.model.GraderScore;
+import com.conca.ontology.eval.graders.GraderInput;
+import com.conca.ontology.eval.graders.GraderScore;
 
 /**
  * 整串等值评测（对齐 OpenJudge StringMatchGrader 的 exact_match 算法）：

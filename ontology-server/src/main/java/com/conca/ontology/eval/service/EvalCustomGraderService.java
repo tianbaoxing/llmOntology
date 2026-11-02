@@ -14,10 +14,10 @@ import com.conca.ontology.eval.JudgeClient;
 import com.conca.ontology.eval.dto.EvalCustomGraderDTO;
 import com.conca.ontology.eval.dto.EvalCustomGraderTestDTO;
 import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
-import com.conca.ontology.eval.model.AgentRecord;
-import com.conca.ontology.eval.model.CustomGraderDefinition;
-import com.conca.ontology.eval.model.GraderInput;
-import com.conca.ontology.eval.model.GraderScore;
+import com.conca.ontology.eval.domain.AgentRecord;
+import com.conca.ontology.eval.domain.CustomGraderDefinition;
+import com.conca.ontology.eval.graders.GraderInput;
+import com.conca.ontology.eval.graders.GraderScore;
 import com.conca.ontology.eval.store.CustomGraderStore;
 import com.conca.ontology.shared.web.ApiException;
 

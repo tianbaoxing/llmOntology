@@ -1,4 +1,4 @@
-package com.conca.ontology.eval.model;
+package com.conca.ontology.eval.graders;
 
 import java.util.Map;
 

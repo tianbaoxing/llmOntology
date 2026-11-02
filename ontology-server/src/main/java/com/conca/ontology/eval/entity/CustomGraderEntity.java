@@ -3,7 +3,7 @@ package com.conca.ontology.eval.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.conca.ontology.eval.model.CustomGraderDefinition;
+import com.conca.ontology.eval.domain.CustomGraderDefinition;
 
 /**
  * 自定义评测器行实体（custom_grader，P6 起替代 data/eval/custom-graders.json）。

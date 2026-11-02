@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.conca.ontology.eval.entity.CustomGraderEntity;
 import com.conca.ontology.eval.mapper.CustomGraderMapper;
-import com.conca.ontology.eval.model.CustomGraderDefinition;
+import com.conca.ontology.eval.domain.CustomGraderDefinition;
 import com.conca.ontology.shared.web.ApiException;
 
 /**

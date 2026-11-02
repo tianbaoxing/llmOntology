@@ -7,8 +7,8 @@ import java.util.regex.PatternSyntaxException;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.graders.Grader;
-import com.conca.ontology.eval.model.GraderInput;
-import com.conca.ontology.eval.model.GraderScore;
+import com.conca.ontology.eval.graders.GraderInput;
+import com.conca.ontology.eval.graders.GraderScore;
 
 /**
  * 正则匹配评测（二期规则补强，对齐 OpenJudge StringMatchGrader 的 regex 模式）：

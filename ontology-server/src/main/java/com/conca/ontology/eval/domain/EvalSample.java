@@ -1,4 +1,4 @@
-package com.conca.ontology.eval.model;
+package com.conca.ontology.eval.domain;
 
 import java.util.List;
 

@@ -1,8 +1,10 @@
-package com.conca.ontology.eval.model;
+package com.conca.ontology.eval.graders;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import com.conca.ontology.eval.domain.AgentRecord;
 
 /**
  * @author tianbaoxing

@@ -12,8 +12,8 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.graders.Grader;
-import com.conca.ontology.eval.model.GraderInput;
-import com.conca.ontology.eval.model.GraderScore;
+import com.conca.ontology.eval.graders.GraderInput;
+import com.conca.ontology.eval.graders.GraderScore;
 
 /**
  * 工具调用成功率 + 期望召回率 合成评测（二期规则补强）：

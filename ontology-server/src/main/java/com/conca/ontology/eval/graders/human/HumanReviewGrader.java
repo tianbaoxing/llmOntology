@@ -5,8 +5,8 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import com.conca.ontology.eval.graders.Grader;
-import com.conca.ontology.eval.model.GraderInput;
-import com.conca.ontology.eval.model.GraderScore;
+import com.conca.ontology.eval.graders.GraderInput;
+import com.conca.ontology.eval.graders.GraderScore;
 
 /**
  * 人工评测器（type=human）：评测任务本身不判分，仅占位标记「待人工评分」——

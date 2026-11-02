@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import com.conca.ontology.eval.graders.Grader;
 import com.conca.ontology.eval.graders.custom.CustomLlmGrader;
 import com.conca.ontology.eval.JudgeClient;
-import com.conca.ontology.eval.model.CustomGraderDefinition;
+import com.conca.ontology.eval.domain.CustomGraderDefinition;
 import com.conca.ontology.eval.store.CustomGraderStore;
 
 /**

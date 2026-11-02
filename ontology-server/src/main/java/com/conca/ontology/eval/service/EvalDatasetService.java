@@ -19,7 +19,7 @@ import com.conca.ontology.eval.entity.DatasetEntity;
 import com.conca.ontology.eval.entity.DatasetSampleEntity;
 import com.conca.ontology.eval.mapper.DatasetMapper;
 import com.conca.ontology.eval.mapper.DatasetSampleMapper;
-import com.conca.ontology.eval.model.EvalSample;
+import com.conca.ontology.eval.domain.EvalSample;
 import com.conca.ontology.shared.web.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
