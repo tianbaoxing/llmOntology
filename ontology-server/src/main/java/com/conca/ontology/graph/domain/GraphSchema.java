@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.model;
+package com.conca.ontology.graph.domain;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;

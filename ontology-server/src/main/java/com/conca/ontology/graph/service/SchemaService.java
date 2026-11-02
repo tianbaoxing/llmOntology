@@ -32,10 +32,10 @@ import com.conca.ontology.graph.mapper.GraphClassPropMapper;
 import com.conca.ontology.graph.mapper.GraphRelDefMapper;
 import com.conca.ontology.graph.mapper.GraphSchemaMetaMapper;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.graph.model.ClassDef;
-import com.conca.ontology.graph.model.GraphSchema;
-import com.conca.ontology.graph.model.PropertyDef;
-import com.conca.ontology.graph.model.RelationDef;
+import com.conca.ontology.graph.domain.ClassDef;
+import com.conca.ontology.graph.domain.GraphSchema;
+import com.conca.ontology.graph.domain.PropertyDef;
+import com.conca.ontology.graph.domain.RelationDef;
 
 /**
  * 概念层（schema）CRUD：MySQL 三表（graph_class / graph_class_prop / graph_rel_def）+

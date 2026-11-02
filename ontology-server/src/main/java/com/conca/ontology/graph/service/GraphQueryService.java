@@ -18,9 +18,9 @@ import com.conca.ontology.graph.dto.NeighborsDTO;
 import com.conca.ontology.graph.dto.NodesPageDTO;
 import com.conca.ontology.graph.dto.QueryResultDTO;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.graph.model.ClassDef;
-import com.conca.ontology.graph.model.GraphSchema;
-import com.conca.ontology.graph.model.PropertyDef;
+import com.conca.ontology.graph.domain.ClassDef;
+import com.conca.ontology.graph.domain.GraphSchema;
+import com.conca.ontology.graph.domain.PropertyDef;
 
 /**
  * 只读查询封装：通用 Cypher（只读校验）、统计、节点详情、邻域。

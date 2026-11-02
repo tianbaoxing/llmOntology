@@ -14,7 +14,7 @@ import com.conca.ontology.graph.dto.RelDeleteResultDTO;
 import com.conca.ontology.graph.dto.RelDTO;
 import com.conca.ontology.graph.dto.RelUpdateResultDTO;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.graph.model.GraphSchema;
+import com.conca.ontology.graph.domain.GraphSchema;
 
 /**
  * 图数据单条 CRUD：节点（MERGE 幂等 / SET += / DETACH DELETE）、

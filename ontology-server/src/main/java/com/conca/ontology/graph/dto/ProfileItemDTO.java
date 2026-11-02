@@ -1,4 +1,5 @@
-package com.conca.ontology.graph.model;
+package com.conca.ontology.graph.dto;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -8,7 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @date 2026-08-19
  */
 @Schema(description = "问询记录条目：LLM 的提问 + 用户的回答")
-public record ProfileEntry(
+public record ProfileItemDTO(
         @Schema(description = "构建阶段标识", example = "intake") String phase,
         @Schema(description = "条目唯一键", example = "user.goal") String key,
         @Schema(description = "LLM 的提问内容") String question,

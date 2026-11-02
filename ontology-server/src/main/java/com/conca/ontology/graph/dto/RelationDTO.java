@@ -15,6 +15,6 @@ public record RelationDTO(
         @Schema(description = "目标类", example = "Era") String toClass,
         @Schema(description = "语义说明") String description,
         @Schema(description = "示例（from -> to）", example = "定窑白釉莲纹大碗->北宋") String example,
-        @Schema(description = "关系自身属性定义（可为空数组）") java.util.List<com.conca.ontology.graph.model.PropertyDef> props,
+        @Schema(description = "关系自身属性定义（可为空数组）") java.util.List<com.conca.ontology.graph.domain.PropertyDef> props,
         @Schema(description = "库中该类型关系的实时数量", example = "5016") long count) {
 }

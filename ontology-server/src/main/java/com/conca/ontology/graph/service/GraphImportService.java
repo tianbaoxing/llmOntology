@@ -14,8 +14,8 @@ import com.conca.ontology.graph.dto.BatchRelsResultDTO;
 import com.conca.ontology.graph.dto.NodeBatchDTO;
 import com.conca.ontology.graph.dto.RelBatchDTO;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.graph.model.ClassDef;
-import com.conca.ontology.graph.model.GraphSchema;
+import com.conca.ontology.graph.domain.ClassDef;
+import com.conca.ontology.graph.domain.GraphSchema;
 
 /**
  * 批量写入封装：UNWIND + MERGE 幂等；标识符经白名单校验；数据全部参数绑定。

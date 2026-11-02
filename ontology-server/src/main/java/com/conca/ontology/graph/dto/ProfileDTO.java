@@ -1,8 +1,6 @@
 package com.conca.ontology.graph.dto;
 import java.util.List;
 
-import com.conca.ontology.graph.model.ProfileEntry;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -13,5 +11,5 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 @Schema(description = "问询记录全量视图（用户画像 / ontology 画像）")
 public record ProfileDTO(
-        @Schema(description = "问答条目列表（按 key 去重，始终最新；按首次创建顺序）") List<ProfileEntry> items) {
+        @Schema(description = "问答条目列表（按 key 去重，始终最新；按首次创建顺序）") List<ProfileItemDTO> items) {
 }

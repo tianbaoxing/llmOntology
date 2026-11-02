@@ -1,4 +1,4 @@
-package com.conca.ontology.graph.model;
+package com.conca.ontology.graph.domain;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;

@@ -16,8 +16,8 @@ import com.conca.ontology.dedup.dto.DedupRulesetDTO;
 import com.conca.ontology.dedup.dto.DedupRulesIndexDTO;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage;
 import com.conca.ontology.dedup.store.DedupRulesStore;
-import com.conca.ontology.graph.model.ClassDef;
-import com.conca.ontology.graph.model.GraphSchema;
+import com.conca.ontology.graph.domain.ClassDef;
+import com.conca.ontology.graph.domain.GraphSchema;
 import com.conca.ontology.shared.web.ApiException;
 
 import jakarta.annotation.PostConstruct;

@@ -28,8 +28,8 @@ import com.conca.ontology.dedup.service.pipeline.ExactKeyStage.NodeProps;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage.NodeName;
 import com.conca.ontology.graph.dto.QueryResultDTO;
-import com.conca.ontology.graph.model.ClassDef;
-import com.conca.ontology.graph.model.GraphSchema;
+import com.conca.ontology.graph.domain.ClassDef;
+import com.conca.ontology.graph.domain.GraphSchema;
 import com.conca.ontology.graph.service.GraphQueryService;
 import com.conca.ontology.shared.web.ApiException;
 

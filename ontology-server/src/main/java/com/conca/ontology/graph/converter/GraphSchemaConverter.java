@@ -8,9 +8,9 @@ import java.util.Map;
 import com.conca.ontology.graph.entity.GraphClass;
 import com.conca.ontology.graph.entity.GraphClassProp;
 import com.conca.ontology.graph.entity.GraphRelDef;
-import com.conca.ontology.graph.model.ClassDef;
-import com.conca.ontology.graph.model.PropertyDef;
-import com.conca.ontology.graph.model.RelationDef;
+import com.conca.ontology.graph.domain.ClassDef;
+import com.conca.ontology.graph.domain.PropertyDef;
+import com.conca.ontology.graph.domain.RelationDef;
 
 /**
  * {@link GraphClass}/{@link GraphClassProp}/{@link GraphRelDef} 行 ↔ {@link ClassDef} 模型转换器（P2）。

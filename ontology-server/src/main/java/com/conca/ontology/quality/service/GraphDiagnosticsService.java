@@ -14,9 +14,9 @@ import org.springframework.stereotype.Service;
 
 import com.conca.ontology.graph.dto.GraphStatsDTO;
 import com.conca.ontology.graph.dto.QueryResultDTO;
-import com.conca.ontology.graph.model.ClassDef;
-import com.conca.ontology.graph.model.GraphSchema;
-import com.conca.ontology.graph.model.RelationDef;
+import com.conca.ontology.graph.domain.ClassDef;
+import com.conca.ontology.graph.domain.GraphSchema;
+import com.conca.ontology.graph.domain.RelationDef;
 import com.conca.ontology.graph.service.GraphQueryService;
 import com.conca.ontology.quality.dto.ClassBinDTO;
 import com.conca.ontology.quality.dto.ClassHistogramDTO;
@@ -31,7 +31,7 @@ import com.conca.ontology.quality.dto.SelfLoopDTO;
 import com.conca.ontology.quality.dto.TopologyAnomalyDTO;
 import com.conca.ontology.quality.dto.UnusedClassDTO;
 import com.conca.ontology.quality.dto.UnusedRelationDTO;
-import com.conca.ontology.graph.model.GraphSchema.RelSignature;
+import com.conca.ontology.graph.domain.GraphSchema.RelSignature;
 
 /**
  * 图谱质量诊断服务：拓扑异常检查、Schema 覆盖率、分布直方图。

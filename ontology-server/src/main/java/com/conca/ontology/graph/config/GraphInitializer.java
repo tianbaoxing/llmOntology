@@ -5,7 +5,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
-import com.conca.ontology.graph.model.GraphSchema;
+import com.conca.ontology.graph.domain.GraphSchema;
 import com.conca.ontology.graph.service.GraphImportService;
 import com.conca.ontology.graph.service.SchemaService;
 

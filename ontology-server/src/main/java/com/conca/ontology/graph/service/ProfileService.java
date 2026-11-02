@@ -13,7 +13,7 @@ import com.conca.ontology.graph.dto.ProfileSaveResultDTO;
 import com.conca.ontology.graph.dto.ProfileDTO;
 import com.conca.ontology.graph.entity.OntologyProfileItem;
 import com.conca.ontology.graph.mapper.OntologyProfileItemMapper;
-import com.conca.ontology.graph.model.ProfileEntry;
+import com.conca.ontology.graph.dto.ProfileItemDTO;
 
 /**
  * 构建期问询记录（用户画像 / ontology 画像）：MySQL ontology_profile 多行表为唯一事实源
@@ -36,7 +36,7 @@ public class ProfileService {
 
     /** 全量读取（无行返回空列表，供 LLM 回看构建上下文；按首次创建顺序） */
     public ProfileDTO load() {
-        List<ProfileEntry> items = itemMapper
+        List<ProfileItemDTO> items = itemMapper
                 .selectList(new LambdaQueryWrapper<OntologyProfileItem>()
                         .orderByAsc(OntologyProfileItem::getId))
                 .stream().map(ProfileService::toEntry).toList();
@@ -73,7 +73,7 @@ public class ProfileService {
         row.setUpdatedAt(now);
     }
 
-    private static ProfileEntry toEntry(OntologyProfileItem r) {
-        return new ProfileEntry(r.getPhase(), r.getItemKey(), r.getQuestion(), r.getAnswer(), r.getUpdatedAt());
+    private static ProfileItemDTO toEntry(OntologyProfileItem r) {
+        return new ProfileItemDTO(r.getPhase(), r.getItemKey(), r.getQuestion(), r.getAnswer(), r.getUpdatedAt());
     }
 }

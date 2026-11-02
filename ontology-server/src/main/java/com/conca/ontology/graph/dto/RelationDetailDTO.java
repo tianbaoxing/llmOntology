@@ -1,7 +1,7 @@
 package com.conca.ontology.graph.dto;
 import java.util.List;
 
-import com.conca.ontology.graph.model.PropertyDef;
+import com.conca.ontology.graph.domain.PropertyDef;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 

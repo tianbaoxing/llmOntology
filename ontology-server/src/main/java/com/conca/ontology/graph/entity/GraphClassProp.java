@@ -3,7 +3,7 @@ package com.conca.ontology.graph.entity;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * 图谱类属性定义表实体（graph_class_prop，P2；与 {@link com.conca.ontology.graph.model.PropertyDef} 互转）。
+ * 图谱类属性定义表实体（graph_class_prop，P2；与 {@link com.conca.ontology.graph.domain.PropertyDef} 互转）。
  * 复合主键 (class_name, prop_name)：无单一 @TableId，按业务键整组读写（insert / 按类名 Wrapper 删改）。
  *
  * @author tianbaoxing

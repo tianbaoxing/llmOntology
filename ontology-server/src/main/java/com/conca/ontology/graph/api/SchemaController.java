@@ -15,7 +15,7 @@ import com.conca.ontology.graph.dto.ClassDeleteResultDTO;
 import com.conca.ontology.graph.dto.ClassDetailDTO;
 import com.conca.ontology.graph.dto.ClassSummaryDTO;
 import com.conca.ontology.graph.dto.SchemaDTO;
-import com.conca.ontology.graph.model.ClassDef;
+import com.conca.ontology.graph.domain.ClassDef;
 import com.conca.ontology.graph.service.SchemaService;
 
 import io.swagger.v3.oas.annotations.Operation;
