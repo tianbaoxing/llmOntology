@@ -10,10 +10,10 @@ import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
-import com.conca.ontology.dedup.dto.DedupExactMode;
 import com.conca.ontology.dedup.dto.DedupLabelConfigDTO;
 import com.conca.ontology.dedup.dto.DedupRulesetDTO;
 import com.conca.ontology.dedup.dto.DedupRulesIndexDTO;
+import com.conca.ontology.dedup.enums.DedupExactMode;
 import com.conca.ontology.dedup.service.pipeline.NormalizeAliasStage;
 import com.conca.ontology.dedup.store.DedupRulesStore;
 import com.conca.ontology.graph.domain.ClassDef;

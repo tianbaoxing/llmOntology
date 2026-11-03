@@ -1,4 +1,4 @@
-package com.conca.ontology.dedup.dto;
+package com.conca.ontology.dedup.enums;
 
 /**
  * @author tianbaoxing

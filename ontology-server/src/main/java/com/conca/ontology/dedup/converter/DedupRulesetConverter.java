@@ -5,9 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.conca.ontology.dedup.dto.DedupExactMode;
 import com.conca.ontology.dedup.dto.DedupLabelConfigDTO;
 import com.conca.ontology.dedup.dto.DedupRulesetDTO;
+import com.conca.ontology.dedup.enums.DedupExactMode;
 import com.conca.ontology.dedup.entity.DedupLabelConfigPO;
 import com.conca.ontology.dedup.entity.RuleDedup;
 import com.conca.ontology.shared.web.ApiException;

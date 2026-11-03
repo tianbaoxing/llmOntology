@@ -12,10 +12,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.conca.ontology.dedup.converter.DedupRulesetConverter;
-import com.conca.ontology.dedup.dto.DedupExactMode;
 import com.conca.ontology.dedup.dto.DedupLabelConfigDTO;
 import com.conca.ontology.dedup.dto.DedupRulesIndexDTO;
 import com.conca.ontology.dedup.dto.DedupRulesetDTO;
+import com.conca.ontology.dedup.enums.DedupExactMode;
 import com.conca.ontology.dedup.entity.RuleDedup;
 import com.conca.ontology.dedup.mapper.RuleDedupMapper;
 import com.conca.ontology.shared.web.ApiException;

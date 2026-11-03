@@ -3,6 +3,8 @@ package com.conca.ontology.dedup.dto;
 import java.util.List;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import com.conca.ontology.dedup.enums.DedupExactMode;
+
 /**
  * @author tianbaoxing
  * @date 2026-09-22
