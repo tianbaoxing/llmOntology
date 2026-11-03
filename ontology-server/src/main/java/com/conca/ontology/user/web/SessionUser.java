@@ -2,7 +2,7 @@ package com.conca.ontology.user.web;
 
 import java.io.Serializable;
 
-import com.conca.ontology.user.dto.UserVO;
+import com.conca.ontology.user.vo.UserVO;
 import com.conca.ontology.user.entity.SysUser;
 
 import jakarta.servlet.http.HttpSession;

@@ -20,7 +20,7 @@ import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.user.dto.PromptSaveDTO;
 import com.conca.ontology.user.dto.PromptToSkillDTO;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.user.dto.UserPromptVO;
+import com.conca.ontology.user.vo.UserPromptVO;
 import com.conca.ontology.user.service.UserPromptService;
 
 import jakarta.servlet.http.HttpSession;

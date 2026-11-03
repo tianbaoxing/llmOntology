@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.user.dto.UserVO;
+import com.conca.ontology.user.vo.UserVO;
 import com.conca.ontology.user.entity.SysUser;
 import com.conca.ontology.user.mapper.SysUserMapper;
 import com.conca.ontology.user.web.SessionUser;

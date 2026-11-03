@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
  * 用户提示词行（user_prompt，P5：每条提示词一行，无全局 version）。
- * API 出参经 {@link com.conca.ontology.user.dto.UserPromptVO} 装配
+ * API 出参经 {@link com.conca.ontology.user.vo.UserPromptVO} 装配
  * （时间格式化在 VO 内完成；userId 为行级隔离字段，不出 API）。
  *
  * @author tianbaoxing

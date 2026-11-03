@@ -13,7 +13,7 @@ import com.conca.ontology.user.web.SessionUser;
 import com.conca.ontology.shared.web.ApiResponse;
 import com.conca.ontology.user.dto.InitDTO;
 import com.conca.ontology.user.dto.LoginDTO;
-import com.conca.ontology.user.dto.UserVO;
+import com.conca.ontology.user.vo.UserVO;
 import com.conca.ontology.user.service.UserService;
 
 import jakarta.servlet.http.HttpSession;

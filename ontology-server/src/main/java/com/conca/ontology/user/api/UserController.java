@@ -20,7 +20,7 @@ import com.conca.ontology.user.dto.RegisterDTO;
 import com.conca.ontology.user.dto.ResetPasswordDTO;
 import com.conca.ontology.user.dto.UserPatchDTO;
 import com.conca.ontology.shared.web.ApiException;
-import com.conca.ontology.user.dto.UserVO;
+import com.conca.ontology.user.vo.UserVO;
 import com.conca.ontology.agent.service.AgentMemoryService;
 import com.conca.ontology.user.service.UserService;
 

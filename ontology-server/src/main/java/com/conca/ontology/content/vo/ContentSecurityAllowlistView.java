@@ -1,4 +1,4 @@
-package com.conca.ontology.content.dto;
+package com.conca.ontology.content.vo;
 import java.util.List;
 
 /**

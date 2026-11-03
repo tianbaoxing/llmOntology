@@ -18,12 +18,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.conca.ontology.content.dto.ContentSecurityAllowlistView;
 import com.conca.ontology.content.dto.ContentSecurityCheckResultDTO;
 import com.conca.ontology.content.dto.ContentSecurityRule;
 import com.conca.ontology.content.dto.ContentSecurityRuleHitDTO;
-import com.conca.ontology.content.dto.ContentSecurityRulesView;
 import com.conca.ontology.content.dto.PromptInjectionScanResultDTO;
+import com.conca.ontology.content.vo.ContentSecurityAllowlistView;
+import com.conca.ontology.content.vo.ContentSecurityRulesView;
 import com.conca.ontology.content.entity.RuleContentSecurity;
 import com.conca.ontology.content.enums.ContentDecision;
 import com.conca.ontology.content.enums.ContentRiskLevel;

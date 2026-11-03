@@ -1,4 +1,4 @@
-package com.conca.ontology.user.dto;
+package com.conca.ontology.user.vo;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
